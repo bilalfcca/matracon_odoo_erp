@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <template id="partner_ledger_tax_column"
+        inherit_id="account.report_partnerledger"
+        priority="99">
+
+        <!-- Add Tax column header -->
+        <xpath expr="//thead/tr/th[last()]" position="after">
+            <th class="text-right">Tax</th>
+        </xpath>
+
+        <!-- Add Tax column data -->
+        <xpath expr="//tbody/tr/td[last()]" position="after">
+            <td class="text-right">
+                <span t-out="line.tax_amount or 0.00"/>
+            </td>
+        </xpath>
+    </template>
+</odoo>
