@@ -93,7 +93,8 @@ class PartnerLedgerReportHandler(models.AbstractModel):
     # -------------------------------------------------------------------------
 
     def _get_additional_column_aml_values(self):
-        values = super()._get_additional_column_aml_values()
+        getter = getattr(super(), '_get_additional_column_aml_values', None)
+        values = getter() if getter else {}
         from odoo.tools import SQL
 
         values.setdefault('tax_amount', SQL('0.0'))
