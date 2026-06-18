@@ -101,12 +101,13 @@ class PartnerLedgerReportHandler(models.AbstractModel):
         values.setdefault('withheld_tax_amount', SQL('0.0'))
         return values
 
-    def _get_aml_values(self, report, options, partner_id, offset=0, limit=None):
-        rslt, has_more = super()._get_aml_values(
-            report, options, partner_id, offset=offset, limit=limit,
-        )
-        self._inject_tax_columns(rslt)
-        return rslt, has_more
+    def _get_aml_values(self, options, partner_ids, offset=0, limit=None):
+        rslt = super()._get_aml_values(options, partner_ids, offset=offset, limit=limit)
+        if isinstance(rslt, dict):
+            for partner_id in partner_ids:
+                if partner_id in rslt:
+                    self._inject_tax_columns(rslt[partner_id])
+        return rslt
 
     def _custom_unfold_all_batch_data_generator(self, report, options, lines_to_expand_by_function):
         batch_data = super()._custom_unfold_all_batch_data_generator(
