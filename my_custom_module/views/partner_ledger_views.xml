@@ -4,15 +4,18 @@
         inherit_id="account.report_partnerledger"
         priority="50">
 
-        <!-- Target the header row more precisely -->
-        <xpath expr="//table[hasclass('o_account_reports_table')]//tr/th[last()]" position="after">
+        <!-- Add Tax column header after Balance -->
+        <xpath expr="//th[contains(text(),'Balance')]" position="after">
             <th>Tax Amount</th>
         </xpath>
 
-        <!-- Target the data row -->
-        <xpath expr="//table[hasclass('o_account_reports_table')]//tr[hasclass('o_account_reports_lines')]/td[last()]" position="after">
-            <td>
-                <span t-out="line.tax_amount or 0.0"/>
+        <!-- Add Tax data cell -->
+        <xpath expr="//td[hasclass('balance')]" position="after">
+            <td t-if="line.is_tax_line">
+                <span t-out="line.tax_amount"/>
+            </td>
+            <td t-else="">
+                <span t-out="line.tax_amount or '0.00'"/>
             </td>
         </xpath>
     </template>
