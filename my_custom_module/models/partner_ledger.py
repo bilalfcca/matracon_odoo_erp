@@ -4,9 +4,11 @@ class PartnerLedgerReportHandler(models.AbstractModel):
     _inherit = 'account.partner.ledger.report.handler'
 
     def _get_report_line_partners(self, options, partner, partner_values, **kwargs):
+        # Call parent to get the base line
         line = super()._get_report_line_partners(options, partner, partner_values, **kwargs)
         line['tax_amount'] = 0.0
 
+        # If this is a real move line, calculate tax
         move_line_id = line.get('id')
         if isinstance(move_line_id, int):
             move_line = self.env['account.move.line'].browse(move_line_id)
@@ -23,6 +25,7 @@ class PartnerLedgerReportHandler(models.AbstractModel):
 
     def _get_columns_name(self, options):
         columns = super()._get_columns_name(options)
+        # Add the new column after the Balance column
         columns.append({
             'name': 'tax_amount',
             'string': 'Tax',
@@ -33,6 +36,7 @@ class PartnerLedgerReportHandler(models.AbstractModel):
 
     def _get_columns_value(self, options, line):
         values = super()._get_columns_value(options, line)
+        # Add the tax amount for this line
         values.append({
             'name': line.get('tax_amount', 0.0),
             'class': 'text-right',
