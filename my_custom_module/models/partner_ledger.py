@@ -92,15 +92,6 @@ class PartnerLedgerReportHandler(models.AbstractModel):
     # Report hooks
     # -------------------------------------------------------------------------
 
-    def _get_additional_column_aml_values(self):
-        getter = getattr(super(), '_get_additional_column_aml_values', None)
-        values = getter() if getter else {}
-        from odoo.tools import SQL
-
-        values.setdefault('tax_amount', SQL('0.0'))
-        values.setdefault('withheld_tax_amount', SQL('0.0'))
-        return values
-
     def _get_aml_values(self, options, partner_ids, offset=0, limit=None):
         rslt = super()._get_aml_values(options, partner_ids, offset=offset, limit=limit)
         if isinstance(rslt, dict):
