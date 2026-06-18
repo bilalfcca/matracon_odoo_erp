@@ -4,39 +4,35 @@ class PartnerLedgerReportHandler(models.AbstractModel):
     _inherit = 'account.partner.ledger.report.handler'
 
     def _get_report_line_partners(self, options, partner, partner_values, **kwargs):
+        """Add tax amount to each line"""
         line = super()._get_report_line_partners(options, partner, partner_values, **kwargs)
-        line['tax_amount'] = 0.0
 
+        # Get tax amount
+        tax_amount = 0.0
         move_line_id = line.get('id')
         if isinstance(move_line_id, int):
             move_line = self.env['account.move.line'].browse(move_line_id)
             if move_line.exists():
                 if move_line.tax_line_id:
-                    line['tax_amount'] = abs(move_line.balance)
+                    tax_amount = abs(move_line.balance)
                 else:
-                    tax_amount = 0.0
+                    # Check if this move has tax lines
                     for line2 in move_line.move_id.line_ids:
                         if line2.tax_line_id and line2.account_id == move_line.account_id:
                             tax_amount += abs(line2.balance)
-                    line['tax_amount'] = tax_amount
+
+        line['tax_amount'] = tax_amount
         return line
 
-    # 👇 ADD THESE TWO METHODS HERE 👇
-    def _get_columns_name(self, options):
-        columns = super()._get_columns_name(options)
-        # Insert before the last column (after Balance)
-        columns.insert(-1, {
-            'name': 'tax_amount',
-            'string': 'Tax',
-            'class': 'text-right',
-            'style': 'white-space: nowrap;',
-        })
-        return columns
+    def _get_dynamic_lines(self, report, options, all_column_groups_expression_totals, warnings=None):
+        """Add tax column to the report lines"""
+        lines = super()._get_dynamic_lines(report, options, all_column_groups_expression_totals, warnings=warnings)
 
-    def _get_columns_value(self, options, line):
-        values = super()._get_columns_value(options, line)
-        values.insert(-1, {
-            'name': line.get('tax_amount', 0.0),
-            'class': 'text-right',
-        })
-        return values
+        # Add tax column to each line
+        for line in lines:
+            line['columns'].append({
+                'name': line.get('tax_amount', 0.0),
+                'class': 'text-right',
+                'style': 'white-space: nowrap;',
+            })
+        return lines
