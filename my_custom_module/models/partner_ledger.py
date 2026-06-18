@@ -1,7 +1,7 @@
 from odoo import models
 
-class PartnerLedgerReport(models.AbstractModel):
-    _inherit = 'account.partner.ledger.report'
+class PartnerLedgerReportHandler(models.AbstractModel):
+    _inherit = 'account.partner.ledger.report.handler'
 
     def _get_report_line_partners(self, options, partners):
         lines = super()._get_report_line_partners(options, partners)
