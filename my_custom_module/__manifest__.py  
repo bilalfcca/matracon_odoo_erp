@@ -1,0 +1,12 @@
+{
+    'name': 'Partner Ledger Tax Column',
+    'version': '1.0',
+    'summary': 'Adds a tax column to the Partner Ledger report',
+    'depends': ['account'],  # Accounting module is required
+    'data': [
+         'security/ir.model.access.csv',
+         'views/partner_ledger_views.xml',
+    ],
+    'installable': True,
+    'application': False,
+}
