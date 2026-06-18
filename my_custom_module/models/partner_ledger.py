@@ -1,38 +1,119 @@
+from collections import defaultdict
+
 from odoo import models
+
 
 class PartnerLedgerReportHandler(models.AbstractModel):
     _inherit = 'account.partner.ledger.report.handler'
 
-    def _get_report_line_partners(self, options, partner, partner_values, **kwargs):
-        """Add tax amount to each line"""
-        line = super()._get_report_line_partners(options, partner, partner_values, **kwargs)
+    # -------------------------------------------------------------------------
+    # Tax helpers
+    # -------------------------------------------------------------------------
 
-        # Get tax amount
-        tax_amount = 0.0
-        move_line_id = line.get('id')
-        if isinstance(move_line_id, int):
-            move_line = self.env['account.move.line'].browse(move_line_id)
-            if move_line.exists():
-                if move_line.tax_line_id:
-                    tax_amount = abs(move_line.balance)
+    def _is_withholding_tax(self, tax):
+        """Return True when the tax is a withholding / WHT type tax."""
+        if tax.amount < 0:
+            return True
+        if getattr(tax, 'is_withholding_tax', False):
+            return True
+        tax_name = (tax.name or '').lower()
+        group_name = (tax.tax_group_id.name or '').lower() if tax.tax_group_id else ''
+        return any(
+            keyword in tax_name or keyword in group_name
+            for keyword in ('withhold', 'wht', 'tds')
+        )
+
+    def _get_tax_amounts_by_move(self, moves):
+        """Return sales tax and withheld tax amounts grouped by account.move."""
+        result = defaultdict(lambda: {'tax_amount': 0.0, 'withheld_tax_amount': 0.0})
+        for move in moves:
+            sales_tax = 0.0
+            withheld_tax = 0.0
+            for line in move.line_ids:
+                if not line.tax_line_id:
+                    continue
+                amount = abs(line.balance)
+                if self._is_withholding_tax(line.tax_line_id):
+                    withheld_tax += amount
                 else:
-                    # Check if this move has tax lines
-                    for line2 in move_line.move_id.line_ids:
-                        if line2.tax_line_id and line2.account_id == move_line.account_id:
-                            tax_amount += abs(line2.balance)
+                    sales_tax += amount
+            result[move.id] = {
+                'tax_amount': sales_tax,
+                'withheld_tax_amount': withheld_tax,
+            }
+        return result
 
-        line['tax_amount'] = tax_amount
-        return line
+    def _inject_tax_columns(self, aml_results):
+        """Add tax_amount and withheld_tax_amount to partner ledger AML rows."""
+        if not aml_results:
+            return
 
-    def _get_dynamic_lines(self, report, options, all_column_groups_expression_totals, warnings=None):
-        """Add tax column to the report lines"""
-        lines = super()._get_dynamic_lines(report, options, all_column_groups_expression_totals, warnings=warnings)
+        if isinstance(aml_results, dict):
+            items = [
+                (aml_id, values)
+                for aml_id, values in aml_results.items()
+                if isinstance(aml_id, int) and isinstance(values, dict)
+            ]
+        elif isinstance(aml_results, list):
+            items = [
+                (values.get('id'), values)
+                for values in aml_results
+                if isinstance(values, dict) and values.get('id')
+            ]
+        else:
+            return
 
-        # Add tax column to each line
-        for line in lines:
-            line['columns'].append({
-                'name': line.get('tax_amount', 0.0),
-                'class': 'text-right',
-                'style': 'white-space: nowrap;',
-            })
-        return lines
+        if not items:
+            return
+
+        move_lines = self.env['account.move.line'].browse([aml_id for aml_id, _ in items])
+        tax_by_move = self._get_tax_amounts_by_move(move_lines.move_id)
+
+        for aml_id, values in items:
+            move_line = move_lines.browse(aml_id)
+            if not move_line.exists():
+                continue
+
+            if move_line.tax_line_id:
+                amount = abs(move_line.balance)
+                if self._is_withholding_tax(move_line.tax_line_id):
+                    values['withheld_tax_amount'] = amount
+                    values['tax_amount'] = 0.0
+                else:
+                    values['tax_amount'] = amount
+                    values['withheld_tax_amount'] = 0.0
+                continue
+
+            taxes = tax_by_move.get(move_line.move_id.id, {})
+            values['tax_amount'] = taxes.get('tax_amount', 0.0)
+            values['withheld_tax_amount'] = taxes.get('withheld_tax_amount', 0.0)
+
+    # -------------------------------------------------------------------------
+    # Report hooks
+    # -------------------------------------------------------------------------
+
+    def _get_additional_column_aml_values(self):
+        values = super()._get_additional_column_aml_values()
+        from odoo.tools import SQL
+
+        values.setdefault('tax_amount', SQL('0.0'))
+        values.setdefault('withheld_tax_amount', SQL('0.0'))
+        return values
+
+    def _get_aml_values(self, report, options, partner_id, offset=0, limit=None):
+        rslt, has_more = super()._get_aml_values(
+            report, options, partner_id, offset=offset, limit=limit,
+        )
+        self._inject_tax_columns(rslt)
+        return rslt, has_more
+
+    def _custom_unfold_all_batch_data_generator(self, report, options, lines_to_expand_by_function):
+        batch_data = super()._custom_unfold_all_batch_data_generator(
+            report, options, lines_to_expand_by_function,
+        )
+        if isinstance(batch_data, dict):
+            aml_values = batch_data.get('aml_values')
+            if isinstance(aml_values, dict):
+                for partner_aml_results in aml_values.values():
+                    self._inject_tax_columns(partner_aml_results)
+        return batch_data
