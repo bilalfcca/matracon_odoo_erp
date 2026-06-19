@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Partner Ledger: separate Tax and Withheld Tax columns (before Debit/Credit) -->
+    <record id="partner_ledger_tax_column" model="account.report.column">
+        <field name="name">Tax</field>
+        <field name="expression_label">tax_amount</field>
+        <field name="figure_type">monetary</field>
+        <field name="blank_if_zero" eval="True"/>
+        <field name="sequence">57</field>
+        <field name="report_id" ref="account_reports.partner_ledger_report"/>
+    </record>
+
+    <record id="partner_ledger_withheld_tax_column" model="account.report.column">
+        <field name="name">Withheld Tax</field>
+        <field name="expression_label">withheld_tax_amount</field>
+        <field name="figure_type">monetary</field>
+        <field name="blank_if_zero" eval="True"/>
+        <field name="sequence">58</field>
+        <field name="report_id" ref="account_reports.partner_ledger_report"/>
+    </record>
+</odoo>
