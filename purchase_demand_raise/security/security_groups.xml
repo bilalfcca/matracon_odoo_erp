@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <!-- ── Module Category ── -->
+        <record id="module_category_demand_raise" model="ir.module.category">
+            <field name="name">Demand Raise</field>
+            <field name="sequence">100</field>
+        </record>
+
+        <!-- ── Privilege (Odoo 19: replaces category_id on res.groups) ── -->
+        <record id="res_groups_privilege_demand_raise" model="res.groups.privilege">
+            <field name="name">Demand Raise</field>
+            <field name="sequence">100</field>
+            <field name="category_id" ref="module_category_demand_raise"/>
+        </record>
+
+        <!-- ── Site Store Group ── -->
+        <record id="group_site_store" model="res.groups">
+            <field name="name">Site Store</field>
+            <field name="privilege_id" ref="res_groups_privilege_demand_raise"/>
+            <field name="comment">Site Store Keepers — can raise PRs for their own project only. Never sees prices.</field>
+        </record>
+
+        <!-- ── Procurement HO Group ── -->
+        <record id="group_procurement_ho" model="res.groups">
+            <field name="name">Procurement HO</field>
+            <field name="privilege_id" ref="res_groups_privilege_demand_raise"/>
+            <field name="implied_ids" eval="[(4, ref('purchase.group_purchase_user'))]"/>
+            <field name="comment">Head Office Procurement — reviews PRs, sends RFQs, builds Comparative Statements.</field>
+        </record>
+
+        <!-- ── CEO Approval Group ── -->
+        <record id="group_ceo_approval" model="res.groups">
+            <field name="name">CEO Approval</field>
+            <field name="privilege_id" ref="res_groups_privilege_demand_raise"/>
+            <field name="implied_ids" eval="[(4, ref('purchase.group_purchase_manager'))]"/>
+            <field name="comment">CEO — final approval authority. Approves PRs initially and POs finally.</field>
+        </record>
+
+        <!-- ── Head Office (HO) Group — combines Procurement HO + CEO visibility ── -->
+        <record id="group_head_office" model="res.groups">
+            <field name="name">Head Office</field>
+            <field name="privilege_id" ref="res_groups_privilege_demand_raise"/>
+            <field name="comment">Head Office users — full visibility across all projects.</field>
+        </record>
+    </data>
+</odoo>

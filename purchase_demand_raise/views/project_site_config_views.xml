@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ════════════════════════════════════════════
+         SITE PROJECT CONFIG — Form View
+         ════════════════════════════════════════════ -->
+    <record id="view_project_site_config_form" model="ir.ui.view">
+        <field name="name">x.project.site.config.form</field>
+        <field name="model">x.project.site.config</field>
+        <field name="arch" type="xml">
+            <form string="Site Project Configuration">
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_users"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-users">
+                            <field name="user_count" widget="statinfo" string="Site Users"/>
+                        </button>
+                    </div>
+                    <div class="oe_title">
+                        <h1><field name="name" placeholder="e.g. MCH - BAHAWALNAGAR"/></h1>
+                    </div>
+                    <group>
+                        <group string="Project Details">
+                            <field name="analytic_account_id"
+                                   options="{'no_create': False, 'no_quick_create': False}"
+                                   help="Select existing or type a name to create a new analytic account on the fly."/>
+                            <field name="warehouse_id"
+                                   options="{'no_create': False}"
+                                   help="The site warehouse — used as the default 'Deliver To' on Purchase Requisitions raised by site users."/>
+                        </group>
+                        <group string="Status">
+                            <field name="active" widget="boolean_toggle"/>
+                        </group>
+                    </group>
+
+                    <notebook>
+                        <page string="Site Users" name="site_users">
+                            <div class="alert alert-info" role="alert">
+                                <strong>How this works:</strong>
+                                Adding a user here automatically assigns them to the
+                                <strong>Site Store</strong> security group and sets their
+                                default analytic account to <strong><field name="analytic_account_id" readonly="1" nolabel="1"/></strong>.
+                                Removing a user reverses this automatically.
+                            </div>
+                            <field name="site_user_ids" widget="many2many">
+                                <list>
+                                    <field name="name"/>
+                                    <field name="login"/>
+                                    <field name="x_default_analytic_account_id" readonly="1" string="Analytic Account"/>
+                                    <field name="x_default_warehouse_id" readonly="1" string="Warehouse"/>
+                                    <field name="x_site_config_id" readonly="1" string="Site Config"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- List View -->
+    <record id="view_project_site_config_list" model="ir.ui.view">
+        <field name="name">x.project.site.config.list</field>
+        <field name="model">x.project.site.config</field>
+        <field name="arch" type="xml">
+            <list string="Site Project Configurations">
+                <field name="name"/>
+                <field name="analytic_account_id"/>
+                <field name="user_count" string="Site Users"/>
+                <field name="active" widget="boolean"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Action -->
+    <record id="action_project_site_config" model="ir.actions.act_window">
+        <field name="name">Site Project Configurations</field>
+        <field name="res_model">x.project.site.config</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create your first Site Project Configuration
+            </p>
+            <p>
+                Each site project (MCH-BAHAWALNAGAR, STP-MARDAN, RWASA, etc.) needs one
+                configuration here. Assign site users to it and they will automatically
+                get the correct security group and analytic account.
+            </p>
+        </field>
+    </record>
+
+    <!-- Menu under Purchase > Configuration (visible to purchase managers and ERP managers) -->
+    <menuitem id="menu_project_site_config"
+              name="Site Project Configurations"
+              parent="purchase.menu_purchase_config"
+              action="action_project_site_config"
+              sequence="50"
+              groups="purchase.group_purchase_manager,base.group_erp_manager"/>
+
+    <!-- Also accessible from Settings > Technical for admin -->
+    <menuitem id="menu_project_site_config_settings"
+              name="Site Project Configurations"
+              parent="base.menu_administration"
+              action="action_project_site_config"
+              sequence="50"
+              groups="base.group_erp_manager"/>
+
+</odoo>
