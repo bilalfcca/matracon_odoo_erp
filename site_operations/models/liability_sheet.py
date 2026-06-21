@@ -8,6 +8,21 @@ class LiabilitySheet(models.Model):
     _inherit = ['mail.thread', 'mail.activity.mixin']
     _order = 'date_from desc, id desc'
 
+    # ── Schema guard: runs on every server startup ────────────────────────────
+    # Odoo.sh sometimes restarts without running --update, so we defensively
+    # ensure the PM columns exist before the ORM tries to SELECT them.
+    @api.model
+    def _register_hook(self):
+        self.env.cr.execute("""
+            ALTER TABLE x_liability_sheet
+                ADD COLUMN IF NOT EXISTS pm_id               INTEGER,
+                ADD COLUMN IF NOT EXISTS pm_is_signed        BOOLEAN NOT NULL DEFAULT FALSE,
+                ADD COLUMN IF NOT EXISTS pm_signature_date   TIMESTAMP WITHOUT TIME ZONE,
+                ADD COLUMN IF NOT EXISTS pm_signed_sheet     BYTEA,
+                ADD COLUMN IF NOT EXISTS pm_signed_sheet_filename VARCHAR
+        """)
+        return super()._register_hook()
+
     name = fields.Char(
         string='Reference', compute='_compute_name', store=True, readonly=True)
 
@@ -129,6 +144,45 @@ class LiabilitySheet(models.Model):
                     self.env.user.name,
                     fields.Datetime.now().strftime('%d-%b-%Y %H:%M'),
                 )
+            )
+
+    def action_refresh_from_ledger(self):
+        """Pull opening_balance and new_liability from actual partner ledger entries."""
+        AML = self.env['account.move.line'].sudo()
+        for sheet in self:
+            for line in sheet.line_ids:
+                if not line.partner_id:
+                    continue
+
+                base_domain = [
+                    ('partner_id', '=', line.partner_id.id),
+                    ('move_id.state', '=', 'posted'),
+                    ('account_id.account_type', '=', 'liability_payable'),
+                ]
+
+                # Opening balance = unreconciled payable entries BEFORE period
+                opening_lines = AML.search(base_domain + [
+                    ('move_id.invoice_date', '<', sheet.date_from),
+                    ('reconciled', '=', False),
+                ])
+                opening = sum(l.credit - l.debit for l in opening_lines)
+
+                # New liability = net payable movement IN the period
+                # credit − debit: bills add (+), backcharges/credit-notes reduce (−)
+                period_lines = AML.search(base_domain + [
+                    ('move_id.invoice_date', '>=', sheet.date_from),
+                    ('move_id.invoice_date', '<=', sheet.date_to),
+                ])
+                new_liab = sum(l.credit - l.debit for l in period_lines)
+
+                line.write({
+                    'opening_balance': round(opening, 2),
+                    'new_liability': round(new_liab, 2),
+                })
+
+            sheet.message_post(
+                body=_('Liability amounts refreshed from partner ledger by <b>%s</b>.')
+                % self.env.user.name
             )
 
     def action_download_pdf(self):

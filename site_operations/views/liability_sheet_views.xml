@@ -44,6 +44,12 @@
                             groups="site_operations.group_finance_ho,purchase_demand_raise.group_head_office"
                             invisible="state != 'approved'"/>
 
+                    <button name="action_refresh_from_ledger"
+                            type="object"
+                            string="↻ Refresh from Ledger"
+                            class="btn-secondary"
+                            title="Pull opening balance and new liability amounts from the actual partner ledger entries"/>
+
                     <button name="action_pm_sign"
                             type="object"
                             string="✍ Sign as PM"
