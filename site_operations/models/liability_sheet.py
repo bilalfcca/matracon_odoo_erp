@@ -25,7 +25,16 @@ class LiabilitySheet(models.Model):
         ('paid', 'Paid'),
     ], default='draft', string='Status', tracking=True, required=True)
 
-    pm_signed_sheet = fields.Binary(string='PM Signed Liability Sheet')
+    # ── PM Signature ─────────────────────────────────────────────────────────
+    pm_id = fields.Many2one(
+        'res.users', string='Project Manager',
+        tracking=True,
+        help='PM responsible for this project liability sheet')
+    pm_is_signed = fields.Boolean(
+        string='Signed by PM', default=False, tracking=True, readonly=True)
+    pm_signature_date = fields.Datetime(
+        string='PM Signed On', readonly=True)
+    pm_signed_sheet = fields.Binary(string='PM Signed Copy (Upload)')
     pm_signed_sheet_filename = fields.Char()
 
     line_ids = fields.One2many(
@@ -104,6 +113,23 @@ class LiabilitySheet(models.Model):
             if sheet.state == 'submitted':
                 sheet.state = 'draft'
                 sheet.message_post(body=_('Liability Sheet reset to Draft.'))
+
+    def action_pm_sign(self):
+        """Record PM digital signature on the liability sheet."""
+        for sheet in self:
+            if sheet.pm_is_signed:
+                raise UserError(_('This sheet has already been signed by the PM.'))
+            sheet.write({
+                'pm_is_signed': True,
+                'pm_signature_date': fields.Datetime.now(),
+                'pm_id': self.env.user.id,
+            })
+            sheet.message_post(
+                body=_('Liability Sheet signed by Project Manager: <b>%s</b> on %s.') % (
+                    self.env.user.name,
+                    fields.Datetime.now().strftime('%d-%b-%Y %H:%M'),
+                )
+            )
 
     def action_download_pdf(self):
         return self.env.ref(

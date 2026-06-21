@@ -11,9 +11,20 @@
          Inventory → Operations → Transfers → Site-to-Site Transfers
     ──────────────────────────────────────────────────────────────────── -->
 
-    <menuitem id="menu_material_issuance" name="Material Issuance" parent="stock.menu_stock_transfers" action="site_operations.action_material_issuance_only" sequence="25" groups="purchase_demand_raise.group_site_store,purchase_demand_raise.group_head_office,purchase_demand_raise.group_procurement_ho,site_operations.group_site_accountant"/>
+    <!-- Site Accountants intentionally excluded — they do NOT see Material Issuance menus -->
+    <menuitem id="menu_material_issuance"
+              name="Material Issuance"
+              parent="stock.menu_stock_transfers"
+              action="site_operations.action_material_issuance_only"
+              sequence="25"
+              groups="purchase_demand_raise.group_site_store,purchase_demand_raise.group_head_office,purchase_demand_raise.group_ceo_approval"/>
 
-    <menuitem id="menu_site_to_site_transfers" name="Site-to-Site Transfers" parent="stock.menu_stock_transfers" action="site_operations.action_site_to_site_transfers" sequence="26" groups="purchase_demand_raise.group_site_store,purchase_demand_raise.group_head_office,purchase_demand_raise.group_procurement_ho,site_operations.group_site_accountant"/>
+    <menuitem id="menu_site_to_site_transfers"
+              name="Site-to-Site Transfers"
+              parent="stock.menu_stock_transfers"
+              action="site_operations.action_site_to_site_transfers"
+              sequence="26"
+              groups="purchase_demand_raise.group_site_store,purchase_demand_raise.group_head_office,purchase_demand_raise.group_ceo_approval"/>
 
     <!-- ── ACCOUNTING APP ─────────────────────────────────────────────────
          Accounting → Vendors → Liability Sheets

@@ -20,6 +20,8 @@
         'views/menus.xml',
         'report/mif_report.xml',
         'report/mif_report_template.xml',
+        'report/liability_sheet_report.xml',
+        'report/liability_sheet_template.xml',
     ],
     'post_init_hook': 'post_init_hook',
     'installable': True,

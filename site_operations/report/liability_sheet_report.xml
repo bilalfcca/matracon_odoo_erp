@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ── Liability Sheet PDF Report Action ──────────────────────────────── -->
+    <record id="action_report_liability_sheet" model="ir.actions.report">
+        <field name="name">Liability Sheet</field>
+        <field name="model">x.liability.sheet</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">site_operations.report_liability_sheet_template</field>
+        <field name="report_file">site_operations.report_liability_sheet_template</field>
+        <field name="binding_model_id" ref="model_x_liability_sheet"/>
+        <field name="binding_type">report</field>
+        <field name="paperformat_id" ref="base.paperformat_a4"/>
+    </record>
+</odoo>

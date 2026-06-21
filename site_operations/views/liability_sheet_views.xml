@@ -44,9 +44,15 @@
                             groups="site_operations.group_finance_ho,purchase_demand_raise.group_head_office"
                             invisible="state != 'approved'"/>
 
+                    <button name="action_pm_sign"
+                            type="object"
+                            string="✍ Sign as PM"
+                            class="btn-primary"
+                            invisible="pm_is_signed or state == 'draft'"/>
+
                     <button name="action_download_pdf"
                             type="object"
-                            string="Download PDF"
+                            string="⬇ Download PDF"
                             class="btn-secondary"
                             invisible="state == 'draft'"/>
                 </header>
@@ -94,10 +100,20 @@
                                    readonly="state not in ['draft']"/>
                         </group>
                         <group name="right">
+                            <field name="pm_id" string="Project Manager"/>
+                            <field name="pm_is_signed" string="PM Signed" readonly="1"/>
+                            <field name="pm_signature_date" string="Signed On"
+                                   invisible="not pm_is_signed" readonly="1"/>
+                        </group>
+                    </group>
+
+                    <!-- ── PM Signed Copy Upload ── -->
+                    <group string="PM Signed Document" invisible="state == 'draft'">
+                        <group>
                             <field name="pm_signed_sheet"
                                    widget="binary"
                                    filename="pm_signed_sheet_filename"
-                                   string="PM Signed Sheet"/>
+                                   string="Upload Signed Copy"/>
                             <field name="pm_signed_sheet_filename" invisible="1"/>
                         </group>
                     </group>

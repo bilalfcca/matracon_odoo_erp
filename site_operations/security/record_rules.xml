@@ -28,14 +28,13 @@
             <field name="perm_unlink" eval="False"/>
         </record>
 
-        <!-- ── Material Issuance: Site Accountant sees only own project ──── -->
+        <!-- ── Material Issuance: Site Accountant cannot see any MI/S2S ──── -->
+        <!-- Site Accountants only deal with liability sheets and vendor bills.
+             They have NO access to material issuance or site-to-site records. -->
         <record id="rule_material_issuance_site_accountant" model="ir.rule">
-            <field name="name">Material Issuance: Site Accountant sees own project</field>
+            <field name="name">Material Issuance: Site Accountant blocked from MI/S2S</field>
             <field name="model_id" ref="stock.model_stock_picking"/>
-            <field name="domain_force">['|',
-                ('x_transfer_purpose', 'not in', ['material_issuance', 'site_to_site']),
-                ('x_issuance_project_id', '=', user.x_default_analytic_account_id.id)
-            ]</field>
+            <field name="domain_force">[('x_transfer_purpose', 'not in', ['material_issuance', 'site_to_site'])]</field>
             <field name="groups" eval="[(4, ref('site_operations.group_site_accountant'))]"/>
             <field name="perm_read" eval="True"/>
             <field name="perm_write" eval="False"/>
