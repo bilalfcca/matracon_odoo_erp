@@ -86,7 +86,17 @@
                                 <field name="total_paid" widget="statinfo" string="Paid"/>
                             </div>
                         </button>
+                        <button name="action_view_journal_entry"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-book"
+                                invisible="not account_move_id">
+                            <div class="o_stat_info">
+                                <span class="o_stat_text">Journal Entry</span>
+                            </div>
+                        </button>
                     </div>
+                    <field name="account_move_id" invisible="1"/>
 
                     <!-- ── Title ── -->
                     <div class="oe_title">

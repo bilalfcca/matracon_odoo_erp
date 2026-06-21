@@ -19,12 +19,18 @@ class LiabilitySheet(models.Model):
                 ADD COLUMN IF NOT EXISTS pm_is_signed        BOOLEAN NOT NULL DEFAULT FALSE,
                 ADD COLUMN IF NOT EXISTS pm_signature_date   TIMESTAMP WITHOUT TIME ZONE,
                 ADD COLUMN IF NOT EXISTS pm_signed_sheet     BYTEA,
-                ADD COLUMN IF NOT EXISTS pm_signed_sheet_filename VARCHAR
+                ADD COLUMN IF NOT EXISTS pm_signed_sheet_filename VARCHAR,
+                ADD COLUMN IF NOT EXISTS account_move_id     INTEGER
         """)
         return super()._register_hook()
 
     name = fields.Char(
         string='Reference', compute='_compute_name', store=True, readonly=True)
+
+    # Journal entry created on approval (appears in partner ledger)
+    account_move_id = fields.Many2one(
+        'account.move', string='Journal Entry', readonly=True,
+        help='Posted on CEO approval — creates payable entries per vendor in partner ledger')
 
     project_analytic_account_id = fields.Many2one(
         'account.analytic.account', string='Project',
@@ -111,12 +117,15 @@ class LiabilitySheet(models.Model):
         for sheet in self:
             sheet.state = 'approved'
             sheet.line_ids.write({'is_locked': True})
-            sheet.message_post(
-                body=_(
-                    'Liability Sheet approved and locked by CEO. '
-                    'Total Approved: %s'
-                ) % f'{sheet.total_approved:,.2f}'
-            )
+            # Post journal entry so vendors appear in partner ledger
+            move = sheet._create_liability_journal_entry()
+            msg = _(
+                'Liability Sheet approved and locked by CEO. '
+                'Total Approved: %s'
+            ) % f'{sheet.total_approved:,.2f}'
+            if move:
+                msg += _('<br/>Journal entry <b>%s</b> posted to partner ledger.') % move.name
+            sheet.message_post(body=msg)
 
     def action_mark_paid(self):
         for sheet in self:
@@ -126,8 +135,91 @@ class LiabilitySheet(models.Model):
     def action_reset_draft(self):
         for sheet in self:
             if sheet.state == 'submitted':
+                # Cancel the linked journal entry if any
+                if sheet.account_move_id and sheet.account_move_id.state == 'posted':
+                    sheet.account_move_id.button_draft()
+                    sheet.account_move_id.button_cancel()
+                    sheet.account_move_id = False
                 sheet.state = 'draft'
-                sheet.message_post(body=_('Liability Sheet reset to Draft.'))
+                sheet.line_ids.write({'is_locked': False})
+                sheet.message_post(body=_('Liability Sheet reset to Draft. Journal entry reversed.'))
+
+    def _create_liability_journal_entry(self):
+        """Create one journal entry with one payable line per vendor line.
+        This makes each vendor appear in the Partner Ledger with the
+        approved liability amount.
+
+        DR: Liability/Expense account (site operations cost)
+        CR: Accounts Payable (per vendor — appears in partner ledger)
+        """
+        self.ensure_one()
+        lines = self.line_ids.filtered(lambda l: l.approved_amount > 0 and l.partner_id)
+        if not lines:
+            return False
+
+        Journal = self.env['account.journal'].sudo()
+        journal = Journal.search([('name', '=', 'Liability Sheet'), ('type', '=', 'purchase')], limit=1)
+        if not journal:
+            journal = Journal.create({
+                'name': 'Liability Sheet',
+                'type': 'purchase',
+                'code': 'LIAB',
+            })
+
+        Account = self.env['account.account'].sudo()
+        # Debit side: site operations expense/liability account
+        expense_account = Account.search(
+            [('account_type', '=', 'expense')], limit=1)
+        # Credit side: payable — use each partner's receivable/payable property
+        payable_account = Account.search(
+            [('account_type', '=', 'liability_payable')], limit=1)
+
+        if not expense_account or not payable_account:
+            self.message_post(body=_(
+                'Warning: Could not find expense/payable accounts. '
+                'Journal entry was not created. Please configure accounts.'))
+            return False
+
+        aml_vals = []
+        total = 0.0
+        analytic_id = self.project_analytic_account_id.id
+
+        for line in lines:
+            amount = line.approved_amount
+            total += amount
+            # Use partner's property_account_payable_id if available
+            partner_payable = (
+                line.partner_id.property_account_payable_id
+                or payable_account
+            )
+            aml_vals.append((0, 0, {
+                'account_id': partner_payable.id,
+                'partner_id': line.partner_id.id,
+                'name': line.description or _('Liability — %s') % self.name,
+                'credit': amount,
+                'debit': 0.0,
+                'analytic_distribution': {str(analytic_id): 100} if analytic_id else {},
+            }))
+
+        # One balancing debit line on expense account
+        aml_vals.append((0, 0, {
+            'account_id': expense_account.id,
+            'name': _('Site Operations Liability — %s') % self.name,
+            'debit': total,
+            'credit': 0.0,
+            'analytic_distribution': {str(analytic_id): 100} if analytic_id else {},
+        }))
+
+        move = self.env['account.move'].sudo().create({
+            'move_type': 'entry',
+            'journal_id': journal.id,
+            'ref': self.name,
+            'invoice_date': fields.Date.today(),
+            'line_ids': aml_vals,
+        })
+        move.action_post()
+        self.account_move_id = move
+        return move
 
     def action_pm_sign(self):
         """Record PM digital signature on the liability sheet."""
@@ -145,6 +237,16 @@ class LiabilitySheet(models.Model):
                     fields.Datetime.now().strftime('%d-%b-%Y %H:%M'),
                 )
             )
+
+    def action_view_journal_entry(self):
+        self.ensure_one()
+        return {
+            'name': _('Journal Entry — %s') % self.name,
+            'type': 'ir.actions.act_window',
+            'res_model': 'account.move',
+            'view_mode': 'form',
+            'res_id': self.account_move_id.id,
+        }
 
     def action_refresh_from_ledger(self):
         """Pull opening_balance and new_liability from actual partner ledger entries."""
