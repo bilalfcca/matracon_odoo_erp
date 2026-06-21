@@ -1,3 +1,6 @@
+from datetime import date as dt_date
+from dateutil.relativedelta import relativedelta
+
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
 
@@ -23,7 +26,7 @@ class StockPickingSiteOps(models.Model):
 
     # ── Contact ───────────────────────────────────────────────────────────────
     x_contact_id = fields.Many2one(
-        'res.partner', string='Contact', tracking=True,
+        'res.partner', string='Issuance Contact', tracking=True,
         help='Employee or subcontractor receiving the material')
 
     # ── Project (auto-filled from user site config) ───────────────────────────
@@ -83,13 +86,64 @@ class StockPickingSiteOps(models.Model):
     x_interproject_entry_id = fields.Many2one(
         'account.move', string='Inter-Project Entry', readonly=True)
 
+    # ── User context flags (for view domains) ────────────────────────────────
+    x_is_site_store = fields.Boolean(
+        string='Is Site Store User',
+        compute='_compute_x_is_site_store',
+        store=False,
+    )
+
     # ── Smart button counts ───────────────────────────────────────────────────
     x_return_count = fields.Integer(
-        string='Returns', compute='_compute_x_return_count', store=False)
+        string='Return Transfers', compute='_compute_x_return_count', store=False)
     x_backcharge_entry_count = fields.Integer(
         string='Backcharge Entries', compute='_compute_entry_counts', store=False)
     x_interproject_entry_count = fields.Integer(
         string='Inter-Project Entries', compute='_compute_entry_counts', store=False)
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # COMPUTE
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def _compute_x_is_site_store(self):
+        is_store = self.env.user.has_group('purchase_demand_raise.group_site_store')
+        for pick in self:
+            pick.x_is_site_store = is_store
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # DEFAULT GET  (called when a new form is opened)
+    # ─────────────────────────────────────────────────────────────────────────
+
+    @api.model
+    def default_get(self, fields_list):
+        res = super().default_get(fields_list)
+        if res.get('x_transfer_purpose') in ('material_issuance', 'site_to_site'):
+            if not res.get('picking_type_id'):
+                user = self.env.user
+                pt = None
+                if hasattr(user, 'x_default_warehouse_id') and user.x_default_warehouse_id:
+                    pt = user.x_default_warehouse_id.int_type_id
+                if not pt:
+                    pt = self.env['stock.picking.type'].search(
+                        [('code', '=', 'internal')], limit=1)
+                if pt:
+                    res['picking_type_id'] = pt.id
+                    if pt.default_location_src_id:
+                        res.setdefault('location_id', pt.default_location_src_id.id)
+                    if pt.default_location_dest_id:
+                        res.setdefault('location_dest_id', pt.default_location_dest_id.id)
+        return res
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # ONCHANGE
+    # ─────────────────────────────────────────────────────────────────────────
+
+    @api.onchange('x_generate_gate_pass')
+    def _onchange_generate_gate_pass(self):
+        """Auto-generate a sequential gate pass number when checkbox is ticked."""
+        if self.x_generate_gate_pass and not self.x_gate_pass_outward_no:
+            self.x_gate_pass_outward_no = self.env['ir.sequence'].next_by_code(
+                'x.gate.pass.outward') or '/'
 
     # ─────────────────────────────────────────────────────────────────────────
     # CREATE
@@ -98,11 +152,25 @@ class StockPickingSiteOps(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         for vals in vals_list:
-            if (not vals.get('x_issuance_project_id')
-                    and vals.get('x_transfer_purpose') in ('material_issuance', 'site_to_site')):
+            if vals.get('x_transfer_purpose') in ('material_issuance', 'site_to_site'):
                 user = self.env.user
-                if user.x_default_analytic_account_id:
+                # Auto-fill project
+                if not vals.get('x_issuance_project_id') and user.x_default_analytic_account_id:
                     vals['x_issuance_project_id'] = user.x_default_analytic_account_id.id
+                # Auto-fill picking type + locations if missing
+                if not vals.get('picking_type_id'):
+                    pt = None
+                    if hasattr(user, 'x_default_warehouse_id') and user.x_default_warehouse_id:
+                        pt = user.x_default_warehouse_id.int_type_id
+                    if not pt:
+                        pt = self.env['stock.picking.type'].search(
+                            [('code', '=', 'internal')], limit=1)
+                    if pt:
+                        vals['picking_type_id'] = pt.id
+                        vals.setdefault('location_id',
+                                        pt.default_location_src_id.id if pt.default_location_src_id else False)
+                        vals.setdefault('location_dest_id',
+                                        pt.default_location_dest_id.id if pt.default_location_dest_id else False)
         return super().create(vals_list)
 
     # ─────────────────────────────────────────────────────────────────────────
@@ -240,6 +308,10 @@ class StockPickingSiteOps(models.Model):
     # ─────────────────────────────────────────────────────────────────────────
 
     def button_validate(self):
+        # Validate return quantities before posting
+        for pick in self:
+            if pick.x_is_return_transfer and pick.x_original_issuance_id:
+                pick._check_return_quantities()
         res = super().button_validate()
         for pick in self:
             if pick.state == 'done':
@@ -250,6 +322,45 @@ class StockPickingSiteOps(models.Model):
                 if pick.x_is_return_transfer:
                     pick._post_validate_return()
         return res
+
+    def _check_return_quantities(self):
+        """Prevent returning more than was originally issued (minus previous returns)."""
+        self.ensure_one()
+        orig = self.x_original_issuance_id
+        if not orig:
+            return
+
+        # Previous done returns for the same original (excluding self)
+        prev_returns = self.search([
+            ('x_original_issuance_id', '=', orig.id),
+            ('state', '=', 'done'),
+            ('id', '!=', self._origin.id if self._origin else self.id),
+        ])
+
+        for move in self.move_ids:
+            issued = sum(
+                m.quantity for m in orig.move_ids
+                if m.product_id == move.product_id and m.state == 'done'
+            )
+            already_returned = sum(
+                m.quantity for ret in prev_returns
+                for m in ret.move_ids
+                if m.product_id == move.product_id
+            )
+            outstanding = issued - already_returned
+            if move.quantity > outstanding + 0.001:
+                raise UserError(_(
+                    'Cannot return %(qty).2f %(uom)s of "%(product)s".\n'
+                    'Originally issued: %(issued).2f — Already returned: %(ret).2f — '
+                    'Outstanding: %(out).2f'
+                ) % {
+                    'qty': move.quantity,
+                    'uom': move.product_uom.name,
+                    'product': move.product_id.display_name,
+                    'issued': issued,
+                    'ret': already_returned,
+                    'out': outstanding,
+                })
 
     def _post_validate_material_issuance(self):
         """Generate backcharge accounting entry on issuance validation."""
@@ -266,6 +377,8 @@ class StockPickingSiteOps(models.Model):
                     'Backcharge entry <b>%s</b> created for %s.'
                 ) % (entry.name, self.name)
             )
+            # Auto-create / update liability sheet for this project
+            self._auto_update_liability_sheet(entry)
 
     def _post_validate_return(self):
         """Generate backcharge return adjustment or asset backcharge on return."""
@@ -290,6 +403,8 @@ class StockPickingSiteOps(models.Model):
                         'Backcharge Return Adjustment Entry <b>%s</b> created for %s.'
                     ) % (entry.name, orig.name)
                 )
+                # Reduce the liability sheet line for this issuance
+                self._auto_adjust_liability_sheet_on_return(adj_amount, orig)
         # Asset return with backcharge decision
         elif (orig.x_inventory_type == 'asset'
               and self.x_return_backcharge_applicable):
@@ -342,7 +457,7 @@ class StockPickingSiteOps(models.Model):
                 'analytic_distribution': {str(dst_project.id): 100},
             },
         ]
-        move = self.env['account.move'].create({
+        move = self.env['account.move'].sudo().create({
             'move_type': 'entry',
             'journal_id': journal.id,
             'ref': _(
@@ -374,13 +489,16 @@ class StockPickingSiteOps(models.Model):
             move_type = 'in_refund'
             ref = _('Backcharge / Material Issuance - %s') % self.name
         bc_account = self._get_or_create_backcharge_account()
-        move = self.env['account.move'].create({
+        line_name = self.x_backcharge_description or ref
+        move = self.env['account.move'].sudo().create({
             'move_type': move_type,
             'partner_id': partner.id if partner else False,
             'journal_id': journal.id,
             'ref': ref,
+            'invoice_date': fields.Date.today(),
+            'narration': self.x_backcharge_description or False,
             'invoice_line_ids': [(0, 0, {
-                'name': self.x_backcharge_description or ref,
+                'name': line_name,
                 'quantity': 1,
                 'price_unit': amount,
                 'account_id': bc_account.id,
@@ -389,8 +507,108 @@ class StockPickingSiteOps(models.Model):
         move.action_post()
         return move
 
+    def _auto_update_liability_sheet(self, entry):
+        """Auto-create or update the current-month liability sheet for this project."""
+        self.ensure_one()
+        if not self.x_issuance_project_id or not self.x_contact_id:
+            return
+        today = fields.Date.today()
+        month_start = today.replace(day=1)
+        month_end = (month_start + relativedelta(months=1)) - relativedelta(days=1)
+
+        LiabilitySheet = self.env['x.liability.sheet'].sudo()
+        sheet = LiabilitySheet.search([
+            ('project_analytic_account_id', '=', self.x_issuance_project_id.id),
+            ('date_from', '=', month_start),
+            ('state', '=', 'draft'),
+        ], limit=1)
+
+        if not sheet:
+            sheet = LiabilitySheet.create({
+                'project_analytic_account_id': self.x_issuance_project_id.id,
+                'date_from': month_start,
+                'date_to': month_end,
+            })
+            self.message_post(
+                body=_('Liability Sheet <b>%s</b> auto-created for %s.') % (
+                    sheet.name, self.x_issuance_project_id.name)
+            )
+
+        # Accumulate on existing line for same partner — one line per vendor
+        existing_line = sheet.line_ids.filtered(
+            lambda l: l.partner_id.id == self.x_contact_id.id
+        )
+        if existing_line:
+            line = existing_line[0]
+            line.write({
+                'new_liability': line.new_liability + self.x_backcharge_amount,
+                'recommended_amount': line.recommended_amount + self.x_backcharge_amount,
+            })
+            self.message_post(
+                body=_('Liability Sheet <b>%s</b> updated for <b>%s</b>: +%s (total %s)') % (
+                    sheet.name,
+                    self.x_contact_id.name,
+                    f'{self.x_backcharge_amount:,.2f}',
+                    f'{line.new_liability:,.2f}',
+                )
+            )
+        else:
+            desc = self.x_backcharge_description or _('Backcharge - %s') % self.name
+            sheet.write({
+                'line_ids': [(0, 0, {
+                    'description': desc,
+                    'partner_id': self.x_contact_id.id,
+                    'new_liability': self.x_backcharge_amount,
+                    'recommended_amount': self.x_backcharge_amount,
+                })]
+            })
+            self.message_post(
+                body=_('Line added to Liability Sheet <b>%s</b>: %s — %s') % (
+                    sheet.name, desc, f'{self.x_backcharge_amount:,.2f}')
+            )
+
+    def _auto_adjust_liability_sheet_on_return(self, adj_amount, original):
+        """Reduce the liability sheet line for the original issuance when items are returned."""
+        self.ensure_one()
+        if not original.x_issuance_project_id:
+            return
+        LiabilitySheet = self.env['x.liability.sheet'].sudo()
+        # Look in draft or submitted sheets (not yet approved/paid)
+        sheets = LiabilitySheet.search([
+            ('project_analytic_account_id', '=', original.x_issuance_project_id.id),
+            ('state', 'in', ['draft', 'submitted']),
+        ])
+        for sheet in sheets:
+            for line in sheet.line_ids:
+                # Match by partner and description referencing the original picking
+                if (line.partner_id == original.x_contact_id
+                        and original.name in (line.description or '')):
+                    new_liability = max(line.new_liability - adj_amount, 0.0)
+                    new_recommended = max(line.recommended_amount - adj_amount, 0.0)
+                    line.write({
+                        'new_liability': new_liability,
+                        'recommended_amount': new_recommended,
+                    })
+                    self.message_post(
+                        body=_(
+                            'Liability Sheet <b>%s</b> updated: '
+                            'line "%s" reduced by <b>%s</b>.'
+                        ) % (sheet.name, line.description or '', f'{adj_amount:,.2f}')
+                    )
+                    return
+        # No matching line found — add a note so it can be handled manually
+        self.message_post(
+            body=_(
+                'Return adjustment of %s could not be automatically applied to a '
+                'Liability Sheet (no matching draft line found for %s).'
+            ) % (f'{adj_amount:,.2f}', original.name)
+        )
+
     def _get_or_create_backcharge_journal(self):
-        Journal = self.env['account.journal']
+        # Use sudo() — journal is a system resource, not a user resource.
+        # Site store users are allowed to validate pickings; the system
+        # manages the accounting infrastructure on their behalf.
+        Journal = self.env['account.journal'].sudo()
         journal = Journal.search(
             [('name', '=', 'Backcharge'), ('type', '=', 'purchase')], limit=1)
         if not journal:
@@ -402,7 +620,7 @@ class StockPickingSiteOps(models.Model):
         return journal
 
     def _get_or_create_backcharge_account(self):
-        Account = self.env['account.account']
+        Account = self.env['account.account'].sudo()
         account = Account.search(
             [('name', 'ilike', 'Backcharge'),
              ('account_type', '=', 'liability_payable')], limit=1)
@@ -412,7 +630,7 @@ class StockPickingSiteOps(models.Model):
         return account
 
     def _get_or_create_interproject_journal(self):
-        Journal = self.env['account.journal']
+        Journal = self.env['account.journal'].sudo()
         journal = Journal.search(
             [('name', '=', 'Inter-Project Transfers'),
              ('type', '=', 'general')], limit=1)
@@ -425,7 +643,7 @@ class StockPickingSiteOps(models.Model):
         return journal
 
     def _get_or_create_interproject_account(self, account_type):
-        Account = self.env['account.account']
+        Account = self.env['account.account'].sudo()
         if account_type == 'receivable':
             account = Account.search(
                 [('name', 'ilike', 'Inter-Project Receivable')], limit=1)

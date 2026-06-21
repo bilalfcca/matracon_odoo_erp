@@ -20,7 +20,7 @@
                         class="oe_stat_button"
                         icon="fa-undo"
                         invisible="x_transfer_purpose not in ['material_issuance'] or x_is_return_transfer or state != 'done'">
-                    <field name="x_return_count" widget="statinfo" string="Returns"/>
+                    <field name="x_return_count" widget="statinfo" string="Return Transfers"/>
                 </button>
 
                 <!-- Backcharge entries button -->
@@ -46,13 +46,6 @@
             <!-- ── Header action buttons ──────────────────────────────────── -->
             <xpath expr="//button[@name='button_validate']" position="before">
 
-                <!-- Return Material button — only on done non-return issuances -->
-                <button name="action_return_material"
-                        type="object"
-                        string="Return Material"
-                        class="btn-secondary"
-                        invisible="state != 'done' or x_is_return_transfer or x_transfer_purpose != 'material_issuance'"/>
-
                 <!-- Print MIF button -->
                 <button name="action_print_mif"
                         type="object"
@@ -69,11 +62,11 @@
 
             </xpath>
 
-            <!-- ── Transfer Purpose + Issue Type (top of form) ───────────── -->
-            <xpath expr="//field[@name='name']" position="after">
+            <!-- ── Transfer Purpose + Issue Type (after title, normal text) ── -->
+            <xpath expr="//div[hasclass('oe_title')]" position="after">
                 <group name="site_ops_classification"
                        invisible="x_transfer_purpose == False"
-                       col="4" colspan="2">
+                       col="4">
                     <field name="x_transfer_purpose" widget="radio" options="{'horizontal': true}"/>
                     <field name="x_issue_type"
                            invisible="x_transfer_purpose != 'material_issuance'"/>
@@ -83,20 +76,42 @@
                 </group>
             </xpath>
 
-            <!-- ── Site Ops fields after the standard info group ─────────── -->
+            <!-- ── Hide standard partner_id (we use x_contact_id instead) ── -->
+            <xpath expr="//div[hasclass('o_td_label')][label[@for='partner_id']]" position="attributes">
+                <attribute name="invisible">x_transfer_purpose in ['material_issuance', 'site_to_site']</attribute>
+            </xpath>
+            <xpath expr="//field[@name='partner_id']" position="attributes">
+                <attribute name="invisible">x_transfer_purpose in ['material_issuance', 'site_to_site']</attribute>
+            </xpath>
+
+            <!-- ── Hide Operation Type when this is a site ops transfer ────── -->
+            <xpath expr="//field[@name='picking_type_id'][not(@column_invisible)]" position="attributes">
+                <attribute name="invisible">x_transfer_purpose in ['material_issuance', 'site_to_site']</attribute>
+            </xpath>
+
+            <!-- ── Hide Source Document for material issuance ───────────── -->
+            <xpath expr="//field[@name='origin']" position="attributes">
+                <attribute name="invisible">x_transfer_purpose in ['material_issuance', 'site_to_site']</attribute>
+            </xpath>
+
+            <!-- ── Site Ops fields after origin ─────────────────────────── -->
             <xpath expr="//field[@name='origin']" position="after">
 
-                <!-- ─ Project (readonly, auto-filled) ─ -->
+                <!-- ─ Project (readonly, auto-filled, hidden when empty) ─ -->
                 <field name="x_issuance_project_id"
                        readonly="1"
-                       invisible="x_transfer_purpose not in ['material_issuance', 'site_to_site']"/>
+                       invisible="not x_issuance_project_id or x_transfer_purpose not in ['material_issuance', 'site_to_site']"/>
 
                 <!-- ─ Destination Project (site-to-site only) ─ -->
                 <field name="x_dest_project_id"
                        invisible="x_transfer_purpose != 'site_to_site'"/>
 
-                <!-- ─ Contact ─ -->
+                <!-- hidden flag used by contact domain below -->
+                <field name="x_is_site_store" invisible="1"/>
+
+                <!-- ─ Contact — site store always sees Subcontractor only ─ -->
                 <field name="x_contact_id"
+                       domain="[('category_id.name', '=', 'Subcontractor')] if x_is_site_store or x_issue_type == 'subcontractor' else ([('employee', '=', True)] if x_issue_type == 'normal' else [])"
                        invisible="x_transfer_purpose not in ['material_issuance', 'site_to_site']"/>
 
                 <!-- ─ Outstanding materials HTML summary ─ -->
@@ -109,7 +124,12 @@
 
             </xpath>
 
-            <!-- ── Gate Pass section ─────────────────────────────────────── -->
+            <!-- ── Hide "Note" tab for site ops transfers ────────────────── -->
+            <xpath expr="//page[@name='note']" position="attributes">
+                <attribute name="invisible">x_transfer_purpose in ['material_issuance', 'site_to_site']</attribute>
+            </xpath>
+
+            <!-- ── Hide "Additional Info" tab for site ops transfers ────── -->
             <xpath expr="//page[@name='extra']" position="before">
                 <page name="site_ops_extra"
                       string="Site Operations"
@@ -174,8 +194,21 @@
                 </page>
             </xpath>
 
+            <xpath expr="//page[@name='extra']" position="attributes">
+                <attribute name="invisible">x_transfer_purpose in ['material_issuance', 'site_to_site']</attribute>
+            </xpath>
+
+            <!-- ── On Hand qty column (screen only, not in reports) ────────── -->
+            <xpath expr="//field[@name='move_ids']/list/field[@name='product_uom_qty']"
+                   position="before">
+                <field name="x_qty_on_hand"
+                       string="On Hand"
+                       readonly="1"
+                       optional="show"
+                       column_invisible="parent.x_transfer_purpose not in ['material_issuance', 'site_to_site']"/>
+            </xpath>
+
             <!-- ── Backcharge columns on move lines (Operations tab) ──────── -->
-            <!-- Add Unit Cost and Line Backcharge Amount columns to move_ids -->
             <xpath expr="//field[@name='move_ids']/list/field[@name='product_uom_qty']"
                    position="after">
                 <field name="x_unit_cost"

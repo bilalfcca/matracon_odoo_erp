@@ -10,7 +10,6 @@
         <field name="model">stock.picking</field>
         <field name="arch" type="xml">
             <list string="Material Issuances"
-                  decoration-success="state == 'done'"
                   decoration-danger="state == 'cancel'"
                   decoration-muted="state == 'draft'"
                   decoration-warning="state in ('waiting', 'confirmed', 'assigned')">
@@ -19,7 +18,7 @@
                 <field name="x_gate_pass_outward_no" string="Gate Pass No" optional="show"/>
                 <field name="location_id" string="From" optional="show"/>
                 <field name="location_dest_id" string="To" optional="show"/>
-                <field name="x_contact_id" string="Contact"/>
+                <field name="x_contact_id" string="Issuance Contact"/>
                 <field name="x_issuance_project_id" string="Project" optional="show"/>
                 <field name="x_transfer_purpose" string="Purpose" optional="show"/>
                 <field name="x_issue_type" string="Issue Type" optional="show"/>
@@ -49,7 +48,7 @@
         <field name="arch" type="xml">
             <search string="Search Issuances">
                 <field name="name" string="Reference"/>
-                <field name="x_contact_id" string="Contact"/>
+                <field name="x_contact_id" string="Issuance Contact"/>
                 <field name="x_issuance_project_id" string="Project"/>
                 <field name="origin" string="Source Document"/>
 
@@ -130,7 +129,13 @@
         <field name="res_model">stock.picking</field>
         <field name="view_mode">list,form</field>
         <field name="domain">[('x_transfer_purpose', 'in', ['material_issuance', 'site_to_site'])]</field>
-        <field name="context">{}</field>
+        <field name="context">{'search_default_filter_in_progress': 1}</field>
+        <field name="view_ids" eval="[
+            (5, 0, 0),
+            (0, 0, {'view_mode': 'list', 'view_id': ref('view_material_issuance_list')}),
+            (0, 0, {'view_mode': 'form', 'view_id': ref('stock.view_picking_form')}),
+        ]"/>
+        <field name="search_view_id" ref="view_material_issuance_search"/>
     </record>
 
     <!-- ── Window Action: Material Issuance Only ─────────────────────────── -->
@@ -139,7 +144,13 @@
         <field name="res_model">stock.picking</field>
         <field name="view_mode">list,form</field>
         <field name="domain">[('x_transfer_purpose', '=', 'material_issuance')]</field>
-        <field name="context">{'default_x_transfer_purpose': 'material_issuance'}</field>
+        <field name="context">{'default_x_transfer_purpose': 'material_issuance', 'search_default_filter_in_progress': 1}</field>
+        <field name="view_ids" eval="[
+            (5, 0, 0),
+            (0, 0, {'view_mode': 'list', 'view_id': ref('view_material_issuance_list')}),
+            (0, 0, {'view_mode': 'form', 'view_id': ref('stock.view_picking_form')}),
+        ]"/>
+        <field name="search_view_id" ref="view_material_issuance_search"/>
     </record>
 
     <!-- ── Window Action: Site-to-Site Transfers Only ────────────────────── -->
@@ -148,7 +159,13 @@
         <field name="res_model">stock.picking</field>
         <field name="view_mode">list,form</field>
         <field name="domain">[('x_transfer_purpose', '=', 'site_to_site')]</field>
-        <field name="context">{'default_x_transfer_purpose': 'site_to_site'}</field>
+        <field name="context">{'default_x_transfer_purpose': 'site_to_site', 'search_default_filter_in_progress': 1}</field>
+        <field name="view_ids" eval="[
+            (5, 0, 0),
+            (0, 0, {'view_mode': 'list', 'view_id': ref('view_material_issuance_list')}),
+            (0, 0, {'view_mode': 'form', 'view_id': ref('stock.view_picking_form')}),
+        ]"/>
+        <field name="search_view_id" ref="view_material_issuance_search"/>
     </record>
 
 </odoo>

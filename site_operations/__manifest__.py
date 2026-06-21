@@ -15,6 +15,8 @@
         'views/liability_sheet_views.xml',
         'views/vendor_payment_views.xml',
         'views/site_config_views.xml',
+        'views/return_picking_views.xml',
+        'views/partner_views.xml',
         'views/menus.xml',
         'report/mif_report.xml',
         'report/mif_report_template.xml',

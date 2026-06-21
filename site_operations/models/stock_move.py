@@ -4,6 +4,22 @@ from odoo import models, fields, api
 class StockMoveSiteOps(models.Model):
     _inherit = 'stock.move'
 
+    x_qty_on_hand = fields.Float(
+        string='On Hand',
+        compute='_compute_x_qty_on_hand',
+        digits='Product Unit of Measure',
+        help='Current quantity on hand at the source location. Not printed on reports.',
+    )
+
+    @api.depends('product_id', 'location_id')
+    def _compute_x_qty_on_hand(self):
+        for move in self:
+            if move.product_id and move.location_id:
+                move.x_qty_on_hand = self.env['stock.quant']._get_available_quantity(
+                    move.product_id, move.location_id)
+            else:
+                move.x_qty_on_hand = 0.0
+
     x_unit_cost = fields.Float(
         string='Unit Cost',
         help='Cost per unit for backcharge calculation. Defaults to product standard price.')
