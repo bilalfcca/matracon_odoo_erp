@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        No pre-created accounts required.
+        Journals and accounts for Backcharge and Inter-Project Transfers
+        are created on-demand by the _get_or_create_* methods in
+        models/stock_picking.py when the first relevant transfer is validated.
+    -->
+</odoo>

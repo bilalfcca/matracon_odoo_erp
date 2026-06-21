@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ── Inventory / Operations sub-menus ─────────────────────────────── -->
+
+    <menuitem id="menu_material_issuance" name="Material Issuance" parent="stock.menu_stock_warehouse_mgmt" action="site_operations.action_material_issuance_only" sequence="25" groups="purchase_demand_raise.group_site_store,purchase_demand_raise.group_head_office,purchase_demand_raise.group_procurement_ho,site_operations.group_site_accountant"/>
+
+    <menuitem id="menu_site_to_site_transfers" name="Site-to-Site Transfers" parent="stock.menu_stock_warehouse_mgmt" action="site_operations.action_site_to_site_transfers" sequence="26" groups="purchase_demand_raise.group_site_store,purchase_demand_raise.group_head_office,purchase_demand_raise.group_procurement_ho"/>
+
+    <!-- ── Top-Level: Site Operations ───────────────────────────────────── -->
+
+    <menuitem id="menu_site_operations_root" name="Site Operations" sequence="75" groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office"/>
+
+    <!-- ── Site Operations sub-menus ────────────────────────────────────── -->
+
+    <menuitem id="menu_site_ops_issuances" name="Material Issuance" parent="site_operations.menu_site_operations_root" action="site_operations.action_material_issuance_only" sequence="10" groups="purchase_demand_raise.group_site_store,purchase_demand_raise.group_head_office,site_operations.group_site_accountant"/>
+
+    <menuitem id="menu_site_ops_site_to_site" name="Site-to-Site Transfers" parent="site_operations.menu_site_operations_root" action="site_operations.action_site_to_site_transfers" sequence="20" groups="purchase_demand_raise.group_site_store,purchase_demand_raise.group_head_office"/>
+
+    <menuitem id="menu_site_ops_liability_sheets" name="Liability Sheets" parent="site_operations.menu_site_operations_root" action="site_operations.action_liability_sheet" sequence="30" groups="site_operations.group_site_accountant,purchase_demand_raise.group_ceo_approval,site_operations.group_finance_ho,purchase_demand_raise.group_head_office"/>
+
+    <menuitem id="menu_site_ops_finance_payments" name="Finance Payments" parent="site_operations.menu_site_operations_root" action="site_operations.action_ho_vendor_payments" sequence="40" groups="site_operations.group_finance_ho,purchase_demand_raise.group_head_office"/>
+
+</odoo>

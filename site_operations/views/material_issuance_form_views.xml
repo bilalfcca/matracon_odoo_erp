@@ -1,0 +1,191 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ════════════════════════════════════════════════════════════════════
+         Material Issuance / Site-to-Site Transfer — inherited form view
+         Injects site operations fields into the standard stock.picking form.
+    ════════════════════════════════════════════════════════════════════════ -->
+    <record id="view_picking_form_site_ops" model="ir.ui.view">
+        <field name="name">stock.picking.form.site.ops</field>
+        <field name="model">stock.picking</field>
+        <field name="inherit_id" ref="stock.view_picking_form"/>
+        <field name="priority">20</field>
+        <field name="arch" type="xml">
+
+            <!-- ── Smart Buttons ──────────────────────────────────────────── -->
+            <xpath expr="//div[@name='button_box']" position="inside">
+
+                <!-- Return counter button -->
+                <button name="action_view_returns"
+                        type="object"
+                        class="oe_stat_button"
+                        icon="fa-undo"
+                        invisible="x_transfer_purpose not in ['material_issuance'] or x_is_return_transfer or state != 'done'">
+                    <field name="x_return_count" widget="statinfo" string="Returns"/>
+                </button>
+
+                <!-- Backcharge entries button -->
+                <button name="action_view_backcharge_entries"
+                        type="object"
+                        class="oe_stat_button"
+                        icon="fa-money"
+                        invisible="x_backcharge_entry_count == 0">
+                    <field name="x_backcharge_entry_count" widget="statinfo" string="Backcharge"/>
+                </button>
+
+                <!-- Inter-project entry button -->
+                <button name="action_view_interproject_entry"
+                        type="object"
+                        class="oe_stat_button"
+                        icon="fa-exchange"
+                        invisible="x_interproject_entry_count == 0">
+                    <field name="x_interproject_entry_count" widget="statinfo" string="Inter-Project"/>
+                </button>
+
+            </xpath>
+
+            <!-- ── Header action buttons ──────────────────────────────────── -->
+            <xpath expr="//button[@name='button_validate']" position="before">
+
+                <!-- Return Material button — only on done non-return issuances -->
+                <button name="action_return_material"
+                        type="object"
+                        string="Return Material"
+                        class="btn-secondary"
+                        invisible="state != 'done' or x_is_return_transfer or x_transfer_purpose != 'material_issuance'"/>
+
+                <!-- Print MIF button -->
+                <button name="action_print_mif"
+                        type="object"
+                        string="Print MIF"
+                        class="btn-secondary"
+                        invisible="x_transfer_purpose not in ['material_issuance', 'site_to_site']"/>
+
+                <!-- Print Gate Pass button -->
+                <button name="action_print_gate_pass"
+                        type="object"
+                        string="Print Gate Pass"
+                        class="btn-secondary"
+                        invisible="not x_generate_gate_pass"/>
+
+            </xpath>
+
+            <!-- ── Transfer Purpose + Issue Type (top of form) ───────────── -->
+            <xpath expr="//field[@name='name']" position="after">
+                <group name="site_ops_classification"
+                       invisible="x_transfer_purpose == False"
+                       col="4" colspan="2">
+                    <field name="x_transfer_purpose" widget="radio" options="{'horizontal': true}"/>
+                    <field name="x_issue_type"
+                           invisible="x_transfer_purpose != 'material_issuance'"/>
+                    <field name="x_inventory_type"
+                           invisible="x_transfer_purpose != 'material_issuance'"/>
+                    <field name="x_is_return_transfer" widget="boolean_toggle"/>
+                </group>
+            </xpath>
+
+            <!-- ── Site Ops fields after the standard info group ─────────── -->
+            <xpath expr="//field[@name='origin']" position="after">
+
+                <!-- ─ Project (readonly, auto-filled) ─ -->
+                <field name="x_issuance_project_id"
+                       readonly="1"
+                       invisible="x_transfer_purpose not in ['material_issuance', 'site_to_site']"/>
+
+                <!-- ─ Destination Project (site-to-site only) ─ -->
+                <field name="x_dest_project_id"
+                       invisible="x_transfer_purpose != 'site_to_site'"/>
+
+                <!-- ─ Contact ─ -->
+                <field name="x_contact_id"
+                       invisible="x_transfer_purpose not in ['material_issuance', 'site_to_site']"/>
+
+                <!-- ─ Outstanding materials HTML summary ─ -->
+                <div name="outstanding_materials_section"
+                     invisible="not x_contact_id or x_transfer_purpose not in ['material_issuance']"
+                     style="margin: 8px 0;">
+                    <div class="o_form_label" style="font-weight:bold;">Outstanding Materials for this Contact:</div>
+                    <field name="x_outstanding_materials_html" widget="html" readonly="1"/>
+                </div>
+
+            </xpath>
+
+            <!-- ── Gate Pass section ─────────────────────────────────────── -->
+            <xpath expr="//page[@name='extra']" position="before">
+                <page name="site_ops_extra"
+                      string="Site Operations"
+                      invisible="x_transfer_purpose not in ['material_issuance', 'site_to_site']">
+
+                    <!-- Gate Pass -->
+                    <group name="gate_pass_group" string="Gate Pass">
+                        <field name="x_generate_gate_pass"/>
+                        <field name="x_gate_pass_outward_no"
+                               invisible="not x_generate_gate_pass"/>
+                    </group>
+
+                    <!-- Backcharge section — consumable issuances only -->
+                    <group name="backcharge_group"
+                           string="Backcharge"
+                           invisible="x_inventory_type != 'consumable' or x_transfer_purpose != 'material_issuance'">
+                        <group col="2">
+                            <field name="x_backcharge_applicable"/>
+                            <field name="x_backcharge_amount" readonly="1"
+                                   invisible="not x_backcharge_applicable"/>
+                        </group>
+                        <group col="2" invisible="not x_backcharge_applicable">
+                            <field name="x_backcharge_description"/>
+                            <field name="x_backcharge_refund_entry_id"
+                                   readonly="1"
+                                   invisible="not x_backcharge_refund_entry_id"/>
+                        </group>
+                    </group>
+
+                    <!-- Return-specific fields -->
+                    <group name="return_group"
+                           string="Return Details"
+                           invisible="not x_is_return_transfer">
+                        <group col="2">
+                            <field name="x_original_issuance_id" readonly="1"/>
+                            <field name="x_return_type"/>
+                        </group>
+                        <group col="2">
+                            <field name="x_return_condition"/>
+                            <field name="x_return_remarks"/>
+                        </group>
+                        <group col="2"
+                               invisible="x_inventory_type != 'asset'">
+                            <field name="x_return_backcharge_applicable"/>
+                            <field name="x_return_backcharge_entry_id"
+                                   readonly="1"
+                                   invisible="not x_return_backcharge_entry_id"/>
+                        </group>
+                    </group>
+
+                    <!-- Quantity summary for returns -->
+                    <group name="qty_summary_group"
+                           string="Quantity Summary"
+                           invisible="not x_is_return_transfer">
+                        <group col="3">
+                            <field name="x_original_issued_qty" readonly="1"/>
+                            <field name="x_total_returned_qty" readonly="1"/>
+                            <field name="x_outstanding_qty" readonly="1"/>
+                        </group>
+                    </group>
+
+                </page>
+            </xpath>
+
+            <!-- ── Backcharge columns on move lines (Operations tab) ──────── -->
+            <!-- Add Unit Cost and Line Backcharge Amount columns to move_ids -->
+            <xpath expr="//field[@name='move_ids']/list/field[@name='product_uom_qty']"
+                   position="after">
+                <field name="x_unit_cost"
+                       optional="show"
+                       column_invisible="parent.x_backcharge_applicable == False or parent.x_inventory_type != 'consumable'"/>
+                <field name="x_line_backcharge_amount"
+                       optional="show"
+                       column_invisible="parent.x_backcharge_applicable == False or parent.x_inventory_type != 'consumable'"/>
+            </xpath>
+
+        </field>
+    </record>
+</odoo>

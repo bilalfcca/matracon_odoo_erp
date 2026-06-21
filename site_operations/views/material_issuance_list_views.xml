@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ════════════════════════════════════════════════════════════════════
+         Material Issuance — List View, Search View, and Window Action
+    ════════════════════════════════════════════════════════════════════════ -->
+
+    <!-- ── List View ────────────────────────────────────────────────────── -->
+    <record id="view_material_issuance_list" model="ir.ui.view">
+        <field name="name">stock.picking.material.issuance.list</field>
+        <field name="model">stock.picking</field>
+        <field name="arch" type="xml">
+            <list string="Material Issuances"
+                  decoration-success="state == 'done'"
+                  decoration-danger="state == 'cancel'"
+                  decoration-muted="state == 'draft'"
+                  decoration-warning="state in ('waiting', 'confirmed', 'assigned')">
+                <field name="name" string="Reference"/>
+                <field name="x_original_issuance_id" string="Original Issuance" optional="show"/>
+                <field name="x_gate_pass_outward_no" string="Gate Pass No" optional="show"/>
+                <field name="location_id" string="From" optional="show"/>
+                <field name="location_dest_id" string="To" optional="show"/>
+                <field name="x_contact_id" string="Contact"/>
+                <field name="x_issuance_project_id" string="Project" optional="show"/>
+                <field name="x_transfer_purpose" string="Purpose" optional="show"/>
+                <field name="x_issue_type" string="Issue Type" optional="show"/>
+                <field name="x_inventory_type" string="Inventory Type" optional="show"/>
+                <field name="x_backcharge_applicable" string="Backcharged" optional="show"/>
+                <field name="x_original_issued_qty" string="Issued Qty" optional="show"/>
+                <field name="x_total_returned_qty" string="Returned Qty" optional="show"/>
+                <field name="x_outstanding_qty" string="Outstanding Qty" optional="show"/>
+                <field name="origin" string="Source Document" optional="show"/>
+                <field name="scheduled_date" string="Scheduled Date" optional="show"/>
+                <field name="state" string="Status"
+                       widget="badge"
+                       decoration-success="state == 'done'"
+                       decoration-danger="state == 'cancel'"
+                       decoration-muted="state == 'draft'"
+                       decoration-warning="state in ('waiting', 'confirmed', 'assigned')"/>
+                <!-- Hidden fields used for decorations -->
+                <field name="x_is_return_transfer" column_invisible="True"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ── Search View ───────────────────────────────────────────────────── -->
+    <record id="view_material_issuance_search" model="ir.ui.view">
+        <field name="name">stock.picking.material.issuance.search</field>
+        <field name="model">stock.picking</field>
+        <field name="arch" type="xml">
+            <search string="Search Issuances">
+                <field name="name" string="Reference"/>
+                <field name="x_contact_id" string="Contact"/>
+                <field name="x_issuance_project_id" string="Project"/>
+                <field name="origin" string="Source Document"/>
+
+                <!-- ── Filters ── -->
+                <separator/>
+                <filter name="filter_material_issuance"
+                        string="Material Issuance"
+                        domain="[('x_transfer_purpose', '=', 'material_issuance')]"/>
+                <filter name="filter_site_to_site"
+                        string="Site-to-Site Transfer"
+                        domain="[('x_transfer_purpose', '=', 'site_to_site')]"/>
+
+                <separator/>
+                <filter name="filter_issue_type_normal"
+                        string="Normal Issuance"
+                        domain="[('x_issue_type', '=', 'normal')]"/>
+                <filter name="filter_issue_type_sub"
+                        string="Subcontractor Issuance"
+                        domain="[('x_issue_type', '=', 'subcontractor')]"/>
+
+                <separator/>
+                <filter name="filter_inventory_asset"
+                        string="Asset"
+                        domain="[('x_inventory_type', '=', 'asset')]"/>
+                <filter name="filter_inventory_consumable"
+                        string="Consumable"
+                        domain="[('x_inventory_type', '=', 'consumable')]"/>
+
+                <separator/>
+                <filter name="filter_backcharged"
+                        string="Backcharged"
+                        domain="[('x_backcharge_applicable', '=', True)]"/>
+                <filter name="filter_returns"
+                        string="Returns"
+                        domain="[('x_is_return_transfer', '=', True)]"/>
+
+                <separator/>
+                <filter name="filter_done"
+                        string="Done"
+                        domain="[('state', '=', 'done')]"/>
+                <filter name="filter_draft"
+                        string="Draft"
+                        domain="[('state', '=', 'draft')]"/>
+                <filter name="filter_in_progress"
+                        string="In Progress"
+                        domain="[('state', 'in', ['waiting', 'confirmed', 'assigned'])]"/>
+                <filter name="filter_cancelled"
+                        string="Cancelled"
+                        domain="[('state', '=', 'cancel')]"/>
+
+                <!-- ── Group By ── -->
+                <separator/>
+                <filter name="group_by_project"
+                        string="Group by Project"
+                        context="{'group_by': 'x_issuance_project_id'}"/>
+                <filter name="group_by_contact"
+                        string="Group by Contact"
+                        context="{'group_by': 'x_contact_id'}"/>
+                <filter name="group_by_issue_type"
+                        string="Group by Issue Type"
+                        context="{'group_by': 'x_issue_type'}"/>
+                <filter name="group_by_inventory_type"
+                        string="Group by Inventory Type"
+                        context="{'group_by': 'x_inventory_type'}"/>
+                <filter name="group_by_purpose"
+                        string="Group by Transfer Purpose"
+                        context="{'group_by': 'x_transfer_purpose'}"/>
+                <filter name="group_by_state"
+                        string="Group by Status"
+                        context="{'group_by': 'state'}"/>
+            </search>
+        </field>
+    </record>
+
+    <!-- ── Window Action: All Issuances (Material + Site-to-Site) ────────── -->
+    <record id="action_material_issuance_all" model="ir.actions.act_window">
+        <field name="name">Material Issuances</field>
+        <field name="res_model">stock.picking</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('x_transfer_purpose', 'in', ['material_issuance', 'site_to_site'])]</field>
+        <field name="context">{}</field>
+    </record>
+
+    <!-- ── Window Action: Material Issuance Only ─────────────────────────── -->
+    <record id="action_material_issuance_only" model="ir.actions.act_window">
+        <field name="name">Material Issuance</field>
+        <field name="res_model">stock.picking</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('x_transfer_purpose', '=', 'material_issuance')]</field>
+        <field name="context">{'default_x_transfer_purpose': 'material_issuance'}</field>
+    </record>
+
+    <!-- ── Window Action: Site-to-Site Transfers Only ────────────────────── -->
+    <record id="action_site_to_site_transfers" model="ir.actions.act_window">
+        <field name="name">Site-to-Site Transfers</field>
+        <field name="res_model">stock.picking</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('x_transfer_purpose', '=', 'site_to_site')]</field>
+        <field name="context">{'default_x_transfer_purpose': 'site_to_site'}</field>
+    </record>
+
+</odoo>
