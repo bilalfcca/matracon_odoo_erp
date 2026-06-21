@@ -85,7 +85,7 @@ class StockPickingSiteOps(models.Model):
 
     # ── Smart button counts ───────────────────────────────────────────────────
     x_return_count = fields.Integer(
-        string='Returns', compute='_compute_return_count', store=False)
+        string='Returns', compute='_compute_x_return_count', store=False)
     x_backcharge_entry_count = fields.Integer(
         string='Backcharge Entries', compute='_compute_entry_counts', store=False)
     x_interproject_entry_count = fields.Integer(
@@ -215,8 +215,11 @@ class StockPickingSiteOps(models.Model):
                 pick.x_total_returned_qty = 0.0
                 pick.x_outstanding_qty = 0.0
 
-    def _compute_return_count(self):
+    def _compute_x_return_count(self):
         for pick in self:
+            if not isinstance(pick.id, int) or not pick.id:
+                pick.x_return_count = 0
+                continue
             pick.x_return_count = self.search_count([
                 ('x_original_issuance_id', '=', pick.id),
             ])
