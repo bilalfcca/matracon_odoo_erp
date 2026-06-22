@@ -6,17 +6,14 @@ class PurchaseOrderLine(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
+        """When Odoo creates alternative RFQ lines (via native Alternatives feature),
+        it copies product_qty but does NOT copy x_requested_qty (which stays 0.0).
+        We auto-populate it here so the requested qty is visible on alternatives too.
+        """
         for vals in vals_list:
             if not vals.get('x_requested_qty') and vals.get('product_qty'):
                 vals['x_requested_qty'] = vals['product_qty']
-        lines = super().create(vals_list)
-        for line in lines:
-            order = line.order_id
-            if order.x_project_analytic_account_id and not line.analytic_distribution:
-                line.analytic_distribution = {
-                    str(order.x_project_analytic_account_id.id): 100.0,
-                }
-        return lines
+        return super().create(vals_list)
 
     # ── Quantity Fields ───────────────────────────────────────────────────────
     x_requested_qty = fields.Float(
@@ -133,15 +130,13 @@ class PurchaseOrderLine(models.Model):
     x_is_ceo = fields.Boolean(compute='_compute_role_flags')
 
     def _compute_role_flags(self):
-        user = self.env.user
-        is_ss = user.has_group('purchase_demand_raise.group_site_store')
-        is_ho = user.has_group('purchase_demand_raise.group_procurement_ho')
-        is_ceo = user.has_group('purchase_demand_raise.group_ceo_approval')
-        is_admin = user.has_group('base.group_system')
+        is_ss = self.env.user.has_group('purchase_demand_raise.group_site_store')
+        is_ho = self.env.user.has_group('purchase_demand_raise.group_procurement_ho')
+        is_ceo = self.env.user.has_group('purchase_demand_raise.group_ceo_approval')
         for line in self:
             line.x_is_site_store = is_ss
-            line.x_is_ho = is_ho or is_admin
-            line.x_is_ceo = is_ceo or is_admin
+            line.x_is_ho = is_ho
+            line.x_is_ceo = is_ceo
 
     # ── Auto-set analytic distribution when product added ─────────────────────
     @api.onchange('product_id')

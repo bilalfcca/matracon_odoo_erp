@@ -36,10 +36,6 @@
 
             <!-- Inject site ops fields after the partner field -->
             <xpath expr="//field[@name='partner_id']" position="after">
-                <field name="x_fund_project_id"
-                       string="Fund Project (Client Receipt)"
-                       invisible="payment_type != 'inbound'"
-                       required="payment_type == 'inbound'"/>
                 <field name="x_vendor_bank_account_id"
                        invisible="payment_type != 'outbound'"/>
                 <field name="x_liability_sheet_id"
@@ -51,12 +47,11 @@
                        readonly="1"
                        invisible="not x_liability_sheet_id"/>
                 <field name="x_destination_project_id"
-                       string="Destination Project"
                        invisible="payment_type != 'outbound'"/>
                 <field name="x_source_project_ids"
                        widget="many2many_tags"
                        invisible="payment_type != 'outbound'"/>
-                <field name="x_available_bank_balance"
+                <field name="x_available_balance"
                        readonly="1"
                        invisible="payment_type != 'outbound'"/>
             </xpath>
@@ -96,7 +91,7 @@
                 <field name="x_destination_project_id" string="Destination Project" optional="show"/>
                 <field name="amount" string="Amount"/>
                 <field name="journal_id" string="Journal" optional="show"/>
-                <field name="x_available_bank_balance" string="Bank Balance" optional="show"/>
+                <field name="x_available_balance" string="Available Balance" optional="show"/>
                 <field name="x_payment_status" string="Payment Status"
                        widget="badge"
                        decoration-success="x_payment_status == 'paid'"

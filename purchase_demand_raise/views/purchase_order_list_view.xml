@@ -27,7 +27,7 @@
                 <field name="x_pr_state" string="PR Status"
                        widget="badge"
                        decoration-info="x_pr_state == 'draft'"
-                       decoration-warning="x_pr_state in ('submitted', 'ceo_final')"
+                       decoration-warning="x_pr_state in ('submitted', 'rfq_phase', 'ceo_final')"
                        decoration-success="x_pr_state in ('po_locked', 'dispatched')"
                        decoration-danger="x_pr_state in ('rejected', 'cancelled')"
                        optional="show"/>
@@ -69,7 +69,7 @@
                 <field name="x_pr_state" string="PR Status"
                        widget="badge"
                        decoration-info="x_pr_state == 'draft'"
-                       decoration-warning="x_pr_state in ('submitted', 'ceo_final')"
+                       decoration-warning="x_pr_state in ('submitted', 'rfq_phase', 'ceo_final')"
                        decoration-success="x_pr_state in ('po_locked', 'dispatched')"
                        decoration-danger="x_pr_state in ('rejected', 'cancelled')"
                        optional="show"/>
@@ -109,100 +109,42 @@
 
                 <separator/>
 
-                <!-- ── Approval queue (pending action) ── -->
+                <!-- Approval status filters -->
                 <filter name="pending_ho_approval"
                         string="Pending HO Approval"
-                        domain="[
-                            ('x_is_pr_document', '=', True),
-                            ('x_pr_state', '=', 'submitted'),
-                            ('x_ho_status', '=', 'pending'),
-                        ]"/>
+                        domain="[('x_ho_status', '=', 'pending'), ('x_pr_state', 'not in', ['draft', 'rejected', 'cancelled'])]"/>
 
                 <filter name="pending_ceo_approval"
                         string="Pending CEO Approval"
-                        domain="[
-                            ('x_is_pr_document', '=', True),
-                            ('x_pr_state', '=', 'ceo_final'),
-                            ('x_ho_status', '=', 'approved'),
-                            ('x_ceo_status', '=', 'pending'),
-                        ]"/>
+                        domain="[('x_ceo_status', '=', 'pending'), ('x_pr_state', 'not in', ['draft', 'rejected', 'cancelled'])]"/>
 
-                <separator/>
+                <filter name="awaiting_joint_approval"
+                        string="Awaiting Joint Approval"
+                        domain="[('x_pr_state', '=', 'submitted')]"/>
 
-                <!-- ── Approval outcomes ── -->
-                <filter name="ho_approved"
-                        string="HO Approved"
-                        domain="[
-                            ('x_is_pr_document', '=', True),
-                            ('x_ho_status', '=', 'approved'),
-                        ]"/>
+                <filter name="rfq_phase"
+                        string="In RFQ Phase"
+                        domain="[('x_pr_state', '=', 'rfq_phase')]"/>
 
-                <filter name="ceo_approved"
-                        string="CEO Approved"
-                        domain="[
-                            ('x_is_pr_document', '=', True),
-                            ('x_ceo_status', '=', 'approved'),
-                        ]"/>
-
-                <filter name="joint_approved"
-                        string="Joint Approved"
-                        domain="[
-                            ('x_is_pr_document', '=', True),
-                            ('x_ho_status', '=', 'approved'),
-                            ('x_ceo_status', '=', 'approved'),
-                        ]"/>
-
-                <separator/>
-
-                <!-- ── PR lifecycle ── -->
-                <filter name="pr_draft"
-                        string="PR Draft"
-                        domain="[
-                            ('x_is_pr_document', '=', True),
-                            ('x_pr_state', '=', 'draft'),
-                        ]"/>
-
-                <filter name="pr_submitted"
-                        string="PR Submitted"
-                        domain="[
-                            ('x_is_pr_document', '=', True),
-                            ('x_pr_state', '=', 'submitted'),
-                        ]"/>
+                <filter name="ceo_final_review"
+                        string="Pending CEO Final"
+                        domain="[('x_pr_state', '=', 'ceo_final')]"/>
 
                 <filter name="po_locked"
                         string="PO Locked — Ready to Dispatch"
-                        domain="[
-                            ('x_is_pr_document', '=', True),
-                            ('x_pr_state', '=', 'po_locked'),
-                        ]"/>
+                        domain="[('x_pr_state', '=', 'po_locked')]"/>
 
                 <filter name="dispatched"
                         string="Dispatched"
-                        domain="[
-                            ('x_is_pr_document', '=', True),
-                            ('x_pr_state', '=', 'dispatched'),
-                        ]"/>
+                        domain="[('x_pr_state', '=', 'dispatched')]"/>
 
                 <filter name="rejected"
                         string="Rejected"
-                        domain="[
-                            ('x_is_pr_document', '=', True),
-                            ('x_pr_state', '=', 'rejected'),
-                        ]"/>
-
-                <filter name="pr_documents_only"
-                        string="Purchase Requisitions Only"
-                        domain="[('x_is_pr_document', '=', True)]"/>
+                        domain="[('x_pr_state', '=', 'rejected')]"/>
 
                 <separator/>
 
                 <!-- Group-by options -->
-                <filter name="group_ho_status"
-                        string="Group by HO Status"
-                        context="{'group_by': 'x_ho_status'}"/>
-                <filter name="group_ceo_status"
-                        string="Group by CEO Status"
-                        context="{'group_by': 'x_ceo_status'}"/>
                 <filter name="group_pr_state"
                         string="Group by PR Status"
                         context="{'group_by': 'x_pr_state'}"/>

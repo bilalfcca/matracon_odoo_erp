@@ -31,7 +31,7 @@ class StockPickingSiteOps(models.Model):
 
     # ── Project (auto-filled from user site config) ───────────────────────────
     x_issuance_project_id = fields.Many2one(
-        'account.analytic.account', string='Issuance Project',
+        'account.analytic.account', string='Project',
         tracking=True, readonly=True,
         help='Auto-filled from the logged-in user site configuration')
 
@@ -118,45 +118,21 @@ class StockPickingSiteOps(models.Model):
     def default_get(self, fields_list):
         res = super().default_get(fields_list)
         if res.get('x_transfer_purpose') in ('material_issuance', 'site_to_site'):
-            self._matracon_apply_site_ops_defaults(res)
+            if not res.get('picking_type_id'):
+                user = self.env.user
+                pt = None
+                if hasattr(user, 'x_default_warehouse_id') and user.x_default_warehouse_id:
+                    pt = user.x_default_warehouse_id.int_type_id
+                if not pt:
+                    pt = self.env['stock.picking.type'].search(
+                        [('code', '=', 'internal')], limit=1)
+                if pt:
+                    res['picking_type_id'] = pt.id
+                    if pt.default_location_src_id:
+                        res.setdefault('location_id', pt.default_location_src_id.id)
+                    if pt.default_location_dest_id:
+                        res.setdefault('location_dest_id', pt.default_location_dest_id.id)
         return res
-
-    def _matracon_apply_site_ops_defaults(self, vals):
-        """Fill hidden-but-required stock fields for material issuance forms."""
-        user = self.env.user
-        if not vals.get('x_issuance_project_id') and user.x_default_analytic_account_id:
-            vals['x_issuance_project_id'] = user.x_default_analytic_account_id.id
-        pt = None
-        if vals.get('picking_type_id'):
-            pt = self.env['stock.picking.type'].browse(vals['picking_type_id'])
-        elif hasattr(user, 'x_default_warehouse_id') and user.x_default_warehouse_id:
-            pt = user.x_default_warehouse_id.int_type_id
-        if not pt:
-            pt = self.env['stock.picking.type'].search([('code', '=', 'internal')], limit=1)
-        if pt:
-            vals.setdefault('picking_type_id', pt.id)
-            if pt.default_location_src_id:
-                vals.setdefault('location_id', pt.default_location_src_id.id)
-            if pt.default_location_dest_id:
-                vals.setdefault('location_dest_id', pt.default_location_dest_id.id)
-
-    @api.onchange('x_transfer_purpose', 'picking_type_id')
-    def _onchange_site_ops_locations(self):
-        if self.x_transfer_purpose in ('material_issuance', 'site_to_site'):
-            vals = {'x_transfer_purpose': self.x_transfer_purpose}
-            if self.picking_type_id:
-                vals['picking_type_id'] = self.picking_type_id.id
-            self._matracon_apply_site_ops_defaults(vals)
-            for fname in ('picking_type_id', 'location_id', 'location_dest_id',
-                            'x_issuance_project_id'):
-                if fname in vals:
-                    setattr(self, fname, vals[fname])
-
-    @api.onchange('x_contact_id')
-    def _onchange_x_contact_id_partner(self):
-        if self.x_contact_id and self.x_transfer_purpose in (
-                'material_issuance', 'site_to_site'):
-            self.partner_id = self.x_contact_id
 
     # ─────────────────────────────────────────────────────────────────────────
     # ONCHANGE
@@ -177,9 +153,24 @@ class StockPickingSiteOps(models.Model):
     def create(self, vals_list):
         for vals in vals_list:
             if vals.get('x_transfer_purpose') in ('material_issuance', 'site_to_site'):
-                self._matracon_apply_site_ops_defaults(vals)
-                if vals.get('x_contact_id') and not vals.get('partner_id'):
-                    vals['partner_id'] = vals['x_contact_id']
+                user = self.env.user
+                # Auto-fill project
+                if not vals.get('x_issuance_project_id') and user.x_default_analytic_account_id:
+                    vals['x_issuance_project_id'] = user.x_default_analytic_account_id.id
+                # Auto-fill picking type + locations if missing
+                if not vals.get('picking_type_id'):
+                    pt = None
+                    if hasattr(user, 'x_default_warehouse_id') and user.x_default_warehouse_id:
+                        pt = user.x_default_warehouse_id.int_type_id
+                    if not pt:
+                        pt = self.env['stock.picking.type'].search(
+                            [('code', '=', 'internal')], limit=1)
+                    if pt:
+                        vals['picking_type_id'] = pt.id
+                        vals.setdefault('location_id',
+                                        pt.default_location_src_id.id if pt.default_location_src_id else False)
+                        vals.setdefault('location_dest_id',
+                                        pt.default_location_dest_id.id if pt.default_location_dest_id else False)
         return super().create(vals_list)
 
     # ─────────────────────────────────────────────────────────────────────────
@@ -372,10 +363,19 @@ class StockPickingSiteOps(models.Model):
                 })
 
     def _post_validate_material_issuance(self):
-        """Post partner-ledger journal entry when backcharge applies on issuance."""
+        """Create partner-ledger journal entry for every validated issuance.
+
+        Every issuance with a contact gets a posted entry so the vendor/
+        subcontractor appears in the Partner Ledger immediately.
+
+        Entry structure:
+          DR  Material Issuance Expense  (project analytic)
+          CR  Accounts Payable           (x_contact_id → partner ledger)
+
+        Amount is computed fresh from done move lines (quantity × x_unit_cost)
+        to avoid the stale-cache problem that caused zero-amount entries.
+        """
         self.ensure_one()
-        if not self.x_backcharge_applicable:
-            return
         if not self.x_contact_id or self.x_backcharge_refund_entry_id:
             return
 
@@ -401,12 +401,10 @@ class StockPickingSiteOps(models.Model):
         self._auto_update_liability_sheet(amount)
 
     def _post_validate_return(self):
-        """Create reversal partner-ledger entry when backcharge applied on original."""
+        """Create reversal partner-ledger entry when items are returned."""
         self.ensure_one()
         orig = self.x_original_issuance_id
-        if not orig or not orig.x_backcharge_applicable:
-            return
-        if self.x_return_backcharge_entry_id:
+        if not orig or self.x_return_backcharge_entry_id:
             return
 
         # Compute returned amount proportionally from done moves

@@ -58,16 +58,16 @@
                         string="✓ Approve &amp; Submit to CEO"
                         type="object"
                         class="btn-primary"
-                        invisible="x_pr_state != 'submitted' or not x_is_pr_document"
-                        groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_head_office,base.group_system"
+                        invisible="x_pr_state != 'submitted'"
+                        groups="purchase_demand_raise.group_procurement_ho"
                         confirm="Set the Vendor field above before clicking. Vendor prices will be auto-fetched and the PR will route to CEO for final approval. Continue?"/>
 
                 <button name="action_ho_reject"
                         string="✗ Reject"
                         type="object"
                         class="btn-danger"
-                        invisible="x_pr_state != 'submitted' or not x_is_pr_document"
-                        groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_head_office,base.group_system"
+                        invisible="x_pr_state != 'submitted'"
+                        groups="purchase_demand_raise.group_procurement_ho"
                         confirm="Reject this PR? The initiator will be notified."/>
 
                 <!-- CEO: Final Approve / Reject -->
@@ -75,34 +75,30 @@
                         string="✓ Final Approve &amp; Lock PO"
                         type="object"
                         class="btn-success"
-                        invisible="x_pr_state != 'ceo_final' or not x_is_pr_document"
-                        groups="purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,base.group_system"
+                        invisible="x_pr_state != 'ceo_final'"
+                        groups="purchase_demand_raise.group_ceo_approval"
                         confirm="This will LOCK the PO and confirm the order. Continue?"/>
 
                 <button name="action_ceo_final_reject"
                         string="✗ Reject"
                         type="object"
                         class="btn-danger"
-                        invisible="x_pr_state != 'ceo_final' or not x_is_pr_document"
-                        groups="purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,base.group_system"
+                        invisible="x_pr_state != 'ceo_final'"
+                        groups="purchase_demand_raise.group_ceo_approval"
                         confirm="Reject at final stage? HO and initiator will be notified."/>
 
-                <!-- Comparative Statement PDF — smart button only (no duplicate header print) -->
             </xpath>
 
             <!-- ── 2. Standard buttons: hide from Site Store; hide on PR docs when rejected ── -->
-            <!-- Send RFQ — keep Odoo state conditions (prevents duplicate buttons) -->
+            <!-- Send RFQ buttons: hidden from Site Store and from PR docs when rejected -->
             <xpath expr="//header/button[@name='action_rfq_send'][1]" position="attributes">
-                <attribute name="invisible">state != 'draft' or x_is_site_store or (x_is_pr_document and x_pr_state in ('rejected', 'cancelled'))</attribute>
+                <attribute name="invisible">x_is_site_store or (x_is_pr_document and x_pr_state in ('rejected', 'cancelled'))</attribute>
             </xpath>
             <xpath expr="//header/button[@name='action_rfq_send'][2]" position="attributes">
-                <attribute name="invisible">state != 'sent' or x_is_site_store or (x_is_pr_document and x_pr_state in ('rejected', 'cancelled'))</attribute>
+                <attribute name="invisible">x_is_site_store or (x_is_pr_document and x_pr_state in ('rejected', 'cancelled'))</attribute>
             </xpath>
             <xpath expr="//header/button[@name='action_rfq_send'][3]" position="attributes">
-                <attribute name="invisible">state != 'purchase' or x_is_site_store or (x_is_pr_document and x_pr_state in ('rejected', 'cancelled'))</attribute>
-            </xpath>
-            <xpath expr="//header/button[@name='button_confirm'][@id='bid_confirm']" position="attributes">
-                <attribute name="invisible">x_is_pr_document or x_is_site_store or state != 'sent'</attribute>
+                <attribute name="invisible">x_is_site_store or (x_is_pr_document and x_pr_state in ('rejected', 'cancelled'))</attribute>
             </xpath>
             <!-- Confirm Order:
                  - PR documents: HIDDEN (CEO Final Approve handles confirm)
@@ -110,7 +106,7 @@
                  - Site Store: never visible
             -->
             <xpath expr="//header/button[@name='button_confirm'][@id='draft_confirm']" position="attributes">
-                <attribute name="invisible">state != 'draft' or x_is_pr_document or x_is_site_store</attribute>
+                <attribute name="invisible">x_is_pr_document or x_is_site_store</attribute>
             </xpath>
             <!-- Cancel: hidden from Site Store and from PR docs once rejected/dispatched -->
             <xpath expr="//header/button[@name='button_cancel']" position="attributes">
@@ -120,7 +116,7 @@
                  ALSO keep Odoo's original condition (state=='purchase') to avoid duplicate
                  with the action_report_purchase_order button that shows at purchase state -->
             <xpath expr="//header/button[@name='print_quotation']" position="attributes">
-                <attribute name="invisible">state == 'purchase' or x_is_site_store or x_is_pr_document</attribute>
+                <attribute name="invisible">x_is_site_store or state == 'purchase' or (x_is_pr_document and x_pr_state in ('rejected', 'cancelled'))</attribute>
             </xpath>
 
             <!-- Upload Bill + Print at purchase state are handled in the priority-20 view below
@@ -145,7 +141,6 @@
                 <field name="x_is_ceo" invisible="1"/>
                 <field name="x_is_pr_document" invisible="1"/>
                 <field name="x_can_submit" invisible="1"/>
-                <field name="x_has_tender_alternatives" invisible="1"/>
             </field>
 
             <!-- ── 5b. INJECT custom header fields after partner_id ── -->
@@ -191,9 +186,9 @@
                        invisible="x_pr_state != 'rejected'"
                        readonly="1" string="Rejection Reason"/>
 
-                <!-- Project: PR, alternatives in same tender, and site store -->
+                <!-- Project Analytic Account: HO/CEO on PR docs; site store sees it readonly -->
                 <field name="x_project_analytic_account_id"
-                       invisible="not x_is_pr_document and not x_is_site_store and not x_has_tender_alternatives"
+                       invisible="not x_is_pr_document and not x_is_site_store"
                        readonly="x_is_site_store"
                        groups="purchase_demand_raise.group_site_store,purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office"/>
             </field>
@@ -238,31 +233,31 @@
                        readonly="1"
                        optional="show"/>
 
-                <!-- Recommended Qty: HO edits at submitted -->
+                <!-- Recommended Qty: HO edits, CEO sees; hidden from Site Store -->
                 <field name="x_recommended_qty"
                        string="Recommended Qty"
                        column_invisible="not parent.x_is_pr_document or parent.x_is_site_store"
-                       readonly="not x_is_ho or parent.x_pr_state != 'submitted'"
+                       readonly="not x_is_ho"
                        optional="show"/>
 
-                <!-- Decision: CEO at final review -->
+                <!-- Decision: CEO only -->
                 <field name="x_decision"
                        string="Decision"
-                       column_invisible="not parent.x_is_pr_document or not parent.x_is_ceo or parent.x_pr_state != 'ceo_final'"
+                       column_invisible="not parent.x_is_pr_document or not parent.x_is_ceo"
                        optional="show"/>
 
-                <!-- Approved Qty: CEO edits at ceo_final; others read-only -->
+                <!-- Approved Qty: all roles on PR docs (site store monitors it) -->
                 <field name="x_approved_qty"
                        string="Approved Qty"
-                       column_invisible="not parent.x_is_pr_document"
-                       readonly="not x_is_ceo or parent.x_pr_state != 'ceo_final'"
+                       column_invisible="not parent.x_is_pr_document and not parent.x_is_site_store"
+                       readonly="not x_is_ceo"
                        optional="show"/>
 
-                <!-- Exceeds Recommended warning: CEO at final review -->
+                <!-- Exceeds Recommended warning: CEO only -->
                 <field name="x_exceeds_recommended"
                        string="⚠ Exceeds"
                        widget="boolean"
-                       column_invisible="not parent.x_is_pr_document or not parent.x_is_ceo or parent.x_pr_state != 'ceo_final'"
+                       column_invisible="not parent.x_is_pr_document or not parent.x_is_ceo"
                        readonly="1"
                        optional="show"/>
             </field>
@@ -297,7 +292,7 @@
     </record>
 
     <!-- ═══════════════════════════════════════
-         SMART BUTTON — Comparative Statement PDF
+         SMART BUTTON — Comparative Statement
          ═══════════════════════════════════════ -->
     <record id="view_purchase_order_buttons_cs" model="ir.ui.view">
         <field name="name">purchase.order.buttons.cs</field>
@@ -305,12 +300,12 @@
         <field name="inherit_id" ref="purchase.purchase_order_form"/>
         <field name="arch" type="xml">
             <xpath expr="//div[@name='button_box']" position="inside">
-                <button name="action_print_comparative_statement"
+                <button name="action_open_comparative_statement"
                         type="object"
                         class="oe_stat_button"
                         icon="fa-balance-scale"
                         groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office"
-                        invisible="not x_has_tender_alternatives or x_is_site_store">
+                        invisible="x_pr_state not in ('rfq_phase','ceo_final','po_locked','dispatched')">
                     <div class="o_field_widget o_stat_info">
                         <span class="o_stat_text">Comparative</span>
                         <span class="o_stat_text">Statement</span>
@@ -321,7 +316,7 @@
     </record>
 
     <!-- ═══════════════════════════════════════
-         QUOTATION TERMS — per alternative RFQ (for CS PDF)
+         QUOTATION TERMS — per alternative RFQ (for CS)
          ═══════════════════════════════════════ -->
     <record id="view_purchase_order_form_quote_terms" model="ir.ui.view">
         <field name="name">purchase.order.form.quote.terms</field>
@@ -349,11 +344,11 @@
                     </group>
                     <group string="Additional Terms &amp; Conditions (any product / scope)">
                         <field name="x_quote_additional_terms" colspan="2" nolabel="1"
-                               placeholder="Scope, inclusions, exclusions, testing, spare parts, mobilization, HSE, liquidated damages, or other vendor-specific conditions…"/>
+                               placeholder="Scope, inclusions, exclusions, testing, mobilization, HSE, or other vendor-specific conditions…"/>
                     </group>
                     <div class="alert alert-info" role="alert">
                         Fill these on <strong>each alternative RFQ</strong> (one vendor per RFQ).
-                        Standard fields appear in the comparison table; additional notes appear below it on the Comparative Statement PDF.
+                        They are used when building the Comparative Statement.
                     </div>
                 </page>
             </xpath>
@@ -369,7 +364,7 @@
         <field name="inherit_id" ref="purchase.purchase_order_form"/>
         <field name="arch" type="xml">
             <field name="product_id" position="attributes">
-                <attribute name="domain">[('purchase_ok', '=', True)]</attribute>
+                <attribute name="domain">[('categ_id', '=', parent.x_category_id), ('purchase_ok', '=', True)]</attribute>
             </field>
         </field>
     </record>
@@ -391,7 +386,7 @@
                  HO edits at 'submitted'; CEO can override at 'ceo_final'. -->
             <xpath expr="//field[@name='partner_id']" position="attributes">
                 <attribute name="groups">!purchase_demand_raise.group_site_store</attribute>
-                <attribute name="readonly">x_is_pr_document and x_pr_state not in ('submitted', 'ceo_final')</attribute>
+                <attribute name="readonly">x_pr_state not in ('submitted', 'ceo_final')</attribute>
             </xpath>
 
             <!-- Alternatives tab: hidden for Site Store -->
@@ -404,9 +399,10 @@
                 <attribute name="invisible">1</attribute>
             </xpath>
 
-            <!-- Print PO report button (purchase state only) -->
-            <xpath expr="//header/button[@name='%(purchase.action_report_purchase_order)d']" position="attributes">
-                <attribute name="invisible">state != 'purchase' or x_is_site_store or (x_is_pr_document and x_pr_state in ('rejected', 'cancelled'))</attribute>
+            <!-- Print PO button (type='action', shows at state='purchase'):
+                 hidden from Site Store and from PR docs when rejected/cancelled -->
+            <xpath expr="//header/button[@type='action']" position="attributes">
+                <attribute name="invisible">x_is_site_store or (x_is_pr_document and x_pr_state in ('rejected', 'cancelled'))</attribute>
             </xpath>
 
         </field>
