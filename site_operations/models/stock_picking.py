@@ -31,7 +31,7 @@ class StockPickingSiteOps(models.Model):
 
     # ── Project (auto-filled from user site config) ───────────────────────────
     x_issuance_project_id = fields.Many2one(
-        'account.analytic.account', string='Project',
+        'account.analytic.account', string='Issuance Project',
         tracking=True, readonly=True,
         help='Auto-filled from the logged-in user site configuration')
 

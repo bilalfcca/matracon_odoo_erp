@@ -12,14 +12,52 @@ class ProjectSiteConfigProjectLink(models.Model):
         help='Linked native project record — financial dashboard and fund balances.',
     )
 
+    x_site_accountant_ids = fields.Many2many(
+        'res.users',
+        'x_project_site_accountant_rel',
+        'config_id', 'user_id',
+        string='Site Accountants',
+        help=(
+            'Site Accountants for this project. Adding a user here automatically assigns '
+            'the Site Accountant security group and sets their default analytic account.'
+        ),
+    )
+    x_accountant_count = fields.Integer(
+        compute='_compute_accountant_count',
+        string='Accountants',
+    )
+
+    @api.depends('x_site_accountant_ids')
+    def _compute_accountant_count(self):
+        for config in self:
+            config.x_accountant_count = len(config.x_site_accountant_ids)
+
     @api.model_create_multi
     def create(self, vals_list):
         records = super().create(vals_list)
         records._ensure_project_record()
+        for record in records:
+            if record.x_site_accountant_ids:
+                record._assign_accountants(record.x_site_accountant_ids)
         return records
 
     def write(self, vals):
+        old_accountant_sets = {
+            config.id: set(config.x_site_accountant_ids.ids) for config in self
+        }
         res = super().write(vals)
+        if 'x_site_accountant_ids' in vals:
+            for config in self:
+                old_users = old_accountant_sets.get(config.id, set())
+                new_users = set(config.x_site_accountant_ids.ids)
+                added_ids = new_users - old_users
+                removed_ids = old_users - new_users
+                if added_ids:
+                    config._assign_accountants(
+                        self.env['res.users'].browse(list(added_ids)))
+                if removed_ids:
+                    config._unassign_accountants(
+                        self.env['res.users'].browse(list(removed_ids)))
         if any(k in vals for k in (
             'name', 'analytic_account_id', 'site_user_ids', 'x_site_accountant_ids',
         )):
@@ -64,10 +102,52 @@ class ProjectSiteConfigProjectLink(models.Model):
                 user.sudo().write({'x_default_project_id': self.project_id.id})
 
     def _assign_accountants(self, users):
-        super()._assign_accountants(users)
+        """Assign Site Accountant group and project defaults."""
+        accountant_group = self.env.ref(
+            'site_operations.group_site_accountant', raise_if_not_found=False)
         for user in users:
+            vals = {
+                'x_default_analytic_account_id': self.analytic_account_id.id,
+                'x_default_warehouse_id': (
+                    self.warehouse_id.id if self.warehouse_id else False),
+                'x_site_config_id': self.id,
+            }
+            if accountant_group:
+                vals['group_ids'] = [(4, accountant_group.id)]
+            user.sudo().write(vals)
             if self.project_id:
                 user.sudo().write({'x_default_project_id': self.project_id.id})
+
+    def _unassign_accountants(self, users):
+        """Reverse accountant assignment when removed from site config."""
+        accountant_group = self.env.ref(
+            'site_operations.group_site_accountant', raise_if_not_found=False)
+        for user in users:
+            other_config = self.search([
+                ('x_site_accountant_ids', 'in', user.id),
+                ('id', '!=', self.id),
+            ], limit=1)
+            if other_config:
+                user.sudo().write({
+                    'x_default_analytic_account_id': other_config.analytic_account_id.id,
+                    'x_default_warehouse_id': (
+                        other_config.warehouse_id.id
+                        if other_config.warehouse_id else False),
+                    'x_site_config_id': other_config.id,
+                    'x_default_project_id': (
+                        other_config.project_id.id
+                        if other_config.project_id else False),
+                })
+            else:
+                unwrite_vals = {
+                    'x_default_analytic_account_id': False,
+                    'x_default_warehouse_id': False,
+                    'x_site_config_id': False,
+                    'x_default_project_id': False,
+                }
+                if accountant_group:
+                    unwrite_vals['group_ids'] = [(3, accountant_group.id)]
+                user.sudo().write(unwrite_vals)
 
     def action_open_project(self):
         self.ensure_one()
@@ -78,6 +158,17 @@ class ProjectSiteConfigProjectLink(models.Model):
             'res_model': 'project.project',
             'view_mode': 'form',
             'res_id': self.project_id.id,
+        }
+
+    def action_view_accountants(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Site Accountants — %s') % self.name,
+            'res_model': 'res.users',
+            'view_mode': 'list,form',
+            'domain': [('id', 'in', self.x_site_accountant_ids.ids)],
+            'context': {'default_x_site_config_id': self.id},
         }
 
     def action_view_project_dashboard(self):
