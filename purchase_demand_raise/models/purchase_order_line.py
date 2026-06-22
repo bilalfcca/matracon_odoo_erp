@@ -133,13 +133,15 @@ class PurchaseOrderLine(models.Model):
     x_is_ceo = fields.Boolean(compute='_compute_role_flags')
 
     def _compute_role_flags(self):
-        is_ss = self.env.user.has_group('purchase_demand_raise.group_site_store')
-        is_ho = self.env.user.has_group('purchase_demand_raise.group_procurement_ho')
-        is_ceo = self.env.user.has_group('purchase_demand_raise.group_ceo_approval')
+        user = self.env.user
+        is_ss = user.has_group('purchase_demand_raise.group_site_store')
+        is_ho = user.has_group('purchase_demand_raise.group_procurement_ho')
+        is_ceo = user.has_group('purchase_demand_raise.group_ceo_approval')
+        is_admin = user.has_group('base.group_system')
         for line in self:
             line.x_is_site_store = is_ss
-            line.x_is_ho = is_ho
-            line.x_is_ceo = is_ceo
+            line.x_is_ho = is_ho or is_admin
+            line.x_is_ceo = is_ceo or is_admin
 
     # ── Auto-set analytic distribution when product added ─────────────────────
     @api.onchange('product_id')

@@ -9,17 +9,24 @@ from odoo.exceptions import UserError
 class PurchaseOrderTender(models.Model):
     _inherit = 'purchase.order'
 
-    # ── Per-vendor quotation terms (filled on each alternative RFQ) ───────────
-    x_quote_brand = fields.Char(string='Pump / Brand')
+    # ── Per-vendor quotation terms (general — any product category) ───────────
+    x_quote_brand = fields.Char(
+        string='Brand / Make',
+        help='Manufacturer or brand offered by this vendor (if applicable).')
     x_quote_delivery_basis = fields.Char(
-        string='Delivery Basis', help='e.g. Ex-Works, FOR, DDP')
-    x_quote_delivery_period = fields.Char(string='Delivery Period')
+        string='Delivery Basis', help='e.g. Ex-Works, FOR Site, DDP')
+    x_quote_delivery_period = fields.Char(string='Delivery / Lead Time')
     x_quote_payment_terms = fields.Char(string='Payment Terms')
-    x_quote_warranty = fields.Char(string='Warranty')
+    x_quote_warranty = fields.Char(string='Warranty / Defect Liability')
     x_quote_tax_treatment = fields.Char(
-        string='GST / Tax Treatment', help='e.g. 18% charged extra, inclusive')
-    x_quote_vfd_included = fields.Char(string='VFD Included?')
-    x_quote_spares_included = fields.Char(string='Spare Parts')
+        string='GST / Tax Treatment', help='e.g. 18% extra, inclusive, exempt')
+    x_quote_validity = fields.Date(string='Quote Valid Until')
+    x_quote_additional_terms = fields.Html(
+        string='Additional Terms & Conditions',
+        sanitize_attributes=False,
+        help='Free-form vendor terms: scope inclusions/exclusions, testing, '
+             'mobilization, HSE, LD clauses, or any product-specific notes.',
+    )
 
     x_has_tender_alternatives = fields.Boolean(
         compute='_compute_x_has_tender_alternatives', store=False)
@@ -135,16 +142,14 @@ class PurchaseOrderTender(models.Model):
         saving = max_total - lowest_total if lowest_total is not None else 0.0
 
         terms_rows = [
-            ('Pump Brand', 'x_quote_brand'),
-            ('Delivery', 'x_quote_delivery_basis'),
-            ('Delivery Period', 'x_quote_delivery_period'),
+            ('Brand / Make', 'x_quote_brand'),
+            ('Delivery Basis', 'x_quote_delivery_basis'),
+            ('Delivery / Lead Time', 'x_quote_delivery_period'),
             ('Payment Terms', 'x_quote_payment_terms'),
-            ('Warranty', 'x_quote_warranty'),
-            ('GST Treatment', 'x_quote_tax_treatment'),
-            ('VFD Included?', 'x_quote_vfd_included'),
-            ('Spare Parts', 'x_quote_spares_included'),
+            ('Warranty / DLP', 'x_quote_warranty'),
+            ('GST / Tax', 'x_quote_tax_treatment'),
             ('Quotation Ref.', 'partner_ref'),
-            ('Quote Validity', 'date_order'),
+            ('Quote Valid Until', 'x_quote_validity'),
         ]
         terms_table = []
         for label, field_name in terms_rows:
@@ -153,15 +158,23 @@ class PurchaseOrderTender(models.Model):
                 order = vendor['order']
                 if field_name == 'partner_ref':
                     val = order.partner_ref or '—'
-                elif field_name == 'date_order':
+                elif field_name == 'x_quote_validity':
                     val = (
-                        order.date_order.strftime('%d-%b-%Y')
-                        if order.date_order else '—'
+                        order.x_quote_validity.strftime('%d-%b-%Y')
+                        if order.x_quote_validity else '—'
                     )
                 else:
                     val = getattr(order, field_name, False) or '—'
                 row['values'].append(val)
             terms_table.append(row)
+
+        vendor_additional_terms = [
+            {
+                'name': vendor['name'],
+                'html': vendor['order'].x_quote_additional_terms or '',
+            }
+            for vendor in vendors
+        ]
 
         project_name = (
             root.x_project_analytic_account_id.name
@@ -180,6 +193,8 @@ class PurchaseOrderTender(models.Model):
             'project_name': project_name,
             'report_date': fields.Date.today(),
             'terms_table': terms_table,
+            'vendor_additional_terms': vendor_additional_terms,
+            'has_additional_terms': any(v['html'] for v in vendor_additional_terms),
             'vendor_count': len(vendors),
         }
 
@@ -203,3 +218,21 @@ class PurchaseOrderTender(models.Model):
         return self.env.ref(
             'purchase_demand_raise.action_report_comparative_statement'
         ).report_action(self, config=False)
+
+    def _sync_alternative_lines_from_root(self, root):
+        """Align alternative RFQ line qty/analytic with the originating PR."""
+        self.ensure_one()
+        for root_line in root.order_line.filtered(lambda l: not l.display_type):
+            alt_line = self.order_line.filtered(
+                lambda l, p=root_line.product_id: l.product_id == p and not l.display_type
+            )[:1]
+            if not alt_line:
+                continue
+            qty = root_line.x_requested_qty or root_line.product_qty
+            alt_line.write({
+                'x_requested_qty': qty,
+                'x_recommended_qty': root_line.x_recommended_qty or qty,
+                'product_qty': qty,
+                'date_planned': root_line.date_planned,
+                'analytic_distribution': root_line.analytic_distribution,
+            })

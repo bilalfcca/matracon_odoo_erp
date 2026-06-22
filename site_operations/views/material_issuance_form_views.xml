@@ -87,6 +87,7 @@
             <!-- ── Hide Operation Type when this is a site ops transfer ────── -->
             <xpath expr="//field[@name='picking_type_id'][not(@column_invisible)]" position="attributes">
                 <attribute name="invisible">x_transfer_purpose in ['material_issuance', 'site_to_site']</attribute>
+                <attribute name="force_save">1</attribute>
             </xpath>
 
             <!-- ── Hide Source Document for material issuance ───────────── -->
@@ -96,6 +97,10 @@
 
             <!-- ── Site Ops fields after origin ─────────────────────────── -->
             <xpath expr="//field[@name='origin']" position="after">
+
+                <!-- Required locations (hidden but saved — prevents missing-field errors) -->
+                <field name="location_id" invisible="1" force_save="1"/>
+                <field name="location_dest_id" invisible="1" force_save="1"/>
 
                 <!-- ─ Project (readonly, auto-filled, hidden when empty) ─ -->
                 <field name="x_issuance_project_id"

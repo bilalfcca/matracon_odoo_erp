@@ -22,12 +22,20 @@ class StockMoveSiteOps(models.Model):
         help='Current quantity on hand at the source location. Not printed on reports.',
     )
 
-    @api.depends('product_id', 'location_id')
+    @api.depends('product_id', 'location_id', 'picking_id', 'picking_id.location_id',
+                 'picking_id.picking_type_id')
     def _compute_x_qty_on_hand(self):
         for move in self:
-            if move.product_id and move.location_id:
+            location = move.location_id
+            if not location and move.picking_id:
+                location = (
+                    move.picking_id.location_id
+                    or (move.picking_id.picking_type_id.default_location_src_id
+                        if move.picking_id.picking_type_id else False)
+                )
+            if move.product_id and location:
                 move.x_qty_on_hand = self.env['stock.quant']._get_available_quantity(
-                    move.product_id, move.location_id)
+                    move.product_id, location)
             else:
                 move.x_qty_on_hand = 0.0
 
