@@ -363,61 +363,74 @@ class StockPickingSiteOps(models.Model):
                 })
 
     def _post_validate_material_issuance(self):
-        """Generate backcharge accounting entry on issuance validation."""
+        """Create partner-ledger journal entry for every validated issuance.
+
+        Every issuance with a contact gets a posted entry so the vendor/
+        subcontractor appears in the Partner Ledger immediately.
+
+        Entry structure:
+          DR  Material Issuance Expense  (project analytic)
+          CR  Accounts Payable           (x_contact_id → partner ledger)
+
+        Amount is computed fresh from done move lines (quantity × x_unit_cost)
+        to avoid the stale-cache problem that caused zero-amount entries.
+        """
         self.ensure_one()
-        if (self.x_backcharge_applicable
-                and self.x_inventory_type == 'consumable'
-                and self.x_backcharge_amount > 0
-                and not self.x_backcharge_refund_entry_id):
-            entry = self._create_backcharge_entry(
-                self.x_backcharge_amount, is_return=False)
-            self.x_backcharge_refund_entry_id = entry
-            self.message_post(
-                body=_(
-                    'Backcharge entry <b>%s</b> created for %s.'
-                ) % (entry.name, self.name)
-            )
-            # Auto-create / update liability sheet for this project
-            self._auto_update_liability_sheet(entry)
+        if not self.x_contact_id or self.x_backcharge_refund_entry_id:
+            return
+
+        # ── Compute amount directly from DONE move lines ─────────────────
+        amount = sum(
+            m.quantity * m.x_unit_cost
+            for m in self.move_ids
+            if m.state == 'done' and m.x_unit_cost > 0
+        )
+        if not amount:
+            # Fallback: try the stored computed field (flush first)
+            self.env['stock.picking'].flush_model(['x_backcharge_amount'])
+            amount = self.x_backcharge_amount
+        if not amount:
+            return
+
+        entry = self._create_issuance_journal_entry(amount, is_return=False)
+        self.x_backcharge_refund_entry_id = entry
+        self.message_post(
+            body=_('Material issuance entry <b>%s</b> (%.2f) posted to partner ledger.')
+            % (entry.name, amount)
+        )
+        self._auto_update_liability_sheet(amount)
 
     def _post_validate_return(self):
-        """Generate backcharge return adjustment or asset backcharge on return."""
+        """Create reversal partner-ledger entry when items are returned."""
         self.ensure_one()
         orig = self.x_original_issuance_id
-        if not orig:
+        if not orig or self.x_return_backcharge_entry_id:
             return
-        # Consumable return with original backcharge
-        if (orig.x_backcharge_applicable
-                and orig.x_inventory_type == 'consumable'
-                and orig.x_backcharge_refund_entry_id):
-            orig_qty = sum(orig.move_ids.mapped('quantity')) or 1.0
-            ret_qty = sum(self.move_ids.mapped('quantity'))
-            proportion = ret_qty / orig_qty
-            adj_amount = orig.x_backcharge_amount * proportion
-            if adj_amount > 0:
-                entry = self._create_backcharge_entry(
-                    adj_amount, is_return=True, original=orig)
-                self.x_return_backcharge_entry_id = entry
-                self.message_post(
-                    body=_(
-                        'Backcharge Return Adjustment Entry <b>%s</b> created for %s.'
-                    ) % (entry.name, orig.name)
-                )
-                # Reduce the liability sheet line for this issuance
-                self._auto_adjust_liability_sheet_on_return(adj_amount, orig)
-        # Asset return with backcharge decision
-        elif (orig.x_inventory_type == 'asset'
-              and self.x_return_backcharge_applicable):
-            adj_amount = sum(m.x_line_backcharge_amount for m in self.move_ids)
-            if adj_amount > 0:
-                entry = self._create_backcharge_entry(
-                    adj_amount, is_return=False)
-                self.x_return_backcharge_entry_id = entry
-                self.message_post(
-                    body=_(
-                        'Asset Backcharge Entry <b>%s</b> created for %s.'
-                    ) % (entry.name, self.name)
-                )
+
+        # Compute returned amount proportionally from done moves
+        orig_amount = sum(
+            m.quantity * m.x_unit_cost
+            for m in orig.move_ids
+            if m.state == 'done' and m.x_unit_cost > 0
+        ) or orig.x_backcharge_amount
+
+        orig_qty = sum(
+            m.quantity for m in orig.move_ids if m.state == 'done') or 1.0
+        ret_qty = sum(m.quantity for m in self.move_ids if m.state == 'done')
+        proportion = ret_qty / orig_qty
+        adj_amount = round(orig_amount * proportion, 2)
+
+        if adj_amount <= 0:
+            return
+
+        entry = self._create_issuance_journal_entry(
+            adj_amount, is_return=True, original=orig)
+        self.x_return_backcharge_entry_id = entry
+        self.message_post(
+            body=_('Return adjustment entry <b>%s</b> (%.2f) posted to partner ledger.')
+            % (entry.name, adj_amount)
+        )
+        self._auto_adjust_liability_sheet_on_return(adj_amount, orig)
 
     def _post_validate_site_to_site(self):
         """Generate inter-project payable/receivable accounting entry."""
@@ -475,42 +488,94 @@ class StockPickingSiteOps(models.Model):
     # ACCOUNTING HELPERS
     # ─────────────────────────────────────────────────────────────────────────
 
-    def _create_backcharge_entry(self, amount, is_return=False, original=None):
-        """Create a vendor credit note (in_refund) to backcharge the subcontractor,
-        or a vendor bill (in_invoice) for a return adjustment."""
+    def _create_issuance_journal_entry(self, amount, is_return=False, original=None):
+        """Post a plain journal entry for material issuance / return.
+
+        Issuance:
+          DR  Material Issuance Expense  (analytic: project)
+          CR  Accounts Payable           (partner → partner ledger)
+
+        Return (reversal):
+          DR  Accounts Payable           (partner → partner ledger)
+          CR  Material Issuance Expense  (analytic: project)
+
+        Using move_type='entry' avoids the invoice/bill complexity and
+        guarantees correct partner-ledger visibility regardless of whether
+        the contact has been invoiced before.
+        """
         self.ensure_one()
         journal = self._get_or_create_backcharge_journal()
         partner = self.x_contact_id
+        analytic_id = self.x_issuance_project_id.id
+
+        Account = self.env['account.account'].sudo()
+        # Expense/cost side
+        expense_account = Account.search(
+            [('account_type', 'in', ['expense', 'expense_direct_cost'])], limit=1)
+        # Payable side — prefer partner's own payable account
+        payable_account = (
+            partner.sudo().property_account_payable_id
+            if partner and partner.property_account_payable_id
+            else Account.search([('account_type', '=', 'liability_payable')], limit=1)
+        )
+
+        if not expense_account or not payable_account:
+            self.message_post(body=_(
+                'Warning: expense or payable account not found. '
+                'Journal entry skipped — configure Chart of Accounts.'))
+            return None
+
+        label = (self.x_backcharge_description
+                 or (_('Return: %s') % (original.name if original else self.name)
+                     if is_return
+                     else _('Material Issuance: %s') % self.name))
+        analytic = {str(analytic_id): 100} if analytic_id else {}
+
         if is_return:
-            move_type = 'in_invoice'
-            ref = _('Backcharge Return Adjustment - %s') % (
-                original.name if original else self.name)
+            dr_account, cr_account = payable_account, expense_account
+            dr_partner = partner.id if partner else False
+            cr_partner = False
         else:
-            move_type = 'in_refund'
-            ref = _('Backcharge / Material Issuance - %s') % self.name
-        bc_account = self._get_or_create_backcharge_account()
-        line_name = self.x_backcharge_description or ref
+            dr_account, cr_account = expense_account, payable_account
+            dr_partner = False
+            cr_partner = partner.id if partner else False
+
         move = self.env['account.move'].sudo().create({
-            'move_type': move_type,
-            'partner_id': partner.id if partner else False,
+            'move_type': 'entry',
             'journal_id': journal.id,
-            'ref': ref,
+            'ref': label,
             'invoice_date': fields.Date.today(),
             'narration': self.x_backcharge_description or False,
-            'invoice_line_ids': [(0, 0, {
-                'name': line_name,
-                'quantity': 1,
-                'price_unit': amount,
-                'account_id': bc_account.id,
-            })],
+            'line_ids': [
+                (0, 0, {
+                    'account_id': dr_account.id,
+                    'partner_id': dr_partner,
+                    'name': label,
+                    'debit': amount,
+                    'credit': 0.0,
+                    'analytic_distribution': analytic,
+                }),
+                (0, 0, {
+                    'account_id': cr_account.id,
+                    'partner_id': cr_partner,
+                    'name': label,
+                    'debit': 0.0,
+                    'credit': amount,
+                    'analytic_distribution': analytic,
+                }),
+            ],
         })
         move.action_post()
         return move
 
-    def _auto_update_liability_sheet(self, entry):
-        """Auto-create or update the current-month liability sheet for this project."""
+    def _auto_update_liability_sheet(self, amount):
+        """Auto-create or update the current-month liability sheet for this project.
+
+        `amount` is passed in directly (computed from done moves) rather than
+        reading the stored x_backcharge_amount which may be stale post-validation.
+        """
         self.ensure_one()
-        if not self.x_issuance_project_id or not self.x_contact_id:
+        if not self.x_issuance_project_id or not self.x_contact_id or not amount:
             return
         today = fields.Date.today()
         month_start = today.replace(day=1)
@@ -541,30 +606,30 @@ class StockPickingSiteOps(models.Model):
         if existing_line:
             line = existing_line[0]
             line.write({
-                'new_liability': line.new_liability + self.x_backcharge_amount,
-                'recommended_amount': line.recommended_amount + self.x_backcharge_amount,
+                'new_liability': line.new_liability + amount,
+                'recommended_amount': line.recommended_amount + amount,
             })
             self.message_post(
                 body=_('Liability Sheet <b>%s</b> updated for <b>%s</b>: +%s (total %s)') % (
                     sheet.name,
                     self.x_contact_id.name,
-                    f'{self.x_backcharge_amount:,.2f}',
+                    f'{amount:,.2f}',
                     f'{line.new_liability:,.2f}',
                 )
             )
         else:
-            desc = self.x_backcharge_description or _('Backcharge - %s') % self.name
+            desc = self.x_backcharge_description or _('Material Issuance - %s') % self.name
             sheet.write({
                 'line_ids': [(0, 0, {
                     'description': desc,
                     'partner_id': self.x_contact_id.id,
-                    'new_liability': self.x_backcharge_amount,
-                    'recommended_amount': self.x_backcharge_amount,
+                    'new_liability': amount,
+                    'recommended_amount': amount,
                 })]
             })
             self.message_post(
                 body=_('Line added to Liability Sheet <b>%s</b>: %s — %s') % (
-                    sheet.name, desc, f'{self.x_backcharge_amount:,.2f}')
+                    sheet.name, desc, f'{amount:,.2f}')
             )
 
     def _auto_adjust_liability_sheet_on_return(self, adj_amount, original):
