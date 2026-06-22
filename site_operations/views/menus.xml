@@ -4,64 +4,18 @@
          Site Operations — Menu Placement
          All menus live inside the standard Inventory and Accounting apps.
          No new top-level app or separate module menu is created.
-
-         base.group_system (Administrator) is included on ALL menus so that
-         the admin user always has full visibility regardless of which custom
-         role groups they belong to.
+         base.group_system (Administrator) is on ALL menus for full access.
     ════════════════════════════════════════════════════════════════════════ -->
 
-    <!-- ── INVENTORY APP ─────────────────────────────────────────────────
-         Inventory → Operations → Transfers → Material Issuance
-         Inventory → Operations → Transfers → Site-to-Site Transfers
+    <!-- Inventory → Operations → Transfers -->
+    <!-- Site Accountants intentionally excluded from MI menus -->
+    <menuitem id="menu_material_issuance" name="Material Issuance" parent="stock.menu_stock_transfers" action="site_operations.action_material_issuance_only" sequence="25" groups="purchase_demand_raise.group_site_store,purchase_demand_raise.group_head_office,purchase_demand_raise.group_ceo_approval,base.group_system"/>
 
-         Visible to: Site Store (own project), CEO, Head Office, Admin
-         NOT visible to: Site Accountant (they have no MI access)
-    ──────────────────────────────────────────────────────────────────── -->
-    <menuitem id="menu_material_issuance"
-              name="Material Issuance"
-              parent="stock.menu_stock_transfers"
-              action="site_operations.action_material_issuance_only"
-              sequence="25"
-              groups="purchase_demand_raise.group_site_store,
-                      purchase_demand_raise.group_head_office,
-                      purchase_demand_raise.group_ceo_approval,
-                      base.group_system"/>
+    <menuitem id="menu_site_to_site_transfers" name="Site-to-Site Transfers" parent="stock.menu_stock_transfers" action="site_operations.action_site_to_site_transfers" sequence="26" groups="purchase_demand_raise.group_site_store,purchase_demand_raise.group_head_office,purchase_demand_raise.group_ceo_approval,base.group_system"/>
 
-    <menuitem id="menu_site_to_site_transfers"
-              name="Site-to-Site Transfers"
-              parent="stock.menu_stock_transfers"
-              action="site_operations.action_site_to_site_transfers"
-              sequence="26"
-              groups="purchase_demand_raise.group_site_store,
-                      purchase_demand_raise.group_head_office,
-                      purchase_demand_raise.group_ceo_approval,
-                      base.group_system"/>
+    <!-- Accounting → Vendors -->
+    <menuitem id="menu_liability_sheets" name="Liability Sheets" parent="account.menu_finance_payables" action="site_operations.action_liability_sheet" sequence="25" groups="site_operations.group_site_accountant,purchase_demand_raise.group_ceo_approval,site_operations.group_finance_ho,purchase_demand_raise.group_head_office,base.group_system"/>
 
-    <!-- ── ACCOUNTING APP ─────────────────────────────────────────────────
-         Accounting → Vendors → Liability Sheets
-         Accounting → Vendors → Finance Payments (HO)
-
-         Liability Sheets: Site Accountant, CEO, Finance HO, Head Office, Admin
-         Finance Payments: Finance HO, Head Office, Admin
-    ──────────────────────────────────────────────────────────────────── -->
-    <menuitem id="menu_liability_sheets"
-              name="Liability Sheets"
-              parent="account.menu_finance_payables"
-              action="site_operations.action_liability_sheet"
-              sequence="25"
-              groups="site_operations.group_site_accountant,
-                      purchase_demand_raise.group_ceo_approval,
-                      site_operations.group_finance_ho,
-                      purchase_demand_raise.group_head_office,
-                      base.group_system"/>
-
-    <menuitem id="menu_finance_ho_payments"
-              name="Finance Payments"
-              parent="account.menu_finance_payables"
-              action="site_operations.action_ho_vendor_payments"
-              sequence="26"
-              groups="site_operations.group_finance_ho,
-                      purchase_demand_raise.group_head_office,
-                      base.group_system"/>
+    <menuitem id="menu_finance_ho_payments" name="Finance Payments" parent="account.menu_finance_payables" action="site_operations.action_ho_vendor_payments" sequence="26" groups="site_operations.group_finance_ho,purchase_demand_raise.group_head_office,base.group_system"/>
 
 </odoo>
