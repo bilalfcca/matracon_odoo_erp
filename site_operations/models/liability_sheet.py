@@ -8,22 +8,6 @@ class LiabilitySheet(models.Model):
     _inherit = ['mail.thread', 'mail.activity.mixin']
     _order = 'date_from desc, id desc'
 
-    # ── Schema guard: runs on every server startup ────────────────────────────
-    # Odoo.sh sometimes restarts without running --update, so we defensively
-    # ensure the PM columns exist before the ORM tries to SELECT them.
-    @api.model
-    def _register_hook(self):
-        self.env.cr.execute("""
-            ALTER TABLE x_liability_sheet
-                ADD COLUMN IF NOT EXISTS pm_id               INTEGER,
-                ADD COLUMN IF NOT EXISTS pm_is_signed        BOOLEAN NOT NULL DEFAULT FALSE,
-                ADD COLUMN IF NOT EXISTS pm_signature_date   TIMESTAMP WITHOUT TIME ZONE,
-                ADD COLUMN IF NOT EXISTS pm_signed_sheet     BYTEA,
-                ADD COLUMN IF NOT EXISTS pm_signed_sheet_filename VARCHAR,
-                ADD COLUMN IF NOT EXISTS account_move_id     INTEGER
-        """)
-        return super()._register_hook()
-
     name = fields.Char(
         string='Reference', compute='_compute_name', store=True, readonly=True)
 

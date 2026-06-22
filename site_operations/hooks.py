@@ -1,5 +1,14 @@
-# ═══════════════════════════════════════════════════════════════════════════
-# PRODUCTION USER CONFIGURATION — Matracon Pakistan
+# DEMO USERS (site_operations/demo/demo_users.xml) — same roles, dev logins:
+#   bilal.khan@matracon.pk      → Admin + Head Office        (password: admin)
+#   ceo@matracon.pk             → CEO Approval + Head Office (password: user)
+#   procurement@matracon.pk     → Procurement HO + HO        (password: user)
+#   finance@matracon.pk         → Finance HO + HO            (password: user)
+#   accountant.mch@matracon.pk  → MCH Site Accountant        (password: user)
+#   store.mch@matracon.pk       → MCH Site Store             (password: user)
+#   accountant.rwasa@matracon.pk→ RWASA Site Accountant      (password: user)
+#   store.rwasa@matracon.pk     → RWASA Site Store           (password: user)
+#   accountant.stp@matracon.pk  → STP Site Accountant        (password: user)
+#   store.stp@matracon.pk       → STP Site Store             (password: user)
 # ═══════════════════════════════════════════════════════════════════════════
 # HEAD OFFICE (all projects):
 #   ID  2 → Bilal Khan (Admin)     → group_head_office
@@ -121,4 +130,11 @@ def post_init_hook(env):
         logging.getLogger(__name__).warning(
             'site_operations post_init_hook: skipped user configuration '
             '(not a production DB or users not yet created): %s', e
+        )
+    try:
+        env['project.project'].sync_from_site_configs()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(
+            'site_operations post_init_hook: project sync skipped: %s', e
         )

@@ -363,19 +363,10 @@ class StockPickingSiteOps(models.Model):
                 })
 
     def _post_validate_material_issuance(self):
-        """Create partner-ledger journal entry for every validated issuance.
-
-        Every issuance with a contact gets a posted entry so the vendor/
-        subcontractor appears in the Partner Ledger immediately.
-
-        Entry structure:
-          DR  Material Issuance Expense  (project analytic)
-          CR  Accounts Payable           (x_contact_id → partner ledger)
-
-        Amount is computed fresh from done move lines (quantity × x_unit_cost)
-        to avoid the stale-cache problem that caused zero-amount entries.
-        """
+        """Post partner-ledger journal entry when backcharge applies on issuance."""
         self.ensure_one()
+        if not self.x_backcharge_applicable:
+            return
         if not self.x_contact_id or self.x_backcharge_refund_entry_id:
             return
 
@@ -401,10 +392,12 @@ class StockPickingSiteOps(models.Model):
         self._auto_update_liability_sheet(amount)
 
     def _post_validate_return(self):
-        """Create reversal partner-ledger entry when items are returned."""
+        """Create reversal partner-ledger entry when backcharge applied on original."""
         self.ensure_one()
         orig = self.x_original_issuance_id
-        if not orig or self.x_return_backcharge_entry_id:
+        if not orig or not orig.x_backcharge_applicable:
+            return
+        if self.x_return_backcharge_entry_id:
             return
 
         # Compute returned amount proportionally from done moves

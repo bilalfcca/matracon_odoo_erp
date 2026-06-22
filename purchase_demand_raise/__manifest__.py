@@ -20,9 +20,8 @@
         'report/pr_internal_report_template.xml',
         'report/final_po_report.xml',
         'report/final_po_report_template.xml',
-    ],
-    'demo': [
-        'demo/demo_users.xml',
+        'report/comparative_statement_report.xml',
+        'report/comparative_statement_template.xml',
     ],
     'installable': True,
     'application': False,

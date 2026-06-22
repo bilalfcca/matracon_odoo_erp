@@ -6,14 +6,17 @@ class PurchaseOrderLine(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        """When Odoo creates alternative RFQ lines (via native Alternatives feature),
-        it copies product_qty but does NOT copy x_requested_qty (which stays 0.0).
-        We auto-populate it here so the requested qty is visible on alternatives too.
-        """
         for vals in vals_list:
             if not vals.get('x_requested_qty') and vals.get('product_qty'):
                 vals['x_requested_qty'] = vals['product_qty']
-        return super().create(vals_list)
+        lines = super().create(vals_list)
+        for line in lines:
+            order = line.order_id
+            if order.x_project_analytic_account_id and not line.analytic_distribution:
+                line.analytic_distribution = {
+                    str(order.x_project_analytic_account_id.id): 100.0,
+                }
+        return lines
 
     # ── Quantity Fields ───────────────────────────────────────────────────────
     x_requested_qty = fields.Float(

@@ -4,9 +4,54 @@
     <option name="autoReloadType" value="NONE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="d5df9394-1441-428e-81ef-eb75170c5523" name="Changes" comment="Added the tax field">
-      <change beforePath="$PROJECT_DIR$/my_custom_module/models/res.partner.py" beforeDir="false" afterPath="$PROJECT_DIR$/my_custom_module/models/res.partner.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/my_custom_module/views/partner_ledger_views.xml" beforeDir="false" afterPath="$PROJECT_DIR$/my_custom_module/views/partner_ledger_views.xml" afterDir="false" />
+    <list default="true" id="d5df9394-1441-428e-81ef-eb75170c5523" name="Changes" comment="Added the tax field (2)">
+      <change afterPath="$PROJECT_DIR$/.idea/matracon_odoo_erp.iml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/ceo_flow.docx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/comparitative_statement.pdf" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/finance_ho_flow.docx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/matracon_ss/Screenshot 2026-06-22 at 1.53.17 PM.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/matracon_ss/Screenshot 2026-06-22 at 1.54.10 PM.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/matracon_ss/Screenshot 2026-06-22 at 1.54.19 PM.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/matracon_ss/Screenshot 2026-06-22 at 1.54.31 PM.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/matracon_ss/Screenshot 2026-06-22 at 1.55.11 PM.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/matracon_ss/Screenshot 2026-06-22 at 1.55.15 PM.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/matracon_ss/Screenshot 2026-06-22 at 1.55.16 PM.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/matracon_ss/Screenshot 2026-06-22 at 1.55.29 PM.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/matracon_ss/Screenshot 2026-06-22 at 1.55.32 PM.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/matracon_ss/Screenshot 2026-06-22 at 1.55.37 PM.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/matracon_ss/Screenshot 2026-06-22 at 1.56.01 PM.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/matracon_ss/Screenshot 2026-06-22 at 1.56.04 PM.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/matracon_ss/Screenshot 2026-06-22 at 1.56.13 PM.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/matracon_ss/Screenshot 2026-06-22 at 1.56.27 PM.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/matracon_ss/Screenshot 2026-06-22 at 1.56.30 PM.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/matracon_ss/Screenshot 2026-06-22 at 1.57.01 PM.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/matracon_ss/Screenshot 2026-06-22 at 1.57.28 PM.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/procurement_ho_flow.docx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/site_accountant_flow.docx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/site_store_flow.docx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/purchase_demand_raise/__manifest__.py" beforeDir="false" afterPath="$PROJECT_DIR$/purchase_demand_raise/__manifest__.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/purchase_demand_raise/demo/demo_users.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/purchase_demand_raise/models/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/purchase_demand_raise/models/__init__.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/purchase_demand_raise/models/purchase_order.py" beforeDir="false" afterPath="$PROJECT_DIR$/purchase_demand_raise/models/purchase_order.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/purchase_demand_raise/models/purchase_order_line.py" beforeDir="false" afterPath="$PROJECT_DIR$/purchase_demand_raise/models/purchase_order_line.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/purchase_demand_raise/views/purchase_order_list_view.xml" beforeDir="false" afterPath="$PROJECT_DIR$/purchase_demand_raise/views/purchase_order_list_view.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/purchase_demand_raise/views/purchase_order_views.xml" beforeDir="false" afterPath="$PROJECT_DIR$/purchase_demand_raise/views/purchase_order_views.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/site_operations/__manifest__.py" beforeDir="false" afterPath="$PROJECT_DIR$/site_operations/__manifest__.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/site_operations/hooks.py" beforeDir="false" afterPath="$PROJECT_DIR$/site_operations/hooks.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/site_operations/models/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/site_operations/models/__init__.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/site_operations/models/account_payment.py" beforeDir="false" afterPath="$PROJECT_DIR$/site_operations/models/account_payment.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/site_operations/models/liability_sheet.py" beforeDir="false" afterPath="$PROJECT_DIR$/site_operations/models/liability_sheet.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/site_operations/models/payment_allocation.py" beforeDir="false" afterPath="$PROJECT_DIR$/site_operations/models/payment_allocation.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/site_operations/models/project_site_config.py" beforeDir="false" afterPath="$PROJECT_DIR$/site_operations/models/project_site_config.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/site_operations/models/stock_move.py" beforeDir="false" afterPath="$PROJECT_DIR$/site_operations/models/stock_move.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/site_operations/models/stock_picking.py" beforeDir="false" afterPath="$PROJECT_DIR$/site_operations/models/stock_picking.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/site_operations/views/menus.xml" beforeDir="false" afterPath="$PROJECT_DIR$/site_operations/views/menus.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/site_operations/views/site_config_views.xml" beforeDir="false" afterPath="$PROJECT_DIR$/site_operations/views/site_config_views.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/site_operations/views/vendor_payment_views.xml" beforeDir="false" afterPath="$PROJECT_DIR$/site_operations/views/vendor_payment_views.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -32,7 +77,7 @@
     </favorite-branches>
     <option name="RECENT_BRANCH_BY_REPOSITORY">
       <map>
-        <entry key="$PROJECT_DIR$" value="dev" />
+        <entry key="$PROJECT_DIR$" value="Development" />
       </map>
     </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
@@ -50,16 +95,20 @@
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.cidr.known.project.marker": "true",
     "RunOnceActivity.readMode.enableVisualFormatting": "true",
+    "SHARE_PROJECT_CONFIGURATION_FILES": "true",
     "cf.first.check.clang-format": "false",
     "cidr.known.project.marker": "true",
     "dart.analysis.tool.window.visible": "false",
-    "git-widget-placeholder": "Development",
+    "git-widget-placeholder": "main",
     "kotlin-language-version-configured": "true",
     "last_opened_file_path": "/Users/muhammadawais/StudioProjects/matracon_odoo_erp",
     "show.migrate.to.gradle.popup": "false"
   }
 }]]></component>
   <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$" />
+    </key>
     <key name="MoveFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$/my_custom_module" />
     </key>
@@ -97,12 +146,21 @@
       <option name="project" value="LOCAL" />
       <updated>1781807775209</updated>
     </task>
-    <option name="localTasksCounter" value="4" />
+    <task id="LOCAL-00004" summary="Added the tax field (2)">
+      <option name="closed" value="true" />
+      <created>1781808907423</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1781808907423</updated>
+    </task>
+    <option name="localTasksCounter" value="5" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="first commit" />
     <MESSAGE value="Added the tax field" />
-    <option name="LAST_COMMIT_MESSAGE" value="Added the tax field" />
+    <MESSAGE value="Added the tax field (2)" />
+    <option name="LAST_COMMIT_MESSAGE" value="Added the tax field (2)" />
   </component>
 </project>

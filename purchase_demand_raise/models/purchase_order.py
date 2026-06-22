@@ -124,7 +124,23 @@ class PurchaseOrder(models.Model):
                     analytic = self.env.user.x_default_analytic_account_id
                     if analytic:
                         vals['x_project_analytic_account_id'] = analytic.id
-        return super().create(vals_list)
+        orders = super().create(vals_list)
+        orders._sync_order_line_analytics()
+        return orders
+
+    def write(self, vals):
+        res = super().write(vals)
+        if 'x_project_analytic_account_id' in vals:
+            self._sync_order_line_analytics()
+        return res
+
+    def _sync_order_line_analytics(self):
+        """Push header project analytic to all PO lines (persist, not only onchange)."""
+        for order in self:
+            if not order.x_project_analytic_account_id:
+                continue
+            dist = {str(order.x_project_analytic_account_id.id): 100.0}
+            order.order_line.write({'analytic_distribution': dist})
 
     # ── Default picking_type_id to site user's warehouse ─────────────────────
     @api.model
@@ -513,6 +529,56 @@ class PurchaseOrder(models.Model):
             'view_mode': 'form',
             'target': 'current',
         }
+
+    def action_confirm_cs(self):
+        """Comparative Statement confirmed — set vendor and route to CEO final approval."""
+        for order in self:
+            cs = order.x_comparative_statement_id
+            if cs and cs.x_recommended_vendor_id:
+                order.partner_id = cs.x_recommended_vendor_id
+            if not order.partner_id:
+                raise UserError(_(
+                    'Please select a recommended vendor on the Comparative Statement '
+                    'before confirming.'
+                ))
+            today = fields.Date.today()
+            for line in order.order_line:
+                if line.product_id and not line.price_unit:
+                    seller = line.product_id._select_seller(
+                        partner_id=order.partner_id,
+                        quantity=line.x_recommended_qty or line.x_requested_qty or line.product_qty or 1.0,
+                        date=order.date_order or today,
+                        uom_id=line.product_uom_id,
+                    )
+                    if seller:
+                        line.price_unit = seller.price
+                    elif line.product_id.standard_price:
+                        line.price_unit = line.product_id.standard_price
+
+            order.write({
+                'x_ho_status': 'approved',
+                'x_pr_state': 'ceo_final',
+            })
+            ceo_users = order._get_group_users('purchase_demand_raise.group_ceo_approval')
+            for user in ceo_users:
+                order.activity_schedule(
+                    'mail.mail_activity_data_todo',
+                    summary=_('Final Approval Required: %s') % order.name,
+                    note=_(
+                        'Comparative Statement confirmed. Vendor: %(vendor)s. '
+                        'Please review quantities and give final CEO approval.'
+                    ) % {'vendor': order.partner_id.name},
+                    user_id=user.id,
+                )
+            ceo_partners = order._get_group_partners('purchase_demand_raise.group_ceo_approval')
+            order._notify_partners(
+                ceo_partners,
+                Markup(
+                    '📋 <b>Action Required — CS Confirmed: %(pr)s</b><br/>'
+                    'Recommended vendor: <b>%(vendor)s</b>. '
+                    'Please review and give final CEO approval.'
+                ) % {'pr': order.name, 'vendor': order.partner_id.name},
+            )
 
     # ── Internal PR Print Report ──────────────────────────────────────────────
     def action_print_pr_internal(self):

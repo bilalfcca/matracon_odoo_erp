@@ -4,6 +4,17 @@ from odoo import models, fields, api
 class StockMoveSiteOps(models.Model):
     _inherit = 'stock.move'
 
+    @api.model_create_multi
+    def create(self, vals_list):
+        for vals in vals_list:
+            if vals.get('analytic_distribution') or not vals.get('picking_id'):
+                continue
+            picking = self.env['stock.picking'].browse(vals['picking_id'])
+            analytic = picking.x_issuance_project_id
+            if analytic:
+                vals['analytic_distribution'] = {str(analytic.id): 100.0}
+        return super().create(vals_list)
+
     x_qty_on_hand = fields.Float(
         string='On Hand',
         compute='_compute_x_qty_on_hand',

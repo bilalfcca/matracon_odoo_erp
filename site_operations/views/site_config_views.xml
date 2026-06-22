@@ -1,17 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- ════════════════════════════════════════════
-         SITE PROJECT CONFIG — Form View Extension
-         Adds Site Accountants tab and stat button
-         ════════════════════════════════════════════ -->
     <record id="view_project_site_config_form_site_ops" model="ir.ui.view">
         <field name="name">x.project.site.config.form.site_ops</field>
         <field name="model">x.project.site.config</field>
         <field name="inherit_id" ref="purchase_demand_raise.view_project_site_config_form"/>
         <field name="arch" type="xml">
 
-            <!-- Add accountant stat button next to existing Site Users button -->
+            <field name="analytic_account_id" position="after">
+                <field name="project_id" readonly="1"/>
+            </field>
+
             <button name="action_view_users" position="after">
+                <button name="action_open_project"
+                        type="object"
+                        class="oe_stat_button"
+                        icon="fa-folder-open"
+                        invisible="not project_id">
+                    <span class="o_stat_text">Odoo Project</span>
+                </button>
                 <button name="action_view_accountants"
                         type="object"
                         class="oe_stat_button"
@@ -20,7 +26,6 @@
                 </button>
             </button>
 
-            <!-- Add Site Accountants tab after the Site Users tab -->
             <page name="site_users" position="after">
                 <page string="Site Accountants" name="site_accountants">
                     <div class="alert alert-info" role="alert">

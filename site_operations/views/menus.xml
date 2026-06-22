@@ -18,4 +18,20 @@
 
     <menuitem id="menu_finance_ho_payments" name="Finance Payments" parent="account.menu_finance_payables" action="site_operations.action_ho_vendor_payments" sequence="26" groups="site_operations.group_finance_ho,purchase_demand_raise.group_head_office,base.group_system"/>
 
+    <!-- Accounting → Reporting: cross-project fund dashboard -->
+    <menuitem id="menu_project_financial_overview"
+              name="Project Financial Overview"
+              parent="account.menu_finance"
+              action="site_operations.action_project_financial_overview"
+              sequence="5"
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,base.group_system"/>
+
+    <!-- Project app: same dashboard for project managers -->
+    <menuitem id="menu_project_financial_from_project"
+              name="Financial Overview"
+              parent="project.menu_main_pm"
+              action="site_operations.action_project_financial_overview"
+              sequence="5"
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,base.group_system"/>
+
 </odoo>

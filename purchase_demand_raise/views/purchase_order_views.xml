@@ -87,6 +87,15 @@
                         groups="purchase_demand_raise.group_ceo_approval"
                         confirm="Reject at final stage? HO and initiator will be notified."/>
 
+                <!-- Procurement HO: print CS from native Odoo alternatives -->
+                <button name="action_print_comparative_statement"
+                        string="Print Comparative Statement"
+                        type="object"
+                        class="btn-secondary"
+                        invisible="not x_has_tender_alternatives or x_is_site_store"
+                        groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office"
+                        data-hotkey="c"/>
+
             </xpath>
 
             <!-- ── 2. Standard buttons: hide from Site Store; hide on PR docs when rejected ── -->
@@ -141,6 +150,7 @@
                 <field name="x_is_ceo" invisible="1"/>
                 <field name="x_is_pr_document" invisible="1"/>
                 <field name="x_can_submit" invisible="1"/>
+                <field name="x_has_tender_alternatives" invisible="1"/>
             </field>
 
             <!-- ── 5b. INJECT custom header fields after partner_id ── -->
@@ -292,7 +302,7 @@
     </record>
 
     <!-- ═══════════════════════════════════════
-         SMART BUTTON — Comparative Statement
+         SMART BUTTON — Comparative Statement PDF
          ═══════════════════════════════════════ -->
     <record id="view_purchase_order_buttons_cs" model="ir.ui.view">
         <field name="name">purchase.order.buttons.cs</field>
@@ -300,17 +310,54 @@
         <field name="inherit_id" ref="purchase.purchase_order_form"/>
         <field name="arch" type="xml">
             <xpath expr="//div[@name='button_box']" position="inside">
-                <button name="action_open_comparative_statement"
+                <button name="action_print_comparative_statement"
                         type="object"
                         class="oe_stat_button"
                         icon="fa-balance-scale"
                         groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office"
-                        invisible="x_pr_state not in ('rfq_phase','ceo_final','po_locked','dispatched')">
+                        invisible="not x_has_tender_alternatives or x_is_site_store">
                     <div class="o_field_widget o_stat_info">
                         <span class="o_stat_text">Comparative</span>
                         <span class="o_stat_text">Statement</span>
                     </div>
                 </button>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ═══════════════════════════════════════
+         QUOTATION TERMS — per alternative RFQ (for CS PDF)
+         ═══════════════════════════════════════ -->
+    <record id="view_purchase_order_form_quote_terms" model="ir.ui.view">
+        <field name="name">purchase.order.form.quote.terms</field>
+        <field name="model">purchase.order</field>
+        <field name="inherit_id" ref="purchase.purchase_order_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//notebook" position="inside">
+                <page string="Quotation Terms (CS)"
+                      name="quote_terms_cs"
+                      groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office"
+                      invisible="x_is_site_store">
+                    <group>
+                        <group string="Commercial Terms">
+                            <field name="x_quote_brand"/>
+                            <field name="x_quote_delivery_basis"/>
+                            <field name="x_quote_delivery_period"/>
+                            <field name="x_quote_payment_terms"/>
+                            <field name="x_quote_warranty"/>
+                        </group>
+                        <group string="Tax &amp; Inclusions">
+                            <field name="x_quote_tax_treatment"/>
+                            <field name="x_quote_vfd_included"/>
+                            <field name="x_quote_spares_included"/>
+                            <field name="partner_ref" string="Quotation Reference"/>
+                        </group>
+                    </group>
+                    <div class="alert alert-info" role="alert">
+                        Fill these on <strong>each alternative RFQ</strong> (one vendor per RFQ).
+                        They appear in the Terms &amp; Conditions section of the Comparative Statement PDF.
+                    </div>
+                </page>
             </xpath>
         </field>
     </record>
