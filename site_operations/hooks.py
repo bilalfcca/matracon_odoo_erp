@@ -68,12 +68,12 @@ def configure_production_users(env):
         (10, [g_head_office, g_proc_ho]),           # Procurement HO
         (11, [g_head_office, g_finance_ho]),        # Finance HO
     ]:
-        user = Users.browse(uid).exists()
+        user = Users.sudo().browse(uid).exists()
         if not user:
             continue
         for grp in extra_groups:
-            if grp not in user.groups_id:
-                user.groups_id = [(4, grp.id)]
+            if grp.id not in user.sudo().groups_id.ids:
+                user.sudo().write({'groups_id': [(4, grp.id)]})
 
     # Site users - per project
     SiteConfig = env['x.project.site.config']
@@ -98,12 +98,15 @@ def configure_production_users(env):
         # Site Accountant users
         accountant_users = Users.browse(cfg['site_accountant_ids']).exists()
         for user in accountant_users:
-            if g_site_accountant not in user.groups_id:
-                user.groups_id = [(4, g_site_accountant.id)]
-            user.x_default_analytic_account_id = analytic
+            user = user.sudo()
+            if g_site_accountant.id not in user.groups_id.ids:
+                user.write({'groups_id': [(4, g_site_accountant.id)]})
+            user.write({
+                'x_default_analytic_account_id': analytic.id,
+                'x_site_config_id': site_config.id,
+            })
             if site_config.warehouse_id:
-                user.x_default_warehouse_id = site_config.warehouse_id
-            user.x_site_config_id = site_config
+                user.write({'x_default_warehouse_id': site_config.warehouse_id.id})
 
         # Also add accountants to the x_site_accountant_ids field
         if accountant_users:
@@ -111,4 +114,11 @@ def configure_production_users(env):
 
 
 def post_init_hook(env):
-    configure_production_users(env)
+    try:
+        configure_production_users(env)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(
+            'site_operations post_init_hook: skipped user configuration '
+            '(not a production DB or users not yet created): %s', e
+        )
