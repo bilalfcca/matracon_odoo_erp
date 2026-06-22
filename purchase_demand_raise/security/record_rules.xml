@@ -34,5 +34,13 @@
             <field name="domain_force">[(1, '=', 1)]</field>
         </record>
 
+        <!-- Administrators: unrestricted access to all PRs / RFQs -->
+        <record id="rule_po_admin_all" model="ir.rule">
+            <field name="name">Purchase Order: Administrators see all</field>
+            <field name="model_id" ref="purchase.model_purchase_order"/>
+            <field name="groups" eval="[(4, ref('base.group_system'))]"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+        </record>
+
     </data>
 </odoo>

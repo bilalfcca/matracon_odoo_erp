@@ -41,10 +41,48 @@
                     <field name="x_interproject_entry_count" widget="statinfo" string="Inter-Project"/>
                 </button>
 
+                <!-- Destination receipt (source transfer) -->
+                <button name="action_view_dest_receipt"
+                        type="object"
+                        class="oe_stat_button"
+                        icon="fa-truck"
+                        invisible="not x_dest_picking_id">
+                    <span class="o_stat_text">Dest. Receipt</span>
+                </button>
+
+                <!-- Source transfer (destination receipt) -->
+                <button name="action_view_source_transfer"
+                        type="object"
+                        class="oe_stat_button"
+                        icon="fa-truck"
+                        invisible="not x_source_transfer_id">
+                    <span class="o_stat_text">Source Transfer</span>
+                </button>
+
             </xpath>
 
             <!-- ── Header action buttons ──────────────────────────────────── -->
             <xpath expr="//button[@name='button_validate']" position="before">
+
+                <!-- Site-to-site approval workflow -->
+                <button name="action_submit_site_transfer"
+                        type="object"
+                        string="Submit for Approval"
+                        class="btn-primary"
+                        invisible="x_transfer_purpose != 'site_to_site' or x_is_dest_receipt or x_site_transfer_state not in ('draft', 'rejected')"
+                        groups="purchase_demand_raise.group_site_store"/>
+                <button name="action_approve_site_transfer"
+                        type="object"
+                        string="Approve Transfer"
+                        class="btn-success"
+                        invisible="x_transfer_purpose != 'site_to_site' or x_is_dest_receipt or x_site_transfer_state != 'pending_approval'"
+                        groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,base.group_system"/>
+                <button name="action_reject_site_transfer"
+                        type="object"
+                        string="Reject Transfer"
+                        class="btn-danger"
+                        invisible="x_transfer_purpose != 'site_to_site' or x_is_dest_receipt or x_site_transfer_state != 'pending_approval'"
+                        groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,base.group_system"/>
 
                 <!-- Print MIF button -->
                 <button name="action_print_mif"
@@ -64,6 +102,10 @@
 
             <!-- ── Transfer Purpose + Issue Type (after title, normal text) ── -->
             <xpath expr="//div[hasclass('oe_title')]" position="after">
+                <field name="x_site_transfer_state"
+                       widget="statusbar"
+                       statusbar_visible="draft,pending_approval,approved,done"
+                       invisible="x_transfer_purpose != 'site_to_site' or x_is_dest_receipt"/>
                 <group name="site_ops_classification"
                        invisible="x_transfer_purpose == False"
                        col="4">
@@ -97,6 +139,10 @@
             <!-- ── Site Ops fields after origin ─────────────────────────── -->
             <xpath expr="//field[@name='origin']" position="after">
 
+                <field name="x_is_dest_receipt" invisible="1"/>
+                <field name="x_dest_picking_id" invisible="1"/>
+                <field name="x_source_transfer_id" invisible="1"/>
+
                 <!-- ─ Project (readonly, auto-filled, hidden when empty) ─ -->
                 <field name="x_issuance_project_id"
                        readonly="1"
@@ -109,10 +155,10 @@
                 <!-- hidden flag used by contact domain below -->
                 <field name="x_is_site_store" invisible="1"/>
 
-                <!-- ─ Contact — site store always sees Subcontractor only ─ -->
+                <!-- ─ Contact — hidden for site-to-site ─ -->
                 <field name="x_contact_id"
                        domain="[('category_id.name', '=', 'Subcontractor')] if x_is_site_store or x_issue_type == 'subcontractor' else ([('employee', '=', True)] if x_issue_type == 'normal' else [])"
-                       invisible="x_transfer_purpose not in ['material_issuance', 'site_to_site']"/>
+                       invisible="x_transfer_purpose != 'material_issuance'"/>
 
                 <!-- ─ Outstanding materials HTML summary ─ -->
                 <div name="outstanding_materials_section"
@@ -142,10 +188,10 @@
                                invisible="not x_generate_gate_pass"/>
                     </group>
 
-                    <!-- Backcharge section — consumable issuances only -->
+                    <!-- Backcharge section — subcontractor consumable issuances only -->
                     <group name="backcharge_group"
                            string="Backcharge"
-                           invisible="x_inventory_type != 'consumable' or x_transfer_purpose != 'material_issuance'">
+                           invisible="x_issue_type != 'subcontractor' or x_inventory_type != 'consumable' or x_transfer_purpose != 'material_issuance'">
                         <group col="2">
                             <field name="x_backcharge_applicable"/>
                             <field name="x_backcharge_amount" readonly="1"
@@ -168,7 +214,7 @@
                             <field name="x_return_type"/>
                         </group>
                         <group col="2">
-                            <field name="x_return_condition"/>
+                            <field name="x_return_condition" placeholder="Summary (optional)"/>
                             <field name="x_return_remarks"/>
                         </group>
                         <group col="2"
@@ -217,6 +263,12 @@
                 <field name="x_line_backcharge_amount"
                        optional="show"
                        column_invisible="parent.x_backcharge_applicable == False or parent.x_inventory_type != 'consumable'"/>
+                <field name="x_return_condition"
+                       optional="show"
+                       column_invisible="not parent.x_is_return_transfer"/>
+                <field name="x_damage_amount"
+                       optional="show"
+                       column_invisible="not parent.x_is_return_transfer or parent.x_return_type != 'damaged'"/>
             </xpath>
 
         </field>

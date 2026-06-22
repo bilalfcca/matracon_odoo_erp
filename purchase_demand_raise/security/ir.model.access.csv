@@ -3,6 +3,7 @@ access_cs_site_store,x.comparative.statement site store,model_x_comparative_stat
 access_cs_procurement_ho,x.comparative.statement procurement ho,model_x_comparative_statement,purchase_demand_raise.group_procurement_ho,1,1,1,0
 access_cs_ceo,x.comparative.statement ceo,model_x_comparative_statement,purchase_demand_raise.group_ceo_approval,1,1,0,0
 access_cs_ho,x.comparative.statement ho,model_x_comparative_statement,purchase_demand_raise.group_head_office,1,1,1,1
+access_cs_admin,x.comparative.statement admin,model_x_comparative_statement,base.group_system,1,1,1,1
 access_cs_vendor_site_store,x.cs.vendor site store,model_x_cs_vendor,purchase_demand_raise.group_site_store,0,0,0,0
 access_cs_vendor_procurement_ho,x.cs.vendor procurement ho,model_x_cs_vendor,purchase_demand_raise.group_procurement_ho,1,1,1,1
 access_cs_vendor_ceo,x.cs.vendor ceo,model_x_cs_vendor,purchase_demand_raise.group_ceo_approval,1,0,0,0

@@ -1,0 +1,233 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ════════════════════════════════════════════════════════════════════
+         Site Store Manager Dashboard — per site_store_flow.docx mockup
+    ════════════════════════════════════════════════════════════════════════ -->
+
+    <record id="view_site_store_dashboard_form" model="ir.ui.view">
+        <field name="name">x.site.store.dashboard.form</field>
+        <field name="model">x.site.store.dashboard</field>
+        <field name="arch" type="xml">
+            <form string="Site Store Dashboard" create="false" edit="false" delete="false">
+                <header>
+                    <button name="action_refresh" type="object" string="Refresh"
+                            class="btn-secondary" icon="fa-refresh"/>
+                    <button name="action_raise_pr" type="object" string="New PR"
+                            class="btn-primary"/>
+                    <button name="action_open_issuance" type="object"
+                            string="Material Issuance" class="btn-secondary"/>
+                    <button name="action_open_transfers" type="object"
+                            string="Site Transfer" class="btn-secondary"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="project_name" readonly="1" class="oe_inline"/>
+                        </h1>
+                        <h3 class="text-muted">
+                            <field name="user_name" readonly="1" class="oe_inline"/>
+                            — Site Store Manager
+                        </h3>
+                    </div>
+
+                    <!-- Replenishment alert -->
+                    <div class="alert alert-warning" role="alert"
+                         invisible="not has_stock_alert">
+                        <strong>Replenishment Alert — Critical Stock</strong>
+                        <p>
+                            <field name="alert_message" readonly="1" nolabel="1" class="oe_inline"/>
+                        </p>
+                        <button name="action_raise_pr" type="object"
+                                string="Raise PR" class="btn btn-sm btn-warning"/>
+                    </div>
+
+                    <!-- KPI row -->
+                    <group>
+                        <group string="Requisitions">
+                            <div class="o_row">
+                                <button name="action_open_prs" type="object"
+                                        class="oe_stat_button" icon="fa-shopping-cart">
+                                    <div class="o_stat_info">
+                                        <span class="o_stat_value">
+                                            <field name="open_pr_count"/>
+                                        </span>
+                                        <span class="o_stat_text">Open PRs</span>
+                                    </div>
+                                </button>
+                                <span class="text-muted ms-2"
+                                      invisible="pending_signature_count == 0">
+                                    (<field name="pending_signature_count" readonly="1"
+                                            class="oe_inline"/> pending PM signature)
+                                </span>
+                            </div>
+                        </group>
+                        <group string="Receipts">
+                            <button name="action_open_receipts" type="object"
+                                    class="oe_stat_button" icon="fa-truck">
+                                <div class="o_stat_info">
+                                    <span class="o_stat_value">
+                                        <field name="arrivals_today_count"/>
+                                    </span>
+                                    <span class="o_stat_text">Arrivals Today</span>
+                                </div>
+                            </button>
+                            <span class="text-muted"
+                                  invisible="partial_receipts_count == 0">
+                                <field name="partial_receipts_count" readonly="1"
+                                       class="oe_inline"/> partial receipt(s)
+                            </span>
+                            <span class="text-muted"
+                                  invisible="dest_receipt_count == 0">
+                                <field name="dest_receipt_count" readonly="1"
+                                       class="oe_inline"/> incoming site transfer(s)
+                            </span>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="Issuance (This Month)">
+                            <button name="action_open_issuance" type="object"
+                                    class="oe_stat_button" icon="fa-sign-out">
+                                <div class="o_stat_info">
+                                    <span class="o_stat_value">
+                                        <field name="issuance_mtd_count"/>
+                                    </span>
+                                    <span class="o_stat_text">Issuances MTD</span>
+                                </div>
+                            </button>
+                            <div class="text-muted">
+                                Normal: <field name="normal_issuance_pct" readonly="1"
+                                               class="oe_inline"/>%
+                                | Subcontractor:
+                                <field name="subcontractor_issuance_pct" readonly="1"
+                                       class="oe_inline"/>%
+                            </div>
+                        </group>
+                        <group string="Returns &amp; Transfers">
+                            <button name="action_open_returns" type="object"
+                                    class="oe_stat_button" icon="fa-undo">
+                                <div class="o_stat_info">
+                                    <span class="o_stat_value">
+                                        <field name="pending_returns_count"/>
+                                    </span>
+                                    <span class="o_stat_text">Pending Returns</span>
+                                </div>
+                            </button>
+                            <button name="action_open_transfers" type="object"
+                                    class="oe_stat_button" icon="fa-exchange">
+                                <div class="o_stat_info">
+                                    <span class="o_stat_value">
+                                        <field name="pending_transfer_count"/>
+                                    </span>
+                                    <span class="o_stat_text">Transfers Active</span>
+                                </div>
+                            </button>
+                        </group>
+                    </group>
+
+                    <notebook>
+                        <page string="Active Requisitions" name="prs">
+                            <field name="pr_ids" nolabel="1" readonly="1">
+                                <list create="false" delete="false" edit="false"
+                                      decoration-warning="x_pr_state == 'draft'"
+                                      decoration-success="x_pr_state in ('submitted', 'po_locked', 'dispatched')">
+                                    <field name="name" string="Reference"/>
+                                    <field name="x_project_analytic_account_id" string="Project"/>
+                                    <field name="date_order" string="Date"/>
+                                    <field name="x_initiator_id" string="Requester"/>
+                                    <field name="x_pr_state" string="Status" widget="badge"/>
+                                </list>
+                            </field>
+                        </page>
+
+                        <page string="Material Receipts" name="receipts">
+                            <group string="Receipts To Validate">
+                                <field name="pending_receipt_ids" nolabel="1" readonly="1">
+                                    <list create="false" delete="false" edit="false">
+                                        <field name="name"/>
+                                        <field name="partner_id" string="Vendor"/>
+                                        <field name="origin" string="PO"/>
+                                        <field name="scheduled_date"/>
+                                        <field name="state" widget="badge"/>
+                                    </list>
+                                </field>
+                            </group>
+                            <group string="On Order (Dispatched POs)">
+                                <field name="on_order_po_ids" nolabel="1" readonly="1">
+                                    <list create="false" delete="false" edit="false">
+                                        <field name="name"/>
+                                        <field name="partner_id" string="Vendor"/>
+                                        <field name="date_order" string="Expected"/>
+                                        <field name="x_pr_state" string="PR Status" widget="badge"/>
+                                    </list>
+                                </field>
+                            </group>
+                            <group string="Recent GRNs (Validated)">
+                                <field name="recent_grn_ids" nolabel="1" readonly="1">
+                                    <list create="false" delete="false" edit="false">
+                                        <field name="name"/>
+                                        <field name="partner_id" string="Vendor"/>
+                                        <field name="date_done" string="Received On"/>
+                                        <field name="state" widget="badge"/>
+                                    </list>
+                                </field>
+                            </group>
+                        </page>
+
+                        <page string="Issuances" name="issuances">
+                            <field name="recent_issuance_ids" nolabel="1" readonly="1">
+                                <list create="false" delete="false" edit="false">
+                                    <field name="name"/>
+                                    <field name="x_contact_id" string="Contact"/>
+                                    <field name="x_issue_type"/>
+                                    <field name="x_backcharge_applicable" string="Backcharge"/>
+                                    <field name="x_gate_pass_outward_no" string="Gate Pass"/>
+                                    <field name="state" widget="badge"/>
+                                </list>
+                            </field>
+                        </page>
+
+                        <page string="Site Transfers" name="transfers">
+                            <field name="transfer_ids" nolabel="1" readonly="1">
+                                <list create="false" delete="false" edit="false">
+                                    <field name="name"/>
+                                    <field name="x_issuance_project_id" string="From Project"/>
+                                    <field name="x_dest_project_id" string="To Project"/>
+                                    <field name="x_site_transfer_state" string="Status" widget="badge"/>
+                                    <field name="x_is_dest_receipt" string="Dest. Receipt"/>
+                                    <field name="state" widget="badge"/>
+                                </list>
+                            </field>
+                        </page>
+
+                        <page string="Pending Returns" name="returns">
+                            <field name="pending_return_ids" nolabel="1" readonly="1">
+                                <list create="false" delete="false" edit="false">
+                                    <field name="name"/>
+                                    <field name="x_original_issuance_id" string="Original"/>
+                                    <field name="x_contact_id" string="Contact"/>
+                                    <field name="x_return_type"/>
+                                    <field name="state" widget="badge"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+
+                    <field name="project_analytic_account_id" invisible="1"/>
+                    <field name="has_stock_alert" invisible="1"/>
+                    <field name="alert_product_id" invisible="1"/>
+                    <field name="alert_qty_on_hand" invisible="1"/>
+                    <field name="alert_min_qty" invisible="1"/>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_site_store_dashboard" model="ir.actions.server">
+        <field name="name">Site Store Dashboard</field>
+        <field name="model_id" ref="model_x_site_store_dashboard"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_open_dashboard()</field>
+    </record>
+
+</odoo>

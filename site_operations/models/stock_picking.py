@@ -83,8 +83,24 @@ class StockPickingSiteOps(models.Model):
     x_dest_project_id = fields.Many2one(
         'account.analytic.account', string='Destination Project', tracking=True,
         help='Only for Site To Site transfers')
+    x_site_transfer_state = fields.Selection([
+        ('draft', 'Draft'),
+        ('pending_approval', 'Pending Approval'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+        ('done', 'Done'),
+    ], string='Transfer Status', default='draft', tracking=True, copy=False)
+    x_is_dest_receipt = fields.Boolean(
+        string='Destination Receipt', default=False, copy=False,
+        help='Incoming transfer at the destination site store.')
+    x_source_transfer_id = fields.Many2one(
+        'stock.picking', string='Source Transfer', readonly=True, copy=False)
+    x_dest_picking_id = fields.Many2one(
+        'stock.picking', string='Destination Receipt', readonly=True, copy=False)
     x_interproject_entry_id = fields.Many2one(
         'account.move', string='Inter-Project Entry', readonly=True)
+    x_damage_backcharge_entry_id = fields.Many2one(
+        'account.move', string='Damage Backcharge Entry', readonly=True)
 
     # ── User context flags (for view domains) ────────────────────────────────
     x_is_site_store = fields.Boolean(
@@ -145,6 +161,68 @@ class StockPickingSiteOps(models.Model):
             self.x_gate_pass_outward_no = self.env['ir.sequence'].next_by_code(
                 'x.gate.pass.outward') or '/'
 
+    @api.onchange('x_issue_type')
+    def _onchange_issue_type_backcharge(self):
+        if self.x_transfer_purpose != 'material_issuance':
+            return
+        if self.x_issue_type == 'subcontractor':
+            self.x_backcharge_applicable = True
+        elif self.x_issue_type == 'normal':
+            self.x_backcharge_applicable = False
+
+    @api.onchange('x_dest_project_id', 'x_transfer_purpose')
+    def _onchange_site_to_site_locations(self):
+        """Route site-to-site transfers through transit between warehouses."""
+        if self.x_transfer_purpose != 'site_to_site' or self.x_is_dest_receipt:
+            return
+        user = self.env.user
+        if user.x_default_warehouse_id and user.x_default_warehouse_id.lot_stock_id:
+            self.location_id = user.x_default_warehouse_id.lot_stock_id
+        transit = self._get_transit_location()
+        if transit:
+            self.location_dest_id = transit
+
+    @api.model
+    def _get_transit_location(self):
+        loc = self.env.ref('stock.stock_location_inter_wh', raise_if_not_found=False)
+        if not loc:
+            loc = self.env['stock.location'].search(
+                [('usage', '=', 'transit'), ('company_id', 'in', [False, self.env.company.id])],
+                limit=1,
+            )
+        return loc
+
+    def _get_site_config_for_analytic(self, analytic_account):
+        if not analytic_account:
+            return self.env['x.project.site.config']
+        return self.env['x.project.site.config'].search(
+            [('analytic_account_id', '=', analytic_account.id)], limit=1)
+
+    def _get_outstanding_qty(self, product, contact, project, exclude_picking=None):
+        """Qty still outstanding for product/contact on this project."""
+        iss_domain = [
+            ('x_transfer_purpose', '=', 'material_issuance'),
+            ('x_contact_id', '=', contact.id),
+            ('x_issuance_project_id', '=', project.id),
+            ('state', '=', 'done'),
+            ('x_is_return_transfer', '=', False),
+        ]
+        if exclude_picking and isinstance(exclude_picking.id, int):
+            iss_domain.append(('id', '!=', exclude_picking.id))
+        issuances = self.search(iss_domain)
+        issued = sum(
+            m.quantity for iss in issuances for m in iss.move_ids
+            if m.product_id == product and m.state == 'done'
+        )
+        returned = sum(
+            m.quantity for ret in self.search([
+                ('x_original_issuance_id', 'in', issuances.ids),
+                ('state', '=', 'done'),
+            ]) for m in ret.move_ids
+            if m.product_id == product and m.state == 'done'
+        )
+        return max(issued - returned, 0.0)
+
     # ─────────────────────────────────────────────────────────────────────────
     # CREATE
     # ─────────────────────────────────────────────────────────────────────────
@@ -171,6 +249,13 @@ class StockPickingSiteOps(models.Model):
                                         pt.default_location_src_id.id if pt.default_location_src_id else False)
                         vals.setdefault('location_dest_id',
                                         pt.default_location_dest_id.id if pt.default_location_dest_id else False)
+                if (vals.get('x_transfer_purpose') == 'site_to_site'
+                        and not vals.get('x_is_dest_receipt')
+                        and vals.get('x_dest_project_id')
+                        and not vals.get('location_dest_id')):
+                    transit = self._get_transit_location()
+                    if transit:
+                        vals['location_dest_id'] = transit.id
         return super().create(vals_list)
 
     # ─────────────────────────────────────────────────────────────────────────
@@ -298,16 +383,72 @@ class StockPickingSiteOps(models.Model):
                 1 if pick.x_backcharge_refund_entry_id else 0
             ) + (
                 1 if pick.x_return_backcharge_entry_id else 0
+            ) + (
+                1 if pick.x_damage_backcharge_entry_id else 0
             )
             pick.x_interproject_entry_count = (
                 1 if pick.x_interproject_entry_id else 0
             )
 
     # ─────────────────────────────────────────────────────────────────────────
+    # SITE-TO-SITE APPROVAL
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def action_submit_site_transfer(self):
+        """Source site submits MTN for CEO / Procurement HO approval."""
+        for pick in self:
+            if pick.x_transfer_purpose != 'site_to_site' or pick.x_is_dest_receipt:
+                raise UserError(_('Only outbound site-to-site transfers can be submitted.'))
+            if not pick.move_ids:
+                raise UserError(_('Add at least one product line before submitting.'))
+            if not pick.x_dest_project_id:
+                raise UserError(_('Select the destination project.'))
+            if pick.x_dest_project_id == pick.x_issuance_project_id:
+                raise UserError(_('Source and destination project must be different.'))
+            if pick.x_site_transfer_state not in ('draft', 'rejected'):
+                raise UserError(_('This transfer has already been submitted.'))
+            pick.x_site_transfer_state = 'pending_approval'
+            pick.message_post(
+                body=_('Material Transfer Note submitted for approval by <b>%s</b>.') % (
+                    self.env.user.name))
+
+    def action_approve_site_transfer(self):
+        for pick in self.filtered(
+            lambda p: p.x_transfer_purpose == 'site_to_site' and not p.x_is_dest_receipt
+        ):
+            if pick.x_site_transfer_state != 'pending_approval':
+                raise UserError(_('Only transfers pending approval can be approved.'))
+            pick.x_site_transfer_state = 'approved'
+            pick.message_post(
+                body=_('Site-to-site transfer approved by <b>%s</b>.') % self.env.user.name)
+
+    def action_reject_site_transfer(self):
+        for pick in self.filtered(
+            lambda p: p.x_transfer_purpose == 'site_to_site' and not p.x_is_dest_receipt
+        ):
+            if pick.x_site_transfer_state != 'pending_approval':
+                raise UserError(_('Only transfers pending approval can be rejected.'))
+            pick.x_site_transfer_state = 'rejected'
+            pick.message_post(
+                body=_('Site-to-site transfer rejected by <b>%s</b>.') % self.env.user.name)
+
+    # ─────────────────────────────────────────────────────────────────────────
     # VALIDATION
     # ─────────────────────────────────────────────────────────────────────────
 
     def button_validate(self):
+        for pick in self:
+            if pick.x_transfer_purpose == 'material_issuance' and not pick.x_is_return_transfer:
+                pick._check_duplicate_asset_issuance()
+            if (pick.x_transfer_purpose == 'site_to_site'
+                    and not pick.x_is_dest_receipt
+                    and pick.x_site_transfer_state != 'approved'):
+                raise UserError(_(
+                    'This site-to-site transfer must be approved by Procurement HO or CEO '
+                    'before dispatch. Use "Submit for Approval" first.'
+                ))
+            if pick.x_is_return_transfer:
+                pick._apply_return_line_destinations()
         # Validate return quantities before posting
         for pick in self:
             if pick.x_is_return_transfer and pick.x_original_issuance_id:
@@ -318,10 +459,52 @@ class StockPickingSiteOps(models.Model):
                 if pick.x_transfer_purpose == 'material_issuance':
                     pick._post_validate_material_issuance()
                 elif pick.x_transfer_purpose == 'site_to_site':
-                    pick._post_validate_site_to_site()
+                    if pick.x_is_dest_receipt:
+                        if pick.x_source_transfer_id:
+                            pick.x_source_transfer_id.write({'x_site_transfer_state': 'done'})
+                    else:
+                        pick._post_validate_site_to_site()
+                        pick._create_destination_site_transfer()
+                        pick.write({'x_site_transfer_state': 'done'})
                 if pick.x_is_return_transfer:
                     pick._post_validate_return()
         return res
+
+    def _check_duplicate_asset_issuance(self):
+        """Block issuing the same asset product twice to the same contact."""
+        self.ensure_one()
+        if self.x_inventory_type != 'asset' or not self.x_contact_id:
+            return
+        for move in self.move_ids.filtered(lambda m: m.product_id):
+            outstanding = self._get_outstanding_qty(
+                move.product_id,
+                self.x_contact_id,
+                self.x_issuance_project_id,
+                exclude_picking=self,
+            )
+            if outstanding > 0.001:
+                raise UserError(_(
+                    'Asset "%(product)s" is already issued to %(contact)s '
+                    '(%(qty).2f still outstanding). Process a return before re-issuing.'
+                ) % {
+                    'product': move.product_id.display_name,
+                    'contact': self.x_contact_id.name,
+                    'qty': outstanding,
+                })
+
+    def _apply_return_line_destinations(self):
+        """Route scrap-condition lines to the company scrap location."""
+        self.ensure_one()
+        scrap_loc = self.env['stock.location'].search([
+            ('scrap_location', '=', True),
+            ('company_id', '=', self.company_id.id),
+        ], limit=1)
+        if not scrap_loc:
+            return
+        for move in self.move_ids.filtered(
+            lambda m: m.x_return_condition == 'scrap' and m.product_id
+        ):
+            move.location_dest_id = scrap_loc
 
     def _check_return_quantities(self):
         """Prevent returning more than was originally issued (minus previous returns)."""
@@ -363,79 +546,97 @@ class StockPickingSiteOps(models.Model):
                 })
 
     def _post_validate_material_issuance(self):
-        """Create partner-ledger journal entry for every validated issuance.
-
-        Every issuance with a contact gets a posted entry so the vendor/
-        subcontractor appears in the Partner Ledger immediately.
-
-        Entry structure:
-          DR  Material Issuance Expense  (project analytic)
-          CR  Accounts Payable           (x_contact_id → partner ledger)
-
-        Amount is computed fresh from done move lines (quantity × x_unit_cost)
-        to avoid the stale-cache problem that caused zero-amount entries.
-        """
+        """Post backcharge journal + liability sheet only for subcontractor + backcharge."""
         self.ensure_one()
+        if self.x_is_return_transfer:
+            return
+        if self.x_issue_type != 'subcontractor' or not self.x_backcharge_applicable:
+            return
         if not self.x_contact_id or self.x_backcharge_refund_entry_id:
             return
 
-        # ── Compute amount directly from DONE move lines ─────────────────
         amount = sum(
             m.quantity * m.x_unit_cost
             for m in self.move_ids
             if m.state == 'done' and m.x_unit_cost > 0
         )
         if not amount:
-            # Fallback: try the stored computed field (flush first)
             self.env['stock.picking'].flush_model(['x_backcharge_amount'])
             amount = self.x_backcharge_amount
         if not amount:
             return
 
         entry = self._create_issuance_journal_entry(amount, is_return=False)
+        if not entry:
+            return
         self.x_backcharge_refund_entry_id = entry
         self.message_post(
-            body=_('Material issuance entry <b>%s</b> (%.2f) posted to partner ledger.')
+            body=_('Backcharge entry <b>%s</b> (%.2f) posted to partner ledger.')
             % (entry.name, amount)
         )
         self._auto_update_liability_sheet(amount)
 
     def _post_validate_return(self):
-        """Create reversal partner-ledger entry when items are returned."""
+        """Reverse backcharge on subcontractor returns; post damage charges if needed."""
         self.ensure_one()
         orig = self.x_original_issuance_id
-        if not orig or self.x_return_backcharge_entry_id:
+        if not orig:
             return
 
-        # Compute returned amount proportionally from done moves
-        orig_amount = sum(
-            m.quantity * m.x_unit_cost
-            for m in orig.move_ids
-            if m.state == 'done' and m.x_unit_cost > 0
-        ) or orig.x_backcharge_amount
+        if (orig.x_issue_type == 'subcontractor'
+                and orig.x_backcharge_applicable
+                and not self.x_return_backcharge_entry_id):
+            orig_amount = sum(
+                m.quantity * m.x_unit_cost
+                for m in orig.move_ids
+                if m.state == 'done' and m.x_unit_cost > 0
+            ) or orig.x_backcharge_amount
 
-        orig_qty = sum(
-            m.quantity for m in orig.move_ids if m.state == 'done') or 1.0
-        ret_qty = sum(m.quantity for m in self.move_ids if m.state == 'done')
-        proportion = ret_qty / orig_qty
-        adj_amount = round(orig_amount * proportion, 2)
+            orig_qty = sum(
+                m.quantity for m in orig.move_ids if m.state == 'done') or 1.0
+            ret_qty = sum(m.quantity for m in self.move_ids if m.state == 'done')
+            proportion = ret_qty / orig_qty
+            adj_amount = round(orig_amount * proportion, 2)
 
-        if adj_amount <= 0:
+            if adj_amount > 0:
+                entry = self._create_issuance_journal_entry(
+                    adj_amount, is_return=True, original=orig)
+                if entry:
+                    self.x_return_backcharge_entry_id = entry
+                    self.message_post(
+                        body=_(
+                            'Backcharge reversal <b>%s</b> (%.2f) posted to partner ledger.'
+                        ) % (entry.name, adj_amount)
+                    )
+                    self._auto_adjust_liability_sheet_on_return(adj_amount, orig)
+
+        if self.x_return_type == 'damaged' and not self.x_damage_backcharge_entry_id:
+            self._post_validate_damage_backcharge(orig)
+
+    def _post_validate_damage_backcharge(self, original):
+        """Separate damage backcharge for incomplete / damaged asset returns."""
+        self.ensure_one()
+        amount = sum(self.move_ids.mapped('x_damage_amount'))
+        if amount <= 0 and original.x_issue_type == 'subcontractor':
+            amount = sum(
+                m.quantity * m.x_unit_cost
+                for m in self.move_ids if m.state == 'done' and m.x_unit_cost > 0
+            )
+        if amount <= 0 or not self.x_contact_id:
             return
-
-        entry = self._create_issuance_journal_entry(
-            adj_amount, is_return=True, original=orig)
-        self.x_return_backcharge_entry_id = entry
-        self.message_post(
-            body=_('Return adjustment entry <b>%s</b> (%.2f) posted to partner ledger.')
-            % (entry.name, adj_amount)
-        )
-        self._auto_adjust_liability_sheet_on_return(adj_amount, orig)
+        entry = self._create_damage_journal_entry(amount, original)
+        if entry:
+            self.x_damage_backcharge_entry_id = entry
+            self.message_post(
+                body=_('Damage backcharge <b>%s</b> (%.2f) posted.') % (
+                    entry.name, amount)
+            )
+            self._auto_update_liability_sheet(amount)
 
     def _post_validate_site_to_site(self):
-        """Generate inter-project payable/receivable accounting entry."""
+        """Inter-project receivable (source) and payable (destination) entry."""
         self.ensure_one()
-        if self.x_interproject_entry_id:
+        if self.x_interproject_entry_id or self.x_is_dest_receipt:
             return
         src_project = self.x_issuance_project_id
         dst_project = self.x_dest_project_id
@@ -450,21 +651,20 @@ class StockPickingSiteOps(models.Model):
         )
         if total_value <= 0:
             return
+        # Source is owed (receivable); destination owes source (payable)
         aml_vals = [
             {
                 'account_id': receivable_account.id,
-                'name': _(
-                    'Inter-project receivable: %s → %s'
-                ) % (src_project.name, dst_project.name),
+                'name': _('Inter-project receivable: %s from %s') % (
+                    src_project.name, dst_project.name),
                 'debit': total_value,
                 'credit': 0.0,
                 'analytic_distribution': {str(src_project.id): 100},
             },
             {
                 'account_id': payable_account.id,
-                'name': _(
-                    'Inter-project payable: %s → %s'
-                ) % (src_project.name, dst_project.name),
+                'name': _('Inter-project payable: %s to %s') % (
+                    dst_project.name, src_project.name),
                 'debit': 0.0,
                 'credit': total_value,
                 'analytic_distribution': {str(dst_project.id): 100},
@@ -473,15 +673,69 @@ class StockPickingSiteOps(models.Model):
         move = self.env['account.move'].sudo().create({
             'move_type': 'entry',
             'journal_id': journal.id,
-            'ref': _(
-                'Site-to-Site Transfer %s: %s → %s'
-            ) % (self.name, src_project.name, dst_project.name),
+            'ref': _('Site-to-Site %s: %s → %s') % (
+                self.name, src_project.name, dst_project.name),
             'line_ids': [(0, 0, v) for v in aml_vals],
         })
         move.action_post()
         self.x_interproject_entry_id = move
         self.message_post(
-            body=_('Inter-project accounting entry <b>%s</b> created.') % move.name
+            body=_(
+                'Inter-project entry <b>%s</b> created — Receivable on <b>%s</b>, '
+                'Payable on <b>%s</b> (%.2f).'
+            ) % (move.name, src_project.name, dst_project.name, total_value)
+        )
+
+    def _create_destination_site_transfer(self):
+        """Create incoming transfer at destination site for acknowledgement."""
+        self.ensure_one()
+        if self.x_dest_picking_id or self.x_is_dest_receipt:
+            return
+        dest_config = self._get_site_config_for_analytic(self.x_dest_project_id)
+        dest_wh = dest_config.warehouse_id
+        if not dest_wh:
+            raise UserError(_(
+                'Destination project "%s" has no warehouse in Site Project Configuration.'
+            ) % self.x_dest_project_id.name)
+
+        move_vals = []
+        for move in self.move_ids.filtered(lambda m: m.state == 'done' and m.product_id):
+            move_vals.append((0, 0, {
+                'name': move.product_id.display_name,
+                'product_id': move.product_id.id,
+                'product_uom': move.product_uom.id,
+                'product_uom_qty': move.quantity,
+                'location_id': self.location_dest_id.id,
+                'location_dest_id': dest_wh.lot_stock_id.id,
+            }))
+        if not move_vals:
+            return
+
+        dest_picking = self.create({
+            'picking_type_id': dest_wh.int_type_id.id,
+            'location_id': self.location_dest_id.id,
+            'location_dest_id': dest_wh.lot_stock_id.id,
+            'x_transfer_purpose': 'site_to_site',
+            'x_is_dest_receipt': True,
+            'x_source_transfer_id': self.id,
+            'x_issuance_project_id': self.x_dest_project_id.id,
+            'x_dest_project_id': self.x_issuance_project_id.id,
+            'x_site_transfer_state': 'approved',
+            'origin': self.name,
+            'move_ids': move_vals,
+        })
+        dest_picking.action_confirm()
+        dest_picking.action_assign()
+        self.x_dest_picking_id = dest_picking.id
+        self.message_post(
+            body=_(
+                'Destination receipt <b>%s</b> created for <b>%s</b>. '
+                'Destination site store must validate receipt.'
+            ) % (dest_picking.name, self.x_dest_project_id.name)
+        )
+        dest_picking.message_post(
+            body=_('Incoming site-to-site transfer from <b>%s</b> (%s).') % (
+                self.x_issuance_project_id.name, self.name)
         )
 
     # ─────────────────────────────────────────────────────────────────────────
@@ -558,6 +812,56 @@ class StockPickingSiteOps(models.Model):
                 (0, 0, {
                     'account_id': cr_account.id,
                     'partner_id': cr_partner,
+                    'name': label,
+                    'debit': 0.0,
+                    'credit': amount,
+                    'analytic_distribution': analytic,
+                }),
+            ],
+        })
+        move.action_post()
+        return move
+
+    def _create_damage_journal_entry(self, amount, original):
+        """Post damage backcharge: Dr Subcontractor Payable, Cr Damage Recovery."""
+        self.ensure_one()
+        journal = self._get_or_create_backcharge_journal()
+        partner = self.x_contact_id or original.x_contact_id
+        analytic_id = original.x_issuance_project_id.id
+        Account = self.env['account.account'].sudo()
+        recovery_account = Account.search(
+            [('name', 'ilike', 'Damage Recovery')], limit=1)
+        if not recovery_account:
+            recovery_account = Account.search(
+                [('account_type', 'in', ['income', 'income_other'])], limit=1)
+        payable_account = (
+            partner.sudo().property_account_payable_id
+            if partner and partner.property_account_payable_id
+            else Account.search([('account_type', '=', 'liability_payable')], limit=1)
+        )
+        if not recovery_account or not payable_account:
+            self.message_post(body=_(
+                'Warning: damage recovery or payable account not found — '
+                'damage entry skipped.'))
+            return None
+        label = _('Damage backcharge — Return %s') % self.name
+        analytic = {str(analytic_id): 100} if analytic_id else {}
+        move = self.env['account.move'].sudo().create({
+            'move_type': 'entry',
+            'journal_id': journal.id,
+            'ref': label,
+            'invoice_date': fields.Date.today(),
+            'line_ids': [
+                (0, 0, {
+                    'account_id': payable_account.id,
+                    'partner_id': partner.id if partner else False,
+                    'name': label,
+                    'debit': amount,
+                    'credit': 0.0,
+                    'analytic_distribution': analytic,
+                }),
+                (0, 0, {
+                    'account_id': recovery_account.id,
                     'name': label,
                     'debit': 0.0,
                     'credit': amount,
@@ -645,9 +949,7 @@ class StockPickingSiteOps(models.Model):
         ])
         for sheet in sheets:
             for line in sheet.line_ids:
-                # Match by partner and description referencing the original picking
-                if (line.partner_id == original.x_contact_id
-                        and original.name in (line.description or '')):
+                if line.partner_id == original.x_contact_id:
                     new_liability = max(line.new_liability - adj_amount, 0.0)
                     new_recommended = max(line.recommended_amount - adj_amount, 0.0)
                     line.write({
@@ -656,9 +958,13 @@ class StockPickingSiteOps(models.Model):
                     })
                     self.message_post(
                         body=_(
-                            'Liability Sheet <b>%s</b> updated: '
-                            'line "%s" reduced by <b>%s</b>.'
-                        ) % (sheet.name, line.description or '', f'{adj_amount:,.2f}')
+                            'Liability Sheet <b>%s</b> updated for <b>%s</b>: '
+                            'reduced by <b>%s</b>.'
+                        ) % (
+                            sheet.name,
+                            original.x_contact_id.name,
+                            f'{adj_amount:,.2f}',
+                        )
                     )
                     return
         # No matching line found — add a note so it can be handled manually
@@ -735,6 +1041,26 @@ class StockPickingSiteOps(models.Model):
     # ACTIONS
     # ─────────────────────────────────────────────────────────────────────────
 
+    def action_view_dest_receipt(self):
+        self.ensure_one()
+        return {
+            'name': _('Destination Receipt'),
+            'type': 'ir.actions.act_window',
+            'res_model': 'stock.picking',
+            'view_mode': 'form',
+            'res_id': self.x_dest_picking_id.id,
+        }
+
+    def action_view_source_transfer(self):
+        self.ensure_one()
+        return {
+            'name': _('Source Transfer'),
+            'type': 'ir.actions.act_window',
+            'res_model': 'stock.picking',
+            'view_mode': 'form',
+            'res_id': self.x_source_transfer_id.id,
+        }
+
     def action_return_material(self):
         """Open a new stock.picking form pre-filled as a return from this issuance."""
         self.ensure_one()
@@ -776,6 +1102,8 @@ class StockPickingSiteOps(models.Model):
             entry_ids.append(self.x_backcharge_refund_entry_id.id)
         if self.x_return_backcharge_entry_id:
             entry_ids.append(self.x_return_backcharge_entry_id.id)
+        if self.x_damage_backcharge_entry_id:
+            entry_ids.append(self.x_damage_backcharge_entry_id.id)
         return {
             'name': _('Backcharge Entries'),
             'type': 'ir.actions.act_window',

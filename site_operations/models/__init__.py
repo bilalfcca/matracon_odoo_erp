@@ -2,7 +2,11 @@ from . import stock_picking
 from . import stock_move
 from . import stock_return_picking
 from . import liability_sheet
+from . import analytic_distribution_mixin
+from . import project_project
 from . import account_payment
 from . import payment_allocation
 from . import project_site_config
 from . import res_partner
+from . import res_users
+from . import site_store_dashboard

@@ -31,6 +31,18 @@ class StockMoveSiteOps(models.Model):
         readonly=False,
         help='Unit Cost × Quantity. Can be overridden manually.')
 
+    x_return_condition = fields.Selection([
+        ('new', 'New'),
+        ('used', 'Used'),
+        ('repairable', 'Repairable'),
+        ('scrap', 'Scrap'),
+    ], string='Return Condition',
+        help='Condition of returned material — scrap routes to scrap location.')
+
+    x_damage_amount = fields.Float(
+        string='Damage Charge',
+        help='Backcharge for damaged / incomplete asset returns.')
+
     @api.depends('x_unit_cost', 'product_uom_qty')
     def _compute_line_backcharge(self):
         for move in self:

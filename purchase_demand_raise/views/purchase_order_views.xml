@@ -141,6 +141,7 @@
                 <field name="x_is_ceo" invisible="1"/>
                 <field name="x_is_pr_document" invisible="1"/>
                 <field name="x_can_submit" invisible="1"/>
+                <field name="x_has_tender_alternatives" invisible="1"/>
             </field>
 
             <!-- ── 5b. INJECT custom header fields after partner_id ── -->
@@ -186,11 +187,11 @@
                        invisible="x_pr_state != 'rejected'"
                        readonly="1" string="Rejection Reason"/>
 
-                <!-- Project Analytic Account: HO/CEO on PR docs; site store sees it readonly -->
+                <!-- Project Analytic Account -->
                 <field name="x_project_analytic_account_id"
-                       invisible="not x_is_pr_document and not x_is_site_store"
+                       invisible="not x_is_pr_document and not x_is_site_store and not x_has_tender_alternatives"
                        readonly="x_is_site_store"
-                       groups="purchase_demand_raise.group_site_store,purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office"/>
+                       groups="purchase_demand_raise.group_site_store,purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,base.group_system"/>
             </field>
 
             <!-- ── 6. LINE ITEMS — custom columns ── -->
@@ -292,7 +293,7 @@
     </record>
 
     <!-- ═══════════════════════════════════════
-         SMART BUTTON — Comparative Statement
+         SMART BUTTON — Comparative Statement PDF (native alternatives)
          ═══════════════════════════════════════ -->
     <record id="view_purchase_order_buttons_cs" model="ir.ui.view">
         <field name="name">purchase.order.buttons.cs</field>
@@ -300,12 +301,25 @@
         <field name="inherit_id" ref="purchase.purchase_order_form"/>
         <field name="arch" type="xml">
             <xpath expr="//div[@name='button_box']" position="inside">
+                <!-- Legacy manual CS (optional) -->
                 <button name="action_open_comparative_statement"
                         type="object"
                         class="oe_stat_button"
+                        icon="fa-list-alt"
+                        groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,base.group_system"
+                        invisible="x_is_site_store or x_has_tender_alternatives or x_pr_state not in ('submitted','ceo_final','po_locked','dispatched')">
+                    <div class="o_field_widget o_stat_info">
+                        <span class="o_stat_text">Manual</span>
+                        <span class="o_stat_text">CS Entry</span>
+                    </div>
+                </button>
+                <!-- Native alternatives → PDF -->
+                <button name="action_print_comparative_statement"
+                        type="object"
+                        class="oe_stat_button"
                         icon="fa-balance-scale"
-                        groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office"
-                        invisible="x_pr_state not in ('rfq_phase','ceo_final','po_locked','dispatched')">
+                        groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,base.group_system"
+                        invisible="not x_has_tender_alternatives or x_is_site_store">
                     <div class="o_field_widget o_stat_info">
                         <span class="o_stat_text">Comparative</span>
                         <span class="o_stat_text">Statement</span>
@@ -326,7 +340,7 @@
             <xpath expr="//notebook" position="inside">
                 <page string="Quotation Terms (CS)"
                       name="quote_terms_cs"
-                      groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office"
+                      groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,base.group_system"
                       invisible="x_is_site_store">
                     <group>
                         <group string="Commercial Terms">
@@ -337,7 +351,10 @@
                             <field name="x_quote_warranty" placeholder="e.g. 12 months / DLP as per contract"/>
                         </group>
                         <group string="Tax &amp; Reference">
-                            <field name="x_quote_tax_treatment" placeholder="e.g. 18% GST extra"/>
+                            <field name="x_quote_tax_ids" widget="many2many_tags"
+                                   options="{'no_create': True}"
+                                   placeholder="Select purchase taxes — applied to all lines"/>
+                            <field name="x_quote_tax_treatment" placeholder="Optional note, e.g. charged extra / inclusive"/>
                             <field name="x_quote_validity"/>
                             <field name="partner_ref" string="Quotation Reference"/>
                         </group>

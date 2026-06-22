@@ -13,13 +13,26 @@ class StockReturnPickingSiteOps(models.TransientModel):
             new_picking.write({
                 'x_is_return_transfer': True,
                 'x_original_issuance_id': orig.id,
-                # Preserve issuance context from original
                 'x_contact_id': orig.x_contact_id.id,
                 'x_issuance_project_id': orig.x_issuance_project_id.id,
                 'x_inventory_type': orig.x_inventory_type,
                 'x_issue_type': orig.x_issue_type,
                 'x_transfer_purpose': orig.x_transfer_purpose,
             })
+            for line in self.product_return_moves:
+                if not line.product_id:
+                    continue
+                move = new_picking.move_ids.filtered(
+                    lambda m, p=line.product_id: m.product_id == p
+                )[:1]
+                if move:
+                    vals = {}
+                    if line.x_return_condition:
+                        vals['x_return_condition'] = line.x_return_condition
+                    if line.x_damage_amount:
+                        vals['x_damage_amount'] = line.x_damage_amount
+                    if vals:
+                        move.write(vals)
         return new_picking
 
 
@@ -32,6 +45,13 @@ class StockReturnPickingLineSiteOps(models.TransientModel):
         string='Returned', compute='_compute_x_outstanding', digits='Product Unit of Measure')
     x_outstanding_qty = fields.Float(
         string='Outstanding', compute='_compute_x_outstanding', digits='Product Unit of Measure')
+    x_return_condition = fields.Selection([
+        ('new', 'New'),
+        ('used', 'Used'),
+        ('repairable', 'Repairable'),
+        ('scrap', 'Scrap'),
+    ], string='Condition', default='new')
+    x_damage_amount = fields.Float(string='Damage Charge')
 
     @api.depends('product_id', 'wizard_id.picking_id')
     def _compute_x_outstanding(self):
@@ -63,3 +83,10 @@ class StockReturnPickingLineSiteOps(models.TransientModel):
             line.x_issued_qty = issued
             line.x_returned_qty = returned
             line.x_outstanding_qty = max(issued - returned, 0.0)
+
+    def _prepare_move_default_vals(self):
+        vals = super()._prepare_move_default_vals()
+        vals['x_return_condition'] = self.x_return_condition or 'new'
+        if self.x_damage_amount:
+            vals['x_damage_amount'] = self.x_damage_amount
+        return vals

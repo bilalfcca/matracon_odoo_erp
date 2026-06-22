@@ -10,3 +10,5 @@ access_liability_sheet_line_head_office,liability.sheet.line.head_office,model_x
 access_payment_allocation_finance_ho,payment.allocation.finance.ho,model_x_payment_project_allocation,site_operations.group_finance_ho,1,1,1,1
 access_payment_allocation_head_office,payment.allocation.head_office,model_x_payment_project_allocation,purchase_demand_raise.group_head_office,1,1,1,1
 access_payment_allocation_site_accountant,payment.allocation.site.accountant,model_x_payment_project_allocation,site_operations.group_site_accountant,1,0,0,0
+access_site_store_dashboard,site.store.dashboard,model_x_site_store_dashboard,purchase_demand_raise.group_site_store,1,1,1,1
+access_site_store_dashboard_admin,site.store.dashboard.admin,model_x_site_store_dashboard,base.group_system,1,1,1,1

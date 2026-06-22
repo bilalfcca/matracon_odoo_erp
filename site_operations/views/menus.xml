@@ -7,6 +7,14 @@
          base.group_system (Administrator) is on ALL menus for full access.
     ════════════════════════════════════════════════════════════════════════ -->
 
+    <!-- Inventory → Overview → Site Store Dashboard (landing page for store keepers) -->
+    <menuitem id="menu_site_store_dashboard"
+              name="Site Store Dashboard"
+              parent="stock.menu_stock_root"
+              action="site_operations.action_site_store_dashboard"
+              sequence="1"
+              groups="purchase_demand_raise.group_site_store,purchase_demand_raise.group_head_office,purchase_demand_raise.group_ceo_approval,base.group_system"/>
+
     <!-- Inventory → Operations → Transfers -->
     <!-- Site Accountants intentionally excluded from MI menus -->
     <menuitem id="menu_material_issuance" name="Material Issuance" parent="stock.menu_stock_transfers" action="site_operations.action_material_issuance_only" sequence="25" groups="purchase_demand_raise.group_site_store,purchase_demand_raise.group_head_office,purchase_demand_raise.group_ceo_approval,base.group_system"/>
@@ -17,5 +25,21 @@
     <menuitem id="menu_liability_sheets" name="Liability Sheets" parent="account.menu_finance_payables" action="site_operations.action_liability_sheet" sequence="25" groups="site_operations.group_site_accountant,purchase_demand_raise.group_ceo_approval,site_operations.group_finance_ho,purchase_demand_raise.group_head_office,base.group_system"/>
 
     <menuitem id="menu_finance_ho_payments" name="Finance Payments" parent="account.menu_finance_payables" action="site_operations.action_ho_vendor_payments" sequence="26" groups="site_operations.group_finance_ho,purchase_demand_raise.group_head_office,base.group_system"/>
+
+    <!-- Accounting → Reporting: cross-project fund dashboard -->
+    <menuitem id="menu_project_financial_overview"
+              name="Project Financial Overview"
+              parent="account.menu_finance"
+              action="site_operations.action_project_financial_overview"
+              sequence="5"
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,base.group_system"/>
+
+    <!-- Project app: same dashboard for project managers -->
+    <menuitem id="menu_project_financial_from_project"
+              name="Financial Overview"
+              parent="project.menu_main_pm"
+              action="site_operations.action_project_financial_overview"
+              sequence="5"
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,base.group_system"/>
 
 </odoo>

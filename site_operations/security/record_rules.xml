@@ -41,5 +41,19 @@
             <field name="perm_create" eval="False"/>
             <field name="perm_unlink" eval="False"/>
         </record>
+
+        <!-- Administrators: see all material issuances and liability sheets -->
+        <record id="rule_material_issuance_admin" model="ir.rule">
+            <field name="name">Material Issuance: Administrators see all</field>
+            <field name="model_id" ref="stock.model_stock_picking"/>
+            <field name="groups" eval="[(4, ref('base.group_system'))]"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+        </record>
+        <record id="rule_liability_sheet_admin" model="ir.rule">
+            <field name="name">Liability Sheet: Administrators see all</field>
+            <field name="model_id" ref="model_x_liability_sheet"/>
+            <field name="groups" eval="[(4, ref('base.group_system'))]"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+        </record>
     </data>
 </odoo>

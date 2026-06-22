@@ -13,7 +13,16 @@ class PurchaseOrderLine(models.Model):
         for vals in vals_list:
             if not vals.get('x_requested_qty') and vals.get('product_qty'):
                 vals['x_requested_qty'] = vals['product_qty']
-        return super().create(vals_list)
+        lines = super().create(vals_list)
+        for line in lines:
+            order = line.order_id
+            if (
+                order.x_quote_tax_ids
+                and line.product_id
+                and not line.display_type
+            ):
+                line.tax_ids = order.x_quote_tax_ids
+        return lines
 
     # ── Quantity Fields ───────────────────────────────────────────────────────
     x_requested_qty = fields.Float(

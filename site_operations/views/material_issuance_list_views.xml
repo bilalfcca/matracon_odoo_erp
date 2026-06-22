@@ -20,6 +20,12 @@
                 <field name="location_dest_id" string="To" optional="show"/>
                 <field name="x_contact_id" string="Issuance Contact"/>
                 <field name="x_issuance_project_id" string="Project" optional="show"/>
+                <field name="x_dest_project_id" string="Destination" optional="show"/>
+                <field name="x_site_transfer_state" string="Transfer Status" optional="show"
+                       widget="badge"
+                       decoration-warning="x_site_transfer_state == 'pending_approval'"
+                       decoration-success="x_site_transfer_state in ('approved', 'done')"
+                       decoration-danger="x_site_transfer_state == 'rejected'"/>
                 <field name="x_transfer_purpose" string="Purpose" optional="show"/>
                 <field name="x_issue_type" string="Issue Type" optional="show"/>
                 <field name="x_inventory_type" string="Inventory Type" optional="show"/>
@@ -60,6 +66,12 @@
                 <filter name="filter_site_to_site"
                         string="Site-to-Site Transfer"
                         domain="[('x_transfer_purpose', '=', 'site_to_site')]"/>
+                <filter name="filter_transfer_pending"
+                        string="Pending Approval"
+                        domain="[('x_transfer_purpose', '=', 'site_to_site'), ('x_site_transfer_state', '=', 'pending_approval')]"/>
+                <filter name="filter_dest_receipt"
+                        string="Destination Receipts"
+                        domain="[('x_is_dest_receipt', '=', True)]"/>
 
                 <separator/>
                 <filter name="filter_issue_type_normal"
