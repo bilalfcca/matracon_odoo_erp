@@ -16,10 +16,10 @@
                             <p style="margin: 8px 0 0 0; font-size: 12px;">
                                 <strong>PROJECT:</strong>
                                 <t t-esc="cs['project_name']"/>
-                                &nbsp;|&nbsp;
+                                &#160;|&#160;
                                 <strong>PR:</strong>
                                 <t t-esc="cs['root'].name"/>
-                                &nbsp;|&nbsp;
+                                &#160;|&#160;
                                 <strong>Date:</strong>
                                 <t t-esc="cs['report_date']" t-options='{"widget": "date"}'/>
                             </p>
@@ -137,7 +137,7 @@
                             <t t-esc="cs['currency'].symbol"/>
                             <t t-esc="'{:,.2f}'.format(cs['lowest_total'])"/>
                             <t t-if="cs['saving_vs_highest'] > 0">
-                                &nbsp;|&nbsp;
+                                &#160;|&#160;
                                 <strong>Saving vs Most Expensive:</strong>
                                 <t t-esc="cs['currency'].symbol"/>
                                 <t t-esc="'{:,.2f}'.format(cs['saving_vs_highest'])"/>
