@@ -3,9 +3,9 @@
 from odoo import models, api
 
 
-class AnalyticDistributionMixin(models.AbstractModel):
-    _name = 'x.analytic.distribution.mixin'
-    _description = 'Project Analytic Distribution Helpers'
+class AccountPaymentAnalyticHelpers(models.Model):
+    """Analytic helper methods on account.payment (single _inherit — Odoo 19 safe)."""
+    _inherit = 'account.payment'
 
     @api.model
     def _analytic_distribution_for_account(self, analytic_account):

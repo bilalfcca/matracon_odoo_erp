@@ -3,7 +3,7 @@ from odoo.exceptions import UserError
 
 
 class AccountPaymentSiteOps(models.Model):
-    _inherit = ['account.payment', 'x.analytic.distribution.mixin']
+    _inherit = 'account.payment'
 
     x_payment_status = fields.Selection([
         ('draft', 'Draft'),
