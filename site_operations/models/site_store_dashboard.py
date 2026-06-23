@@ -236,7 +236,7 @@ class SiteStoreDashboard(models.TransientModel):
     @api.model
     def action_open_dashboard(self):
         """Open or refresh the site store dashboard."""
-        if not self.env.user.has_group('purchase_demand_raise.group_site_store'):
+        if not self.env.user._matracon_is_site_store():
             raise UserError(_('Only Site Store users can open this dashboard.'))
         dashboard = self.create({})
         self._refresh_dashboard_data(dashboard)

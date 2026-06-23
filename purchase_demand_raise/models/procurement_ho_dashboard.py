@@ -90,8 +90,9 @@ class ProcurementHoDashboard(models.TransientModel):
 
     @api.model
     def action_open_dashboard(self):
-        if not self.env.user.has_group('purchase_demand_raise.group_procurement_ho'):
-            raise UserError(_('Only Procurement HO users can open this dashboard.'))
+        """Open or refresh the procurement HO dashboard."""
+        if not self.env.user._matracon_is_procurement_officer():
+            raise UserError(_('Only Procurement Officer (PO) users can open this dashboard.'))
         dashboard = self.create({})
         self._refresh_dashboard_data(dashboard)
         return {

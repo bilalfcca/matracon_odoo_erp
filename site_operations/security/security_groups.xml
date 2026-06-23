@@ -1,24 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <data>
-        <!-- ── Site Accountant ──────────────────────────────────────────────
-             Uploads vendor bills, submits liability sheets, reads issuances.
-        ─────────────────────────────────────────────────────────────────── -->
-        <record id="group_site_accountant" model="res.groups">
-            <field name="name">Site Accountant</field>
-            <field name="privilege_id" ref="purchase_demand_raise.res_groups_privilege_demand_raise"/>
-            <field name="implied_ids" eval="[(4, ref('account.group_account_invoice'))]"/>
-            <field name="comment">Site Accountants — upload vendor bills, submit liability sheets for CEO approval.</field>
-        </record>
-
-        <!-- ── Finance HO ──────────────────────────────────────────────────
-             Executes payments against approved liability sheets.
-        ─────────────────────────────────────────────────────────────────── -->
+        <!-- ── Finance Officer (FO) ── -->
         <record id="group_finance_ho" model="res.groups">
-            <field name="name">Finance HO</field>
+            <field name="name">Finance Officer (FO)</field>
             <field name="privilege_id" ref="purchase_demand_raise.res_groups_privilege_demand_raise"/>
             <field name="implied_ids" eval="[(4, ref('account.group_account_manager'))]"/>
             <field name="comment">Finance Head Office — executes vendor payments against approved liability sheets.</field>
+        </record>
+
+        <!-- ── Matracon Admin — all HO roles + app managers ── -->
+        <record id="group_matracon_admin" model="res.groups">
+            <field name="name">Matracon Admin</field>
+            <field name="privilege_id" ref="purchase_demand_raise.res_groups_privilege_demand_raise"/>
+            <field name="implied_ids" eval="[
+                (4, ref('purchase_demand_raise.group_head_office')),
+                (4, ref('purchase_demand_raise.group_procurement_ho')),
+                (4, ref('purchase_demand_raise.group_ceo_approval')),
+                (4, ref('group_finance_ho')),
+                (4, ref('purchase.group_purchase_manager')),
+                (4, ref('stock.group_stock_manager')),
+                (4, ref('account.group_account_manager')),
+                (4, ref('project.group_project_manager')),
+            ]"/>
+            <field name="comment">Matracon system admin — full access to all Matracon features and menus.</field>
         </record>
     </data>
 </odoo>

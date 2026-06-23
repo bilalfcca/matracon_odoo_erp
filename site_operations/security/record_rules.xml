@@ -28,9 +28,7 @@
             <field name="perm_unlink" eval="False"/>
         </record>
 
-        <!-- ── Material Issuance: Site Accountant cannot see any MI/S2S ──── -->
-        <!-- Site Accountants only deal with liability sheets and vendor bills.
-             They have NO access to material issuance or site-to-site records. -->
+        <!-- ── Material Issuance: Site Accountant blocked from MI/S2S ──── -->
         <record id="rule_material_issuance_site_accountant" model="ir.rule">
             <field name="name">Material Issuance: Site Accountant blocked from MI/S2S</field>
             <field name="model_id" ref="stock.model_stock_picking"/>
@@ -42,7 +40,19 @@
             <field name="perm_unlink" eval="False"/>
         </record>
 
-        <!-- Administrators: see all material issuances and liability sheets -->
+        <!-- Matracon Admin + Odoo Administrators: see all -->
+        <record id="rule_material_issuance_matracon_admin" model="ir.rule">
+            <field name="name">Material Issuance: Matracon Admin sees all</field>
+            <field name="model_id" ref="stock.model_stock_picking"/>
+            <field name="groups" eval="[(4, ref('site_operations.group_matracon_admin'))]"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+        </record>
+        <record id="rule_liability_sheet_matracon_admin" model="ir.rule">
+            <field name="name">Liability Sheet: Matracon Admin sees all</field>
+            <field name="model_id" ref="model_x_liability_sheet"/>
+            <field name="groups" eval="[(4, ref('site_operations.group_matracon_admin'))]"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+        </record>
         <record id="rule_material_issuance_admin" model="ir.rule">
             <field name="name">Material Issuance: Administrators see all</field>
             <field name="model_id" ref="stock.model_stock_picking"/>

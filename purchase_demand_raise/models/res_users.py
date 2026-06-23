@@ -1,4 +1,4 @@
-from odoo import models, fields
+from odoo import models, fields, api
 
 
 class ResUsers(models.Model):
@@ -27,3 +27,56 @@ class ResUsers(models.Model):
         help='Automatically derived from the assigned Site Project Configuration. '
              'Used as the default "Deliver To" warehouse on new Purchase Requisitions.',
     )
+
+    # ── Matracon role helpers (use groups, not hard-coded user IDs) ─────────
+
+    def _matracon_is_admin(self):
+        self.ensure_one()
+        return self.user_has_groups(
+            'site_operations.group_matracon_admin,base.group_system'
+        )
+
+    def _matracon_is_head_office(self):
+        self.ensure_one()
+        return self.user_has_groups(
+            'purchase_demand_raise.group_head_office,'
+            'site_operations.group_matracon_admin,base.group_system'
+        )
+
+    def _matracon_is_procurement_officer(self):
+        self.ensure_one()
+        return self.user_has_groups(
+            'purchase_demand_raise.group_procurement_ho,'
+            'site_operations.group_matracon_admin,base.group_system'
+        )
+
+    def _matracon_is_ceo(self):
+        self.ensure_one()
+        return self.user_has_groups(
+            'purchase_demand_raise.group_ceo_approval,'
+            'site_operations.group_matracon_admin,base.group_system'
+        )
+
+    def _matracon_is_finance_officer(self):
+        self.ensure_one()
+        return self.user_has_groups(
+            'site_operations.group_finance_ho,'
+            'site_operations.group_matracon_admin,base.group_system'
+        )
+
+    def _matracon_is_site_store(self):
+        self.ensure_one()
+        return self.user_has_groups(
+            'purchase_demand_raise.group_site_store,'
+            'site_operations.group_matracon_admin,base.group_system'
+        )
+
+    @api.model
+    def _matracon_add_group(self, user, group):
+        """Idempotently add a security group to a user."""
+        if not group or not user:
+            return
+        user = user.sudo()
+        if group.id not in user.groups_id.ids:
+            user.write({'groups_id': [(4, group.id)]})
+

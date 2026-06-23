@@ -105,6 +105,7 @@ class ProjectSiteConfigProjectLink(models.Model):
         """Assign Site Accountant group and project defaults."""
         accountant_group = self.env.ref(
             'site_operations.group_site_accountant', raise_if_not_found=False)
+        Users = self.env['res.users']
         for user in users:
             vals = {
                 'x_default_analytic_account_id': self.analytic_account_id.id,
@@ -112,9 +113,9 @@ class ProjectSiteConfigProjectLink(models.Model):
                     self.warehouse_id.id if self.warehouse_id else False),
                 'x_site_config_id': self.id,
             }
-            if accountant_group:
-                vals['group_ids'] = [(4, accountant_group.id)]
             user.sudo().write(vals)
+            if accountant_group:
+                Users._matracon_add_group(user, accountant_group)
             if self.project_id:
                 user.sudo().write({'x_default_project_id': self.project_id.id})
 
@@ -145,9 +146,9 @@ class ProjectSiteConfigProjectLink(models.Model):
                     'x_site_config_id': False,
                     'x_default_project_id': False,
                 }
-                if accountant_group:
-                    unwrite_vals['group_ids'] = [(3, accountant_group.id)]
                 user.sudo().write(unwrite_vals)
+                if accountant_group and accountant_group.id in user.sudo().groups_id.ids:
+                    user.sudo().write({'groups_id': [(3, accountant_group.id)]})
 
     def action_open_project(self):
         self.ensure_one()

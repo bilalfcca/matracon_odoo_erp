@@ -76,13 +76,13 @@
                         string="Approve Transfer"
                         class="btn-success"
                         invisible="x_transfer_purpose != 'site_to_site' or x_is_dest_receipt or x_site_transfer_state != 'pending_approval'"
-                        groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,base.group_system"/>
+                        groups="purchase_demand_raise.group_site_store,purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,site_operations.group_matracon_admin,base.group_system"/>
                 <button name="action_reject_site_transfer"
                         type="object"
                         string="Reject Transfer"
                         class="btn-danger"
                         invisible="x_transfer_purpose != 'site_to_site' or x_is_dest_receipt or x_site_transfer_state != 'pending_approval'"
-                        groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,base.group_system"/>
+                        groups="purchase_demand_raise.group_site_store,purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,site_operations.group_matracon_admin,base.group_system"/>
 
                 <!-- Print MIF button -->
                 <button name="action_print_mif"

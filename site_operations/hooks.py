@@ -1,23 +1,18 @@
 # ═══════════════════════════════════════════════════════════════════════════
 # PRODUCTION USER CONFIGURATION — Matracon Pakistan
 # ═══════════════════════════════════════════════════════════════════════════
-# HEAD OFFICE (all projects):
-#   ID  2 → Bilal Khan (Admin)     → group_head_office
-#   ID  5 → CEO                    → group_ceo_approval, group_head_office
-#   ID 10 → Procurement HO         → group_procurement_ho, group_head_office
-#   ID 11 → Finance HO             → group_finance_ho, group_head_office
+# User IDs are stable in production. Groups are the source of truth for access.
 #
-# MCH - BAHAWALNAGAR:
-#   ID 12 → Site Accountant        → group_site_accountant
-#   ID 13 → Site Store Keeper      → group_site_store
+# HEAD OFFICE (all projects) — each user gets group_head_office + role group:
+#   ID  2 → Bilal Khan (Admin)     → group_matracon_admin (implies all HO roles)
+#   ID  5 → CEO                    → group_head_office + group_ceo_approval
+#   ID 10 → Procurement Officer    → group_head_office + group_procurement_ho
+#   ID 11 → Finance Officer        → group_head_office + group_finance_ho
 #
-# RWASA:
-#   ID  6 → Site Accountant        → group_site_accountant
-#   ID  7 → Site Store Keeper      → group_site_store
-#
-# STP - MARDAN:
-#   ID  9 → Site Accountant        → group_site_accountant
-#   ID  8 → Site Store Keeper      → group_site_store
+# SITE USERS (one project each via Site Project Configuration):
+#   MCH:      accountant 12, store 13
+#   RWASA:    accountant  6, store  7
+#   STP:      accountant  9, store  8
 # ═══════════════════════════════════════════════════════════════════════════
 
 PRODUCTION_CONFIG = {
@@ -25,6 +20,7 @@ PRODUCTION_CONFIG = {
     'ceo_ids': [5],
     'procurement_ho_ids': [10],
     'finance_ho_ids': [11],
+    'admin_ids': [2],
     'projects': {
         'MCH - BAHAWALNAGAR': {
             'analytic_xml_id': 'purchase_demand_raise.analytic_account_mch_bahawalnagar',
@@ -53,36 +49,48 @@ def configure_production_users(env):
     """
     Users = env['res.users']
 
-    # Groups
     g_head_office = env.ref('purchase_demand_raise.group_head_office')
     g_ceo = env.ref('purchase_demand_raise.group_ceo_approval')
     g_proc_ho = env.ref('purchase_demand_raise.group_procurement_ho')
     g_finance_ho = env.ref('site_operations.group_finance_ho')
+    g_matracon_admin = env.ref('site_operations.group_matracon_admin', raise_if_not_found=False)
     g_site_store = env.ref('purchase_demand_raise.group_site_store')
     g_site_accountant = env.ref('site_operations.group_site_accountant')
 
-    # Head Office users
-    for uid, extra_groups in [
-        (2, [g_head_office]),                       # Bilal Khan - Admin, just add HO visibility
-        (5, [g_head_office, g_ceo]),                # CEO
-        (10, [g_head_office, g_proc_ho]),           # Procurement HO
-        (11, [g_head_office, g_finance_ho]),        # Finance HO
-    ]:
+    # ── Head Office users by role ───────────────────────────────────────────
+    for uid in PRODUCTION_CONFIG['admin_ids']:
+        user = Users.sudo().browse(uid).exists()
+        if user and g_matracon_admin:
+            Users._matracon_add_group(user, g_matracon_admin)
+
+    for uid in PRODUCTION_CONFIG['ceo_ids']:
         user = Users.sudo().browse(uid).exists()
         if not user:
             continue
-        for grp in extra_groups:
-            if grp.id not in user.sudo().groups_id.ids:
-                user.sudo().write({'groups_id': [(4, grp.id)]})
+        Users._matracon_add_group(user, g_head_office)
+        Users._matracon_add_group(user, g_ceo)
 
-    # Site users - per project
+    for uid in PRODUCTION_CONFIG['procurement_ho_ids']:
+        user = Users.sudo().browse(uid).exists()
+        if not user:
+            continue
+        Users._matracon_add_group(user, g_head_office)
+        Users._matracon_add_group(user, g_proc_ho)
+
+    for uid in PRODUCTION_CONFIG['finance_ho_ids']:
+        user = Users.sudo().browse(uid).exists()
+        if not user:
+            continue
+        Users._matracon_add_group(user, g_head_office)
+        Users._matracon_add_group(user, g_finance_ho)
+
+    # ── Site users — per project via Site Project Configuration ─────────────
     SiteConfig = env['x.project.site.config']
     for project_name, cfg in PRODUCTION_CONFIG['projects'].items():
         analytic = env.ref(cfg['analytic_xml_id'], raise_if_not_found=False)
         if not analytic:
             continue
 
-        # Get or create site config
         site_config = SiteConfig.search([('analytic_account_id', '=', analytic.id)], limit=1)
         if not site_config:
             site_config = SiteConfig.create({
@@ -90,27 +98,28 @@ def configure_production_users(env):
                 'analytic_account_id': analytic.id,
             })
 
-        # Site Store users
         store_users = Users.browse(cfg['site_store_ids']).exists()
         if store_users:
             site_config.write({'site_user_ids': [(4, u.id) for u in store_users]})
+            for user in store_users:
+                Users._matracon_add_group(user, g_site_store)
 
-        # Site Accountant users
         accountant_users = Users.browse(cfg['site_accountant_ids']).exists()
         for user in accountant_users:
-            user = user.sudo()
-            if g_site_accountant.id not in user.groups_id.ids:
-                user.write({'groups_id': [(4, g_site_accountant.id)]})
-            user.write({
+            Users._matracon_add_group(user, g_site_accountant)
+            user.sudo().write({
                 'x_default_analytic_account_id': analytic.id,
                 'x_site_config_id': site_config.id,
             })
             if site_config.warehouse_id:
-                user.write({'x_default_warehouse_id': site_config.warehouse_id.id})
+                user.sudo().write({
+                    'x_default_warehouse_id': site_config.warehouse_id.id,
+                })
 
-        # Also add accountants to the x_site_accountant_ids field
         if accountant_users:
-            site_config.write({'x_site_accountant_ids': [(4, u.id) for u in accountant_users]})
+            site_config.write({
+                'x_site_accountant_ids': [(4, u.id) for u in accountant_users],
+            })
 
 
 def post_init_hook(env):

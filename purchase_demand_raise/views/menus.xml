@@ -1,10 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- Purchase → Procurement HO Dashboard -->
-    <menuitem id="menu_procurement_ho_dashboard"
-              name="Procurement HO Dashboard"
-              parent="purchase.menu_purchase_root"
-              action="purchase_demand_raise.action_procurement_ho_dashboard"
-              sequence="1"
-              groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_head_office,base.group_system"/>
+    <!-- Menus that reference Matracon Admin live in site_operations (see views/menus.xml). -->
 </odoo>
