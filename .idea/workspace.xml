@@ -4,25 +4,10 @@
     <option name="autoReloadType" value="NONE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="d5df9394-1441-428e-81ef-eb75170c5523" name="Changes" comment="Procurement flow completed">
-      <change beforePath="$PROJECT_DIR$/purchase_demand_raise/__manifest__.py" beforeDir="false" afterPath="$PROJECT_DIR$/purchase_demand_raise/__manifest__.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/purchase_demand_raise/models/procurement_ho_dashboard.py" beforeDir="false" afterPath="$PROJECT_DIR$/purchase_demand_raise/models/procurement_ho_dashboard.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/purchase_demand_raise/models/project_site_config.py" beforeDir="false" afterPath="$PROJECT_DIR$/purchase_demand_raise/models/project_site_config.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/purchase_demand_raise/models/res_users.py" beforeDir="false" afterPath="$PROJECT_DIR$/purchase_demand_raise/models/res_users.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/purchase_demand_raise/security/ir.model.access.csv" beforeDir="false" afterPath="$PROJECT_DIR$/purchase_demand_raise/security/ir.model.access.csv" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/purchase_demand_raise/security/record_rules.xml" beforeDir="false" afterPath="$PROJECT_DIR$/purchase_demand_raise/security/record_rules.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/purchase_demand_raise/security/security_groups.xml" beforeDir="false" afterPath="$PROJECT_DIR$/purchase_demand_raise/security/security_groups.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/purchase_demand_raise/views/menus.xml" beforeDir="false" afterPath="$PROJECT_DIR$/purchase_demand_raise/views/menus.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/purchase_demand_raise/views/project_site_config_views.xml" beforeDir="false" afterPath="$PROJECT_DIR$/purchase_demand_raise/views/project_site_config_views.xml" afterDir="false" />
+    <list default="true" id="d5df9394-1441-428e-81ef-eb75170c5523" name="Changes" comment="groups wise access">
       <change beforePath="$PROJECT_DIR$/site_operations/__manifest__.py" beforeDir="false" afterPath="$PROJECT_DIR$/site_operations/__manifest__.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/site_operations/hooks.py" beforeDir="false" afterPath="$PROJECT_DIR$/site_operations/hooks.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/site_operations/models/project_site_config.py" beforeDir="false" afterPath="$PROJECT_DIR$/site_operations/models/project_site_config.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/site_operations/models/site_store_dashboard.py" beforeDir="false" afterPath="$PROJECT_DIR$/site_operations/models/site_store_dashboard.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/site_operations/security/ir.model.access.csv" beforeDir="false" afterPath="$PROJECT_DIR$/site_operations/security/ir.model.access.csv" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/site_operations/security/record_rules.xml" beforeDir="false" afterPath="$PROJECT_DIR$/site_operations/security/record_rules.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/site_operations/security/security_groups.xml" beforeDir="false" afterPath="$PROJECT_DIR$/site_operations/security/security_groups.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/site_operations/views/material_issuance_form_views.xml" beforeDir="false" afterPath="$PROJECT_DIR$/site_operations/views/material_issuance_form_views.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/site_operations/views/menus.xml" beforeDir="false" afterPath="$PROJECT_DIR$/site_operations/views/menus.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -197,7 +182,23 @@
       <option name="project" value="LOCAL" />
       <updated>1782197433787</updated>
     </task>
-    <option name="localTasksCounter" value="14" />
+    <task id="LOCAL-00014" summary="groups wise access">
+      <option name="closed" value="true" />
+      <created>1782200195019</created>
+      <option name="number" value="00014" />
+      <option name="presentableId" value="LOCAL-00014" />
+      <option name="project" value="LOCAL" />
+      <updated>1782200195019</updated>
+    </task>
+    <task id="LOCAL-00015" summary="groups wise access">
+      <option name="closed" value="true" />
+      <created>1782200207072</created>
+      <option name="number" value="00015" />
+      <option name="presentableId" value="LOCAL-00015" />
+      <option name="project" value="LOCAL" />
+      <updated>1782200207072</updated>
+    </task>
+    <option name="localTasksCounter" value="16" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
@@ -211,6 +212,7 @@
     <MESSAGE value="Site Store completed" />
     <MESSAGE value="Site Store completed + Issue resolved of balance" />
     <MESSAGE value="Procurement flow completed" />
-    <option name="LAST_COMMIT_MESSAGE" value="Procurement flow completed" />
+    <MESSAGE value="groups wise access" />
+    <option name="LAST_COMMIT_MESSAGE" value="groups wise access" />
   </component>
 </project>

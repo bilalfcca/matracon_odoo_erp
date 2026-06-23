@@ -15,5 +15,5 @@ access_payment_allocation_site_accountant,payment.allocation.site.accountant,mod
 access_site_store_dashboard,site.store.dashboard,model_x_site_store_dashboard,purchase_demand_raise.group_site_store,1,1,1,1
 access_site_store_dashboard_matracon_admin,site.store.dashboard.matracon.admin,model_x_site_store_dashboard,site_operations.group_matracon_admin,1,1,1,1
 access_site_store_dashboard_admin,site.store.dashboard.admin,model_x_site_store_dashboard,base.group_system,1,1,1,1
-access_procurement_ho_dashboard_matracon_admin,x.procurement.ho.dashboard matracon admin,model_x_procurement_ho_dashboard,site_operations.group_matracon_admin,1,1,1,1
-access_project_site_config_matracon_admin,x.project.site.config matracon admin,model_x_project_site_config,site_operations.group_matracon_admin,1,1,1,1
+access_procurement_ho_dashboard_matracon_admin,x.procurement.ho.dashboard matracon admin,purchase_demand_raise.model_x_procurement_ho_dashboard,site_operations.group_matracon_admin,1,1,1,1
+access_project_site_config_matracon_admin,x.project.site.config matracon admin,purchase_demand_raise.model_x_project_site_config,site_operations.group_matracon_admin,1,1,1,1
