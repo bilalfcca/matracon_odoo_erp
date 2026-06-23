@@ -4,10 +4,12 @@
     <option name="autoReloadType" value="NONE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="d5df9394-1441-428e-81ef-eb75170c5523" name="Changes" comment="groups wise access">
+    <list default="true" id="d5df9394-1441-428e-81ef-eb75170c5523" name="Changes" comment="groups wise access - 2">
+      <change beforePath="$PROJECT_DIR$/purchase_demand_raise/__manifest__.py" beforeDir="false" afterPath="$PROJECT_DIR$/purchase_demand_raise/__manifest__.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/purchase_demand_raise/models/project_site_config.py" beforeDir="false" afterPath="$PROJECT_DIR$/purchase_demand_raise/models/project_site_config.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/purchase_demand_raise/models/res_users.py" beforeDir="false" afterPath="$PROJECT_DIR$/purchase_demand_raise/models/res_users.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/site_operations/__manifest__.py" beforeDir="false" afterPath="$PROJECT_DIR$/site_operations/__manifest__.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/site_operations/security/ir.model.access.csv" beforeDir="false" afterPath="$PROJECT_DIR$/site_operations/security/ir.model.access.csv" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/site_operations/security/security_groups.xml" beforeDir="false" afterPath="$PROJECT_DIR$/site_operations/security/security_groups.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/site_operations/models/project_site_config.py" beforeDir="false" afterPath="$PROJECT_DIR$/site_operations/models/project_site_config.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -198,7 +200,15 @@
       <option name="project" value="LOCAL" />
       <updated>1782200207072</updated>
     </task>
-    <option name="localTasksCounter" value="16" />
+    <task id="LOCAL-00016" summary="groups wise access - 2">
+      <option name="closed" value="true" />
+      <created>1782203749219</created>
+      <option name="number" value="00016" />
+      <option name="presentableId" value="LOCAL-00016" />
+      <option name="project" value="LOCAL" />
+      <updated>1782203749219</updated>
+    </task>
+    <option name="localTasksCounter" value="17" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
@@ -213,6 +223,7 @@
     <MESSAGE value="Site Store completed + Issue resolved of balance" />
     <MESSAGE value="Procurement flow completed" />
     <MESSAGE value="groups wise access" />
-    <option name="LAST_COMMIT_MESSAGE" value="groups wise access" />
+    <MESSAGE value="groups wise access - 2" />
+    <option name="LAST_COMMIT_MESSAGE" value="groups wise access - 2" />
   </component>
 </project>

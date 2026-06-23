@@ -73,10 +73,19 @@ class ResUsers(models.Model):
 
     @api.model
     def _matracon_add_group(self, user, group):
-        """Idempotently add a security group to a user."""
+        """Idempotently add a security group to a user (Odoo 19: group_ids)."""
         if not group or not user:
             return
         user = user.sudo()
-        if group.id not in user.groups_id.ids:
-            user.write({'groups_id': [(4, group.id)]})
+        if group.id not in user.group_ids.ids:
+            user.write({'group_ids': [(4, group.id)]})
+
+    @api.model
+    def _matracon_remove_group(self, user, group):
+        """Remove a directly-assigned security group from a user."""
+        if not group or not user:
+            return
+        user = user.sudo()
+        if group.id in user.group_ids.ids:
+            user.write({'group_ids': [(3, group.id)]})
 

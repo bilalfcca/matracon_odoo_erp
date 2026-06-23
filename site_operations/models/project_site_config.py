@@ -123,6 +123,7 @@ class ProjectSiteConfigProjectLink(models.Model):
         """Reverse accountant assignment when removed from site config."""
         accountant_group = self.env.ref(
             'site_operations.group_site_accountant', raise_if_not_found=False)
+        Users = self.env['res.users']
         for user in users:
             other_config = self.search([
                 ('x_site_accountant_ids', 'in', user.id),
@@ -147,8 +148,8 @@ class ProjectSiteConfigProjectLink(models.Model):
                     'x_default_project_id': False,
                 }
                 user.sudo().write(unwrite_vals)
-                if accountant_group and accountant_group.id in user.sudo().groups_id.ids:
-                    user.sudo().write({'groups_id': [(3, accountant_group.id)]})
+                if accountant_group:
+                    Users._matracon_remove_group(user, accountant_group)
 
     def action_open_project(self):
         self.ensure_one()
