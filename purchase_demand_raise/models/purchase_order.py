@@ -364,6 +364,7 @@ class PurchaseOrder(models.Model):
             order.write({'x_pr_state': 'po_locked', 'x_ceo_status': 'approved'})
             # Confirm the PO in standard Odoo (button_confirm won't block po_locked)
             order.button_confirm()
+            order._matracon_sync_alternatives_from_root()
 
             order.message_post(
                 body=Markup('🔒 <b>CEO Final Approval</b> granted by <b>%s</b>. '

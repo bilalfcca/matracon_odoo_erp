@@ -1,6 +1,6 @@
 {
     'name': 'Demand Raise Module',
-    'version': '1.2.1',
+    'version': '1.2.2',
     'summary': 'Purchase Demand Raise — Phase 1: PR to PO with role-based access, Comparative Statement, and CEO approval tiers',
     'author': 'Matracon Pakistan',
     'depends': ['purchase', 'purchase_requisition', 'stock', 'analytic', 'mail', 'purchase_stock'],
@@ -9,6 +9,7 @@
         'security/ir.model.access.csv',
         'security/record_rules.xml',
         'data/analytic_accounts.xml',
+        'data/sync_alternatives.xml',
         'views/project_site_config_views.xml',
         'views/purchase_order_views.xml',
         'views/purchase_order_list_view.xml',

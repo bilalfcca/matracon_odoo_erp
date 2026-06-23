@@ -122,9 +122,28 @@ def configure_production_users(env):
             })
 
 
+def sync_alternative_prs(env):
+    """Re-sync all alternative RFQs from their root PR (safe after module upgrade)."""
+    PO = env['purchase.order']
+    roots = PO.search([
+        ('x_is_pr_document', '=', True),
+        ('purchase_group_id', '!=', False),
+    ])
+    if roots:
+        roots._matracon_sync_alternatives_from_root()
+    # Mark cancelled Odoo alternatives
+    cancelled = PO.search([
+        ('state', '=', 'cancel'),
+        ('x_pr_state', '!=', 'cancelled'),
+    ])
+    for order in cancelled:
+        order.x_pr_state = 'cancelled'
+
+
 def post_init_hook(env):
     try:
         configure_production_users(env)
+        sync_alternative_prs(env)
     except Exception as e:
         import logging
         logging.getLogger(__name__).warning(

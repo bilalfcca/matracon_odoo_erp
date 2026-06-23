@@ -7,7 +7,6 @@
         <field name="report_name">purchase_demand_raise.report_rfq_demand_raise</field>
         <field name="report_file">purchase_demand_raise.report_rfq_demand_raise</field>
         <field name="print_report_name">'RFQ - %s' % (object.name)</field>
-        <field name="binding_model_id" ref="purchase.model_purchase_order"/>
-        <field name="binding_type">report</field>
+        <field name="binding_model_id" eval="False"/>
     </record>
 </odoo>

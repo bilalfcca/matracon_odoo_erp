@@ -87,18 +87,34 @@
                         groups="purchase_demand_raise.group_ceo_approval"
                         confirm="Reject at final stage? HO and initiator will be notified."/>
 
+                <!-- Confirm PO when locked but Odoo state not yet purchase -->
+                <button name="action_confirm_after_approval"
+                        string="Confirm Order"
+                        type="object"
+                        class="btn-primary"
+                        invisible="x_pr_state != 'po_locked' or state in ('purchase', 'done')"
+                        groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,site_operations.group_matracon_admin,base.group_system"/>
+
+                <!-- Single RFQ print (no prices) -->
+                <button name="action_print_rfq_no_price"
+                        string="Print RFQ"
+                        type="object"
+                        class="btn-secondary"
+                        invisible="x_is_site_store or state in ('purchase', 'done') or (x_is_pr_document and x_pr_state in ('rejected', 'cancelled'))"
+                        groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,site_operations.group_matracon_admin,base.group_system"/>
+
             </xpath>
 
             <!-- ── 2. Standard buttons: hide from Site Store; hide on PR docs when rejected ── -->
             <!-- Send RFQ buttons: hidden from Site Store and from PR docs when rejected -->
             <xpath expr="//header/button[@name='action_rfq_send'][1]" position="attributes">
-                <attribute name="invisible">x_is_site_store or (x_is_pr_document and x_pr_state in ('rejected', 'cancelled'))</attribute>
+                <attribute name="invisible">x_is_site_store or x_pr_state in ('po_locked', 'dispatched') or (x_is_pr_document and x_pr_state in ('rejected', 'cancelled'))</attribute>
             </xpath>
             <xpath expr="//header/button[@name='action_rfq_send'][2]" position="attributes">
-                <attribute name="invisible">x_is_site_store or (x_is_pr_document and x_pr_state in ('rejected', 'cancelled'))</attribute>
+                <attribute name="invisible">x_is_site_store or x_pr_state in ('po_locked', 'dispatched') or (x_is_pr_document and x_pr_state in ('rejected', 'cancelled'))</attribute>
             </xpath>
             <xpath expr="//header/button[@name='action_rfq_send'][3]" position="attributes">
-                <attribute name="invisible">x_is_site_store or (x_is_pr_document and x_pr_state in ('rejected', 'cancelled'))</attribute>
+                <attribute name="invisible">x_is_site_store or x_pr_state in ('po_locked', 'dispatched') or (x_is_pr_document and x_pr_state in ('rejected', 'cancelled'))</attribute>
             </xpath>
             <!-- Confirm Order:
                  - PR documents: HIDDEN (CEO Final Approve handles confirm)
@@ -112,11 +128,9 @@
             <xpath expr="//header/button[@name='button_cancel']" position="attributes">
                 <attribute name="invisible">x_is_site_store or (x_is_pr_document and x_pr_state in ('rejected', 'cancelled', 'dispatched'))</attribute>
             </xpath>
-            <!-- Print Quotation (draft/sent states only): hidden from Site Store + rejected +
-                 ALSO keep Odoo's original condition (state=='purchase') to avoid duplicate
-                 with the action_report_purchase_order button that shows at purchase state -->
+            <!-- Hide duplicate standard Print Quotation buttons — use Print RFQ instead -->
             <xpath expr="//header/button[@name='print_quotation']" position="attributes">
-                <attribute name="invisible">x_is_site_store or state == 'purchase' or (x_is_pr_document and x_pr_state in ('rejected', 'cancelled'))</attribute>
+                <attribute name="invisible">1</attribute>
             </xpath>
 
             <!-- Upload Bill + Print at purchase state are handled in the priority-20 view below
@@ -427,10 +441,19 @@
                 <attribute name="invisible">1</attribute>
             </xpath>
 
-            <!-- Print PO button (type='action', shows at state='purchase'):
-                 hidden from Site Store and from PR docs when rejected/cancelled -->
+            <!-- Print PO report button: hidden (use Print RFQ / Final PO report instead) -->
             <xpath expr="//header/button[@type='action']" position="attributes">
-                <attribute name="invisible">x_is_site_store or (x_is_pr_document and x_pr_state in ('rejected', 'cancelled'))</attribute>
+                <attribute name="invisible">1</attribute>
+            </xpath>
+
+            <!-- Receive Products: Site Store only (not HO / CEO) -->
+            <xpath expr="//header/button[@name='action_view_picking']" position="attributes">
+                <attribute name="groups">purchase_demand_raise.group_site_store,site_operations.group_matracon_admin,base.group_system</attribute>
+            </xpath>
+
+            <!-- Receipt smart button on form: Site Store only -->
+            <xpath expr="//div[@name='button_box']//button[@name='action_view_picking']" position="attributes">
+                <attribute name="groups">purchase_demand_raise.group_site_store,site_operations.group_matracon_admin,base.group_system</attribute>
             </xpath>
 
         </field>

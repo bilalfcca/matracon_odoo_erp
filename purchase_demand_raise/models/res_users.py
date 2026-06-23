@@ -4,10 +4,6 @@ from odoo import models, fields, api
 class ResUsers(models.Model):
     _inherit = 'res.users'
 
-    # Set automatically by x.project.site.config when user is added/removed.
-    # Head Office users: all fields are empty (they see all projects).
-    # Site users: all fields are set from their assigned project.
-
     x_site_config_id = fields.Many2one(
         'x.project.site.config',
         string='Assigned Site Project',
@@ -28,47 +24,48 @@ class ResUsers(models.Model):
              'Used as the default "Deliver To" warehouse on new Purchase Requisitions.',
     )
 
-    # ── Matracon role helpers (use groups, not hard-coded user IDs) ─────────
+    # ── Matracon role helpers (Odoo 19: group_ids, has_group) ─────────────────
 
     def _matracon_is_admin(self):
         self.ensure_one()
-        return self.user_has_groups(
-            'site_operations.group_matracon_admin,base.group_system'
+        return (
+            self.has_group('site_operations.group_matracon_admin')
+            or self.has_group('base.group_system')
         )
 
     def _matracon_is_head_office(self):
         self.ensure_one()
-        return self.user_has_groups(
-            'purchase_demand_raise.group_head_office,'
-            'site_operations.group_matracon_admin,base.group_system'
+        return (
+            self.has_group('purchase_demand_raise.group_head_office')
+            or self._matracon_is_admin()
         )
 
     def _matracon_is_procurement_officer(self):
         self.ensure_one()
-        return self.user_has_groups(
-            'purchase_demand_raise.group_procurement_ho,'
-            'site_operations.group_matracon_admin,base.group_system'
+        return (
+            self.has_group('purchase_demand_raise.group_procurement_ho')
+            or self._matracon_is_admin()
         )
 
     def _matracon_is_ceo(self):
         self.ensure_one()
-        return self.user_has_groups(
-            'purchase_demand_raise.group_ceo_approval,'
-            'site_operations.group_matracon_admin,base.group_system'
+        return (
+            self.has_group('purchase_demand_raise.group_ceo_approval')
+            or self._matracon_is_admin()
         )
 
     def _matracon_is_finance_officer(self):
         self.ensure_one()
-        return self.user_has_groups(
-            'site_operations.group_finance_ho,'
-            'site_operations.group_matracon_admin,base.group_system'
+        return (
+            self.has_group('site_operations.group_finance_ho')
+            or self._matracon_is_admin()
         )
 
     def _matracon_is_site_store(self):
         self.ensure_one()
-        return self.user_has_groups(
-            'purchase_demand_raise.group_site_store,'
-            'site_operations.group_matracon_admin,base.group_system'
+        return (
+            self.has_group('purchase_demand_raise.group_site_store')
+            or self._matracon_is_admin()
         )
 
     @api.model
@@ -88,4 +85,3 @@ class ResUsers(models.Model):
         user = user.sudo()
         if group.id in user.group_ids.ids:
             user.write({'group_ids': [(3, group.id)]})
-

@@ -64,10 +64,50 @@ class PurchaseOrderTender(models.Model):
             self.x_quote_tax_treatment = ', '.join(self.x_quote_tax_ids.mapped('name'))
 
     def write(self, vals):
+        if self.env.context.get('matracon_skip_alt_sync'):
+            res = super().write(vals)
+            if 'x_quote_tax_ids' in vals:
+                self._apply_quote_taxes_to_lines()
+            return res
+
         res = super().write(vals)
         if 'x_quote_tax_ids' in vals:
             self._apply_quote_taxes_to_lines()
+        if vals.get('state') == 'cancel':
+            for order in self.filtered(
+                lambda o: o.state == 'cancel' and o.x_pr_state != 'cancelled'):
+                order.x_pr_state = 'cancelled'
+        sync_keys = {
+            'purchase_group_id', 'alternative_po_ids', 'state', 'order_line',
+            'x_recommended_qty', 'x_requested_qty', 'x_approved_qty',
+            'x_pm_signed_pr', 'x_category_id', 'x_pr_state',
+        }
+        if sync_keys & set(vals.keys()):
+            self.with_context(matracon_skip_alt_sync=True)._matracon_sync_alternatives_from_root()
         return res
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        orders = super().create(vals_list)
+        orders.with_context(matracon_skip_alt_sync=True)._matracon_sync_alternatives_from_root()
+        return orders
+
+    def action_print_rfq_no_price(self):
+        """Print RFQ without prices (Matracon internal / vendor quote request)."""
+        self.ensure_one()
+        return self.env.ref(
+            'purchase_demand_raise.action_report_rfq_demand_raise'
+        ).report_action(self)
+
+    def action_confirm_after_approval(self):
+        """Confirm PO immediately when HO + CEO have approved (po_locked)."""
+        for order in self:
+            if order.x_pr_state != 'po_locked':
+                raise UserError(_('PO must be in PO Locked state to confirm.'))
+            if order.state in ('purchase', 'done'):
+                continue
+            order.button_confirm()
+        return True
 
     # ─────────────────────────────────────────────────────────────────────────
     # TENDER / ALTERNATIVES
@@ -258,7 +298,7 @@ class PurchaseOrderTender(models.Model):
         ).report_action(self, config=False)
 
     def _sync_alternative_lines_from_root(self, root):
-        """Align alternative RFQ line qty/analytic with the originating PR."""
+        """Copy all Matracon line fields from the root PR onto this alternative RFQ."""
         self.ensure_one()
         for root_line in root.order_line.filtered(lambda l: not l.display_type):
             alt_line = self.order_line.filtered(
@@ -270,7 +310,69 @@ class PurchaseOrderTender(models.Model):
             alt_line.write({
                 'x_requested_qty': qty,
                 'x_recommended_qty': root_line.x_recommended_qty or qty,
-                'product_qty': qty,
+                'x_approved_qty': root_line.x_approved_qty or root_line.x_recommended_qty or qty,
+                'x_qty_adjustment_reason': root_line.x_qty_adjustment_reason,
+                'x_decision': root_line.x_decision,
+                'product_qty': root_line.x_recommended_qty or qty,
                 'date_planned': root_line.date_planned,
                 'analytic_distribution': root_line.analytic_distribution,
             })
+
+    def _copy_header_fields_from_root_pr(self, root):
+        """Copy all Matracon header fields from root PR to an alternative RFQ."""
+        self.ensure_one()
+        if self.state == 'cancel':
+            if self.x_pr_state != 'cancelled':
+                self.x_pr_state = 'cancelled'
+            return
+        vals = {
+            'x_category_id': root.x_category_id.id,
+            'x_project_analytic_account_id': root.x_project_analytic_account_id.id,
+            'x_initiator_id': root.x_initiator_id.id,
+            'x_pm_signed_pr': root.x_pm_signed_pr,
+            'x_pm_signed_pr_filename': root.x_pm_signed_pr_filename,
+            'x_pr_state': root.x_pr_state,
+            'x_ho_status': root.x_ho_status,
+            'x_ceo_status': root.x_ceo_status,
+            'picking_type_id': root.picking_type_id.id,
+            'date_planned': root.date_planned,
+        }
+        self.with_context(matracon_skip_alt_sync=True).write(vals)
+        self._sync_alternative_lines_from_root(root)
+
+    def _matracon_sync_alternatives_from_root(self):
+        """Keep every alternative RFQ in sync with the originating PR document."""
+        processed = set()
+        for order in self:
+            root, all_orders = order._get_tender_purchase_orders()
+            if not root.x_is_pr_document or len(all_orders) < 2:
+                continue
+            group_key = (
+                root.purchase_group_id.id
+                if getattr(root, 'purchase_group_id', False) and root.purchase_group_id
+                else ('po', root.id)
+            )
+            if group_key in processed:
+                continue
+            processed.add(group_key)
+            for alt in all_orders.filtered(lambda o: o.id != root.id):
+                alt._copy_header_fields_from_root_pr(root)
+            if getattr(order, 'purchase_group_id', False) and order.purchase_group_id:
+                for cancelled in order.purchase_group_id.order_ids.filtered(
+                    lambda o: o.state == 'cancel' and o.x_pr_state != 'cancelled'):
+                    cancelled.x_pr_state = 'cancelled'
+
+    @api.model
+    def _matracon_upgrade_sync_alternatives(self):
+        """Called on module upgrade to fix existing alternative RFQs."""
+        roots = self.search([
+            ('x_is_pr_document', '=', True),
+            ('purchase_group_id', '!=', False),
+        ])
+        if roots:
+            roots._matracon_sync_alternatives_from_root()
+        for order in self.search([
+            ('state', '=', 'cancel'),
+            ('x_pr_state', '!=', 'cancelled'),
+        ]):
+            order.x_pr_state = 'cancelled'

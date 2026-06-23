@@ -134,20 +134,28 @@ class StockPickingSiteOps(models.Model):
     def default_get(self, fields_list):
         res = super().default_get(fields_list)
         if res.get('x_transfer_purpose') in ('material_issuance', 'site_to_site'):
-            if not res.get('picking_type_id'):
-                user = self.env.user
-                pt = None
-                if hasattr(user, 'x_default_warehouse_id') and user.x_default_warehouse_id:
-                    pt = user.x_default_warehouse_id.int_type_id
-                if not pt:
-                    pt = self.env['stock.picking.type'].search(
-                        [('code', '=', 'internal')], limit=1)
-                if pt:
-                    res['picking_type_id'] = pt.id
-                    if pt.default_location_src_id:
-                        res.setdefault('location_id', pt.default_location_src_id.id)
-                    if pt.default_location_dest_id:
-                        res.setdefault('location_dest_id', pt.default_location_dest_id.id)
+            if not res.get('scheduled_date'):
+                res['scheduled_date'] = fields.Datetime.now()
+            user = self.env.user
+            pt = None
+            if hasattr(user, 'x_default_warehouse_id') and user.x_default_warehouse_id:
+                pt = user.x_default_warehouse_id.int_type_id
+            if not pt:
+                pt = self.env['stock.picking.type'].search(
+                    [('code', '=', 'internal')], limit=1)
+            if pt and not res.get('picking_type_id'):
+                res['picking_type_id'] = pt.id
+                if pt.default_location_src_id:
+                    res.setdefault('location_id', pt.default_location_src_id.id)
+                if pt.default_location_dest_id:
+                    res.setdefault('location_dest_id', pt.default_location_dest_id.id)
+            if res.get('x_transfer_purpose') == 'material_issuance' and not res.get('location_dest_id'):
+                customer_loc = self.env['stock.location'].search([
+                    ('usage', '=', 'customer'),
+                    ('company_id', 'in', [False, self.env.company.id]),
+                ], limit=1)
+                if customer_loc:
+                    res['location_dest_id'] = customer_loc.id
         return res
 
     # ─────────────────────────────────────────────────────────────────────────
@@ -169,6 +177,40 @@ class StockPickingSiteOps(models.Model):
             self.x_backcharge_applicable = True
         elif self.x_issue_type == 'normal':
             self.x_backcharge_applicable = False
+
+    @api.onchange('x_contact_id', 'x_issuance_project_id', 'move_ids', 'move_ids.product_id')
+    def _onchange_contact_outstanding_preview(self):
+        """Refresh outstanding materials summary live in the form."""
+        self._compute_outstanding_materials()
+
+    @api.onchange('picking_type_id', 'x_transfer_purpose')
+    def _onchange_site_ops_picking_type(self):
+        """Ensure source/dest locations are set for material issuance forms."""
+        if self.x_transfer_purpose not in ('material_issuance', 'site_to_site'):
+            return
+        if self.picking_type_id:
+            if self.picking_type_id.default_location_src_id:
+                self.location_id = self.picking_type_id.default_location_src_id
+            if (self.picking_type_id.default_location_dest_id
+                    and self.x_transfer_purpose == 'material_issuance'):
+                self.location_dest_id = self.picking_type_id.default_location_dest_id
+        if not self.scheduled_date:
+            self.scheduled_date = fields.Datetime.now()
+
+    @api.onchange('x_contact_id', 'x_issue_type')
+    def _onchange_contact_destination(self):
+        """Set delivery destination for material issuance."""
+        if self.x_transfer_purpose != 'material_issuance':
+            return
+        if self.x_contact_id and self.x_contact_id.property_stock_customer:
+            self.location_dest_id = self.x_contact_id.property_stock_customer
+        elif not self.location_dest_id:
+            customer_loc = self.env['stock.location'].search([
+                ('usage', '=', 'customer'),
+                ('company_id', 'in', [False, self.env.company.id]),
+            ], limit=1)
+            if customer_loc:
+                self.location_dest_id = customer_loc
 
     @api.onchange('x_dest_project_id', 'x_transfer_purpose')
     def _onchange_site_to_site_locations(self):
@@ -268,7 +310,7 @@ class StockPickingSiteOps(models.Model):
             pick.x_backcharge_amount = sum(
                 pick.move_ids.mapped('x_line_backcharge_amount'))
 
-    @api.depends('x_contact_id', 'x_issuance_project_id')
+    @api.depends('x_contact_id', 'x_issuance_project_id', 'move_ids.product_id')
     def _compute_outstanding_materials(self):
         for pick in self:
             if not pick.x_contact_id or not pick.x_issuance_project_id:
