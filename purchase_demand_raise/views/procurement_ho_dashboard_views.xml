@@ -5,31 +5,54 @@
         <field name="name">x.procurement.ho.dashboard.form</field>
         <field name="model">x.procurement.ho.dashboard</field>
         <field name="arch" type="xml">
-            <form string="Procurement HO Dashboard" create="false" edit="false" delete="false">
+            <form string="Procurement Operations Overview" create="false" edit="false" delete="false">
                 <header>
                     <button name="action_refresh" type="object" string="Refresh"
                             class="btn-secondary" icon="fa-refresh"/>
-                    <button name="action_open_pending_review" type="object"
-                            string="Review Queue" class="btn-primary"/>
+                    <button name="action_apply_filters" type="object"
+                            string="Apply Filters" class="btn-primary" icon="fa-filter"/>
                 </header>
                 <sheet>
                     <div class="oe_title">
-                        <h1>Procurement Operations Overview</h1>
+                        <h1>
+                            <field name="name" readonly="1" class="oe_inline"/>
+                        </h1>
                         <h3 class="text-muted">
                             <field name="user_name" readonly="1" class="oe_inline"/>
                             — Procurement Officer
                         </h3>
                     </div>
 
+                    <group string="Filters">
+                        <group>
+                            <field name="filter_project_id"/>
+                            <field name="filter_category_id"/>
+                            <field name="filter_pr_state"/>
+                        </group>
+                        <group>
+                            <field name="filter_period_days"/>
+                            <field name="filter_section"/>
+                        </group>
+                    </group>
+
                     <group>
-                        <group string="Work Queue">
+                        <group string="Demand Pipeline">
                             <button name="action_open_pending_review" type="object"
                                     class="oe_stat_button" icon="fa-inbox">
                                 <div class="o_stat_info">
                                     <span class="o_stat_value">
                                         <field name="pending_review_count"/>
                                     </span>
-                                    <span class="o_stat_text">Pending HO Review</span>
+                                    <span class="o_stat_text">Pending Site Demands</span>
+                                </div>
+                            </button>
+                            <button name="action_open_ceo_pending" type="object"
+                                    class="oe_stat_button" icon="fa-gavel">
+                                <div class="o_stat_info">
+                                    <span class="o_stat_value">
+                                        <field name="ceo_pending_count"/>
+                                    </span>
+                                    <span class="o_stat_text">Pending CEO Approval</span>
                                 </div>
                             </button>
                             <button name="action_open_active_cs" type="object"
@@ -61,64 +84,33 @@
                                     <span class="o_stat_text">Dispatched (MTD)</span>
                                 </div>
                             </button>
+                            <div class="o_stat_info d-inline-block ms-3">
+                                <span class="o_stat_value">
+                                    <field name="confirmed_orders_count"/>
+                                </span>
+                                <span class="o_stat_text">Confirmed Orders</span>
+                            </div>
                         </group>
                     </group>
 
-                    <notebook>
-                        <page string="Pending HO Review" name="pending">
-                            <field name="pending_review_ids" nolabel="1" readonly="1">
+                    <group>
+                        <group string="Pending CEO Approvals"
+                               invisible="filter_section not in ('all', 'ceo_approval')">
+                            <field name="ceo_pending_ids" nolabel="1" readonly="1">
                                 <list create="false" delete="false" edit="false"
-                                      decoration-warning="x_ho_status == 'pending'">
-                                    <field name="name" string="Reference"/>
-                                    <field name="x_project_analytic_account_id" string="Project"/>
+                                      decoration-warning="x_pr_state == 'ceo_final'">
+                                    <field name="name" string="Requisition"/>
                                     <field name="x_category_id" string="Category"/>
-                                    <field name="x_initiator_id" string="Raised By"/>
-                                    <field name="date_order" string="Date"/>
-                                    <field name="x_pr_state" string="Status" widget="badge"/>
+                                    <field name="x_project_analytic_account_id" string="Project"/>
+                                    <field name="partner_id" string="Vendor"/>
+                                    <field name="amount_total" string="Value"/>
                                     <field name="x_ho_status" string="HO Status" widget="badge"/>
-                                </list>
-                            </field>
-                        </page>
-
-                        <page string="Active CS / RFQ" name="active_cs">
-                            <field name="active_cs_ids" nolabel="1" readonly="1">
-                                <list create="false" delete="false" edit="false">
-                                    <field name="name" string="Reference"/>
-                                    <field name="x_project_analytic_account_id" string="Project"/>
-                                    <field name="partner_id" string="Vendor"/>
-                                    <field name="x_initiator_id" string="Raised By"/>
-                                    <field name="x_has_tender_alternatives" string="Alternatives"/>
                                     <field name="x_pr_state" string="Status" widget="badge"/>
                                 </list>
                             </field>
-                        </page>
-
-                        <page string="Ready to Dispatch" name="dispatch">
-                            <field name="ready_dispatch_ids" nolabel="1" readonly="1">
-                                <list create="false" delete="false" edit="false"
-                                      decoration-success="x_pr_state == 'po_locked'">
-                                    <field name="name" string="Reference"/>
-                                    <field name="partner_id" string="Vendor"/>
-                                    <field name="x_project_analytic_account_id" string="Project"/>
-                                    <field name="date_order" string="Date"/>
-                                    <field name="x_pr_state" string="Status" widget="badge"/>
-                                </list>
-                            </field>
-                        </page>
-
-                        <page string="Recently Dispatched" name="dispatched">
-                            <field name="recent_dispatched_ids" nolabel="1" readonly="1">
-                                <list create="false" delete="false" edit="false">
-                                    <field name="name" string="Reference"/>
-                                    <field name="partner_id" string="Vendor"/>
-                                    <field name="x_project_analytic_account_id" string="Project"/>
-                                    <field name="write_date" string="Dispatched On"/>
-                                    <field name="x_pr_state" string="Status" widget="badge"/>
-                                </list>
-                            </field>
-                        </page>
-
-                        <page string="Activity Log" name="activity">
+                        </group>
+                        <group string="Activity Log"
+                               invisible="filter_section not in ('all',)">
                             <field name="activity_message_ids" nolabel="1" readonly="1">
                                 <list create="false" delete="false" edit="false">
                                     <field name="date" string="When"/>
@@ -127,8 +119,96 @@
                                     <field name="body" string="Message" widget="html"/>
                                 </list>
                             </field>
-                        </page>
-                    </notebook>
+                        </group>
+                    </group>
+
+                    <group string="Critical Site Demands"
+                           invisible="filter_section not in ('all', 'critical')">
+                        <button name="action_open_critical_demands" type="object"
+                                string="View All Critical" class="btn-link"/>
+                        <field name="critical_demand_ids" nolabel="1" readonly="1">
+                            <list create="false" delete="false" edit="false"
+                                  decoration-danger="x_ho_status == 'pending'">
+                                <field name="name" string="Requisition"/>
+                                <field name="x_project_analytic_account_id" string="Site"/>
+                                <field name="x_category_id" string="Category"/>
+                                <field name="date_order" string="Raised On"/>
+                                <field name="x_initiator_id" string="Requester"/>
+                                <field name="x_pr_state" string="Status" widget="badge"/>
+                            </list>
+                        </field>
+                    </group>
+
+                    <group string="Pending HO Review"
+                           invisible="filter_section not in ('all', 'pending_review')">
+                        <field name="pending_review_ids" nolabel="1" readonly="1">
+                            <list create="false" delete="false" edit="false"
+                                  decoration-warning="x_ho_status == 'pending'">
+                                <field name="name" string="Reference"/>
+                                <field name="x_project_analytic_account_id" string="Project"/>
+                                <field name="x_category_id" string="Category"/>
+                                <field name="x_initiator_id" string="Raised By"/>
+                                <field name="date_order" string="Date"/>
+                                <field name="x_pr_state" string="Status" widget="badge"/>
+                                <field name="x_ho_status" string="HO Status" widget="badge"/>
+                            </list>
+                        </field>
+                    </group>
+
+                    <group string="Active CS / RFQ"
+                           invisible="filter_section not in ('all', 'active_cs')">
+                        <field name="active_cs_ids" nolabel="1" readonly="1">
+                            <list create="false" delete="false" edit="false">
+                                <field name="name" string="Reference"/>
+                                <field name="x_project_analytic_account_id" string="Project"/>
+                                <field name="partner_id" string="Vendor"/>
+                                <field name="x_initiator_id" string="Raised By"/>
+                                <field name="x_has_tender_alternatives" string="Alternatives"/>
+                                <field name="x_pr_state" string="Status" widget="badge"/>
+                            </list>
+                        </field>
+                    </group>
+
+                    <group string="Ready to Dispatch"
+                           invisible="filter_section not in ('all', 'ready_dispatch')">
+                        <field name="ready_dispatch_ids" nolabel="1" readonly="1">
+                            <list create="false" delete="false" edit="false"
+                                  decoration-success="x_pr_state == 'po_locked'">
+                                <field name="name" string="Reference"/>
+                                <field name="partner_id" string="Vendor"/>
+                                <field name="x_project_analytic_account_id" string="Project"/>
+                                <field name="date_order" string="Date"/>
+                                <field name="x_pr_state" string="Status" widget="badge"/>
+                            </list>
+                        </field>
+                    </group>
+
+                    <group string="Recently Dispatched"
+                           invisible="filter_section not in ('all', 'dispatched')">
+                        <field name="recent_dispatched_ids" nolabel="1" readonly="1">
+                            <list create="false" delete="false" edit="false">
+                                <field name="name" string="Reference"/>
+                                <field name="partner_id" string="Vendor"/>
+                                <field name="x_project_analytic_account_id" string="Project"/>
+                                <field name="write_date" string="Dispatched On"/>
+                                <field name="x_pr_state" string="Status" widget="badge"/>
+                            </list>
+                        </field>
+                    </group>
+
+                    <group string="Recent Purchase Orders">
+                        <field name="recent_po_ids" nolabel="1" readonly="1">
+                            <list create="false" delete="false" edit="false"
+                                  decoration-success="state in ('purchase', 'done')">
+                                <field name="name" string="PO"/>
+                                <field name="partner_id" string="Vendor"/>
+                                <field name="x_project_analytic_account_id" string="Project"/>
+                                <field name="amount_total" string="Value"/>
+                                <field name="state" string="Odoo Status" widget="badge"/>
+                                <field name="x_pr_state" string="PR Status" widget="badge"/>
+                            </list>
+                        </field>
+                    </group>
                 </sheet>
             </form>
         </field>

@@ -33,7 +33,7 @@
               name="Site Store Dashboard"
               parent="purchase.menu_purchase_root"
               action="site_operations.action_site_store_dashboard"
-              sequence="2"
+              sequence="1"
               groups="purchase_demand_raise.group_site_store,site_operations.group_matracon_admin,base.group_system"/>
 
     <!-- Inventory → Operations → Transfers -->

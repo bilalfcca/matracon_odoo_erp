@@ -37,7 +37,7 @@ class StockPickingSiteOps(models.Model):
 
     # ── Gate Pass ─────────────────────────────────────────────────────────────
     x_generate_gate_pass = fields.Boolean(
-        string='Generate Gate Pass Outward', default=False)
+        string='Generate Gate Pass Outward', default=True)
     x_gate_pass_outward_no = fields.Char(string='Gate Pass No (Outward)')
 
     # ── Backcharge ────────────────────────────────────────────────────────────
@@ -156,6 +156,9 @@ class StockPickingSiteOps(models.Model):
                 ], limit=1)
                 if customer_loc:
                     res['location_dest_id'] = customer_loc.id
+            res.setdefault('x_generate_gate_pass', True)
+            if res.get('x_issue_type') == 'subcontractor':
+                res.setdefault('x_backcharge_applicable', True)
         return res
 
     # ─────────────────────────────────────────────────────────────────────────
@@ -274,6 +277,10 @@ class StockPickingSiteOps(models.Model):
         for vals in vals_list:
             if vals.get('x_transfer_purpose') in ('material_issuance', 'site_to_site'):
                 user = self.env.user
+                if vals.get('x_transfer_purpose') == 'material_issuance':
+                    vals.setdefault('x_generate_gate_pass', True)
+                    if vals.get('x_issue_type') == 'subcontractor':
+                        vals.setdefault('x_backcharge_applicable', True)
                 # Auto-fill project
                 if not vals.get('x_issuance_project_id') and user.x_default_analytic_account_id:
                     vals['x_issuance_project_id'] = user.x_default_analytic_account_id.id
@@ -291,6 +298,13 @@ class StockPickingSiteOps(models.Model):
                                         pt.default_location_src_id.id if pt.default_location_src_id else False)
                         vals.setdefault('location_dest_id',
                                         pt.default_location_dest_id.id if pt.default_location_dest_id else False)
+                if vals.get('x_transfer_purpose') == 'material_issuance' and not vals.get('location_dest_id'):
+                    customer_loc = self.env['stock.location'].search([
+                        ('usage', '=', 'customer'),
+                        ('company_id', 'in', [False, self.env.company.id]),
+                    ], limit=1)
+                    if customer_loc:
+                        vals['location_dest_id'] = customer_loc.id
                 if (vals.get('x_transfer_purpose') == 'site_to_site'
                         and not vals.get('x_is_dest_receipt')
                         and vals.get('x_dest_project_id')

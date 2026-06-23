@@ -76,9 +76,12 @@ class PurchaseOrder(models.Model):
              'False for Odoo native alternative RFQs.',
     )
 
-    @api.depends('x_pr_state', 'x_pm_signed_pr', 'x_category_id')
+    @api.depends('x_pr_state', 'x_pm_signed_pr', 'x_category_id', 'x_is_alternative_rfq')
     def _compute_is_pr_document(self):
         for order in self:
+            if order.x_is_alternative_rfq:
+                order.x_is_pr_document = False
+                continue
             order.x_is_pr_document = bool(
                 order.x_pr_state != 'draft'   # Already progressed in workflow
                 or order.x_pm_signed_pr        # PM doc attached → it's a PR
@@ -351,6 +354,11 @@ class PurchaseOrder(models.Model):
     def action_ceo_final_approve(self):
         """CEO gives final line-level approval — PO confirmed and locked."""
         for order in self:
+            if order.x_is_alternative_rfq:
+                raise UserError(_(
+                    'CEO final approval applies only to the main Purchase Requisition, '
+                    'not to alternative vendor RFQs.'
+                ))
             if order.x_pr_state != 'ceo_final':
                 raise UserError(_('PR must be in CEO Final Review state.'))
             for line in order.order_line:
@@ -364,7 +372,6 @@ class PurchaseOrder(models.Model):
             order.write({'x_pr_state': 'po_locked', 'x_ceo_status': 'approved'})
             # Confirm the PO in standard Odoo (button_confirm won't block po_locked)
             order.button_confirm()
-            order._matracon_sync_alternatives_from_root()
 
             order.message_post(
                 body=Markup('🔒 <b>CEO Final Approval</b> granted by <b>%s</b>. '

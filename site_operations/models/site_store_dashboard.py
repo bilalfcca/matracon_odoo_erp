@@ -10,11 +10,62 @@ class SiteStoreDashboard(models.TransientModel):
     _name = 'x.site.store.dashboard'
     _description = 'Site Store Manager Dashboard'
 
+    name = fields.Char(string='Title', readonly=True)
+
+    # ── Filters ───────────────────────────────────────────────────────────────
+    filter_pr_state = fields.Selection([
+        ('', 'All PR Statuses'),
+        ('draft', 'Draft'),
+        ('submitted', 'Submitted'),
+        ('ceo_final', 'Pending CEO'),
+        ('po_locked', 'PO Locked'),
+        ('dispatched', 'Dispatched'),
+    ], string='PR Status', default='')
+    filter_period_days = fields.Selection([
+        ('7', 'Last 7 Days'),
+        ('30', 'Last 30 Days'),
+        ('90', 'Last 90 Days'),
+        ('0', 'All Time'),
+    ], string='Date Range', default='30')
+    filter_section = fields.Selection([
+        ('all', 'All Sections'),
+        ('prs', 'Requisitions'),
+        ('receipts', 'Material Receipts'),
+        ('issuances', 'Issuances'),
+        ('transfers', 'Site Transfers'),
+        ('returns', 'Pending Returns'),
+    ], string='Focus', default='all')
+
     # ── Context header ────────────────────────────────────────────────────────
+    name = fields.Char(string='Title', readonly=True)
     project_analytic_account_id = fields.Many2one(
         'account.analytic.account', string='Project', readonly=True)
     project_name = fields.Char(string='Project Name', readonly=True)
     user_name = fields.Char(string='Store Manager', readonly=True)
+
+    # ── Filters ───────────────────────────────────────────────────────────────
+    filter_pr_state = fields.Selection([
+        ('', 'All PR Statuses'),
+        ('draft', 'Draft'),
+        ('submitted', 'Submitted'),
+        ('ceo_final', 'Pending CEO'),
+        ('po_locked', 'PO Locked'),
+        ('dispatched', 'Dispatched'),
+    ], string='PR Status', default='')
+    filter_period_days = fields.Selection([
+        ('7', 'Last 7 Days'),
+        ('30', 'Last 30 Days'),
+        ('90', 'Last 90 Days'),
+        ('0', 'All Time'),
+    ], string='Date Range', default='30')
+    filter_section = fields.Selection([
+        ('all', 'All Sections'),
+        ('prs', 'Requisitions'),
+        ('receipts', 'Material Receipts'),
+        ('issuances', 'Issuances'),
+        ('transfers', 'Site Transfers'),
+        ('returns', 'Pending Returns'),
+    ], string='Focus', default='all')
 
     # ── Replenishment alert (critical stock) ──────────────────────────────────
     has_stock_alert = fields.Boolean(readonly=True)
@@ -74,6 +125,33 @@ class SiteStoreDashboard(models.TransientModel):
             ('x_is_pr_document', '=', True),
         ]
 
+    def _po_filter_domain(self, analytic):
+        domain = self._project_domain_po(analytic)
+        if self.filter_pr_state:
+            domain.append(('x_pr_state', '=', self.filter_pr_state))
+        if self.filter_period_days and self.filter_period_days != '0':
+            days = int(self.filter_period_days)
+            cutoff = fields.Datetime.to_datetime(
+                fields.Date.context_today(self) - timedelta(days=days))
+            domain.append(('date_order', '>=', cutoff))
+        return domain
+
+    @api.onchange('filter_pr_state', 'filter_period_days', 'filter_section')
+    def _onchange_filters(self):
+        if self.id:
+            self._refresh_dashboard_data(self)
+
+    def action_apply_filters(self):
+        self.ensure_one()
+        self._refresh_dashboard_data(self)
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': self._name,
+            'res_id': self.id,
+            'view_mode': 'form',
+            'target': 'current',
+        }
+
     @api.model
     def _refresh_dashboard_data(self, dashboard):
         user = self.env.user
@@ -86,7 +164,7 @@ class SiteStoreDashboard(models.TransientModel):
         Picking = self.env['stock.picking']
         Orderpoint = self.env['stock.warehouse.orderpoint']
 
-        po_base = self._project_domain_po(analytic)
+        po_base = dashboard._po_filter_domain(analytic)
 
         # ── KPI: PRs ────────────────────────────────────────────────────────
         open_prs = PO.search(po_base + [
@@ -210,6 +288,7 @@ class SiteStoreDashboard(models.TransientModel):
                     break
 
         dashboard.write({
+            'name': analytic.name if analytic else _('Site Store Dashboard'),
             'project_analytic_account_id': analytic.id if analytic else False,
             'project_name': analytic.name if analytic else _('No project assigned'),
             'user_name': user.name,
@@ -242,7 +321,7 @@ class SiteStoreDashboard(models.TransientModel):
         self._refresh_dashboard_data(dashboard)
         return {
             'type': 'ir.actions.act_window',
-            'name': _('Site Store Dashboard'),
+            'name': dashboard.name or _('Site Store Dashboard'),
             'res_model': self._name,
             'res_id': dashboard.id,
             'view_mode': 'form',
@@ -305,12 +384,51 @@ class SiteStoreDashboard(models.TransientModel):
         }
 
     def action_open_issuance(self):
-        return self.env.ref(
-            'site_operations.action_material_issuance_only').read()[0]
+        self.ensure_one()
+        analytic = self._project_analytic()
+        domain = [('x_transfer_purpose', '=', 'material_issuance')]
+        if analytic:
+            domain.append(('x_issuance_project_id', '=', analytic.id))
+        list_view = self.env.ref('site_operations.view_material_issuance_list').id
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Material Issuance'),
+            'res_model': 'stock.picking',
+            'view_mode': 'list,form',
+            'views': [(list_view, 'list'), (False, 'form')],
+            'domain': domain,
+            'context': {
+                'default_x_transfer_purpose': 'material_issuance',
+                'default_x_generate_gate_pass': True,
+                'default_x_issuance_project_id': analytic.id if analytic else False,
+                'search_default_filter_in_progress': 1,
+            },
+        }
 
     def action_open_transfers(self):
-        return self.env.ref(
-            'site_operations.action_site_to_site_transfers').read()[0]
+        self.ensure_one()
+        analytic = self._project_analytic()
+        domain = [('x_transfer_purpose', '=', 'site_to_site')]
+        if analytic:
+            domain += [
+                '|',
+                ('x_issuance_project_id', '=', analytic.id),
+                ('x_dest_project_id', '=', analytic.id),
+            ]
+        list_view = self.env.ref('site_operations.view_material_issuance_list').id
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Site-to-Site Transfers'),
+            'res_model': 'stock.picking',
+            'view_mode': 'list,form',
+            'views': [(list_view, 'list'), (False, 'form')],
+            'domain': domain,
+            'context': {
+                'default_x_transfer_purpose': 'site_to_site',
+                'default_x_issuance_project_id': analytic.id if analytic else False,
+                'search_default_filter_in_progress': 1,
+            },
+        }
 
     def action_open_returns(self):
         analytic = self._project_analytic()
