@@ -4,38 +4,7 @@
     <option name="autoReloadType" value="NONE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="d5df9394-1441-428e-81ef-eb75170c5523" name="Changes" comment="all changes revert and keep only qs">
-      <change afterPath="$PROJECT_DIR$/purchase_demand_raise/report/comparative_statement_report.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/purchase_demand_raise/report/comparative_statement_template.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/site_operations/migrations/1.0.2/post-migrate.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/site_operations/models/analytic_distribution_mixin.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/site_operations/models/project_project.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/site_operations/models/res_users.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/site_operations/views/project_project_views.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/purchase_demand_raise/__manifest__.py" beforeDir="false" afterPath="$PROJECT_DIR$/purchase_demand_raise/__manifest__.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/purchase_demand_raise/models/purchase_order_line.py" beforeDir="false" afterPath="$PROJECT_DIR$/purchase_demand_raise/models/purchase_order_line.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/purchase_demand_raise/models/purchase_order_tender.py" beforeDir="false" afterPath="$PROJECT_DIR$/purchase_demand_raise/models/purchase_order_tender.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/purchase_demand_raise/security/ir.model.access.csv" beforeDir="false" afterPath="$PROJECT_DIR$/purchase_demand_raise/security/ir.model.access.csv" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/purchase_demand_raise/security/record_rules.xml" beforeDir="false" afterPath="$PROJECT_DIR$/purchase_demand_raise/security/record_rules.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/purchase_demand_raise/views/purchase_order_views.xml" beforeDir="false" afterPath="$PROJECT_DIR$/purchase_demand_raise/views/purchase_order_views.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/site_operations/__manifest__.py" beforeDir="false" afterPath="$PROJECT_DIR$/site_operations/__manifest__.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/site_operations/models/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/site_operations/models/__init__.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/site_operations/models/account_payment.py" beforeDir="false" afterPath="$PROJECT_DIR$/site_operations/models/account_payment.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/site_operations/models/payment_allocation.py" beforeDir="false" afterPath="$PROJECT_DIR$/site_operations/models/payment_allocation.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/site_operations/models/project_site_config.py" beforeDir="false" afterPath="$PROJECT_DIR$/site_operations/models/project_site_config.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/site_operations/models/stock_move.py" beforeDir="false" afterPath="$PROJECT_DIR$/site_operations/models/stock_move.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/site_operations/models/stock_picking.py" beforeDir="false" afterPath="$PROJECT_DIR$/site_operations/models/stock_picking.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/site_operations/models/stock_return_picking.py" beforeDir="false" afterPath="$PROJECT_DIR$/site_operations/models/stock_return_picking.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/site_operations/security/ir.model.access.csv" beforeDir="false" afterPath="$PROJECT_DIR$/site_operations/security/ir.model.access.csv" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/site_operations/security/record_rules.xml" beforeDir="false" afterPath="$PROJECT_DIR$/site_operations/security/record_rules.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/site_operations/views/material_issuance_form_views.xml" beforeDir="false" afterPath="$PROJECT_DIR$/site_operations/views/material_issuance_form_views.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/site_operations/views/material_issuance_list_views.xml" beforeDir="false" afterPath="$PROJECT_DIR$/site_operations/views/material_issuance_list_views.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/site_operations/views/menus.xml" beforeDir="false" afterPath="$PROJECT_DIR$/site_operations/views/menus.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/site_operations/views/return_picking_views.xml" beforeDir="false" afterPath="$PROJECT_DIR$/site_operations/views/return_picking_views.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/site_operations/views/site_config_views.xml" beforeDir="false" afterPath="$PROJECT_DIR$/site_operations/views/site_config_views.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/site_operations/views/vendor_payment_views.xml" beforeDir="false" afterPath="$PROJECT_DIR$/site_operations/views/vendor_payment_views.xml" afterDir="false" />
-    </list>
+    <list default="true" id="d5df9394-1441-428e-81ef-eb75170c5523" name="Changes" comment="Site Store completed" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -185,7 +154,15 @@
       <option name="project" value="LOCAL" />
       <updated>1782131972221</updated>
     </task>
-    <option name="localTasksCounter" value="11" />
+    <task id="LOCAL-00011" summary="Site Store completed">
+      <option name="closed" value="true" />
+      <created>1782136348240</created>
+      <option name="number" value="00011" />
+      <option name="presentableId" value="LOCAL-00011" />
+      <option name="project" value="LOCAL" />
+      <updated>1782136348240</updated>
+    </task>
+    <option name="localTasksCounter" value="12" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
@@ -196,6 +173,7 @@
     <MESSAGE value="Fixed Issues &amp; Bugs - 2" />
     <MESSAGE value="Fixed Issues &amp; Bugs - 3" />
     <MESSAGE value="all changes revert and keep only qs" />
-    <option name="LAST_COMMIT_MESSAGE" value="all changes revert and keep only qs" />
+    <MESSAGE value="Site Store completed" />
+    <option name="LAST_COMMIT_MESSAGE" value="Site Store completed" />
   </component>
 </project>

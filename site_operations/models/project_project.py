@@ -50,6 +50,7 @@ class ProjectProjectMatracon(models.Model):
     x_available_balance = fields.Monetary(
         string='Available Balance',
         compute='_compute_project_financials',
+        search='_search_available_balance',
         currency_field='currency_id',
         help='Funds received minus amounts already paid out from this project.',
     )
@@ -99,6 +100,32 @@ class ProjectProjectMatracon(models.Model):
 
             metrics = project._get_fund_metrics(Payment, Allocation, AML)
             project.update(metrics)
+
+    @api.model
+    def _search_available_balance(self, operator, value):
+        """Allow search filters on non-stored available balance (Odoo 19)."""
+        if operator not in ('<', '<=', '>', '>=', '=', '!='):
+            return []
+        Payment = self.env['account.payment']
+        Allocation = self.env['x.payment.project.allocation']
+        AML = self.env['account.move.line']
+        matching = []
+        for project in self.search([('x_analytic_account_id', '!=', False)]):
+            balance = project._get_fund_metrics(
+                Payment, Allocation, AML)['x_available_balance']
+            if operator == '<' and balance < value:
+                matching.append(project.id)
+            elif operator == '<=' and balance <= value:
+                matching.append(project.id)
+            elif operator == '>' and balance > value:
+                matching.append(project.id)
+            elif operator == '>=' and balance >= value:
+                matching.append(project.id)
+            elif operator == '=' and balance == value:
+                matching.append(project.id)
+            elif operator == '!=' and balance != value:
+                matching.append(project.id)
+        return [('id', 'in', matching)]
 
     def _get_fund_metrics(self, Payment, Allocation, AML):
         """Compute fund-pool metrics for one project."""
