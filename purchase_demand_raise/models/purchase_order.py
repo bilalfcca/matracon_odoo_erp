@@ -261,6 +261,7 @@ class PurchaseOrder(models.Model):
         for order in self:
             if order.x_pr_state != 'submitted':
                 raise UserError(_('PR must be in Submitted state for HO approval.'))
+            order._validate_ho_qty_adjustment_reasons()
             if not order.partner_id:
                 raise UserError(_(
                     'Please select the recommended Vendor before approving.\n'
@@ -486,6 +487,43 @@ class PurchaseOrder(models.Model):
         return super().button_cancel()
 
     # ── CS helpers ───────────────────────────────────────────────────────────
+
+    def _validate_ho_qty_adjustment_reasons(self):
+        """Every line where HO changed recommended qty must have a logged reason."""
+        for order in self:
+            for line in order.order_line.filtered(lambda l: l.product_id and not l.display_type):
+                if not line._ho_qty_differs_from_requested():
+                    continue
+                if not (line.x_qty_adjustment_reason or '').strip():
+                    raise UserError(_(
+                        'Line "%(product)s": recommended qty (%(rec).2f) differs from '
+                        'requested (%(req).2f). Enter an adjustment reason on the line '
+                        'before approving.',
+                        product=line.product_id.display_name,
+                        rec=line.x_recommended_qty,
+                        req=line.x_requested_qty,
+                    ))
+
+    def _post_ho_qty_adjustment_log(self, line, old_recommended):
+        """Internal chatter log when HO adjusts recommended quantity."""
+        self.ensure_one()
+        self.message_post(
+            body=Markup(
+                '📝 <b>Qty adjustment</b> by <b>%(user)s</b><br/>'
+                'Product: <b>%(product)s</b><br/>'
+                'Requested: %(req).2f → Recommended: %(rec).2f '
+                '(was %(old).2f)<br/>'
+                'Reason: %(reason)s'
+            ) % {
+                'user': self.env.user.name,
+                'product': line.product_id.display_name,
+                'req': line.x_requested_qty,
+                'rec': line.x_recommended_qty,
+                'old': old_recommended,
+                'reason': line.x_qty_adjustment_reason,
+            },
+            subtype_xmlid='mail.mt_log_note',
+        )
 
     def action_create_comparative_statement(self):
         self.ensure_one()

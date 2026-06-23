@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_procurement_ho_dashboard_form" model="ir.ui.view">
+        <field name="name">x.procurement.ho.dashboard.form</field>
+        <field name="model">x.procurement.ho.dashboard</field>
+        <field name="arch" type="xml">
+            <form string="Procurement HO Dashboard" create="false" edit="false" delete="false">
+                <header>
+                    <button name="action_refresh" type="object" string="Refresh"
+                            class="btn-secondary" icon="fa-refresh"/>
+                    <button name="action_open_pending_review" type="object"
+                            string="Review Queue" class="btn-primary"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1>Procurement Operations Overview</h1>
+                        <h3 class="text-muted">
+                            <field name="user_name" readonly="1" class="oe_inline"/>
+                            — Procurement Officer
+                        </h3>
+                    </div>
+
+                    <group>
+                        <group string="Work Queue">
+                            <button name="action_open_pending_review" type="object"
+                                    class="oe_stat_button" icon="fa-inbox">
+                                <div class="o_stat_info">
+                                    <span class="o_stat_value">
+                                        <field name="pending_review_count"/>
+                                    </span>
+                                    <span class="o_stat_text">Pending HO Review</span>
+                                </div>
+                            </button>
+                            <button name="action_open_active_cs" type="object"
+                                    class="oe_stat_button" icon="fa-balance-scale">
+                                <div class="o_stat_info">
+                                    <span class="o_stat_value">
+                                        <field name="active_cs_count"/>
+                                    </span>
+                                    <span class="o_stat_text">Active CS / RFQ</span>
+                                </div>
+                            </button>
+                        </group>
+                        <group string="Orders">
+                            <button name="action_open_ready_dispatch" type="object"
+                                    class="oe_stat_button" icon="fa-lock">
+                                <div class="o_stat_info">
+                                    <span class="o_stat_value">
+                                        <field name="ready_dispatch_count"/>
+                                    </span>
+                                    <span class="o_stat_text">Ready to Dispatch</span>
+                                </div>
+                            </button>
+                            <button name="action_open_dispatched" type="object"
+                                    class="oe_stat_button" icon="fa-paper-plane">
+                                <div class="o_stat_info">
+                                    <span class="o_stat_value">
+                                        <field name="dispatched_mtd_count"/>
+                                    </span>
+                                    <span class="o_stat_text">Dispatched (MTD)</span>
+                                </div>
+                            </button>
+                        </group>
+                    </group>
+
+                    <notebook>
+                        <page string="Pending HO Review" name="pending">
+                            <field name="pending_review_ids" nolabel="1" readonly="1">
+                                <list create="false" delete="false" edit="false"
+                                      decoration-warning="x_ho_status == 'pending'">
+                                    <field name="name" string="Reference"/>
+                                    <field name="x_project_analytic_account_id" string="Project"/>
+                                    <field name="x_category_id" string="Category"/>
+                                    <field name="x_initiator_id" string="Raised By"/>
+                                    <field name="date_order" string="Date"/>
+                                    <field name="x_pr_state" string="Status" widget="badge"/>
+                                    <field name="x_ho_status" string="HO Status" widget="badge"/>
+                                </list>
+                            </field>
+                        </page>
+
+                        <page string="Active CS / RFQ" name="active_cs">
+                            <field name="active_cs_ids" nolabel="1" readonly="1">
+                                <list create="false" delete="false" edit="false">
+                                    <field name="name" string="Reference"/>
+                                    <field name="x_project_analytic_account_id" string="Project"/>
+                                    <field name="partner_id" string="Vendor"/>
+                                    <field name="x_initiator_id" string="Raised By"/>
+                                    <field name="x_has_tender_alternatives" string="Alternatives"/>
+                                    <field name="x_pr_state" string="Status" widget="badge"/>
+                                </list>
+                            </field>
+                        </page>
+
+                        <page string="Ready to Dispatch" name="dispatch">
+                            <field name="ready_dispatch_ids" nolabel="1" readonly="1">
+                                <list create="false" delete="false" edit="false"
+                                      decoration-success="x_pr_state == 'po_locked'">
+                                    <field name="name" string="Reference"/>
+                                    <field name="partner_id" string="Vendor"/>
+                                    <field name="x_project_analytic_account_id" string="Project"/>
+                                    <field name="date_order" string="Date"/>
+                                    <field name="x_pr_state" string="Status" widget="badge"/>
+                                </list>
+                            </field>
+                        </page>
+
+                        <page string="Recently Dispatched" name="dispatched">
+                            <field name="recent_dispatched_ids" nolabel="1" readonly="1">
+                                <list create="false" delete="false" edit="false">
+                                    <field name="name" string="Reference"/>
+                                    <field name="partner_id" string="Vendor"/>
+                                    <field name="x_project_analytic_account_id" string="Project"/>
+                                    <field name="write_date" string="Dispatched On"/>
+                                    <field name="x_pr_state" string="Status" widget="badge"/>
+                                </list>
+                            </field>
+                        </page>
+
+                        <page string="Activity Log" name="activity">
+                            <field name="activity_message_ids" nolabel="1" readonly="1">
+                                <list create="false" delete="false" edit="false">
+                                    <field name="date" string="When"/>
+                                    <field name="author_id" string="User"/>
+                                    <field name="record_name" string="Document"/>
+                                    <field name="body" string="Message" widget="html"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_procurement_ho_dashboard" model="ir.actions.server">
+        <field name="name">Procurement HO Dashboard</field>
+        <field name="model_id" ref="model_x_procurement_ho_dashboard"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_open_dashboard()</field>
+    </record>
+
+</odoo>

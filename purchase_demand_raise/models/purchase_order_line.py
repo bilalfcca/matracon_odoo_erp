@@ -1,4 +1,7 @@
+from markupsafe import Markup
+
 from odoo import models, fields, api, _
+from odoo.exceptions import ValidationError
 
 
 class PurchaseOrderLine(models.Model):
@@ -33,6 +36,15 @@ class PurchaseOrderLine(models.Model):
         string='Recommended Qty', digits='Product Unit of Measure', default=0.0,
         help='Quantity recommended by Procurement HO.'
     )
+    x_qty_adjustment_reason = fields.Text(
+        string='Adjustment Reason',
+        help='Mandatory when recommended qty differs from requested qty. '
+             'Logged to the PR chatter when saved.',
+    )
+    x_qty_reason_required = fields.Boolean(
+        compute='_compute_qty_reason_required',
+        string='Reason Required',
+    )
     x_qty_on_hand = fields.Float(
         string='Qty On Hand', digits='Product Unit of Measure',
         compute='_compute_qty_on_hand',
@@ -60,6 +72,63 @@ class PurchaseOrderLine(models.Model):
     x_exceeds_recommended = fields.Boolean(
         compute='_compute_exceeds_recommended', string='Exceeds Recommended',
     )
+
+    def _ho_qty_differs_from_requested(self, recommended=None, requested=None):
+        self.ensure_one()
+        rec = recommended if recommended is not None else self.x_recommended_qty
+        req = requested if requested is not None else self.x_requested_qty
+        return (
+            self.product_id
+            and rec > 0
+            and abs(rec - req) > 0.001
+        )
+
+    @api.depends('x_requested_qty', 'x_recommended_qty', 'product_id')
+    def _compute_qty_reason_required(self):
+        for line in self:
+            line.x_qty_reason_required = line._ho_qty_differs_from_requested()
+
+    def _check_ho_qty_adjustment_reason(self, vals):
+        """Block HO from saving a qty change without a reason during PR review."""
+        if not self.env.user.has_group('purchase_demand_raise.group_procurement_ho'):
+            return
+        for line in self:
+            order = line.order_id
+            if order.x_pr_state != 'submitted' or not line.product_id:
+                continue
+            new_rec = vals.get('x_recommended_qty', line.x_recommended_qty)
+            requested = vals.get('x_requested_qty', line.x_requested_qty)
+            if not line._ho_qty_differs_from_requested(new_rec, requested):
+                continue
+            reason = vals.get('x_qty_adjustment_reason', line.x_qty_adjustment_reason)
+            if not (reason or '').strip():
+                raise ValidationError(_(
+                    'Adjustment reason is required for "%(product)s" '
+                    '(requested %(req).2f → recommended %(rec).2f).',
+                    product=line.product_id.display_name,
+                    req=requested,
+                    rec=new_rec,
+                ))
+
+    def write(self, vals):
+        log_qty_change = 'x_recommended_qty' in vals
+        old_recommended = {line.id: line.x_recommended_qty for line in self} if log_qty_change else {}
+
+        if 'x_recommended_qty' in vals or 'x_qty_adjustment_reason' in vals:
+            self._check_ho_qty_adjustment_reason(vals)
+
+        res = super().write(vals)
+
+        if log_qty_change:
+            for line in self:
+                old = old_recommended.get(line.id, 0.0)
+                if (
+                    abs(old - line.x_recommended_qty) > 0.001
+                    and line._ho_qty_differs_from_requested()
+                    and (line.x_qty_adjustment_reason or '').strip()
+                ):
+                    line.order_id._post_ho_qty_adjustment_log(line, old)
+        return res
 
     # ── Sync x_requested_qty → product_qty (the real Odoo PO quantity) ───────
     @api.onchange('x_requested_qty')

@@ -15,3 +15,6 @@ access_project_site_config_admin,x.project.site.config admin,model_x_project_sit
 access_project_site_config_ho,x.project.site.config ho,model_x_project_site_config,purchase_demand_raise.group_head_office,1,0,0,0
 access_project_site_config_procurement,x.project.site.config procurement,model_x_project_site_config,purchase_demand_raise.group_procurement_ho,1,0,0,0
 access_project_site_config_ceo,x.project.site.config ceo,model_x_project_site_config,purchase_demand_raise.group_ceo_approval,1,0,0,0
+access_procurement_ho_dashboard,x.procurement.ho.dashboard procurement,model_x_procurement_ho_dashboard,purchase_demand_raise.group_procurement_ho,1,1,1,1
+access_procurement_ho_dashboard_ho,x.procurement.ho.dashboard ho,model_x_procurement_ho_dashboard,purchase_demand_raise.group_head_office,1,1,1,1
+access_procurement_ho_dashboard_admin,x.procurement.ho.dashboard admin,model_x_procurement_ho_dashboard,base.group_system,1,1,1,1

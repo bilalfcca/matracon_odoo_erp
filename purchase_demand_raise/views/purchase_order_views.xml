@@ -238,7 +238,18 @@
                 <field name="x_recommended_qty"
                        string="Recommended Qty"
                        column_invisible="not parent.x_is_pr_document or parent.x_is_site_store"
-                       readonly="not x_is_ho"
+                       readonly="not x_is_ho or parent.x_pr_state != 'submitted'"
+                       optional="show"/>
+
+                <!-- Mandatory reason when HO changes recommended qty -->
+                <field name="x_qty_reason_required" column_invisible="1"/>
+                <field name="x_qty_adjustment_reason"
+                       string="Adjustment Reason"
+                       column_invisible="not parent.x_is_pr_document or parent.x_is_site_store"
+                       invisible="not x_qty_reason_required"
+                       required="x_qty_reason_required and parent.x_pr_state == 'submitted'"
+                       readonly="not x_is_ho or parent.x_pr_state != 'submitted'"
+                       placeholder="Required when recommended qty differs from requested"
                        optional="show"/>
 
                 <!-- Decision: CEO only -->
