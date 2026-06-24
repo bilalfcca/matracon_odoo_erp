@@ -108,12 +108,12 @@
                     </div>
 
                     <!-- ══════════════════════════════════════════════════════
-                         ROW 2: Pending CEO Approvals (left) + Orders Quick View (right)
+                         ROW 2: Pending CEO Approvals (full width)
                     ══════════════════════════════════════════════════════ -->
-                    <div class="row g-3 mb-3">
+                    <div class="row g-3 mb-3"
+                         invisible="filter_section not in ('all', 'ceo_approval')">
 
-                        <!-- Left: Pending CEO Approvals -->
-                        <div class="col-12 col-xl-7">
+                        <div class="col-12">
                             <div class="card border-0 h-100" style="box-shadow:0 1px 6px rgba(0,0,0,.12); border-radius:8px;">
                                 <div class="card-header d-flex justify-content-between align-items-center py-2 px-4"
                                      style="background:transparent; border-bottom:1px solid rgba(0,0,0,.07);">
@@ -138,37 +138,6 @@
                                             <field name="partner_id" string="Vendor"/>
                                             <field name="amount_total" string="Value" widget="monetary"/>
                                             <field name="x_ho_status" string="HO Status" widget="badge"/>
-                                            <field name="x_pr_state" string="Status" widget="badge"/>
-                                        </list>
-                                    </field>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Right: Dispatch Quick View -->
-                        <div class="col-12 col-xl-5">
-                            <div class="card border-0 h-100" style="box-shadow:0 1px 6px rgba(0,0,0,.12); border-radius:8px;">
-                                <div class="card-header d-flex justify-content-between align-items-center py-2 px-4"
-                                     style="background:transparent; border-bottom:1px solid rgba(0,0,0,.07);">
-                                    <strong style="font-size:0.9rem;">
-                                        <i class="fa fa-paper-plane me-2 text-success" title="Dispatch"/>
-                                        Ready to Dispatch
-                                        <span class="badge text-bg-success ms-2">
-                                            <field name="ready_dispatch_count" nolabel="1" readonly="1" class="oe_inline"/>
-                                        </span>
-                                    </strong>
-                                    <button name="action_open_ready_dispatch" type="object"
-                                            string="Dispatch Now" class="btn btn-sm btn-outline-success"
-                                            style="font-size:0.72rem;"/>
-                                </div>
-                                <div class="card-body p-0">
-                                    <field name="ready_dispatch_ids" nolabel="1" readonly="1">
-                                        <list create="false" delete="false" edit="false"
-                                              decoration-success="x_pr_state == 'po_locked'">
-                                            <field name="name" string="Reference"/>
-                                            <field name="partner_id" string="Vendor"/>
-                                            <field name="x_project_analytic_account_id" string="Project"/>
-                                            <field name="date_order" string="Date"/>
                                             <field name="x_pr_state" string="Status" widget="badge"/>
                                         </list>
                                     </field>
@@ -241,17 +210,19 @@
                     </div>
 
                     <!-- ══════════════════════════════════════════════════════
-                         ROW 4: Active CS + Recently Dispatched
+                         ROW 4: Active CS (full width)
                     ══════════════════════════════════════════════════════ -->
                     <div class="row g-3 mb-3"
-                         invisible="filter_section not in ('all', 'active_cs', 'dispatched')">
+                         invisible="filter_section not in ('all', 'active_cs')">
 
-                        <div class="col-12 col-xl-6"
-                             invisible="filter_section not in ('all', 'active_cs')">
+                        <div class="col-12">
                             <div class="card border-0" style="box-shadow:0 1px 6px rgba(0,0,0,.12); border-radius:8px;">
-                                <div class="card-header py-2 px-4"
+                                <div class="card-header py-2 px-4 d-flex justify-content-between"
                                      style="background:transparent; border-bottom:1px solid rgba(0,0,0,.07);">
                                     <strong style="font-size:0.9rem;">Active CS / RFQ</strong>
+                                    <button name="action_open_active_cs" type="object"
+                                            string="View All" class="btn btn-sm btn-outline-warning"
+                                            style="font-size:0.72rem;"/>
                                 </div>
                                 <div class="card-body p-0">
                                     <field name="active_cs_ids" nolabel="1" readonly="1">
@@ -260,35 +231,6 @@
                                             <field name="x_project_analytic_account_id" string="Project"/>
                                             <field name="partner_id" string="Vendor"/>
                                             <field name="x_has_tender_alternatives" string="Alternatives"/>
-                                            <field name="x_pr_state" string="Status" widget="badge"/>
-                                        </list>
-                                    </field>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="col-12 col-xl-6"
-                             invisible="filter_section not in ('all', 'dispatched')">
-                            <div class="card border-0" style="box-shadow:0 1px 6px rgba(0,0,0,.12); border-radius:8px;">
-                                <div class="card-header py-2 px-4 d-flex justify-content-between"
-                                     style="background:transparent; border-bottom:1px solid rgba(0,0,0,.07);">
-                                    <strong style="font-size:0.9rem;">
-                                        Dispatched (MTD)
-                                        <span class="badge text-bg-primary ms-2">
-                                            <field name="dispatched_mtd_count" nolabel="1" readonly="1" class="oe_inline"/>
-                                        </span>
-                                    </strong>
-                                    <button name="action_open_dispatched" type="object"
-                                            string="View All" class="btn btn-sm btn-outline-primary"
-                                            style="font-size:0.72rem;"/>
-                                </div>
-                                <div class="card-body p-0">
-                                    <field name="recent_dispatched_ids" nolabel="1" readonly="1">
-                                        <list create="false" delete="false" edit="false">
-                                            <field name="name" string="Reference"/>
-                                            <field name="partner_id" string="Vendor"/>
-                                            <field name="x_project_analytic_account_id" string="Project"/>
-                                            <field name="write_date" string="Dispatched On"/>
                                             <field name="x_pr_state" string="Status" widget="badge"/>
                                         </list>
                                     </field>

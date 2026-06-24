@@ -49,8 +49,6 @@ class ProcurementHoDashboard(models.TransientModel):
         ('pending_review', 'Pending HO Review'),
         ('ceo_approval', 'Pending CEO Approval'),
         ('active_cs', 'Active CS / RFQ'),
-        ('ready_dispatch', 'Ready to Dispatch'),
-        ('dispatched', 'Recently Dispatched'),
         ('critical', 'Critical Site Demands'),
     ], string='Focus', default='all')
 
@@ -177,7 +175,8 @@ class ProcurementHoDashboard(models.TransientModel):
         site_projects = self.env['x.project.site.config'].search([]).mapped(
             'analytic_account_id')
 
-        dashboard.write({
+        # _refreshing_dashboard context guard prevents recursion from write() override
+        dashboard.with_context(_refreshing_dashboard=True).write({
             'name': _('Procurement Operations Overview'),
             'user_name': user.name,
             'pending_review_count': len(pending_review),
@@ -197,29 +196,47 @@ class ProcurementHoDashboard(models.TransientModel):
             'activity_message_ids': [(6, 0, messages.ids)],
         })
 
-    # ── KPI field names refreshed on live filter change ──────────────────────
-    _KPI_FIELDS = [
-        'name', 'user_name',
-        'pending_review_count', 'active_cs_count', 'ceo_pending_count',
-        'confirmed_orders_count', 'ready_dispatch_count', 'dispatched_mtd_count',
-        'available_project_ids',
-        'pending_review_ids', 'ceo_pending_ids', 'active_cs_ids',
-        'ready_dispatch_ids', 'recent_dispatched_ids', 'critical_demand_ids',
-        'recent_po_ids', 'activity_message_ids',
-    ]
+    # ── Filter fields that trigger a KPI refresh when written ─────────────────
+    _FILTER_FIELDS = frozenset({
+        'filter_project_id', 'filter_contact_id', 'filter_category_id',
+        'filter_pr_state', 'filter_period_days', 'filter_section',
+    })
+
+    def write(self, vals):
+        """Auto-refresh KPI data whenever filter fields are saved."""
+        res = super().write(vals)
+        if not self.env.context.get('_refreshing_dashboard') and (
+            vals.keys() & self._FILTER_FIELDS
+        ):
+            for rec in self:
+                self._refresh_dashboard_data(rec)
+        return res
 
     @api.onchange(
         'filter_project_id', 'filter_contact_id', 'filter_category_id',
         'filter_pr_state', 'filter_period_days', 'filter_section',
     )
     def _onchange_filters(self):
-        """Live filter: refresh KPI data and push updated values back to the form."""
+        """Live filter: write current filter values to DB so write() override picks them up."""
         if not self.id:
             return
-        self._refresh_dashboard_data(self)
-        # Re-read updated KPI values and set them on self so Odoo's onchange
-        # framework returns them to the frontend without a full page reload.
-        fresh = self.sudo().read(self._KPI_FIELDS)[0]
+        # Collect the new in-memory filter values
+        new_vals = {
+            'filter_project_id': self.filter_project_id.id or False,
+            'filter_contact_id': self.filter_contact_id.id or False,
+            'filter_category_id': self.filter_category_id.id or False,
+            'filter_pr_state': self.filter_pr_state or '',
+            'filter_period_days': self.filter_period_days or '30',
+            'filter_section': self.filter_section or 'all',
+        }
+        # Save filter values + immediately refresh KPI data
+        # write() override handles the refresh automatically
+        self.browse(self.id).write(new_vals)
+        # Push updated scalar KPI counts back to the form for live display
+        fresh = self.sudo().browse(self.id).read([
+            'pending_review_count', 'active_cs_count', 'ceo_pending_count',
+            'confirmed_orders_count', 'ready_dispatch_count', 'dispatched_mtd_count',
+        ])[0]
         for fname, val in fresh.items():
             if fname != 'id':
                 setattr(self, fname, val)
@@ -235,7 +252,6 @@ class ProcurementHoDashboard(models.TransientModel):
             'filter_period_days': '30',
             'filter_section': 'all',
         })
-        self._refresh_dashboard_data(self)
         return {
             'type': 'ir.actions.act_window',
             'res_model': self._name,

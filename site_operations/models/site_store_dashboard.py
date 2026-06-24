@@ -110,26 +110,38 @@ class SiteStoreDashboard(models.TransientModel):
             domain.append(('date_order', '>=', cutoff))
         return domain
 
-    # ── KPI field names refreshed on live filter change ──────────────────────
-    _KPI_FIELDS = [
-        'name', 'project_name', 'user_name',
-        'has_stock_alert', 'alert_product_id', 'alert_qty_on_hand',
-        'alert_min_qty', 'alert_message',
-        'open_pr_count', 'pending_signature_count', 'arrivals_today_count',
-        'partial_receipts_count', 'issuance_mtd_count', 'pending_returns_count',
-        'pending_transfer_count', 'dest_receipt_count',
-        'normal_issuance_pct', 'subcontractor_issuance_pct',
-        'pr_ids', 'pending_receipt_ids', 'recent_grn_ids', 'on_order_po_ids',
-        'transfer_ids', 'recent_issuance_ids', 'pending_return_ids',
-    ]
+    # ── Filter fields that trigger a KPI refresh when written ─────────────────
+    _FILTER_FIELDS = frozenset({
+        'filter_pr_state', 'filter_period_days', 'filter_section',
+    })
+
+    def write(self, vals):
+        """Auto-refresh KPI data whenever filter fields are saved."""
+        res = super().write(vals)
+        if not self.env.context.get('_refreshing_dashboard') and (
+            vals.keys() & self._FILTER_FIELDS
+        ):
+            for rec in self:
+                self._refresh_dashboard_data(rec)
+        return res
 
     @api.onchange('filter_pr_state', 'filter_period_days', 'filter_section')
     def _onchange_filters(self):
-        """Live filter: refresh KPI data and push updated values back to the form."""
+        """Live filter: write filter values to DB so write() override picks them up."""
         if not self.id:
             return
-        self._refresh_dashboard_data(self)
-        fresh = self.sudo().read(self._KPI_FIELDS)[0]
+        new_vals = {
+            'filter_pr_state': self.filter_pr_state or '',
+            'filter_period_days': self.filter_period_days or '30',
+            'filter_section': self.filter_section or 'all',
+        }
+        self.browse(self.id).write(new_vals)
+        # Push updated scalar counts back to the form for live display
+        fresh = self.sudo().browse(self.id).read([
+            'open_pr_count', 'pending_signature_count', 'arrivals_today_count',
+            'partial_receipts_count', 'issuance_mtd_count', 'pending_returns_count',
+            'pending_transfer_count', 'normal_issuance_pct', 'subcontractor_issuance_pct',
+        ])[0]
         for fname, val in fresh.items():
             if fname != 'id':
                 setattr(self, fname, val)
@@ -142,7 +154,6 @@ class SiteStoreDashboard(models.TransientModel):
             'filter_period_days': '30',
             'filter_section': 'all',
         })
-        self._refresh_dashboard_data(self)
         return {
             'type': 'ir.actions.act_window',
             'res_model': self._name,
@@ -286,7 +297,7 @@ class SiteStoreDashboard(models.TransientModel):
                     }
                     break
 
-        dashboard.write({
+        dashboard.with_context(_refreshing_dashboard=True).write({
             'name': analytic.name if analytic else _('Site Store Dashboard'),
             'project_analytic_account_id': analytic.id if analytic else False,
             'project_name': analytic.name if analytic else _('No project assigned'),
