@@ -18,11 +18,6 @@
               sequence="1"
               groups="purchase_demand_raise.group_site_store,purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,site_operations.group_matracon_admin"/>
 
-    <!-- Deactivate the old duplicate "Site Store Dashboard" entry in Purchase -->
-    <record id="menu_site_store_dashboard_purchase" model="ir.ui.menu">
-        <field name="active" eval="False"/>
-    </record>
-
     <!-- ── Single "Dashboard" in Inventory (same routing logic) ──────────── -->
     <menuitem id="menu_site_store_dashboard"
               name="Dashboard"
