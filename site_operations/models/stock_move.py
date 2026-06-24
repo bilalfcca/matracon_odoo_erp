@@ -12,24 +12,34 @@ class StockMoveSiteOps(models.Model):
     )
 
     def _get_on_hand_location(self):
-        """Resolve warehouse stock location for on-hand display."""
+        """Resolve warehouse main stock location for on-hand display.
+
+        Always prefer warehouse.lot_stock_id — intermediate internal locations
+        (WH/Input, WH/Order Processing, etc.) hold no sellable/issuable stock.
+        """
         self.ensure_one()
+        picking = self.picking_id
+        # Priority 1: warehouse's main stock location via picking type
+        if picking and picking.picking_type_id:
+            wh = picking.picking_type_id.warehouse_id
+            if wh and wh.lot_stock_id:
+                return wh.lot_stock_id
+        # Priority 2: user's default warehouse stock location
+        user = self.env.user
+        if hasattr(user, 'x_default_warehouse_id') and user.x_default_warehouse_id:
+            if user.x_default_warehouse_id.lot_stock_id:
+                return user.x_default_warehouse_id.lot_stock_id
+        # Priority 3: company's first warehouse stock location
+        wh = self.env['stock.warehouse'].search(
+            [('company_id', '=', self.env.company.id)], limit=1)
+        if wh and wh.lot_stock_id:
+            return wh.lot_stock_id
+        # Last resort: picking source or move source location
+        if picking and picking.location_id and picking.location_id.usage == 'internal':
+            return picking.location_id
         if self.location_id and self.location_id.usage == 'internal':
             return self.location_id
-        picking = self.picking_id
-        if picking:
-            if picking.location_id and picking.location_id.usage == 'internal':
-                return picking.location_id
-            if picking.picking_type_id.default_location_src_id:
-                return picking.picking_type_id.default_location_src_id
-            if picking.picking_type_id.warehouse_id:
-                return picking.picking_type_id.warehouse_id.lot_stock_id
-        user = self.env.user
-        if user.x_default_warehouse_id:
-            return user.x_default_warehouse_id.lot_stock_id
-        return self.env['stock.warehouse'].search(
-            [('company_id', '=', self.env.company.id)], limit=1
-        ).lot_stock_id
+        return self.env['stock.location']
 
     @api.depends(
         'product_id', 'location_id', 'picking_id.location_id',

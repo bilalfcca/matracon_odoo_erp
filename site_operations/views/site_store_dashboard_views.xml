@@ -5,7 +5,6 @@
         <field name="name">x.site.store.dashboard.form</field>
         <field name="model">x.site.store.dashboard</field>
         <field name="arch" type="xml">
-            <!-- edit="false" removed so filter fields are editable -->
             <form string="Site Store Dashboard" create="false" delete="false">
                 <header>
                     <button name="action_refresh" type="object" string="Refresh"
@@ -31,36 +30,37 @@
                     </div>
 
                     <!-- ── Filters Card ──────────────────────────────────────── -->
-                    <div class="card border-0 mb-4" style="background: #f8f9fc; border-radius: 0.75rem; box-shadow: 0 1px 4px rgba(0,0,0,0.08);">
-                        <div class="card-body py-3 px-4">
-                            <div class="d-flex align-items-center mb-3">
-                                <i class="fa fa-filter text-primary me-2" title="Filters"/>
-                                <span class="fw-bold text-uppercase text-muted" style="font-size: 0.75rem; letter-spacing: 0.1em;">Dashboard Filters</span>
-                            </div>
+                    <div class="card mb-4">
+                        <div class="card-body">
+                            <h6 class="card-title text-muted text-uppercase mb-3"
+                                style="font-size: 0.75rem; letter-spacing: 0.08em;">
+                                <i class="fa fa-filter me-1" title="Filters"/> Dashboard Filters
+                            </h6>
                             <div class="row g-3">
                                 <div class="col-12 col-md-4">
-                                    <field name="filter_pr_state" string="PR Status"/>
+                                    <label class="col-form-label col-form-label-sm fw-bold">PR Status</label>
+                                    <field name="filter_pr_state" nolabel="1"/>
                                 </div>
                                 <div class="col-12 col-md-4">
-                                    <field name="filter_period_days" string="Date Range"/>
+                                    <label class="col-form-label col-form-label-sm fw-bold">Date Range</label>
+                                    <field name="filter_period_days" nolabel="1"/>
                                 </div>
                                 <div class="col-12 col-md-4">
-                                    <field name="filter_section" string="Focus"/>
+                                    <label class="col-form-label col-form-label-sm fw-bold">Focus</label>
+                                    <field name="filter_section" nolabel="1"/>
                                 </div>
                             </div>
                             <div class="mt-3">
                                 <button name="action_apply_filters" type="object"
-                                        string="Apply Filters" class="btn btn-primary btn-sm"
-                                        icon="fa-check"/>
+                                        string="Apply Filters" class="btn btn-primary btn-sm"/>
                             </div>
                         </div>
                     </div>
 
                     <!-- ── Stock Alert Banner ────────────────────────────────── -->
                     <div class="alert alert-warning d-flex align-items-center gap-3 mb-4"
-                         role="alert" invisible="not has_stock_alert"
-                         style="border-radius: 0.75rem; border-left: 4px solid #e6a817;">
-                        <i class="fa fa-exclamation-triangle fa-2x text-warning" title="Alert"/>
+                         role="alert" invisible="not has_stock_alert">
+                        <i class="fa fa-exclamation-triangle fa-lg" title="Alert"/>
                         <div class="flex-grow-1">
                             <strong>Replenishment Alert — Critical Stock</strong>
                             <div class="mt-1">
@@ -76,103 +76,67 @@
                     ══════════════════════════════════════════════════════ -->
                     <div class="row g-3 mb-3">
 
-                        <!-- Open PRs — Blue -->
+                        <!-- Open PRs -->
                         <div class="col-12 col-sm-6 col-xl-3">
-                            <div class="rounded-3 p-4 h-100 d-flex flex-column"
-                                 style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%); box-shadow: 0 4px 15px rgba(78,115,223,0.35); min-height: 140px;">
-                                <div class="d-flex justify-content-between align-items-start mb-2">
-                                    <div class="text-uppercase fw-bold text-white"
-                                         style="font-size: 0.72rem; opacity: 0.85; letter-spacing: 0.1em;">
-                                        Open PRs
+                            <div class="card border-0 shadow-sm h-100 text-center">
+                                <div class="card-body py-4">
+                                    <div class="fw-bold text-primary mb-1" style="font-size: 2.5rem; line-height: 1.1;">
+                                        <field name="open_pr_count" nolabel="1" readonly="1" class="oe_inline"/>
                                     </div>
-                                    <i class="fa fa-shopping-cart fa-2x text-white" style="opacity: 0.2;" title="PRs"/>
+                                    <div class="text-muted" style="font-size: 0.85rem;">Open PRs</div>
+                                    <div class="mt-2">
+                                        <button name="action_open_prs" type="object"
+                                                string="View" class="btn btn-sm btn-outline-primary"/>
+                                    </div>
                                 </div>
-                                <div class="fw-bold text-white lh-1 mb-1" style="font-size: 2.8rem;">
-                                    <field name="open_pr_count" nolabel="1" readonly="1" class="oe_inline"/>
-                                </div>
-                                <div class="text-white mt-auto" style="font-size: 0.8rem; opacity: 0.8;">
-                                    Requisitions Active
-                                </div>
-                                <button name="action_open_prs" type="object"
-                                        class="btn btn-sm mt-3 text-white"
-                                        style="background: rgba(255,255,255,0.18); border: 1px solid rgba(255,255,255,0.35); font-size: 0.78rem;">
-                                    View All PRs →
-                                </button>
                             </div>
                         </div>
 
-                        <!-- Arrivals Today — Green -->
+                        <!-- Arrivals Today -->
                         <div class="col-12 col-sm-6 col-xl-3">
-                            <div class="rounded-3 p-4 h-100 d-flex flex-column"
-                                 style="background: linear-gradient(135deg, #1cc88a 0%, #13855c 100%); box-shadow: 0 4px 15px rgba(28,200,138,0.35); min-height: 140px;">
-                                <div class="d-flex justify-content-between align-items-start mb-2">
-                                    <div class="text-uppercase fw-bold text-white"
-                                         style="font-size: 0.72rem; opacity: 0.85; letter-spacing: 0.1em;">
-                                        Arrivals Today
+                            <div class="card border-0 shadow-sm h-100 text-center">
+                                <div class="card-body py-4">
+                                    <div class="fw-bold text-success mb-1" style="font-size: 2.5rem; line-height: 1.1;">
+                                        <field name="arrivals_today_count" nolabel="1" readonly="1" class="oe_inline"/>
                                     </div>
-                                    <i class="fa fa-truck fa-2x text-white" style="opacity: 0.2;" title="Receipts"/>
+                                    <div class="text-muted" style="font-size: 0.85rem;">Arrivals Today</div>
+                                    <div class="mt-2">
+                                        <button name="action_open_receipts" type="object"
+                                                string="View" class="btn btn-sm btn-outline-success"/>
+                                    </div>
                                 </div>
-                                <div class="fw-bold text-white lh-1 mb-1" style="font-size: 2.8rem;">
-                                    <field name="arrivals_today_count" nolabel="1" readonly="1" class="oe_inline"/>
-                                </div>
-                                <div class="text-white mt-auto" style="font-size: 0.8rem; opacity: 0.8;">
-                                    Expected Receipts
-                                </div>
-                                <button name="action_open_receipts" type="object"
-                                        class="btn btn-sm mt-3 text-white"
-                                        style="background: rgba(255,255,255,0.18); border: 1px solid rgba(255,255,255,0.35); font-size: 0.78rem;">
-                                    View Receipts →
-                                </button>
                             </div>
                         </div>
 
-                        <!-- Issuances MTD — Purple -->
+                        <!-- Issuances MTD -->
                         <div class="col-12 col-sm-6 col-xl-3">
-                            <div class="rounded-3 p-4 h-100 d-flex flex-column"
-                                 style="background: linear-gradient(135deg, #6f42c1 0%, #4e2d8a 100%); box-shadow: 0 4px 15px rgba(111,66,193,0.35); min-height: 140px;">
-                                <div class="d-flex justify-content-between align-items-start mb-2">
-                                    <div class="text-uppercase fw-bold text-white"
-                                         style="font-size: 0.72rem; opacity: 0.85; letter-spacing: 0.1em;">
-                                        Issuances MTD
+                            <div class="card border-0 shadow-sm h-100 text-center">
+                                <div class="card-body py-4">
+                                    <div class="fw-bold mb-1" style="font-size: 2.5rem; line-height: 1.1; color: #6f42c1;">
+                                        <field name="issuance_mtd_count" nolabel="1" readonly="1" class="oe_inline"/>
                                     </div>
-                                    <i class="fa fa-sign-out fa-2x text-white" style="opacity: 0.2;" title="Issuances"/>
+                                    <div class="text-muted" style="font-size: 0.85rem;">Issuances (MTD)</div>
+                                    <div class="mt-2">
+                                        <button name="action_open_issuance" type="object"
+                                                string="View" class="btn btn-sm btn-outline-secondary"/>
+                                    </div>
                                 </div>
-                                <div class="fw-bold text-white lh-1 mb-1" style="font-size: 2.8rem;">
-                                    <field name="issuance_mtd_count" nolabel="1" readonly="1" class="oe_inline"/>
-                                </div>
-                                <div class="text-white mt-auto" style="font-size: 0.8rem; opacity: 0.8;">
-                                    This Month
-                                </div>
-                                <button name="action_open_issuance" type="object"
-                                        class="btn btn-sm mt-3 text-white"
-                                        style="background: rgba(255,255,255,0.18); border: 1px solid rgba(255,255,255,0.35); font-size: 0.78rem;">
-                                    View Issuances →
-                                </button>
                             </div>
                         </div>
 
-                        <!-- Pending Returns — Red -->
+                        <!-- Pending Returns -->
                         <div class="col-12 col-sm-6 col-xl-3">
-                            <div class="rounded-3 p-4 h-100 d-flex flex-column"
-                                 style="background: linear-gradient(135deg, #e74a3b 0%, #be2617 100%); box-shadow: 0 4px 15px rgba(231,74,59,0.35); min-height: 140px;">
-                                <div class="d-flex justify-content-between align-items-start mb-2">
-                                    <div class="text-uppercase fw-bold text-white"
-                                         style="font-size: 0.72rem; opacity: 0.85; letter-spacing: 0.1em;">
-                                        Pending Returns
+                            <div class="card border-0 shadow-sm h-100 text-center">
+                                <div class="card-body py-4">
+                                    <div class="fw-bold text-danger mb-1" style="font-size: 2.5rem; line-height: 1.1;">
+                                        <field name="pending_returns_count" nolabel="1" readonly="1" class="oe_inline"/>
                                     </div>
-                                    <i class="fa fa-undo fa-2x text-white" style="opacity: 0.2;" title="Returns"/>
+                                    <div class="text-muted" style="font-size: 0.85rem;">Pending Returns</div>
+                                    <div class="mt-2">
+                                        <button name="action_open_returns" type="object"
+                                                string="View" class="btn btn-sm btn-outline-danger"/>
+                                    </div>
                                 </div>
-                                <div class="fw-bold text-white lh-1 mb-1" style="font-size: 2.8rem;">
-                                    <field name="pending_returns_count" nolabel="1" readonly="1" class="oe_inline"/>
-                                </div>
-                                <div class="text-white mt-auto" style="font-size: 0.8rem; opacity: 0.8;">
-                                    Awaiting Validation
-                                </div>
-                                <button name="action_open_returns" type="object"
-                                        class="btn btn-sm mt-3 text-white"
-                                        style="background: rgba(255,255,255,0.18); border: 1px solid rgba(255,255,255,0.35); font-size: 0.78rem;">
-                                    View Returns →
-                                </button>
                             </div>
                         </div>
 
@@ -183,97 +147,66 @@
                     ══════════════════════════════════════════════════════ -->
                     <div class="row g-3 mb-4">
 
-                        <!-- Pending PM Signature — Yellow/Amber -->
+                        <!-- Pending PM Signature -->
                         <div class="col-12 col-sm-6 col-xl-3">
-                            <div class="rounded-3 p-4 h-100 d-flex flex-column"
-                                 style="background: linear-gradient(135deg, #f6c23e 0%, #d4a017 100%); box-shadow: 0 4px 15px rgba(246,194,62,0.35); min-height: 120px;">
-                                <div class="d-flex justify-content-between align-items-start mb-2">
-                                    <div class="text-uppercase fw-bold text-white"
-                                         style="font-size: 0.72rem; opacity: 0.85; letter-spacing: 0.1em;">
-                                        Pending PM Signature
+                            <div class="card border-0 shadow-sm h-100 text-center">
+                                <div class="card-body py-4">
+                                    <div class="fw-bold text-warning mb-1" style="font-size: 2.2rem; line-height: 1.1;">
+                                        <field name="pending_signature_count" nolabel="1" readonly="1" class="oe_inline"/>
                                     </div>
-                                    <i class="fa fa-pencil fa-2x text-white" style="opacity: 0.2;" title="Signature"/>
-                                </div>
-                                <div class="fw-bold text-white lh-1 mb-1" style="font-size: 2.2rem;">
-                                    <field name="pending_signature_count" nolabel="1" readonly="1" class="oe_inline"/>
-                                </div>
-                                <div class="text-white mt-auto" style="font-size: 0.8rem; opacity: 0.85;">
-                                    PRs Awaiting PM Sign-off
+                                    <div class="text-muted" style="font-size: 0.85rem;">Pending PM Signature</div>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Partial Receipts — Orange -->
+                        <!-- Partial Receipts -->
                         <div class="col-12 col-sm-6 col-xl-3">
-                            <div class="rounded-3 p-4 h-100 d-flex flex-column"
-                                 style="background: linear-gradient(135deg, #fd7e14 0%, #c85a00 100%); box-shadow: 0 4px 15px rgba(253,126,20,0.35); min-height: 120px;">
-                                <div class="d-flex justify-content-between align-items-start mb-2">
-                                    <div class="text-uppercase fw-bold text-white"
-                                         style="font-size: 0.72rem; opacity: 0.85; letter-spacing: 0.1em;">
-                                        Partial Receipts
+                            <div class="card border-0 shadow-sm h-100 text-center">
+                                <div class="card-body py-4">
+                                    <div class="fw-bold mb-1" style="font-size: 2.2rem; line-height: 1.1; color: #fd7e14;">
+                                        <field name="partial_receipts_count" nolabel="1" readonly="1" class="oe_inline"/>
                                     </div>
-                                    <i class="fa fa-exclamation-circle fa-2x text-white" style="opacity: 0.2;" title="Partial Receipts"/>
-                                </div>
-                                <div class="fw-bold text-white lh-1 mb-1" style="font-size: 2.2rem;">
-                                    <field name="partial_receipts_count" nolabel="1" readonly="1" class="oe_inline"/>
-                                </div>
-                                <div class="text-white mt-auto" style="font-size: 0.8rem; opacity: 0.85;">
-                                    Incomplete Deliveries
+                                    <div class="text-muted" style="font-size: 0.85rem;">Partial Receipts</div>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Transfers Active — Teal -->
+                        <!-- Transfers Active -->
                         <div class="col-12 col-sm-6 col-xl-3">
-                            <div class="rounded-3 p-4 h-100 d-flex flex-column"
-                                 style="background: linear-gradient(135deg, #17a2b8 0%, #0d6e7f 100%); box-shadow: 0 4px 15px rgba(23,162,184,0.35); min-height: 120px;">
-                                <div class="d-flex justify-content-between align-items-start mb-2">
-                                    <div class="text-uppercase fw-bold text-white"
-                                         style="font-size: 0.72rem; opacity: 0.85; letter-spacing: 0.1em;">
-                                        Transfers Active
+                            <div class="card border-0 shadow-sm h-100 text-center">
+                                <div class="card-body py-4">
+                                    <div class="fw-bold text-info mb-1" style="font-size: 2.2rem; line-height: 1.1;">
+                                        <field name="pending_transfer_count" nolabel="1" readonly="1" class="oe_inline"/>
                                     </div>
-                                    <i class="fa fa-exchange fa-2x text-white" style="opacity: 0.2;" title="Transfers"/>
+                                    <div class="text-muted" style="font-size: 0.85rem;">Transfers Active</div>
+                                    <div class="mt-2">
+                                        <button name="action_open_transfers" type="object"
+                                                string="View" class="btn btn-sm btn-outline-info"/>
+                                    </div>
                                 </div>
-                                <div class="fw-bold text-white lh-1 mb-1" style="font-size: 2.2rem;">
-                                    <field name="pending_transfer_count" nolabel="1" readonly="1" class="oe_inline"/>
-                                </div>
-                                <div class="text-white mt-auto" style="font-size: 0.8rem; opacity: 0.85;">
-                                    Site-to-Site In Progress
-                                </div>
-                                <button name="action_open_transfers" type="object"
-                                        class="btn btn-sm mt-3 text-white"
-                                        style="background: rgba(255,255,255,0.18); border: 1px solid rgba(255,255,255,0.35); font-size: 0.78rem;">
-                                    View Transfers →
-                                </button>
                             </div>
                         </div>
 
-                        <!-- Issuance Type Split — Dark -->
+                        <!-- Issuance Type Split -->
                         <div class="col-12 col-sm-6 col-xl-3">
-                            <div class="rounded-3 p-4 h-100 d-flex flex-column"
-                                 style="background: linear-gradient(135deg, #5a5c69 0%, #2e3040 100%); box-shadow: 0 4px 15px rgba(90,92,105,0.35); min-height: 120px;">
-                                <div class="text-uppercase fw-bold text-white mb-3"
-                                     style="font-size: 0.72rem; opacity: 0.85; letter-spacing: 0.1em;">
-                                    Issuance Type Split (MTD)
-                                </div>
-                                <div class="d-flex justify-content-between align-items-center mb-1">
-                                    <span class="text-white" style="font-size: 0.82rem; opacity: 0.8;">
-                                        <i class="fa fa-circle me-1" style="color: #4e73df;"/> Normal
-                                    </span>
-                                    <span class="fw-bold text-white" style="font-size: 1.4rem;">
-                                        <field name="normal_issuance_pct" nolabel="1" readonly="1" class="oe_inline"/>%
-                                    </span>
-                                </div>
-                                <div class="mb-3" style="height: 5px; background: rgba(255,255,255,0.15); border-radius: 3px;">
-                                    <div style="height: 5px; border-radius: 3px; background: #4e73df; width: 60%;"/>
-                                </div>
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <span class="text-white" style="font-size: 0.82rem; opacity: 0.8;">
-                                        <i class="fa fa-circle me-1" style="color: #e74a3b;"/> Subcontractor
-                                    </span>
-                                    <span class="fw-bold text-white" style="font-size: 1.4rem;">
-                                        <field name="subcontractor_issuance_pct" nolabel="1" readonly="1" class="oe_inline"/>%
-                                    </span>
+                            <div class="card border-0 shadow-sm h-100">
+                                <div class="card-body py-3 px-4">
+                                    <div class="text-muted text-uppercase mb-3"
+                                         style="font-size: 0.75rem; letter-spacing: 0.06em;">
+                                        Issuance Split (MTD)
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <span class="text-muted" style="font-size: 0.82rem;">Normal</span>
+                                        <span class="fw-bold text-primary" style="font-size: 1.4rem;">
+                                            <field name="normal_issuance_pct" nolabel="1" readonly="1" class="oe_inline"/>%
+                                        </span>
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span class="text-muted" style="font-size: 0.82rem;">Subcontractor</span>
+                                        <span class="fw-bold text-danger" style="font-size: 1.4rem;">
+                                            <field name="subcontractor_issuance_pct" nolabel="1" readonly="1" class="oe_inline"/>%
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
                         </div>

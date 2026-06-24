@@ -141,7 +141,13 @@ class StockPickingSiteOps(models.Model):
             if hasattr(user, 'x_default_warehouse_id') and user.x_default_warehouse_id:
                 pt = user.x_default_warehouse_id.int_type_id
             if not pt:
-                pt = self.env['stock.picking.type'].search(
+                # Use active_test=False — internal picking types may be archived
+                warehouse = self.env['stock.warehouse'].search(
+                    [('company_id', '=', self.env.company.id)], limit=1)
+                if warehouse:
+                    pt = warehouse.int_type_id
+            if not pt:
+                pt = self.env['stock.picking.type'].with_context(active_test=False).search(
                     [('code', '=', 'internal')], limit=1)
             if pt and not res.get('picking_type_id'):
                 res['picking_type_id'] = pt.id
@@ -149,20 +155,17 @@ class StockPickingSiteOps(models.Model):
                     res.setdefault('location_id', pt.default_location_src_id.id)
                 if pt.default_location_dest_id:
                     res.setdefault('location_dest_id', pt.default_location_dest_id.id)
-            # Fallback: source location from warehouse stock if picking type has no default
+            # Fallback: use warehouse's main stock location (lot_stock_id)
             if not res.get('location_id'):
-                user = self.env.user
                 if hasattr(user, 'x_default_warehouse_id') and user.x_default_warehouse_id:
                     wh_stock = user.x_default_warehouse_id.lot_stock_id
                     if wh_stock:
                         res['location_id'] = wh_stock.id
                 if not res.get('location_id'):
-                    internal_loc = self.env['stock.location'].search([
-                        ('usage', '=', 'internal'),
-                        ('company_id', 'in', [False, self.env.company.id]),
-                    ], limit=1)
-                    if internal_loc:
-                        res['location_id'] = internal_loc.id
+                    warehouse = self.env['stock.warehouse'].search(
+                        [('company_id', '=', self.env.company.id)], limit=1)
+                    if warehouse and warehouse.lot_stock_id:
+                        res['location_id'] = warehouse.lot_stock_id.id
 
             if res.get('x_transfer_purpose') == 'material_issuance' and not res.get('location_dest_id'):
                 customer_loc = self.env['stock.location'].search([
@@ -305,7 +308,13 @@ class StockPickingSiteOps(models.Model):
                     if hasattr(user, 'x_default_warehouse_id') and user.x_default_warehouse_id:
                         pt = user.x_default_warehouse_id.int_type_id
                     if not pt:
-                        pt = self.env['stock.picking.type'].search(
+                        # Use active_test=False — internal picking types may be archived
+                        warehouse = self.env['stock.warehouse'].search(
+                            [('company_id', '=', self.env.company.id)], limit=1)
+                        if warehouse:
+                            pt = warehouse.int_type_id
+                    if not pt:
+                        pt = self.env['stock.picking.type'].with_context(active_test=False).search(
                             [('code', '=', 'internal')], limit=1)
                     if pt:
                         vals['picking_type_id'] = pt.id
@@ -313,19 +322,17 @@ class StockPickingSiteOps(models.Model):
                                         pt.default_location_src_id.id if pt.default_location_src_id else False)
                         vals.setdefault('location_dest_id',
                                         pt.default_location_dest_id.id if pt.default_location_dest_id else False)
-                # Fallback: source location if still missing
+                # Fallback: use warehouse's main stock location (lot_stock_id)
                 if not vals.get('location_id'):
                     if hasattr(user, 'x_default_warehouse_id') and user.x_default_warehouse_id:
                         wh_stock = user.x_default_warehouse_id.lot_stock_id
                         if wh_stock:
                             vals['location_id'] = wh_stock.id
                     if not vals.get('location_id'):
-                        internal_loc = self.env['stock.location'].search([
-                            ('usage', '=', 'internal'),
-                            ('company_id', 'in', [False, self.env.company.id]),
-                        ], limit=1)
-                        if internal_loc:
-                            vals['location_id'] = internal_loc.id
+                        warehouse = self.env['stock.warehouse'].search(
+                            [('company_id', '=', self.env.company.id)], limit=1)
+                        if warehouse and warehouse.lot_stock_id:
+                            vals['location_id'] = warehouse.lot_stock_id.id
 
                 if vals.get('x_transfer_purpose') == 'material_issuance' and not vals.get('location_dest_id'):
                     customer_loc = self.env['stock.location'].search([
