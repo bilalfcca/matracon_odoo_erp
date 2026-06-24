@@ -33,6 +33,29 @@ class StockReturnPickingSiteOps(models.TransientModel):
                         vals['x_damage_amount'] = line.x_damage_amount
                     if vals:
                         move.write(vals)
+
+            # Replace the generic Odoo "created from" note with a readable message
+            new_picking.message_ids.sudo().filtered(
+                lambda m: 'has been created from' in (m.body or '')
+            ).unlink()
+
+            label = 'Material Return' if orig.x_transfer_purpose == 'material_issuance' \
+                else 'Site-to-Site Return'
+            parts = [
+                f'<b>{label}</b> initiated.',
+                f'Original Issuance: <b>{orig._get_html_link()}</b>',
+            ]
+            if orig.x_contact_id:
+                parts.append(f'Issued to: <b>{orig.x_contact_id.name}</b>')
+            if orig.x_issuance_project_id:
+                parts.append(f'Project: <b>{orig.x_issuance_project_id.name}</b>')
+            if orig.x_inventory_type:
+                parts.append(
+                    f'Type: <b>{dict(orig._fields["x_inventory_type"].selection).get(orig.x_inventory_type, orig.x_inventory_type)}</b>')
+            new_picking.message_post(
+                body=' | '.join(parts),
+                subtype_xmlid='mail.mt_note',
+            )
         return new_picking
 
 
