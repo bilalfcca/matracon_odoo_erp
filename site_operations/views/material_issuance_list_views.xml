@@ -13,35 +13,37 @@
                   decoration-danger="state == 'cancel'"
                   decoration-muted="state == 'draft'"
                   decoration-warning="state in ('waiting', 'confirmed', 'assigned')">
+                <!-- ── Always visible ────────────────────────────────── -->
                 <field name="name" string="Reference"/>
-                <field name="x_original_issuance_id" string="Original Issuance" optional="show"/>
-                <field name="x_gate_pass_outward_no" string="Gate Pass No" optional="show"/>
-                <field name="location_id" string="From" optional="show"/>
-                <field name="location_dest_id" string="To" optional="show"/>
-                <field name="x_contact_id" string="Issuance Contact"/>
+                <field name="x_contact_id" string="Contact"/>
                 <field name="x_issuance_project_id" string="Project" optional="show"/>
-                <field name="x_dest_project_id" string="Destination" optional="show"/>
-                <field name="x_site_transfer_state" string="Transfer Status" optional="show"
-                       widget="badge"
-                       decoration-warning="x_site_transfer_state == 'pending_approval'"
-                       decoration-success="x_site_transfer_state in ('approved', 'done')"
-                       decoration-danger="x_site_transfer_state == 'rejected'"/>
-                <field name="x_transfer_purpose" string="Purpose" optional="show"/>
-                <field name="x_issue_type" string="Issue Type" optional="show"/>
-                <field name="x_inventory_type" string="Inventory Type" optional="show"/>
-                <field name="x_backcharge_applicable" string="Backcharged" optional="show"/>
-                <field name="x_original_issued_qty" string="Issued Qty" optional="show"/>
-                <field name="x_total_returned_qty" string="Returned Qty" optional="show"/>
-                <field name="x_outstanding_qty" string="Outstanding Qty" optional="show"/>
-                <field name="origin" string="Source Document" optional="show"/>
-                <field name="scheduled_date" string="Scheduled Date" optional="show"/>
                 <field name="state" string="Status"
                        widget="badge"
                        decoration-success="state == 'done'"
                        decoration-danger="state == 'cancel'"
                        decoration-muted="state == 'draft'"
                        decoration-warning="state in ('waiting', 'confirmed', 'assigned')"/>
-                <!-- Hidden fields used for decorations -->
+                <!-- ── Optional — hidden by default ─────────────────── -->
+                <field name="x_transfer_purpose" string="Purpose" optional="hide"/>
+                <field name="x_issue_type" string="Issue Type" optional="hide"/>
+                <field name="x_inventory_type" string="Inventory Type" optional="hide"/>
+                <field name="x_backcharge_applicable" string="Backcharged" optional="hide"/>
+                <field name="x_original_issued_qty" string="Issued Qty" optional="hide"/>
+                <field name="x_total_returned_qty" string="Returned Qty" optional="hide"/>
+                <field name="x_outstanding_qty" string="Outstanding Qty" optional="hide"/>
+                <field name="x_site_transfer_state" string="Transfer Status" optional="hide"
+                       widget="badge"
+                       decoration-warning="x_site_transfer_state == 'pending_approval'"
+                       decoration-success="x_site_transfer_state in ('approved', 'done')"
+                       decoration-danger="x_site_transfer_state == 'rejected'"/>
+                <field name="x_dest_project_id" string="Destination Project" optional="hide"/>
+                <field name="location_id" string="From Location" optional="hide"/>
+                <field name="location_dest_id" string="To Location" optional="hide"/>
+                <field name="origin" string="Source Document" optional="hide"/>
+                <field name="scheduled_date" string="Scheduled Date" optional="hide"/>
+                <field name="x_original_issuance_id" string="Original Issuance" optional="hide"/>
+                <field name="x_gate_pass_outward_no" string="Gate Pass No" optional="hide"/>
+                <!-- Hidden fields used for row decorations -->
                 <field name="x_is_return_transfer" column_invisible="True"/>
             </list>
         </field>

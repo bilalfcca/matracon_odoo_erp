@@ -36,7 +36,7 @@ class SiteStoreDashboard(models.TransientModel):
         ('all', 'All Sections'),
         ('prs', 'Requisitions'),
         ('receipts', 'Material Receipts'),
-        ('issuances', 'Issuances'),
+        ('issuances', 'Material Issuances'),
         ('transfers', 'Site Transfers'),
         ('returns', 'Pending Returns'),
     ], string='Focus', default='all')
@@ -288,8 +288,19 @@ class SiteStoreDashboard(models.TransientModel):
 
     @api.model
     def action_open_dashboard(self):
-        """Open or refresh the site store dashboard."""
-        if not self.env.user._matracon_is_site_store():
+        """Open or refresh the site store dashboard.
+
+        Admins and Procurement Officers are redirected to the Procurement HO
+        dashboard so that they always land on a single, unified operations view.
+        """
+        user = self.env.user
+        # Admin / HO users → redirect to the Procurement HO dashboard
+        if user._matracon_is_admin() or (
+            not user.has_group('purchase_demand_raise.group_site_store')
+            and user._matracon_is_procurement_officer()
+        ):
+            return self.env['x.procurement.ho.dashboard'].action_open_dashboard()
+        if not user.has_group('purchase_demand_raise.group_site_store'):
             raise UserError(_('Only Site Store users can open this dashboard.'))
         dashboard = self.create({})
         self._refresh_dashboard_data(dashboard)

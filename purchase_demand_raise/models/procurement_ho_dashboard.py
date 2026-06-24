@@ -16,7 +16,18 @@ class ProcurementHoDashboard(models.TransientModel):
     # ── Filters (single view, multiple filters) ───────────────────────────────
     filter_project_id = fields.Many2one(
         'account.analytic.account', string='Project')
+    filter_contact_id = fields.Many2one(
+        'res.partner', string='Vendor / Subcontractor',
+        domain="[('is_company', '=', True), '|', ('supplier_rank', '>', 0), ('category_id.name', 'ilike', 'sub')]",
+    )
     filter_category_id = fields.Many2one('product.category', string='Category')
+
+    # ── Domain helpers — set during refresh ──────────────────────────────────
+    available_project_ids = fields.Many2many(
+        'account.analytic.account',
+        'proc_ho_dash_avail_proj_rel', 'dash_id', 'project_id',
+        string='Available Projects', readonly=True,
+    )
     filter_pr_state = fields.Selection([
         ('', 'All Statuses'),
         ('draft', 'Draft'),
@@ -86,6 +97,8 @@ class ProcurementHoDashboard(models.TransientModel):
         domain = list(self._pr_base_domain())
         if self.filter_project_id:
             domain.append(('x_project_analytic_account_id', '=', self.filter_project_id.id))
+        if self.filter_contact_id:
+            domain.append(('partner_id', '=', self.filter_contact_id.id))
         if self.filter_category_id:
             domain.append(('x_category_id', '=', self.filter_category_id.id))
         if self.filter_pr_state:
@@ -160,6 +173,10 @@ class ProcurementHoDashboard(models.TransientModel):
             ('message_type', 'in', ('comment', 'notification')),
         ], order='date desc', limit=25)
 
+        # Collect valid projects from Site Project Configurations only
+        site_projects = self.env['x.project.site.config'].search([]).mapped(
+            'x_project_analytic_account_id')
+
         dashboard.write({
             'name': _('Procurement Operations Overview'),
             'user_name': user.name,
@@ -169,6 +186,7 @@ class ProcurementHoDashboard(models.TransientModel):
             'confirmed_orders_count': len(confirmed),
             'ready_dispatch_count': len(ready_dispatch),
             'dispatched_mtd_count': len(dispatched_mtd),
+            'available_project_ids': [(6, 0, site_projects.ids)],
             'pending_review_ids': [(6, 0, pending_review.ids)],
             'ceo_pending_ids': [(6, 0, ceo_pending.ids)],
             'active_cs_ids': [(6, 0, active_cs.ids)],
@@ -180,7 +198,7 @@ class ProcurementHoDashboard(models.TransientModel):
         })
 
     @api.onchange(
-        'filter_project_id', 'filter_category_id',
+        'filter_project_id', 'filter_contact_id', 'filter_category_id',
         'filter_pr_state', 'filter_period_days', 'filter_section',
     )
     def _onchange_filters(self):

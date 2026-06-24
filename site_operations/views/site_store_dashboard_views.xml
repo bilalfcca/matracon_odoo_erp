@@ -17,11 +17,14 @@
                             string="Site Transfer" class="btn-secondary"/>
                     <!-- Inline filters in the header bar -->
                     <field name="filter_pr_state" nolabel="1"
+                           placeholder="PR Status"
                            class="o_field_widget ms-3" style="min-width:120px;"/>
                     <field name="filter_period_days" nolabel="1"
+                           placeholder="Date Range"
                            class="o_field_widget ms-2" style="min-width:110px;"/>
                     <field name="filter_section" nolabel="1"
-                           class="o_field_widget ms-2" style="min-width:110px;"/>
+                           placeholder="Section"
+                           class="o_field_widget ms-2" style="min-width:130px;"/>
                     <button name="action_apply_filters" type="object"
                             string="Apply" class="btn-primary ms-2" icon="fa-check"/>
                 </header>

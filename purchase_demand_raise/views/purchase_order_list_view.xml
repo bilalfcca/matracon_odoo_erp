@@ -19,6 +19,11 @@
                 <attribute name="column_invisible">1</attribute>
             </field>
 
+            <!-- Hide monetary Total column from Site Store users -->
+            <field name="amount_total" position="attributes">
+                <attribute name="groups">!purchase_demand_raise.group_site_store</attribute>
+            </field>
+
             <!-- Inject custom columns after Reference (name) -->
             <field name="name" position="after">
                 <field name="x_initiator_id" string="Raised By" optional="show"/>
@@ -60,6 +65,10 @@
             </field>
             <field name="state" position="attributes">
                 <attribute name="column_invisible">1</attribute>
+            </field>
+            <!-- Hide monetary Total from Site Store users -->
+            <field name="amount_total" position="attributes">
+                <attribute name="groups">!purchase_demand_raise.group_site_store</attribute>
             </field>
 
             <field name="name" position="after">

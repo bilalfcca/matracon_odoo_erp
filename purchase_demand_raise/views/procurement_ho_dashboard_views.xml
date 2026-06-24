@@ -9,16 +9,30 @@
                 <header>
                     <button name="action_refresh" type="object" string="Refresh"
                             class="btn-secondary" icon="fa-refresh"/>
+                    <!-- Hidden domain helper — populated during refresh -->
+                    <field name="available_project_ids" invisible="1"/>
                     <!-- Inline filters in the header bar -->
                     <field name="filter_project_id" nolabel="1"
-                           class="o_field_widget ms-3" style="min-width:120px;"/>
+                           placeholder="All Projects"
+                           options="{'no_create': True, 'no_open': True}"
+                           domain="[('id', 'in', available_project_ids)]"
+                           class="o_field_widget ms-3" style="min-width:130px;"/>
+                    <field name="filter_contact_id" nolabel="1"
+                           placeholder="Vendor / Subcontractor"
+                           options="{'no_create': True, 'no_open': True}"
+                           class="o_field_widget ms-2" style="min-width:150px;"/>
                     <field name="filter_category_id" nolabel="1"
+                           placeholder="Category"
+                           options="{'no_create': True, 'no_open': True}"
                            class="o_field_widget ms-2" style="min-width:100px;"/>
                     <field name="filter_pr_state" nolabel="1"
+                           placeholder="PR Status"
                            class="o_field_widget ms-2" style="min-width:110px;"/>
                     <field name="filter_period_days" nolabel="1"
+                           placeholder="Date Range"
                            class="o_field_widget ms-2" style="min-width:110px;"/>
                     <field name="filter_section" nolabel="1"
+                           placeholder="Focus"
                            class="o_field_widget ms-2" style="min-width:110px;"/>
                     <button name="action_apply_filters" type="object"
                             string="Apply" class="btn-primary ms-2" icon="fa-check"/>
