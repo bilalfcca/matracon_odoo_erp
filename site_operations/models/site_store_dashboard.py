@@ -10,32 +10,6 @@ class SiteStoreDashboard(models.TransientModel):
     _name = 'x.site.store.dashboard'
     _description = 'Site Store Manager Dashboard'
 
-    name = fields.Char(string='Title', readonly=True)
-
-    # ── Filters ───────────────────────────────────────────────────────────────
-    filter_pr_state = fields.Selection([
-        ('', 'All PR Statuses'),
-        ('draft', 'Draft'),
-        ('submitted', 'Submitted'),
-        ('ceo_final', 'Pending CEO'),
-        ('po_locked', 'PO Locked'),
-        ('dispatched', 'Dispatched'),
-    ], string='PR Status', default='')
-    filter_period_days = fields.Selection([
-        ('7', 'Last 7 Days'),
-        ('30', 'Last 30 Days'),
-        ('90', 'Last 90 Days'),
-        ('0', 'All Time'),
-    ], string='Date Range', default='30')
-    filter_section = fields.Selection([
-        ('all', 'All Sections'),
-        ('prs', 'Requisitions'),
-        ('receipts', 'Material Receipts'),
-        ('issuances', 'Issuances'),
-        ('transfers', 'Site Transfers'),
-        ('returns', 'Pending Returns'),
-    ], string='Focus', default='all')
-
     # ── Context header ────────────────────────────────────────────────────────
     name = fields.Char(string='Title', readonly=True)
     project_analytic_account_id = fields.Many2one(

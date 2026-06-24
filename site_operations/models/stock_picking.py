@@ -149,6 +149,21 @@ class StockPickingSiteOps(models.Model):
                     res.setdefault('location_id', pt.default_location_src_id.id)
                 if pt.default_location_dest_id:
                     res.setdefault('location_dest_id', pt.default_location_dest_id.id)
+            # Fallback: source location from warehouse stock if picking type has no default
+            if not res.get('location_id'):
+                user = self.env.user
+                if hasattr(user, 'x_default_warehouse_id') and user.x_default_warehouse_id:
+                    wh_stock = user.x_default_warehouse_id.lot_stock_id
+                    if wh_stock:
+                        res['location_id'] = wh_stock.id
+                if not res.get('location_id'):
+                    internal_loc = self.env['stock.location'].search([
+                        ('usage', '=', 'internal'),
+                        ('company_id', 'in', [False, self.env.company.id]),
+                    ], limit=1)
+                    if internal_loc:
+                        res['location_id'] = internal_loc.id
+
             if res.get('x_transfer_purpose') == 'material_issuance' and not res.get('location_dest_id'):
                 customer_loc = self.env['stock.location'].search([
                     ('usage', '=', 'customer'),
@@ -298,6 +313,20 @@ class StockPickingSiteOps(models.Model):
                                         pt.default_location_src_id.id if pt.default_location_src_id else False)
                         vals.setdefault('location_dest_id',
                                         pt.default_location_dest_id.id if pt.default_location_dest_id else False)
+                # Fallback: source location if still missing
+                if not vals.get('location_id'):
+                    if hasattr(user, 'x_default_warehouse_id') and user.x_default_warehouse_id:
+                        wh_stock = user.x_default_warehouse_id.lot_stock_id
+                        if wh_stock:
+                            vals['location_id'] = wh_stock.id
+                    if not vals.get('location_id'):
+                        internal_loc = self.env['stock.location'].search([
+                            ('usage', '=', 'internal'),
+                            ('company_id', 'in', [False, self.env.company.id]),
+                        ], limit=1)
+                        if internal_loc:
+                            vals['location_id'] = internal_loc.id
+
                 if vals.get('x_transfer_purpose') == 'material_issuance' and not vals.get('location_dest_id'):
                     customer_loc = self.env['stock.location'].search([
                         ('usage', '=', 'customer'),
@@ -401,22 +430,28 @@ class StockPickingSiteOps(models.Model):
             if pick.x_is_return_transfer and pick.x_original_issuance_id:
                 orig = pick.x_original_issuance_id
                 pick.x_original_issued_qty = sum(orig.move_ids.mapped('quantity'))
-                all_returns = self.search([
-                    ('x_original_issuance_id', '=', orig.id),
-                    ('state', '=', 'done'),
-                ])
-                pick.x_total_returned_qty = sum(
-                    all_returns.mapped('move_ids').mapped('quantity'))
+                if isinstance(orig.id, int) and orig.id:
+                    all_returns = self.search([
+                        ('x_original_issuance_id', '=', orig.id),
+                        ('state', '=', 'done'),
+                    ])
+                    pick.x_total_returned_qty = sum(
+                        all_returns.mapped('move_ids').mapped('quantity'))
+                else:
+                    pick.x_total_returned_qty = 0.0
                 pick.x_outstanding_qty = (
                     pick.x_original_issued_qty - pick.x_total_returned_qty)
             elif not pick.x_is_return_transfer:
                 pick.x_original_issued_qty = sum(pick.move_ids.mapped('quantity'))
-                all_returns = self.search([
-                    ('x_original_issuance_id', '=', pick.id),
-                    ('state', '=', 'done'),
-                ])
-                pick.x_total_returned_qty = sum(
-                    all_returns.mapped('move_ids').mapped('quantity'))
+                if isinstance(pick.id, int) and pick.id:
+                    all_returns = self.search([
+                        ('x_original_issuance_id', '=', pick.id),
+                        ('state', '=', 'done'),
+                    ])
+                    pick.x_total_returned_qty = sum(
+                        all_returns.mapped('move_ids').mapped('quantity'))
+                else:
+                    pick.x_total_returned_qty = 0.0
                 pick.x_outstanding_qty = (
                     pick.x_original_issued_qty - pick.x_total_returned_qty)
             else:
