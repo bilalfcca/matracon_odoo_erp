@@ -85,12 +85,14 @@ class ProcurementHoDashboard(models.TransientModel):
         'mail.message', 'proc_ho_dash_activity_rel', 'dash_id', 'message_id',
         string='Recent Activity', readonly=True)
 
+    # ─────────────────────────────────────────────────────────────────────────
+
     @api.model
     def _pr_base_domain(self):
         return [('x_is_pr_document', '=', True)]
 
     def _filter_domain(self):
-        """Build domain from dashboard filter fields."""
+        """Build domain from current filter field values (works in onchange context)."""
         self.ensure_one()
         domain = list(self._pr_base_domain())
         if self.filter_project_id:
@@ -108,13 +110,19 @@ class ProcurementHoDashboard(models.TransientModel):
             domain.append(('date_order', '>=', cutoff))
         return domain
 
-    @api.model
-    def _refresh_dashboard_data(self, dashboard):
+    def _compute_kpi_data(self):
+        """Compute all KPI data from current filter state.
+
+        Returns a dict of plain scalars and recordsets — usable both for
+        writing to DB (via _refresh_dashboard_data) and for setting directly
+        on ``self`` during an onchange (no DB writes needed).
+        """
+        self.ensure_one()
         user = self.env.user
         today = fields.Date.context_today(self)
         month_start = today.replace(day=1)
         PO = self.env['purchase.order']
-        base = dashboard._filter_domain()
+        base = self._filter_domain()
 
         pending_review = PO.search(
             base + [('x_pr_state', '=', 'submitted')],
@@ -135,17 +143,14 @@ class ProcurementHoDashboard(models.TransientModel):
                     ('state', 'in', ('purchase', 'done'))],
             order='date_order desc', limit=20,
         )
-
         dispatched_mtd = PO.search(base + [
             ('x_pr_state', '=', 'dispatched'),
             ('write_date', '>=', fields.Datetime.to_datetime(month_start)),
         ])
-
         recent_dispatched = PO.search(
             base + [('x_pr_state', '=', 'dispatched')],
             order='write_date desc', limit=10,
         )
-
         cutoff_critical = fields.Datetime.to_datetime(today - timedelta(days=3))
         critical = PO.search(
             base + [
@@ -155,46 +160,58 @@ class ProcurementHoDashboard(models.TransientModel):
             ],
             order='date_order asc', limit=10,
         )
-
         recent_pos = PO.search(
             base + [('state', 'in', ('purchase', 'done'))],
             order='date_order desc', limit=8,
         )
-
-        tracked_orders = (
+        tracked = (
             pending_review | ceo_pending | active_cs | ready_dispatch
             | recent_dispatched | critical | recent_pos
         )
         messages = self.env['mail.message'].search([
             ('model', '=', 'purchase.order'),
-            ('res_id', 'in', tracked_orders.ids),
+            ('res_id', 'in', tracked.ids),
             ('message_type', 'in', ('comment', 'notification')),
         ], order='date desc', limit=25)
 
-        # Collect valid projects from Site Project Configurations only
         site_projects = self.env['x.project.site.config'].search([]).mapped(
             'analytic_account_id')
 
-        # _refreshing_dashboard context guard prevents recursion from write() override
-        dashboard.with_context(_refreshing_dashboard=True).write({
+        return {
             'name': _('Procurement Operations Overview'),
             'user_name': user.name,
+            # Scalar KPIs
             'pending_review_count': len(pending_review),
             'active_cs_count': len(active_cs),
             'ceo_pending_count': len(ceo_pending),
             'confirmed_orders_count': len(confirmed),
             'ready_dispatch_count': len(ready_dispatch),
             'dispatched_mtd_count': len(dispatched_mtd),
-            'available_project_ids': [(6, 0, site_projects.ids)],
-            'pending_review_ids': [(6, 0, pending_review.ids)],
-            'ceo_pending_ids': [(6, 0, ceo_pending.ids)],
-            'active_cs_ids': [(6, 0, active_cs.ids)],
-            'ready_dispatch_ids': [(6, 0, ready_dispatch.ids)],
-            'recent_dispatched_ids': [(6, 0, recent_dispatched.ids)],
-            'critical_demand_ids': [(6, 0, critical.ids)],
-            'recent_po_ids': [(6, 0, recent_pos.ids)],
-            'activity_message_ids': [(6, 0, messages.ids)],
-        })
+            # Recordsets (M2M)
+            'available_project_ids': site_projects,
+            'pending_review_ids': pending_review,
+            'ceo_pending_ids': ceo_pending,
+            'active_cs_ids': active_cs,
+            'ready_dispatch_ids': ready_dispatch,
+            'recent_dispatched_ids': recent_dispatched,
+            'critical_demand_ids': critical,
+            'recent_po_ids': recent_pos,
+            'activity_message_ids': messages,
+        }
+
+    @api.model
+    def _refresh_dashboard_data(self, dashboard):
+        """Compute KPI data and persist it to the dashboard record."""
+        data = dashboard._compute_kpi_data()
+        write_vals = {}
+        for fname, val in data.items():
+            # Recordsets → M2M command; scalars pass through unchanged
+            if hasattr(val, '_name'):
+                write_vals[fname] = [(6, 0, val.ids)]
+            else:
+                write_vals[fname] = val
+        # Context guard prevents write() override from triggering another refresh
+        dashboard.with_context(_refreshing_dashboard=True).write(write_vals)
 
     # ── Filter fields that trigger a KPI refresh when written ─────────────────
     _FILTER_FIELDS = frozenset({
@@ -203,7 +220,7 @@ class ProcurementHoDashboard(models.TransientModel):
     })
 
     def write(self, vals):
-        """Auto-refresh KPI data whenever filter fields are saved."""
+        """Persist KPI data whenever filter fields are explicitly saved."""
         res = super().write(vals)
         if not self.env.context.get('_refreshing_dashboard') and (
             vals.keys() & self._FILTER_FIELDS
@@ -217,29 +234,16 @@ class ProcurementHoDashboard(models.TransientModel):
         'filter_pr_state', 'filter_period_days', 'filter_section',
     )
     def _onchange_filters(self):
-        """Live filter: write current filter values to DB so write() override picks them up."""
-        if not self.id:
-            return
-        # Collect the new in-memory filter values
-        new_vals = {
-            'filter_project_id': self.filter_project_id.id or False,
-            'filter_contact_id': self.filter_contact_id.id or False,
-            'filter_category_id': self.filter_category_id.id or False,
-            'filter_pr_state': self.filter_pr_state or '',
-            'filter_period_days': self.filter_period_days or '30',
-            'filter_section': self.filter_section or 'all',
-        }
-        # Save filter values + immediately refresh KPI data
-        # write() override handles the refresh automatically
-        self.browse(self.id).write(new_vals)
-        # Push updated scalar KPI counts back to the form for live display
-        fresh = self.sudo().browse(self.id).read([
-            'pending_review_count', 'active_cs_count', 'ceo_pending_count',
-            'confirmed_orders_count', 'ready_dispatch_count', 'dispatched_mtd_count',
-        ])[0]
-        for fname, val in fresh.items():
-            if fname != 'id':
-                setattr(self, fname, val)
+        """Real-time filter: compute KPI data in-memory and push to the form immediately.
+
+        Odoo rolls back any DB writes made inside an onchange handler, so we
+        instead set all results directly on ``self``.  Odoo's onchange framework
+        serialises these changes and returns them to the frontend, updating all
+        cards and embedded lists without a page reload.
+        """
+        data = self._compute_kpi_data()
+        for fname, val in data.items():
+            setattr(self, fname, val)
 
     def action_clear_filters(self):
         """Reset all filters to defaults and reload the dashboard."""
@@ -340,14 +344,11 @@ class ProcurementHoDashboard(models.TransientModel):
     def action_open_dispatched(self):
         return self._action_open_pos(
             [('x_pr_state', '=', 'dispatched')],
-            _('Dispatched POs'),
+            _('Dispatched'),
         )
 
     def action_open_critical_demands(self):
-        return {
-            'type': 'ir.actions.act_window',
-            'name': _('Critical Site Demands'),
-            'res_model': 'purchase.order',
-            'view_mode': 'list,form',
-            'domain': [('id', 'in', self.critical_demand_ids.ids)],
-        }
+        return self._action_open_pos(
+            [('x_pr_state', '=', 'submitted'), ('x_ho_status', '=', 'pending')],
+            _('Critical Site Demands'),
+        )

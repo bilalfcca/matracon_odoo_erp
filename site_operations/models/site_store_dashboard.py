@@ -110,60 +110,14 @@ class SiteStoreDashboard(models.TransientModel):
             domain.append(('date_order', '>=', cutoff))
         return domain
 
-    # ── Filter fields that trigger a KPI refresh when written ─────────────────
-    _FILTER_FIELDS = frozenset({
-        'filter_pr_state', 'filter_period_days', 'filter_section',
-    })
+    def _compute_kpi_data(self):
+        """Compute all KPI data from current filter state.
 
-    def write(self, vals):
-        """Auto-refresh KPI data whenever filter fields are saved."""
-        res = super().write(vals)
-        if not self.env.context.get('_refreshing_dashboard') and (
-            vals.keys() & self._FILTER_FIELDS
-        ):
-            for rec in self:
-                self._refresh_dashboard_data(rec)
-        return res
-
-    @api.onchange('filter_pr_state', 'filter_period_days', 'filter_section')
-    def _onchange_filters(self):
-        """Live filter: write filter values to DB so write() override picks them up."""
-        if not self.id:
-            return
-        new_vals = {
-            'filter_pr_state': self.filter_pr_state or '',
-            'filter_period_days': self.filter_period_days or '30',
-            'filter_section': self.filter_section or 'all',
-        }
-        self.browse(self.id).write(new_vals)
-        # Push updated scalar counts back to the form for live display
-        fresh = self.sudo().browse(self.id).read([
-            'open_pr_count', 'pending_signature_count', 'arrivals_today_count',
-            'partial_receipts_count', 'issuance_mtd_count', 'pending_returns_count',
-            'pending_transfer_count', 'normal_issuance_pct', 'subcontractor_issuance_pct',
-        ])[0]
-        for fname, val in fresh.items():
-            if fname != 'id':
-                setattr(self, fname, val)
-
-    def action_clear_filters(self):
-        """Reset all filters to defaults and reload the dashboard."""
+        Returns a dict of plain scalars and recordsets — usable both for
+        writing to DB (via _refresh_dashboard_data) and for setting directly
+        on ``self`` during an onchange (no DB writes needed).
+        """
         self.ensure_one()
-        self.write({
-            'filter_pr_state': '',
-            'filter_period_days': '30',
-            'filter_section': 'all',
-        })
-        return {
-            'type': 'ir.actions.act_window',
-            'res_model': self._name,
-            'res_id': self.id,
-            'view_mode': 'form',
-            'target': 'current',
-        }
-
-    @api.model
-    def _refresh_dashboard_data(self, dashboard):
         user = self.env.user
         analytic = user.x_default_analytic_account_id
         warehouse = user.x_default_warehouse_id
@@ -174,9 +128,9 @@ class SiteStoreDashboard(models.TransientModel):
         Picking = self.env['stock.picking']
         Orderpoint = self.env['stock.warehouse.orderpoint']
 
-        po_base = dashboard._po_filter_domain(analytic)
+        po_base = self._po_filter_domain(analytic)
 
-        # ── KPI: PRs ────────────────────────────────────────────────────────
+        # ── PRs ─────────────────────────────────────────────────────────────
         open_prs = PO.search(po_base + [
             ('x_pr_state', 'in', ('draft', 'submitted', 'ceo_final', 'po_locked')),
         ])
@@ -185,7 +139,7 @@ class SiteStoreDashboard(models.TransientModel):
             ('x_pm_signed_pr', '=', False),
         ])
 
-        # ── KPI: Receipts ───────────────────────────────────────────────────
+        # ── Receipts ─────────────────────────────────────────────────────────
         receipt_domain = [
             ('picking_type_code', '=', 'incoming'),
             ('state', 'not in', ('done', 'cancel')),
@@ -196,30 +150,25 @@ class SiteStoreDashboard(models.TransientModel):
             receipt_domain.append(
                 ('purchase_id.x_project_analytic_account_id', '=', analytic.id))
         pending_receipts = Picking.search(receipt_domain, limit=20)
-
         arrivals_today = Picking.search(receipt_domain + [
             ('scheduled_date', '>=', fields.Datetime.to_datetime(today)),
             ('scheduled_date', '<',
              fields.Datetime.to_datetime(today + timedelta(days=1))),
         ])
         partial_receipts = pending_receipts.filtered(
-            lambda p: any(
-                m.product_uom_qty > m.quantity for m in p.move_ids if m.product_id
-            )
+            lambda p: any(m.product_uom_qty > m.quantity for m in p.move_ids if m.product_id)
         )
-
         recent_grns = Picking.search([
             ('picking_type_code', '=', 'incoming'),
             ('state', '=', 'done'),
             ('purchase_id.x_project_analytic_account_id', '=', analytic.id if analytic else 0),
         ], order='date_done desc', limit=8)
-
         on_order = PO.search(po_base + [
             ('x_pr_state', 'in', ('po_locked', 'dispatched')),
             ('state', 'in', ('purchase', 'done')),
         ], order='date_order desc', limit=8)
 
-        # ── KPI: Issuances (no amounts — site store must not see prices) ────
+        # ── Issuances ────────────────────────────────────────────────────────
         iss_domain = [
             ('x_transfer_purpose', '=', 'material_issuance'),
             ('x_is_return_transfer', '=', False),
@@ -238,7 +187,7 @@ class SiteStoreDashboard(models.TransientModel):
         normal_pct = int(round(normal_count * 100 / total_iss)) if total_iss else 0
         sub_pct = 100 - normal_pct if total_iss else 0
 
-        # ── Returns awaiting validation ─────────────────────────────────────
+        # ── Returns ──────────────────────────────────────────────────────────
         ret_domain = [
             ('x_is_return_transfer', '=', True),
             ('state', 'not in', ('done', 'cancel')),
@@ -247,14 +196,12 @@ class SiteStoreDashboard(models.TransientModel):
             ret_domain.append(('x_issuance_project_id', '=', analytic.id))
         pending_returns = Picking.search(ret_domain, limit=20)
 
-        # ── Site-to-site transfers ──────────────────────────────────────────
+        # ── Site-to-site transfers ────────────────────────────────────────────
         xfer_domain = [('x_transfer_purpose', '=', 'site_to_site')]
         if analytic:
-            xfer_domain += [
-                '|',
-                ('x_issuance_project_id', '=', analytic.id),
-                ('x_dest_project_id', '=', analytic.id),
-            ]
+            xfer_domain += ['|',
+                            ('x_issuance_project_id', '=', analytic.id),
+                            ('x_dest_project_id', '=', analytic.id)]
         transfers = Picking.search(
             xfer_domain + [('x_site_transfer_state', '!=', 'done')],
             order='id desc', limit=10,
@@ -265,43 +212,33 @@ class SiteStoreDashboard(models.TransientModel):
             ('x_issuance_project_id', '=', analytic.id if analytic else 0),
         ])
 
-        # ── Critical stock alert ────────────────────────────────────────────
-        alert_vals = {
-            'has_stock_alert': False,
-            'alert_product_id': False,
-            'alert_qty_on_hand': 0.0,
-            'alert_min_qty': 0.0,
-            'alert_message': False,
-        }
+        # ── Critical stock alert ──────────────────────────────────────────────
+        alert_product = self.env['product.product']
+        alert_on_hand = 0.0
+        alert_min_qty = 0.0
+        alert_message = False
+        has_stock_alert = False
         if warehouse:
-            orderpoints = Orderpoint.search([
-                ('warehouse_id', '=', warehouse.id),
-            ], limit=50)
-            for op in orderpoints:
+            for op in Orderpoint.search([('warehouse_id', '=', warehouse.id)], limit=50):
                 on_hand = op.product_id.with_context(
-                    location=warehouse.lot_stock_id.id
-                ).qty_available
+                    location=warehouse.lot_stock_id.id).qty_available
                 if on_hand < op.product_min_qty:
-                    alert_vals = {
-                        'has_stock_alert': True,
-                        'alert_product_id': op.product_id.id,
-                        'alert_qty_on_hand': on_hand,
-                        'alert_min_qty': op.product_min_qty,
-                        'alert_message': _(
-                            '%(product)s — on hand %(qty).2f (minimum %(min).2f)'
-                        ) % {
-                            'product': op.product_id.display_name,
-                            'qty': on_hand,
-                            'min': op.product_min_qty,
-                        },
-                    }
+                    has_stock_alert = True
+                    alert_product = op.product_id
+                    alert_on_hand = on_hand
+                    alert_min_qty = op.product_min_qty
+                    alert_message = _(
+                        '%(product)s — on hand %(qty).2f (minimum %(min).2f)'
+                    ) % {'product': op.product_id.display_name,
+                         'qty': on_hand, 'min': op.product_min_qty}
                     break
 
-        dashboard.with_context(_refreshing_dashboard=True).write({
+        return {
             'name': analytic.name if analytic else _('Site Store Dashboard'),
-            'project_analytic_account_id': analytic.id if analytic else False,
+            'project_analytic_account_id': analytic,
             'project_name': analytic.name if analytic else _('No project assigned'),
             'user_name': user.name,
+            # Scalar KPIs
             'open_pr_count': len(open_prs),
             'pending_signature_count': len(pending_sig),
             'arrivals_today_count': len(arrivals_today),
@@ -312,15 +249,81 @@ class SiteStoreDashboard(models.TransientModel):
             'dest_receipt_count': len(dest_receipts),
             'normal_issuance_pct': normal_pct,
             'subcontractor_issuance_pct': sub_pct,
-            'pr_ids': [(6, 0, open_prs.ids)],
-            'pending_receipt_ids': [(6, 0, pending_receipts.ids)],
-            'recent_grn_ids': [(6, 0, recent_grns.ids)],
-            'on_order_po_ids': [(6, 0, on_order.ids)],
-            'transfer_ids': [(6, 0, transfers.ids)],
-            'recent_issuance_ids': [(6, 0, recent_issuances.ids)],
-            'pending_return_ids': [(6, 0, pending_returns.ids)],
-            **alert_vals,
+            # Alert (mixed scalar + Many2one)
+            'has_stock_alert': has_stock_alert,
+            'alert_product_id': alert_product,
+            'alert_qty_on_hand': alert_on_hand,
+            'alert_min_qty': alert_min_qty,
+            'alert_message': alert_message,
+            # Recordsets (M2M)
+            'pr_ids': open_prs,
+            'pending_receipt_ids': pending_receipts,
+            'recent_grn_ids': recent_grns,
+            'on_order_po_ids': on_order,
+            'transfer_ids': transfers,
+            'recent_issuance_ids': recent_issuances,
+            'pending_return_ids': pending_returns,
+        }
+
+    @api.model
+    def _refresh_dashboard_data(self, dashboard):
+        """Compute KPI data and persist it to the dashboard record."""
+        data = dashboard._compute_kpi_data()
+        write_vals = {}
+        for fname, val in data.items():
+            if hasattr(val, '_name'):  # recordset (M2M or Many2one)
+                field = self._fields.get(fname)
+                if field and field.type == 'many2many':
+                    write_vals[fname] = [(6, 0, val.ids)]
+                else:
+                    write_vals[fname] = val.id if val else False
+            else:
+                write_vals[fname] = val
+        dashboard.with_context(_refreshing_dashboard=True).write(write_vals)
+
+    # ── Filter fields that trigger a KPI refresh when written ─────────────────
+    _FILTER_FIELDS = frozenset({
+        'filter_pr_state', 'filter_period_days', 'filter_section',
+    })
+
+    def write(self, vals):
+        """Persist KPI data whenever filter fields are explicitly saved."""
+        res = super().write(vals)
+        if not self.env.context.get('_refreshing_dashboard') and (
+            vals.keys() & self._FILTER_FIELDS
+        ):
+            for rec in self:
+                self._refresh_dashboard_data(rec)
+        return res
+
+    @api.onchange('filter_pr_state', 'filter_period_days', 'filter_section')
+    def _onchange_filters(self):
+        """Real-time filter: compute KPI data in-memory and push to the form immediately.
+
+        Odoo rolls back any DB writes made inside an onchange handler, so we
+        instead set all results directly on ``self``.  Odoo's onchange framework
+        serialises these changes and returns them to the frontend, updating all
+        cards and embedded lists without a page reload.
+        """
+        data = self._compute_kpi_data()
+        for fname, val in data.items():
+            setattr(self, fname, val)
+
+    def action_clear_filters(self):
+        """Reset all filters to defaults and reload the dashboard."""
+        self.ensure_one()
+        self.write({
+            'filter_pr_state': '',
+            'filter_period_days': '30',
+            'filter_section': 'all',
         })
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': self._name,
+            'res_id': self.id,
+            'view_mode': 'form',
+            'target': 'current',
+        }
 
     @api.model
     def action_open_dashboard(self):
