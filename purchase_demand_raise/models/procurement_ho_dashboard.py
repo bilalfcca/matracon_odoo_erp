@@ -175,7 +175,7 @@ class ProcurementHoDashboard(models.TransientModel):
 
         # Collect valid projects from Site Project Configurations only
         site_projects = self.env['x.project.site.config'].search([]).mapped(
-            'x_project_analytic_account_id')
+            'analytic_account_id')
 
         dashboard.write({
             'name': _('Procurement Operations Overview'),
@@ -197,13 +197,52 @@ class ProcurementHoDashboard(models.TransientModel):
             'activity_message_ids': [(6, 0, messages.ids)],
         })
 
+    # ── KPI field names refreshed on live filter change ──────────────────────
+    _KPI_FIELDS = [
+        'name', 'user_name',
+        'pending_review_count', 'active_cs_count', 'ceo_pending_count',
+        'confirmed_orders_count', 'ready_dispatch_count', 'dispatched_mtd_count',
+        'available_project_ids',
+        'pending_review_ids', 'ceo_pending_ids', 'active_cs_ids',
+        'ready_dispatch_ids', 'recent_dispatched_ids', 'critical_demand_ids',
+        'recent_po_ids', 'activity_message_ids',
+    ]
+
     @api.onchange(
         'filter_project_id', 'filter_contact_id', 'filter_category_id',
         'filter_pr_state', 'filter_period_days', 'filter_section',
     )
     def _onchange_filters(self):
-        if self.id:
-            self._refresh_dashboard_data(self)
+        """Live filter: refresh KPI data and push updated values back to the form."""
+        if not self.id:
+            return
+        self._refresh_dashboard_data(self)
+        # Re-read updated KPI values and set them on self so Odoo's onchange
+        # framework returns them to the frontend without a full page reload.
+        fresh = self.sudo().read(self._KPI_FIELDS)[0]
+        for fname, val in fresh.items():
+            if fname != 'id':
+                setattr(self, fname, val)
+
+    def action_clear_filters(self):
+        """Reset all filters to defaults and reload the dashboard."""
+        self.ensure_one()
+        self.write({
+            'filter_project_id': False,
+            'filter_contact_id': False,
+            'filter_category_id': False,
+            'filter_pr_state': '',
+            'filter_period_days': '30',
+            'filter_section': 'all',
+        })
+        self._refresh_dashboard_data(self)
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': self._name,
+            'res_id': self.id,
+            'view_mode': 'form',
+            'target': 'current',
+        }
 
     @api.model
     def action_open_dashboard(self):

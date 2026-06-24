@@ -110,13 +110,38 @@ class SiteStoreDashboard(models.TransientModel):
             domain.append(('date_order', '>=', cutoff))
         return domain
 
+    # ── KPI field names refreshed on live filter change ──────────────────────
+    _KPI_FIELDS = [
+        'name', 'project_name', 'user_name',
+        'has_stock_alert', 'alert_product_id', 'alert_qty_on_hand',
+        'alert_min_qty', 'alert_message',
+        'open_pr_count', 'pending_signature_count', 'arrivals_today_count',
+        'partial_receipts_count', 'issuance_mtd_count', 'pending_returns_count',
+        'pending_transfer_count', 'dest_receipt_count',
+        'normal_issuance_pct', 'subcontractor_issuance_pct',
+        'pr_ids', 'pending_receipt_ids', 'recent_grn_ids', 'on_order_po_ids',
+        'transfer_ids', 'recent_issuance_ids', 'pending_return_ids',
+    ]
+
     @api.onchange('filter_pr_state', 'filter_period_days', 'filter_section')
     def _onchange_filters(self):
-        if self.id:
-            self._refresh_dashboard_data(self)
+        """Live filter: refresh KPI data and push updated values back to the form."""
+        if not self.id:
+            return
+        self._refresh_dashboard_data(self)
+        fresh = self.sudo().read(self._KPI_FIELDS)[0]
+        for fname, val in fresh.items():
+            if fname != 'id':
+                setattr(self, fname, val)
 
-    def action_apply_filters(self):
+    def action_clear_filters(self):
+        """Reset all filters to defaults and reload the dashboard."""
         self.ensure_one()
+        self.write({
+            'filter_pr_state': '',
+            'filter_period_days': '30',
+            'filter_section': 'all',
+        })
         self._refresh_dashboard_data(self)
         return {
             'type': 'ir.actions.act_window',
