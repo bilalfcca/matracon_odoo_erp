@@ -168,7 +168,7 @@ class SiteStoreDashboard(models.TransientModel):
         ])
         partial_receipts = pending_receipts.filtered(
             lambda p: any(
-                m.product_uom_qty > m.quantity for m in p.move_ids if not m.display_type
+                m.product_uom_qty > m.quantity for m in p.move_ids if m.product_id
             )
         )
 

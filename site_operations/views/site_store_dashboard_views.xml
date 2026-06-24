@@ -15,169 +15,149 @@
                             string="Material Issuance" class="btn-secondary"/>
                     <button name="action_open_transfers" type="object"
                             string="Site Transfer" class="btn-secondary"/>
+                    <!-- Inline filters in the header bar -->
+                    <field name="filter_pr_state" nolabel="1"
+                           class="o_field_widget ms-3" style="min-width:120px;"/>
+                    <field name="filter_period_days" nolabel="1"
+                           class="o_field_widget ms-2" style="min-width:110px;"/>
+                    <field name="filter_section" nolabel="1"
+                           class="o_field_widget ms-2" style="min-width:110px;"/>
+                    <button name="action_apply_filters" type="object"
+                            string="Apply" class="btn-primary ms-2" icon="fa-check"/>
                 </header>
                 <sheet>
 
-                    <!-- ── Dashboard Title ──────────────────────────────────── -->
-                    <div class="oe_title">
-                        <h1><field name="project_name" readonly="1" class="oe_inline"/></h1>
-                        <p class="text-muted">
-                            <field name="user_name" readonly="1" class="oe_inline"/>
-                            — Site Store Manager
-                        </p>
-                    </div>
-
-                    <!-- ── Filters ───────────────────────────────────────────── -->
-                    <div class="o_hr_tags mb-4" style="background:#f9f9f9; border:1px solid #e5e5e5; border-radius:6px; padding:16px 20px;">
-                        <div class="row g-3 align-items-end">
-                            <div class="col-auto">
-                                <small class="text-muted fw-bold text-uppercase"
-                                       style="font-size:0.7rem; letter-spacing:0.08em;">
-                                    <i class="fa fa-sliders me-1" title="Filters"/> Filters
-                                </small>
-                            </div>
-                            <div class="col-12 col-md-3">
-                                <field name="filter_pr_state" placeholder="PR Status" nolabel="1"/>
-                            </div>
-                            <div class="col-12 col-md-3">
-                                <field name="filter_period_days" placeholder="Date Range" nolabel="1"/>
-                            </div>
-                            <div class="col-12 col-md-3">
-                                <field name="filter_section" placeholder="Section" nolabel="1"/>
-                            </div>
-                            <div class="col-auto">
-                                <button name="action_apply_filters" type="object"
-                                        string="Apply" class="btn btn-primary btn-sm"
-                                        icon="fa-check"/>
+                    <!-- ── Title ────────────────────────────────────────────── -->
+                    <div class="row mb-3">
+                        <div class="col">
+                            <div class="oe_title">
+                                <h1><field name="project_name" readonly="1" class="oe_inline"/></h1>
+                                <p class="text-muted mb-0">
+                                    <field name="user_name" readonly="1" class="oe_inline"/>
+                                    — Site Store Manager
+                                </p>
                             </div>
                         </div>
                     </div>
 
-                    <!-- ── Stock Alert Banner ────────────────────────────────── -->
-                    <div class="alert alert-warning mb-4" role="alert"
-                         invisible="not has_stock_alert">
-                        <i class="fa fa-exclamation-triangle me-2" title="Alert"/>
-                        <strong>Replenishment Alert — Critical Stock:</strong>
-                        <field name="alert_message" readonly="1" nolabel="1" class="oe_inline ms-1"/>
+                    <!-- ── Stock Alert ──────────────────────────────────────── -->
+                    <div class="alert alert-warning d-flex align-items-start gap-3 mb-4"
+                         role="alert" invisible="not has_stock_alert">
+                        <i class="fa fa-exclamation-triangle fa-lg mt-1" title="Alert"/>
+                        <div class="flex-grow-1">
+                            <strong>Replenishment Alert: Critical Stock Level</strong>
+                            <div class="mt-1">
+                                <field name="alert_message" readonly="1" nolabel="1" class="oe_inline"/>
+                            </div>
+                        </div>
                         <button name="action_raise_pr" type="object"
-                                string="Raise PR Now" class="btn btn-warning btn-sm ms-3"/>
+                                string="Raise PR" class="btn btn-warning btn-sm flex-shrink-0"/>
                     </div>
 
                     <!-- ══════════════════════════════════════════════════════
-                         KPI CARDS — ROW 1
-                    ══════════════════════════════════════════════════════ -->
-                    <div class="row g-3 mb-3">
-
-                        <div class="col-12 col-sm-6 col-xl-3">
-                            <div class="o_stat_button btn btn-light w-100 h-100 d-flex flex-column align-items-center justify-content-center py-4"
-                                 style="border:1px solid #e5e5e5; border-radius:8px; cursor:default; min-height:120px;">
-                                <span class="o_stat_value text-primary fw-bold"
-                                      style="font-size:2.4rem; line-height:1.1;">
-                                    <field name="open_pr_count" nolabel="1" readonly="1" class="oe_inline"/>
-                                </span>
-                                <span class="o_stat_text text-muted mt-1" style="font-size:0.82rem;">Open PRs</span>
-                                <button name="action_open_prs" type="object" string="View All"
-                                        class="btn btn-sm btn-outline-primary mt-2" style="font-size:0.75rem;"/>
-                            </div>
-                        </div>
-
-                        <div class="col-12 col-sm-6 col-xl-3">
-                            <div class="o_stat_button btn btn-light w-100 h-100 d-flex flex-column align-items-center justify-content-center py-4"
-                                 style="border:1px solid #e5e5e5; border-radius:8px; cursor:default; min-height:120px;">
-                                <span class="o_stat_value text-success fw-bold"
-                                      style="font-size:2.4rem; line-height:1.1;">
-                                    <field name="arrivals_today_count" nolabel="1" readonly="1" class="oe_inline"/>
-                                </span>
-                                <span class="o_stat_text text-muted mt-1" style="font-size:0.82rem;">Arrivals Today</span>
-                                <button name="action_open_receipts" type="object" string="View All"
-                                        class="btn btn-sm btn-outline-success mt-2" style="font-size:0.75rem;"/>
-                            </div>
-                        </div>
-
-                        <div class="col-12 col-sm-6 col-xl-3">
-                            <div class="o_stat_button btn btn-light w-100 h-100 d-flex flex-column align-items-center justify-content-center py-4"
-                                 style="border:1px solid #e5e5e5; border-radius:8px; cursor:default; min-height:120px;">
-                                <span class="o_stat_value fw-bold"
-                                      style="font-size:2.4rem; line-height:1.1; color:#6f42c1;">
-                                    <field name="issuance_mtd_count" nolabel="1" readonly="1" class="oe_inline"/>
-                                </span>
-                                <span class="o_stat_text text-muted mt-1" style="font-size:0.82rem;">Issuances MTD</span>
-                                <button name="action_open_issuance" type="object" string="View All"
-                                        class="btn btn-sm btn-outline-secondary mt-2" style="font-size:0.75rem;"/>
-                            </div>
-                        </div>
-
-                        <div class="col-12 col-sm-6 col-xl-3">
-                            <div class="o_stat_button btn btn-light w-100 h-100 d-flex flex-column align-items-center justify-content-center py-4"
-                                 style="border:1px solid #e5e5e5; border-radius:8px; cursor:default; min-height:120px;">
-                                <span class="o_stat_value text-danger fw-bold"
-                                      style="font-size:2.4rem; line-height:1.1;">
-                                    <field name="pending_returns_count" nolabel="1" readonly="1" class="oe_inline"/>
-                                </span>
-                                <span class="o_stat_text text-muted mt-1" style="font-size:0.82rem;">Pending Returns</span>
-                                <button name="action_open_returns" type="object" string="View All"
-                                        class="btn btn-sm btn-outline-danger mt-2" style="font-size:0.75rem;"/>
-                            </div>
-                        </div>
-
-                    </div>
-
-                    <!-- ══════════════════════════════════════════════════════
-                         KPI CARDS — ROW 2
+                         KPI CARDS — 4 in a row (Image 14 style)
                     ══════════════════════════════════════════════════════ -->
                     <div class="row g-3 mb-4">
 
+                        <!-- Open Requisitions -->
                         <div class="col-12 col-sm-6 col-xl-3">
-                            <div class="o_stat_button btn btn-light w-100 h-100 d-flex flex-column align-items-center justify-content-center py-4"
-                                 style="border:1px solid #e5e5e5; border-radius:8px; cursor:default; min-height:110px;">
-                                <span class="o_stat_value text-warning fw-bold"
-                                      style="font-size:2rem; line-height:1.1;">
-                                    <field name="pending_signature_count" nolabel="1" readonly="1" class="oe_inline"/>
-                                </span>
-                                <span class="o_stat_text text-muted mt-1" style="font-size:0.82rem;">Pending PM Signature</span>
-                            </div>
-                        </div>
-
-                        <div class="col-12 col-sm-6 col-xl-3">
-                            <div class="o_stat_button btn btn-light w-100 h-100 d-flex flex-column align-items-center justify-content-center py-4"
-                                 style="border:1px solid #e5e5e5; border-radius:8px; cursor:default; min-height:110px;">
-                                <span class="o_stat_value fw-bold"
-                                      style="font-size:2rem; line-height:1.1; color:#fd7e14;">
-                                    <field name="partial_receipts_count" nolabel="1" readonly="1" class="oe_inline"/>
-                                </span>
-                                <span class="o_stat_text text-muted mt-1" style="font-size:0.82rem;">Partial Receipts</span>
-                            </div>
-                        </div>
-
-                        <div class="col-12 col-sm-6 col-xl-3">
-                            <div class="o_stat_button btn btn-light w-100 h-100 d-flex flex-column align-items-center justify-content-center py-4"
-                                 style="border:1px solid #e5e5e5; border-radius:8px; cursor:default; min-height:110px;">
-                                <span class="o_stat_value text-info fw-bold"
-                                      style="font-size:2rem; line-height:1.1;">
-                                    <field name="pending_transfer_count" nolabel="1" readonly="1" class="oe_inline"/>
-                                </span>
-                                <span class="o_stat_text text-muted mt-1" style="font-size:0.82rem;">Transfers Active</span>
-                                <button name="action_open_transfers" type="object" string="View All"
-                                        class="btn btn-sm btn-outline-info mt-2" style="font-size:0.75rem;"/>
-                            </div>
-                        </div>
-
-                        <div class="col-12 col-sm-6 col-xl-3">
-                            <div class="btn btn-light w-100 h-100 py-3 px-4"
-                                 style="border:1px solid #e5e5e5; border-radius:8px; cursor:default; min-height:110px;">
-                                <small class="text-muted text-uppercase fw-bold d-block mb-2"
-                                       style="font-size:0.7rem; letter-spacing:0.06em;">Issuance Split MTD</small>
-                                <div class="d-flex justify-content-between">
-                                    <span class="text-muted" style="font-size:0.82rem;">Normal</span>
-                                    <span class="fw-bold text-primary">
-                                        <field name="normal_issuance_pct" nolabel="1" readonly="1" class="oe_inline"/>%
-                                    </span>
+                            <div class="card border-0 h-100" style="box-shadow:0 1px 6px rgba(0,0,0,.12); border-radius:8px;">
+                                <div class="card-body py-3 px-4">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <small class="text-muted text-uppercase fw-bold"
+                                               style="font-size:0.7rem; letter-spacing:0.06em;">Open Requisitions</small>
+                                        <i class="fa fa-file-text-o text-muted" title="PRs"/>
+                                    </div>
+                                    <div class="fw-bold text-primary mt-2 mb-1"
+                                         style="font-size:2.4rem; line-height:1.1;">
+                                        <field name="open_pr_count" nolabel="1" readonly="1" class="oe_inline"/>
+                                    </div>
+                                    <div class="d-flex align-items-center justify-content-between">
+                                        <small class="text-warning fw-bold">
+                                            <i class="fa fa-pencil me-1" title="Signature"/>
+                                            <field name="pending_signature_count" nolabel="1" readonly="1" class="oe_inline"/>
+                                            Pending Signature
+                                        </small>
+                                        <button name="action_open_prs" type="object"
+                                                string="View" class="btn btn-sm btn-outline-primary"
+                                                style="font-size:0.72rem; padding:2px 8px;"/>
+                                    </div>
                                 </div>
-                                <div class="d-flex justify-content-between mt-1">
-                                    <span class="text-muted" style="font-size:0.82rem;">Subcontractor</span>
-                                    <span class="fw-bold text-danger">
-                                        <field name="subcontractor_issuance_pct" nolabel="1" readonly="1" class="oe_inline"/>%
-                                    </span>
+                            </div>
+                        </div>
+
+                        <!-- Material Arrivals Today -->
+                        <div class="col-12 col-sm-6 col-xl-3">
+                            <div class="card border-0 h-100" style="box-shadow:0 1px 6px rgba(0,0,0,.12); border-radius:8px;">
+                                <div class="card-body py-3 px-4">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <small class="text-muted text-uppercase fw-bold"
+                                               style="font-size:0.7rem; letter-spacing:0.06em;">Material Arrivals (Today)</small>
+                                        <i class="fa fa-truck text-muted" title="Arrivals"/>
+                                    </div>
+                                    <div class="fw-bold text-success mt-2 mb-1"
+                                         style="font-size:2.4rem; line-height:1.1;">
+                                        <field name="arrivals_today_count" nolabel="1" readonly="1" class="oe_inline"/>
+                                    </div>
+                                    <div class="d-flex align-items-center justify-content-between">
+                                        <small class="text-info fw-bold">
+                                            <i class="fa fa-exclamation-circle me-1" title="Partial"/>
+                                            <field name="partial_receipts_count" nolabel="1" readonly="1" class="oe_inline"/>
+                                            Partial Receipts
+                                        </small>
+                                        <button name="action_open_receipts" type="object"
+                                                string="View" class="btn btn-sm btn-outline-success"
+                                                style="font-size:0.72rem; padding:2px 8px;"/>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Total Issuance MTD -->
+                        <div class="col-12 col-sm-6 col-xl-3">
+                            <div class="card border-0 h-100" style="box-shadow:0 1px 6px rgba(0,0,0,.12); border-radius:8px;">
+                                <div class="card-body py-3 px-4">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <small class="text-muted text-uppercase fw-bold"
+                                               style="font-size:0.7rem; letter-spacing:0.06em;">Total Issuance (MTD)</small>
+                                        <i class="fa fa-sign-out text-muted" title="Issuances"/>
+                                    </div>
+                                    <div class="fw-bold mt-2 mb-1"
+                                         style="font-size:2.4rem; line-height:1.1; color:#6f42c1;">
+                                        <field name="issuance_mtd_count" nolabel="1" readonly="1" class="oe_inline"/>
+                                    </div>
+                                    <div class="d-flex align-items-center justify-content-between">
+                                        <small class="text-muted">
+                                            <field name="normal_issuance_pct" nolabel="1" readonly="1" class="oe_inline"/>% Normal /
+                                            <field name="subcontractor_issuance_pct" nolabel="1" readonly="1" class="oe_inline"/>% Sub
+                                        </small>
+                                        <button name="action_open_issuance" type="object"
+                                                string="View" class="btn btn-sm btn-outline-secondary"
+                                                style="font-size:0.72rem; padding:2px 8px;"/>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Pending Returns -->
+                        <div class="col-12 col-sm-6 col-xl-3">
+                            <div class="card border-0 h-100" style="box-shadow:0 1px 6px rgba(0,0,0,.12); border-radius:8px;">
+                                <div class="card-body py-3 px-4">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <small class="text-muted text-uppercase fw-bold"
+                                               style="font-size:0.7rem; letter-spacing:0.06em;">Pending Returns</small>
+                                        <i class="fa fa-undo text-muted" title="Returns"/>
+                                    </div>
+                                    <div class="fw-bold text-danger mt-2 mb-1"
+                                         style="font-size:2.4rem; line-height:1.1;">
+                                        <field name="pending_returns_count" nolabel="1" readonly="1" class="oe_inline"/>
+                                    </div>
+                                    <div class="d-flex align-items-center justify-content-between">
+                                        <small class="text-muted">Awaiting Validation</small>
+                                        <button name="action_open_returns" type="object"
+                                                string="View" class="btn btn-sm btn-outline-danger"
+                                                style="font-size:0.72rem; padding:2px 8px;"/>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -185,98 +165,194 @@
                     </div>
 
                     <!-- ══════════════════════════════════════════════════════
-                         DETAIL TABLES
+                         ROW 2: Active Requisitions (left) + Material Receipt (right)
                     ══════════════════════════════════════════════════════ -->
+                    <div class="row g-3 mb-3" invisible="filter_section not in ('all', 'prs', 'receipts')">
 
-                    <group string="Active Requisitions"
-                           invisible="filter_section not in ('all', 'prs')">
-                        <field name="pr_ids" nolabel="1" readonly="1">
-                            <list create="false" delete="false" edit="false"
-                                  decoration-warning="x_pr_state == 'draft'"
-                                  decoration-success="x_pr_state in ('submitted', 'po_locked', 'dispatched')">
-                                <field name="name" string="Reference"/>
-                                <field name="x_project_analytic_account_id" string="Project"/>
-                                <field name="date_order" string="Date"/>
-                                <field name="x_initiator_id" string="Requester"/>
-                                <field name="x_pr_state" string="Status" widget="badge"/>
-                            </list>
-                        </field>
-                    </group>
+                        <!-- Active Requisitions (Demand Raise) -->
+                        <div class="col-12 col-xl-7" invisible="filter_section not in ('all', 'prs')">
+                            <div class="card border-0 h-100" style="box-shadow:0 1px 6px rgba(0,0,0,.12); border-radius:8px;">
+                                <div class="card-header d-flex justify-content-between align-items-center py-2 px-4"
+                                     style="background:transparent; border-bottom:1px solid rgba(0,0,0,.07);">
+                                    <strong style="font-size:0.9rem;">Active Requisitions (Demand Raise)</strong>
+                                    <button name="action_open_prs" type="object"
+                                            string="View All PRs" class="btn btn-sm btn-outline-primary"
+                                            style="font-size:0.72rem;"/>
+                                </div>
+                                <div class="card-body p-0">
+                                    <field name="pr_ids" nolabel="1" readonly="1">
+                                        <list create="false" delete="false" edit="false"
+                                              decoration-warning="x_pr_state == 'draft'"
+                                              decoration-success="x_pr_state in ('submitted', 'po_locked', 'dispatched')">
+                                            <field name="name" string="Reference"/>
+                                            <field name="x_project_analytic_account_id" string="Project" optional="show"/>
+                                            <field name="date_order" string="Date"/>
+                                            <field name="x_initiator_id" string="Requester"/>
+                                            <field name="x_pr_state" string="Status" widget="badge"/>
+                                        </list>
+                                    </field>
+                                </div>
+                            </div>
+                        </div>
 
-                    <group string="Material Receipts"
-                           invisible="filter_section not in ('all', 'receipts')">
-                        <label for="pending_receipt_ids" string="Receipts To Validate"/>
-                        <field name="pending_receipt_ids" nolabel="1" readonly="1">
-                            <list create="false" delete="false" edit="false">
-                                <field name="name"/>
-                                <field name="partner_id" string="Vendor"/>
-                                <field name="origin" string="PO"/>
-                                <field name="scheduled_date"/>
-                                <field name="state" widget="badge"/>
-                            </list>
-                        </field>
-                        <label for="on_order_po_ids" string="On Order (Dispatched POs)"/>
-                        <field name="on_order_po_ids" nolabel="1" readonly="1">
-                            <list create="false" delete="false" edit="false">
-                                <field name="name"/>
-                                <field name="partner_id" string="Vendor"/>
-                                <field name="date_order" string="Expected"/>
-                                <field name="x_pr_state" string="PR Status" widget="badge"/>
-                            </list>
-                        </field>
-                        <label for="recent_grn_ids" string="Recent GRNs (Validated)"/>
-                        <field name="recent_grn_ids" nolabel="1" readonly="1">
-                            <list create="false" delete="false" edit="false">
-                                <field name="name"/>
-                                <field name="partner_id" string="Vendor"/>
-                                <field name="date_done" string="Received On"/>
-                                <field name="state" widget="badge"/>
-                            </list>
-                        </field>
-                    </group>
+                        <!-- Material Receipt Status -->
+                        <div class="col-12 col-xl-5" invisible="filter_section not in ('all', 'receipts')">
+                            <div class="card border-0 h-100" style="box-shadow:0 1px 6px rgba(0,0,0,.12); border-radius:8px;">
+                                <div class="card-header d-flex justify-content-between align-items-center py-2 px-4"
+                                     style="background:transparent; border-bottom:1px solid rgba(0,0,0,.07);">
+                                    <strong style="font-size:0.9rem;">Material Receipt Status</strong>
+                                </div>
+                                <div class="card-body p-0">
+                                    <div class="px-3 pt-2">
+                                        <small class="text-muted text-uppercase fw-bold"
+                                               style="font-size:0.68rem; letter-spacing:0.06em;">
+                                            On Order (Dispatched POs)
+                                        </small>
+                                    </div>
+                                    <field name="on_order_po_ids" nolabel="1" readonly="1">
+                                        <list create="false" delete="false" edit="false">
+                                            <field name="name"/>
+                                            <field name="partner_id" string="Vendor"/>
+                                            <field name="date_order" string="Expected"/>
+                                            <field name="x_pr_state" string="Status" widget="badge"/>
+                                        </list>
+                                    </field>
+                                    <div class="px-3 pt-2">
+                                        <small class="text-muted text-uppercase fw-bold"
+                                               style="font-size:0.68rem; letter-spacing:0.06em;">
+                                            Recent GRNs
+                                        </small>
+                                    </div>
+                                    <field name="recent_grn_ids" nolabel="1" readonly="1">
+                                        <list create="false" delete="false" edit="false">
+                                            <field name="name"/>
+                                            <field name="partner_id" string="Vendor"/>
+                                            <field name="date_done" string="Received On"/>
+                                            <field name="state" widget="badge"/>
+                                        </list>
+                                    </field>
+                                </div>
+                            </div>
+                        </div>
 
-                    <group string="Recent Issuances"
-                           invisible="filter_section not in ('all', 'issuances')">
-                        <field name="recent_issuance_ids" nolabel="1" readonly="1">
-                            <list create="false" delete="false" edit="false">
-                                <field name="name"/>
-                                <field name="x_contact_id" string="Contact"/>
-                                <field name="x_issue_type"/>
-                                <field name="x_backcharge_applicable" string="Backcharge"/>
-                                <field name="x_gate_pass_outward_no" string="Gate Pass"/>
-                                <field name="state" widget="badge"/>
-                            </list>
-                        </field>
-                    </group>
+                    </div>
 
-                    <group string="Site Transfers"
-                           invisible="filter_section not in ('all', 'transfers')">
-                        <field name="transfer_ids" nolabel="1" readonly="1">
-                            <list create="false" delete="false" edit="false">
-                                <field name="name"/>
-                                <field name="x_issuance_project_id" string="From Project"/>
-                                <field name="x_dest_project_id" string="To Project"/>
-                                <field name="x_site_transfer_state" string="Status" widget="badge"/>
-                                <field name="x_is_dest_receipt" string="Dest. Receipt"/>
-                                <field name="state" widget="badge"/>
-                            </list>
-                        </field>
-                    </group>
+                    <!-- ══════════════════════════════════════════════════════
+                         ROW 3: Transfers (left) + Issuance Overview (right)
+                    ══════════════════════════════════════════════════════ -->
+                    <div class="row g-3 mb-3" invisible="filter_section not in ('all', 'transfers', 'issuances')">
 
-                    <group string="Pending Returns"
-                           invisible="filter_section not in ('all', 'returns')">
-                        <field name="pending_return_ids" nolabel="1" readonly="1">
-                            <list create="false" delete="false" edit="false">
-                                <field name="name"/>
-                                <field name="x_original_issuance_id" string="Original"/>
-                                <field name="x_contact_id" string="Contact"/>
-                                <field name="x_return_type"/>
-                                <field name="state" widget="badge"/>
-                            </list>
-                        </field>
-                    </group>
+                        <!-- Inter-Site Transfers -->
+                        <div class="col-12 col-xl-6" invisible="filter_section not in ('all', 'transfers')">
+                            <div class="card border-0 h-100" style="box-shadow:0 1px 6px rgba(0,0,0,.12); border-radius:8px;">
+                                <div class="card-header d-flex justify-content-between align-items-center py-2 px-4"
+                                     style="background:transparent; border-bottom:1px solid rgba(0,0,0,.07);">
+                                    <strong style="font-size:0.9rem;">
+                                        <i class="fa fa-exchange me-2 text-info" title="Transfers"/>
+                                        Inter-Site Transfers (MTN)
+                                    </strong>
+                                    <button name="action_open_transfers" type="object"
+                                            string="View All" class="btn btn-sm btn-outline-info"
+                                            style="font-size:0.72rem;"/>
+                                </div>
+                                <div class="card-body p-0">
+                                    <field name="transfer_ids" nolabel="1" readonly="1">
+                                        <list create="false" delete="false" edit="false">
+                                            <field name="name"/>
+                                            <field name="x_issuance_project_id" string="From"/>
+                                            <field name="x_dest_project_id" string="To"/>
+                                            <field name="x_site_transfer_state" string="Status" widget="badge"/>
+                                            <field name="state" widget="badge"/>
+                                        </list>
+                                    </field>
+                                </div>
+                            </div>
+                        </div>
 
-                    <!-- Hidden fields needed for invisible conditions -->
+                        <!-- Issuance Overview -->
+                        <div class="col-12 col-xl-6" invisible="filter_section not in ('all', 'issuances')">
+                            <div class="card border-0 h-100" style="box-shadow:0 1px 6px rgba(0,0,0,.12); border-radius:8px;">
+                                <div class="card-header d-flex justify-content-between align-items-center py-2 px-4"
+                                     style="background:transparent; border-bottom:1px solid rgba(0,0,0,.07);">
+                                    <strong style="font-size:0.9rem;">Issuance Overview</strong>
+                                </div>
+                                <div class="card-body px-4 py-3">
+                                    <!-- Split bar -->
+                                    <div class="d-flex rounded overflow-hidden mb-3" style="height:28px;">
+                                        <div class="d-flex align-items-center justify-content-center text-white fw-bold"
+                                             style="font-size:0.78rem; background:#4e73df; flex:0 0 60%;">
+                                            Normal Site (<field name="normal_issuance_pct" nolabel="1" readonly="1" class="oe_inline"/>%)
+                                        </div>
+                                        <div class="d-flex align-items-center justify-content-center text-white fw-bold"
+                                             style="font-size:0.78rem; background:#e74a3b; flex:0 0 40%;">
+                                            3rd Party (<field name="subcontractor_issuance_pct" nolabel="1" readonly="1" class="oe_inline"/>%)
+                                        </div>
+                                    </div>
+                                    <!-- Recent Issuances -->
+                                    <field name="recent_issuance_ids" nolabel="1" readonly="1">
+                                        <list create="false" delete="false" edit="false">
+                                            <field name="name"/>
+                                            <field name="x_contact_id" string="Contact"/>
+                                            <field name="x_issue_type" string="Type" widget="badge"/>
+                                            <field name="x_backcharge_applicable" string="Backcharge"
+                                                   widget="boolean_toggle"/>
+                                            <field name="state" widget="badge"/>
+                                        </list>
+                                    </field>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- ══════════════════════════════════════════════════════
+                         ROW 4: Pending Returns + Receipts To Validate
+                    ══════════════════════════════════════════════════════ -->
+                    <div class="row g-3 mb-3" invisible="filter_section not in ('all', 'returns', 'receipts')">
+
+                        <div class="col-12 col-xl-6" invisible="filter_section not in ('all', 'returns')">
+                            <div class="card border-0" style="box-shadow:0 1px 6px rgba(0,0,0,.12); border-radius:8px;">
+                                <div class="card-header py-2 px-4"
+                                     style="background:transparent; border-bottom:1px solid rgba(0,0,0,.07);">
+                                    <strong style="font-size:0.9rem;">Pending Returns</strong>
+                                </div>
+                                <div class="card-body p-0">
+                                    <field name="pending_return_ids" nolabel="1" readonly="1">
+                                        <list create="false" delete="false" edit="false">
+                                            <field name="name"/>
+                                            <field name="x_original_issuance_id" string="Original"/>
+                                            <field name="x_contact_id" string="Contact"/>
+                                            <field name="x_return_type"/>
+                                            <field name="state" widget="badge"/>
+                                        </list>
+                                    </field>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-xl-6" invisible="filter_section not in ('all', 'receipts')">
+                            <div class="card border-0" style="box-shadow:0 1px 6px rgba(0,0,0,.12); border-radius:8px;">
+                                <div class="card-header py-2 px-4"
+                                     style="background:transparent; border-bottom:1px solid rgba(0,0,0,.07);">
+                                    <strong style="font-size:0.9rem;">Receipts To Validate</strong>
+                                </div>
+                                <div class="card-body p-0">
+                                    <field name="pending_receipt_ids" nolabel="1" readonly="1">
+                                        <list create="false" delete="false" edit="false">
+                                            <field name="name"/>
+                                            <field name="partner_id" string="Vendor"/>
+                                            <field name="origin" string="PO"/>
+                                            <field name="scheduled_date"/>
+                                            <field name="state" widget="badge"/>
+                                        </list>
+                                    </field>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- Hidden fields for invisible conditions -->
                     <field name="name" invisible="1"/>
                     <field name="project_analytic_account_id" invisible="1"/>
                     <field name="has_stock_alert" invisible="1"/>

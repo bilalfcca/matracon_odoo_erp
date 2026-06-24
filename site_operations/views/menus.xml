@@ -10,7 +10,7 @@
               parent="purchase.menu_purchase_root"
               action="purchase_demand_raise.action_procurement_ho_dashboard"
               sequence="1"
-              groups="purchase_demand_raise.group_procurement_ho,site_operations.group_matracon_admin,base.group_system"/>
+              groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,site_operations.group_matracon_admin"/>
 
     <!-- Purchase → Configuration → Site Project Configurations (Matracon Admin) -->
     <menuitem id="menu_project_site_config_matracon_admin"
@@ -20,13 +20,13 @@
               sequence="49"
               groups="site_operations.group_matracon_admin"/>
 
-    <!-- Inventory → Site Store Dashboard -->
+    <!-- Inventory → Site Store Dashboard (site store users only) -->
     <menuitem id="menu_site_store_dashboard"
               name="Site Store Dashboard"
               parent="stock.menu_stock_root"
               action="site_operations.action_site_store_dashboard"
               sequence="1"
-              groups="purchase_demand_raise.group_site_store,site_operations.group_matracon_admin,base.group_system"/>
+              groups="purchase_demand_raise.group_site_store"/>
 
     <!-- Purchase → Site Store Dashboard (primary entry for store keepers) -->
     <menuitem id="menu_site_store_dashboard_purchase"
@@ -34,7 +34,7 @@
               parent="purchase.menu_purchase_root"
               action="site_operations.action_site_store_dashboard"
               sequence="1"
-              groups="purchase_demand_raise.group_site_store,site_operations.group_matracon_admin,base.group_system"/>
+              groups="purchase_demand_raise.group_site_store"/>
 
     <!-- Inventory → Operations → Transfers -->
     <menuitem id="menu_material_issuance"
