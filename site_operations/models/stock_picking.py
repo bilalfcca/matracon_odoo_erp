@@ -591,12 +591,22 @@ class StockPickingSiteOps(models.Model):
                 })
 
     def _apply_return_line_destinations(self):
-        """Route scrap-condition lines to the company scrap location."""
+        """Route scrap-condition lines to the company scrap location.
+
+        Note: In Odoo 19 the `scrap_location` Boolean field was removed from
+        stock.location. We look up the standard scrap location via XML ref first,
+        then fall back to a name-based search.
+        """
         self.ensure_one()
-        scrap_loc = self.env['stock.location'].search([
-            ('scrap_location', '=', True),
-            ('company_id', '=', self.company_id.id),
-        ], limit=1)
+        # Primary: use the standard scrap location (works in Odoo 17+)
+        scrap_loc = self.env.ref('stock.stock_location_scrapped', raise_if_not_found=False)
+        if not scrap_loc:
+            # Fallback: find a location whose name/path contains 'scrap'
+            scrap_loc = self.env['stock.location'].search([
+                ('complete_name', 'ilike', 'scrap'),
+                ('usage', '=', 'internal'),
+                ('company_id', 'in', [False, self.company_id.id]),
+            ], limit=1)
         if not scrap_loc:
             return
         for move in self.move_ids.filtered(

@@ -14,164 +14,143 @@
 
                     <!-- ── Dashboard Title ──────────────────────────────────── -->
                     <div class="oe_title">
-                        <h1>
-                            <field name="name" readonly="1" class="oe_inline"/>
-                        </h1>
-                        <h3 class="text-muted">
+                        <h1><field name="name" readonly="1" class="oe_inline"/></h1>
+                        <p class="text-muted">
                             <field name="user_name" readonly="1" class="oe_inline"/>
                             — Procurement Officer
-                        </h3>
+                        </p>
                     </div>
 
-                    <!-- ── Filters Card ──────────────────────────────────────── -->
-                    <div class="card mb-4">
-                        <div class="card-body">
-                            <h6 class="card-title text-muted text-uppercase mb-3"
-                                style="font-size: 0.75rem; letter-spacing: 0.08em;">
-                                <i class="fa fa-filter me-1" title="Filters"/> Dashboard Filters
-                            </h6>
-                            <div class="row g-3">
-                                <div class="col-12 col-md-4">
-                                    <label class="col-form-label col-form-label-sm fw-bold">Project</label>
-                                    <field name="filter_project_id" nolabel="1"/>
-                                </div>
-                                <div class="col-12 col-md-4">
-                                    <label class="col-form-label col-form-label-sm fw-bold">Category</label>
-                                    <field name="filter_category_id" nolabel="1"/>
-                                </div>
-                                <div class="col-12 col-md-4">
-                                    <label class="col-form-label col-form-label-sm fw-bold">PR Status</label>
-                                    <field name="filter_pr_state" nolabel="1"/>
-                                </div>
-                                <div class="col-12 col-md-4">
-                                    <label class="col-form-label col-form-label-sm fw-bold">Date Range</label>
-                                    <field name="filter_period_days" nolabel="1"/>
-                                </div>
-                                <div class="col-12 col-md-4">
-                                    <label class="col-form-label col-form-label-sm fw-bold">Focus</label>
-                                    <field name="filter_section" nolabel="1"/>
-                                </div>
+                    <!-- ── Filters ───────────────────────────────────────────── -->
+                    <div class="mb-4" style="background:#f9f9f9; border:1px solid #e5e5e5; border-radius:6px; padding:16px 20px;">
+                        <div class="row g-3 align-items-end">
+                            <div class="col-auto">
+                                <small class="text-muted fw-bold text-uppercase"
+                                       style="font-size:0.7rem; letter-spacing:0.08em;">
+                                    <i class="fa fa-sliders me-1" title="Filters"/> Filters
+                                </small>
                             </div>
-                            <div class="mt-3">
+                            <div class="col-12 col-md-2">
+                                <field name="filter_project_id" placeholder="Project" nolabel="1"/>
+                            </div>
+                            <div class="col-12 col-md-2">
+                                <field name="filter_category_id" placeholder="Category" nolabel="1"/>
+                            </div>
+                            <div class="col-12 col-md-2">
+                                <field name="filter_pr_state" placeholder="PR Status" nolabel="1"/>
+                            </div>
+                            <div class="col-12 col-md-2">
+                                <field name="filter_period_days" placeholder="Date Range" nolabel="1"/>
+                            </div>
+                            <div class="col-12 col-md-2">
+                                <field name="filter_section" placeholder="Section" nolabel="1"/>
+                            </div>
+                            <div class="col-auto">
                                 <button name="action_apply_filters" type="object"
-                                        string="Apply Filters" class="btn btn-primary btn-sm"/>
+                                        string="Apply" class="btn btn-primary btn-sm"
+                                        icon="fa-check"/>
                             </div>
                         </div>
                     </div>
 
                     <!-- ══════════════════════════════════════════════════════
-                         KPI CARDS — ROW 1 (Demand Pipeline)
+                         SECTION HEADER: Demand Pipeline
                     ══════════════════════════════════════════════════════ -->
-                    <div class="mb-1">
-                        <p class="text-muted text-uppercase fw-bold mb-2"
-                           style="font-size: 0.75rem; letter-spacing: 0.08em;">
-                            Demand Pipeline
-                        </p>
-                    </div>
+                    <p class="text-muted fw-bold text-uppercase mb-2"
+                       style="font-size:0.72rem; letter-spacing:0.08em;">
+                        <i class="fa fa-inbox me-1" title="Demand"/> Demand Pipeline
+                    </p>
                     <div class="row g-3 mb-4">
 
-                        <!-- Pending Site Demands -->
                         <div class="col-12 col-sm-6 col-xl-4">
-                            <div class="card border-0 shadow-sm h-100 text-center">
-                                <div class="card-body py-4">
-                                    <div class="fw-bold text-danger mb-1" style="font-size: 2.5rem; line-height: 1.1;">
-                                        <field name="pending_review_count" nolabel="1" readonly="1" class="oe_inline"/>
-                                    </div>
-                                    <div class="text-muted" style="font-size: 0.85rem;">Pending Site Demands</div>
-                                    <div class="mt-2">
-                                        <button name="action_open_pending_review" type="object"
-                                                string="Review" class="btn btn-sm btn-outline-danger"/>
-                                    </div>
-                                </div>
+                            <div class="o_stat_button btn btn-light w-100 h-100 d-flex flex-column align-items-center justify-content-center py-4"
+                                 style="border:1px solid #e5e5e5; border-radius:8px; cursor:default; min-height:120px;">
+                                <span class="o_stat_value text-danger fw-bold"
+                                      style="font-size:2.4rem; line-height:1.1;">
+                                    <field name="pending_review_count" nolabel="1" readonly="1" class="oe_inline"/>
+                                </span>
+                                <span class="o_stat_text text-muted mt-1" style="font-size:0.82rem;">Pending Site Demands</span>
+                                <button name="action_open_pending_review" type="object"
+                                        string="Review Now" class="btn btn-sm btn-outline-danger mt-2"
+                                        style="font-size:0.75rem;"/>
                             </div>
                         </div>
 
-                        <!-- Pending CEO Approval -->
                         <div class="col-12 col-sm-6 col-xl-4">
-                            <div class="card border-0 shadow-sm h-100 text-center">
-                                <div class="card-body py-4">
-                                    <div class="fw-bold mb-1" style="font-size: 2.5rem; line-height: 1.1; color: #fd7e14;">
-                                        <field name="ceo_pending_count" nolabel="1" readonly="1" class="oe_inline"/>
-                                    </div>
-                                    <div class="text-muted" style="font-size: 0.85rem;">Pending CEO Approval</div>
-                                    <div class="mt-2">
-                                        <button name="action_open_ceo_pending" type="object"
-                                                string="View" class="btn btn-sm btn-outline-warning"/>
-                                    </div>
-                                </div>
+                            <div class="o_stat_button btn btn-light w-100 h-100 d-flex flex-column align-items-center justify-content-center py-4"
+                                 style="border:1px solid #e5e5e5; border-radius:8px; cursor:default; min-height:120px;">
+                                <span class="o_stat_value text-warning fw-bold"
+                                      style="font-size:2.4rem; line-height:1.1;">
+                                    <field name="ceo_pending_count" nolabel="1" readonly="1" class="oe_inline"/>
+                                </span>
+                                <span class="o_stat_text text-muted mt-1" style="font-size:0.82rem;">Pending CEO Approval</span>
+                                <button name="action_open_ceo_pending" type="object"
+                                        string="View Queue" class="btn btn-sm btn-outline-warning mt-2"
+                                        style="font-size:0.75rem;"/>
                             </div>
                         </div>
 
-                        <!-- Active CS / RFQ -->
                         <div class="col-12 col-sm-6 col-xl-4">
-                            <div class="card border-0 shadow-sm h-100 text-center">
-                                <div class="card-body py-4">
-                                    <div class="fw-bold text-warning mb-1" style="font-size: 2.5rem; line-height: 1.1;">
-                                        <field name="active_cs_count" nolabel="1" readonly="1" class="oe_inline"/>
-                                    </div>
-                                    <div class="text-muted" style="font-size: 0.85rem;">Active CS / RFQ</div>
-                                    <div class="mt-2">
-                                        <button name="action_open_active_cs" type="object"
-                                                string="View" class="btn btn-sm btn-outline-warning"/>
-                                    </div>
-                                </div>
+                            <div class="o_stat_button btn btn-light w-100 h-100 d-flex flex-column align-items-center justify-content-center py-4"
+                                 style="border:1px solid #e5e5e5; border-radius:8px; cursor:default; min-height:120px;">
+                                <span class="o_stat_value fw-bold"
+                                      style="font-size:2.4rem; line-height:1.1; color:#fd7e14;">
+                                    <field name="active_cs_count" nolabel="1" readonly="1" class="oe_inline"/>
+                                </span>
+                                <span class="o_stat_text text-muted mt-1" style="font-size:0.82rem;">Active CS / RFQ</span>
+                                <button name="action_open_active_cs" type="object"
+                                        string="View CS" class="btn btn-sm btn-outline-secondary mt-2"
+                                        style="font-size:0.75rem;"/>
                             </div>
                         </div>
 
                     </div>
 
                     <!-- ══════════════════════════════════════════════════════
-                         KPI CARDS — ROW 2 (Orders & Dispatch)
+                         SECTION HEADER: Orders & Dispatch
                     ══════════════════════════════════════════════════════ -->
-                    <div class="mb-1">
-                        <p class="text-muted text-uppercase fw-bold mb-2"
-                           style="font-size: 0.75rem; letter-spacing: 0.08em;">
-                            Orders &amp; Dispatch
-                        </p>
-                    </div>
+                    <p class="text-muted fw-bold text-uppercase mb-2"
+                       style="font-size:0.72rem; letter-spacing:0.08em;">
+                        <i class="fa fa-shopping-bag me-1" title="Orders"/> Orders &amp; Dispatch
+                    </p>
                     <div class="row g-3 mb-4">
 
-                        <!-- Ready to Dispatch -->
                         <div class="col-12 col-sm-6 col-xl-4">
-                            <div class="card border-0 shadow-sm h-100 text-center">
-                                <div class="card-body py-4">
-                                    <div class="fw-bold text-success mb-1" style="font-size: 2.5rem; line-height: 1.1;">
-                                        <field name="ready_dispatch_count" nolabel="1" readonly="1" class="oe_inline"/>
-                                    </div>
-                                    <div class="text-muted" style="font-size: 0.85rem;">Ready to Dispatch</div>
-                                    <div class="mt-2">
-                                        <button name="action_open_ready_dispatch" type="object"
-                                                string="Dispatch" class="btn btn-sm btn-outline-success"/>
-                                    </div>
-                                </div>
+                            <div class="o_stat_button btn btn-light w-100 h-100 d-flex flex-column align-items-center justify-content-center py-4"
+                                 style="border:1px solid #e5e5e5; border-radius:8px; cursor:default; min-height:120px;">
+                                <span class="o_stat_value text-success fw-bold"
+                                      style="font-size:2.4rem; line-height:1.1;">
+                                    <field name="ready_dispatch_count" nolabel="1" readonly="1" class="oe_inline"/>
+                                </span>
+                                <span class="o_stat_text text-muted mt-1" style="font-size:0.82rem;">Ready to Dispatch</span>
+                                <button name="action_open_ready_dispatch" type="object"
+                                        string="Dispatch Now" class="btn btn-sm btn-outline-success mt-2"
+                                        style="font-size:0.75rem;"/>
                             </div>
                         </div>
 
-                        <!-- Dispatched MTD -->
                         <div class="col-12 col-sm-6 col-xl-4">
-                            <div class="card border-0 shadow-sm h-100 text-center">
-                                <div class="card-body py-4">
-                                    <div class="fw-bold text-primary mb-1" style="font-size: 2.5rem; line-height: 1.1;">
-                                        <field name="dispatched_mtd_count" nolabel="1" readonly="1" class="oe_inline"/>
-                                    </div>
-                                    <div class="text-muted" style="font-size: 0.85rem;">Dispatched (MTD)</div>
-                                    <div class="mt-2">
-                                        <button name="action_open_dispatched" type="object"
-                                                string="View" class="btn btn-sm btn-outline-primary"/>
-                                    </div>
-                                </div>
+                            <div class="o_stat_button btn btn-light w-100 h-100 d-flex flex-column align-items-center justify-content-center py-4"
+                                 style="border:1px solid #e5e5e5; border-radius:8px; cursor:default; min-height:120px;">
+                                <span class="o_stat_value text-primary fw-bold"
+                                      style="font-size:2.4rem; line-height:1.1;">
+                                    <field name="dispatched_mtd_count" nolabel="1" readonly="1" class="oe_inline"/>
+                                </span>
+                                <span class="o_stat_text text-muted mt-1" style="font-size:0.82rem;">Dispatched (MTD)</span>
+                                <button name="action_open_dispatched" type="object"
+                                        string="View All" class="btn btn-sm btn-outline-primary mt-2"
+                                        style="font-size:0.75rem;"/>
                             </div>
                         </div>
 
-                        <!-- Confirmed Orders -->
                         <div class="col-12 col-sm-6 col-xl-4">
-                            <div class="card border-0 shadow-sm h-100 text-center">
-                                <div class="card-body py-4">
-                                    <div class="fw-bold text-info mb-1" style="font-size: 2.5rem; line-height: 1.1;">
-                                        <field name="confirmed_orders_count" nolabel="1" readonly="1" class="oe_inline"/>
-                                    </div>
-                                    <div class="text-muted" style="font-size: 0.85rem;">Confirmed Orders</div>
-                                </div>
+                            <div class="o_stat_button btn btn-light w-100 h-100 d-flex flex-column align-items-center justify-content-center py-4"
+                                 style="border:1px solid #e5e5e5; border-radius:8px; cursor:default; min-height:120px;">
+                                <span class="o_stat_value text-info fw-bold"
+                                      style="font-size:2.4rem; line-height:1.1;">
+                                    <field name="confirmed_orders_count" nolabel="1" readonly="1" class="oe_inline"/>
+                                </span>
+                                <span class="o_stat_text text-muted mt-1" style="font-size:0.82rem;">Confirmed Orders</span>
                             </div>
                         </div>
 
