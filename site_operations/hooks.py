@@ -55,6 +55,7 @@ def configure_production_users(env):
     g_finance_ho = env.ref('site_operations.group_finance_ho')
     g_matracon_admin = env.ref('site_operations.group_matracon_admin', raise_if_not_found=False)
     g_site_store = env.ref('purchase_demand_raise.group_site_store')
+    g_stock_user = env.ref('stock.group_stock_user', raise_if_not_found=False)
     g_site_accountant = env.ref('site_operations.group_site_accountant')
 
     # ── Head Office users by role ───────────────────────────────────────────
@@ -103,6 +104,8 @@ def configure_production_users(env):
             site_config.write({'site_user_ids': [(4, u.id) for u in store_users]})
             for user in store_users:
                 Users._matracon_add_group(user, g_site_store)
+                if g_stock_user:
+                    Users._matracon_add_group(user, g_stock_user)
 
         accountant_users = Users.browse(cfg['site_accountant_ids']).exists()
         for user in accountant_users:

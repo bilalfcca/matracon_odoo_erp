@@ -496,8 +496,24 @@ class PurchaseOrder(models.Model):
         self.invalidate_recordset(['picking_ids', 'incoming_picking_count'])
 
     def action_view_picking(self):
-        """Open receipts — auto-create the incoming picking if CEO confirm skipped it."""
+        """Open the incoming receipt form (Site Store) — not a list view."""
+        self.ensure_one()
         self._matracon_ensure_receipt_pickings()
+        incoming = self.picking_ids.filtered(
+            lambda p: p.picking_type_code == 'incoming'
+        ).sorted(key=lambda p: (p.state in ('done', 'cancel'), p.id))
+        open_pickings = incoming.filtered(lambda p: p.state not in ('done', 'cancel'))
+        picking = open_pickings[:1] or incoming[:1]
+        if picking:
+            return {
+                'type': 'ir.actions.act_window',
+                'name': _('Receipt'),
+                'res_model': 'stock.picking',
+                'view_mode': 'form',
+                'res_id': picking.id,
+                'target': 'current',
+                'context': dict(self.env.context),
+            }
         return super().action_view_picking()
 
     def button_send_rfq(self):

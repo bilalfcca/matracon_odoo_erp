@@ -107,7 +107,7 @@
                        statusbar_visible="draft,pending_approval,approved,done"
                        invisible="x_transfer_purpose != 'site_to_site' or x_is_dest_receipt"/>
                 <group name="site_ops_classification"
-                       invisible="x_transfer_purpose == False"
+                       invisible="not x_transfer_purpose or picking_type_code == 'incoming'"
                        col="4">
                     <field name="x_transfer_purpose" widget="radio" options="{'horizontal': true}"/>
                     <field name="x_issue_type"

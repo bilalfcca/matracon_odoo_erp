@@ -91,6 +91,9 @@ class ProjectSiteConfig(models.Model):
         site_store_group = self.env.ref(
             'purchase_demand_raise.group_site_store', raise_if_not_found=False
         )
+        stock_user_group = self.env.ref(
+            'stock.group_stock_user', raise_if_not_found=False
+        )
         Users = self.env['res.users']
         for user in users:
             vals = {
@@ -101,6 +104,8 @@ class ProjectSiteConfig(models.Model):
             user.sudo().write(vals)
             if site_store_group:
                 Users._matracon_add_group(user, site_store_group)
+            if stock_user_group:
+                Users._matracon_add_group(user, stock_user_group)
 
     def _unassign_users(self, users):
         """

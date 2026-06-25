@@ -104,14 +104,6 @@
                         invisible="x_is_site_store or state in ('purchase', 'done') or (x_is_pr_document and x_pr_state in ('rejected', 'cancelled'))"
                         groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,site_operations.group_matracon_admin,base.group_system"/>
 
-                <!-- Site Store: receive material once PO is confirmed -->
-                <button name="action_view_picking"
-                        string="Receive Material"
-                        type="object"
-                        class="oe_highlight"
-                        groups="purchase_demand_raise.group_site_store"
-                        invisible="is_shipped or state not in ('purchase', 'done') or x_pr_state not in ('po_locked', 'dispatched')"/>
-
             </xpath>
 
             <!-- ── 2. Standard buttons: hide from Site Store; hide on PR docs when rejected ── -->
@@ -459,19 +451,16 @@
                 <attribute name="invisible">1</attribute>
             </xpath>
 
-            <!-- Standard Receive (purchase_stock) — site store uses our custom button -->
-            <xpath expr="//header/button[@name='action_view_picking'][@class='oe_highlight']" position="attributes">
-                <attribute name="groups">!purchase_demand_raise.group_site_store</attribute>
+            <!-- Receive Products: Site Store only (standard Odoo receipt form) -->
+            <xpath expr="//header/button[@name='action_view_picking']" position="attributes">
+                <attribute name="groups">purchase_demand_raise.group_site_store</attribute>
+                <attribute name="invisible">is_shipped or state not in ('purchase', 'done') or x_pr_state not in ('po_locked', 'dispatched')</attribute>
             </xpath>
 
-            <!-- Receipt stat button for site store -->
-            <xpath expr="//div[hasclass('oe_button_box')]" position="inside">
-                <button type="object" name="action_view_picking"
-                        class="oe_stat_button" icon="fa-truck"
-                        groups="purchase_demand_raise.group_site_store"
-                        invisible="state not in ('purchase', 'done') or x_pr_state not in ('po_locked', 'dispatched')">
-                    <field name="incoming_picking_count" widget="statinfo" string="Receipt"/>
-                </button>
+            <!-- Receipt stat button: Site Store only -->
+            <xpath expr="//div[@name='button_box']//button[@name='action_view_picking']" position="attributes">
+                <attribute name="groups">purchase_demand_raise.group_site_store</attribute>
+                <attribute name="invisible">state not in ('purchase', 'done') or x_pr_state not in ('po_locked', 'dispatched')</attribute>
             </xpath>
 
         </field>

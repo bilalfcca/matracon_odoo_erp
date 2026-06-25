@@ -14,7 +14,7 @@ class StockPickingSiteOps(models.Model):
     x_transfer_purpose = fields.Selection([
         ('material_issuance', 'Material Issuance'),
         ('site_to_site', 'Site To Site Transfer'),
-    ], string='Transfer Purpose', default='material_issuance', tracking=True)
+    ], string='Transfer Purpose', tracking=True)
 
     x_issue_type = fields.Selection([
         ('normal', 'Normal'),
