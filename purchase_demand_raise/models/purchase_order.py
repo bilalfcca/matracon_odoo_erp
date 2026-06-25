@@ -374,18 +374,14 @@ class PurchaseOrder(models.Model):
 
             # ── Confirm the PO and ensure receipt picking is created ──────────
             order.button_confirm()
-            # Bypass double-validation gate: force purchase state if needed
-            # (CEO approval IS the final authority — no amount threshold applies)
-            if order.state not in ('purchase', 'done', 'cancel'):
-                order.sudo().write({'state': 'purchase', 'date_approve': fields.Datetime.now()})
-            # Invalidate computed field caches to ensure fresh picking_ids from DB
-            order.invalidate_recordset()
-            # Create picking if not yet created (handles all edge cases)
-            if order.state == 'purchase' and not order.picking_ids.filtered(
-                lambda p: p.state not in ('done', 'cancel')
-            ):
-                if hasattr(order, '_create_picking'):
-                    order.sudo()._create_picking()
+            if order.state == 'to approve' and hasattr(order, 'button_approve'):
+                order.sudo().button_approve()
+            elif order.state not in ('purchase', 'done', 'cancel'):
+                order.sudo().write({
+                    'state': 'purchase',
+                    'date_approve': fields.Datetime.now(),
+                })
+            order._matracon_ensure_receipt_pickings()
 
             # ── Cancel all other open RFQs in the same alternatives group ───────
             if getattr(order, 'purchase_group_id', False) and order.purchase_group_id:
@@ -473,7 +469,36 @@ class PurchaseOrder(models.Model):
                 # Advance state to po_locked (both approvals done, vendor chosen)
                 order.x_pr_state = 'po_locked'
 
-        return super().button_confirm()
+        res = super().button_confirm()
+        self._matracon_ensure_receipt_pickings()
+        return res
+
+    def _matracon_ensure_receipt_pickings(self):
+        """Create incoming receipt pickings when a PO is confirmed but none exist.
+
+        CEO approval sometimes force-sets state to purchase without running
+        button_approve(), which is where purchase_stock normally creates receipts.
+        """
+        for order in self:
+            if order.state not in ('purchase', 'done', 'to approve'):
+                continue
+            incoming = order.picking_ids.filtered(
+                lambda p: p.picking_type_code == 'incoming'
+                and p.state not in ('done', 'cancel')
+            )
+            if incoming:
+                continue
+            if order.state == 'to approve' and hasattr(order, 'button_approve'):
+                order.sudo().button_approve()
+                continue
+            if hasattr(order, '_create_picking'):
+                order.sudo()._create_picking()
+        self.invalidate_recordset(['picking_ids', 'incoming_picking_count'])
+
+    def action_view_picking(self):
+        """Open receipts — auto-create the incoming picking if CEO confirm skipped it."""
+        self._matracon_ensure_receipt_pickings()
+        return super().action_view_picking()
 
     def button_send_rfq(self):
         """Override: block standard Send RFQ for Site Store & enforce approval gate."""

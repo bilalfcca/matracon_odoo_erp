@@ -119,20 +119,17 @@ class PurchaseOrderTender(models.Model):
                 raise UserError(_('PO must be in PO Locked state to confirm.'))
 
             if order.state in ('purchase', 'done'):
-                # Already confirmed — ensure receipt picking exists (re-trigger if missing)
-                if order.state == 'purchase' and not order.picking_ids:
-                    if hasattr(order, '_create_picking'):
-                        order._create_picking()
+                order._matracon_ensure_receipt_pickings()
                 continue
 
             order.button_confirm()
-            # Bypass native purchase double-approval — CEO approval is our final gate
-            if order.state not in ('purchase', 'done', 'cancel'):
-                if hasattr(order, 'button_approve'):
-                    order.sudo().button_approve()
-                elif hasattr(order, '_create_picking'):
-                    order.write({'state': 'purchase'})
-                    order._create_picking()
+            if order.state == 'to approve' and hasattr(order, 'button_approve'):
+                order.sudo().button_approve()
+            elif order.state not in ('purchase', 'done', 'cancel'):
+                order.sudo().write({'state': 'purchase'})
+                order._matracon_ensure_receipt_pickings()
+            else:
+                order._matracon_ensure_receipt_pickings()
         return True
 
     # ─────────────────────────────────────────────────────────────────────────
