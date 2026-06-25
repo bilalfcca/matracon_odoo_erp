@@ -352,34 +352,38 @@ class PurchaseOrder(models.Model):
                 )
 
     def action_ceo_final_approve(self):
-        """CEO gives final line-level approval — PO confirmed and locked."""
+        """CEO gives final line-level approval — PO confirmed and locked.
+
+        For the main PR: auto-confirms and creates receipt picking.
+        For alternative RFQs: just locks with po_locked state — HO picks the
+        winning vendor and uses Confirm Order on that specific alternative.
+        """
         for order in self:
-            if order.x_is_alternative_rfq:
-                raise UserError(_(
-                    'CEO final approval applies only to the main Purchase Requisition, '
-                    'not to alternative vendor RFQs.'
-                ))
             if order.x_pr_state != 'ceo_final':
                 raise UserError(_('PR must be in CEO Final Review state.'))
-            for line in order.order_line:
-                if line.x_approved_qty <= 0:
-                    raise UserError(_('Please set Approved Qty > 0 for all lines before final approval.'))
 
-            # Sync product_qty to approved_qty for the actual PO
-            for line in order.order_line:
-                line.product_qty = line.x_approved_qty
+            if not order.x_is_alternative_rfq:
+                # Main PR: enforce approved qty on all lines
+                for line in order.order_line:
+                    if line.x_approved_qty <= 0:
+                        raise UserError(_('Please set Approved Qty > 0 for all lines before final approval.'))
+                # Sync product_qty to approved_qty for the actual PO
+                for line in order.order_line:
+                    line.product_qty = line.x_approved_qty
 
             order.write({'x_pr_state': 'po_locked', 'x_ceo_status': 'approved'})
-            # Confirm the PO in standard Odoo (button_confirm won't block po_locked)
-            order.button_confirm()
-            # Bypass native purchase double-approval — CEO approval is our final gate
-            if order.state not in ('purchase', 'done', 'cancel'):
-                if hasattr(order, 'button_approve'):
-                    order.sudo().button_approve()
-                else:
-                    order.write({'state': 'purchase'})
-                    if hasattr(order, '_create_picking'):
-                        order._create_picking()
+
+            if not order.x_is_alternative_rfq:
+                # Confirm the PO in standard Odoo (button_confirm won't block po_locked)
+                order.button_confirm()
+                # Bypass native purchase double-approval — CEO approval is our final gate
+                if order.state not in ('purchase', 'done', 'cancel'):
+                    if hasattr(order, 'button_approve'):
+                        order.sudo().button_approve()
+                    else:
+                        order.write({'state': 'purchase'})
+                        if hasattr(order, '_create_picking'):
+                            order._create_picking()
 
             order.message_post(
                 body=Markup('🔒 <b>CEO Final Approval</b> granted by <b>%s</b>. '

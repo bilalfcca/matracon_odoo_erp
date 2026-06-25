@@ -21,10 +21,10 @@
             <!-- ── 1. Our PR status bar + all workflow buttons ── -->
             <xpath expr="//header" position="inside">
 
-                <!-- PR Status bar: visible when it's a PR doc OR user is site store -->
+                <!-- PR Status bar: visible on PR docs, site store, and alternative RFQs -->
                 <field name="x_pr_state" widget="statusbar"
                        statusbar_visible="draft,submitted,ceo_final,po_locked,dispatched"
-                       invisible="not x_is_pr_document and not x_is_site_store"/>
+                       invisible="not x_is_pr_document and not x_is_site_store and not x_is_alternative_rfq"/>
 
                 <!-- Print PR: Site Store only, draft/submitted only -->
                 <button name="action_print_pr_internal"
@@ -58,7 +58,7 @@
                         string="✓ Approve &amp; Submit to CEO"
                         type="object"
                         class="btn-primary"
-                        invisible="x_pr_state != 'submitted' or x_is_alternative_rfq"
+                        invisible="x_pr_state != 'submitted'"
                         groups="purchase_demand_raise.group_procurement_ho"
                         confirm="Set the Vendor field above before clicking. Vendor prices will be auto-fetched and the PR will route to CEO for final approval. Continue?"/>
 
@@ -66,7 +66,7 @@
                         string="✗ Reject"
                         type="object"
                         class="btn-danger"
-                        invisible="x_pr_state != 'submitted' or x_is_alternative_rfq"
+                        invisible="x_pr_state != 'submitted'"
                         groups="purchase_demand_raise.group_procurement_ho"
                         confirm="Reject this PR? The initiator will be notified."/>
 
@@ -75,7 +75,7 @@
                         string="✓ Final Approve &amp; Lock PO"
                         type="object"
                         class="btn-success"
-                        invisible="x_pr_state != 'ceo_final' or x_is_alternative_rfq"
+                        invisible="x_pr_state != 'ceo_final'"
                         groups="purchase_demand_raise.group_ceo_approval"
                         confirm="This will LOCK the PO and confirm the order. Continue?"/>
 
@@ -83,7 +83,7 @@
                         string="✗ Reject"
                         type="object"
                         class="btn-danger"
-                        invisible="x_pr_state != 'ceo_final' or x_is_alternative_rfq"
+                        invisible="x_pr_state != 'ceo_final'"
                         groups="purchase_demand_raise.group_ceo_approval"
                         confirm="Reject at final stage? HO and initiator will be notified."/>
 
@@ -182,9 +182,9 @@
                 <field name="x_initiator_id" readonly="1"
                        invisible="not x_is_pr_document and not x_is_site_store"/>
 
-                <!-- Approval Status badges: shown only on real PR docs (not alternatives) -->
+                <!-- Approval Status badges: PR docs, site store, and alternative RFQs -->
                 <group string="Approval Status"
-                       invisible="(not x_is_pr_document and not x_is_site_store) or x_pr_state == 'draft'">
+                       invisible="(not x_is_pr_document and not x_is_site_store and not x_is_alternative_rfq) or x_pr_state == 'draft'">
                     <field name="x_ho_status" widget="badge"
                            decoration-warning="x_ho_status == 'pending'"
                            decoration-success="x_ho_status == 'approved'"
@@ -233,12 +233,12 @@
                 <attribute name="column_invisible">parent.x_is_pr_document or parent.x_is_site_store or parent.x_is_alternative_rfq</attribute>
             </field>
 
-            <!-- Requested Qty: PR docs, site store, and alternatives (read-only on alt) -->
+            <!-- Requested Qty: PR docs + site store (site store edits); alternatives (HO edits freely) -->
             <field name="product_qty" position="before">
                 <field name="x_requested_qty"
                        string="Requested Qty"
                        column_invisible="not parent.x_is_pr_document and not parent.x_is_site_store and not parent.x_is_alternative_rfq"
-                       readonly="not x_is_site_store"
+                       readonly="not x_is_site_store and not parent.x_is_alternative_rfq"
                        optional="show"/>
             </field>
 
@@ -251,11 +251,11 @@
                        readonly="1"
                        optional="show"/>
 
-                <!-- Recommended Qty: HO edits on PR; read-only on alternatives; hidden from Site Store -->
+                <!-- Recommended Qty: HO edits on PR and alternatives; hidden from Site Store -->
                 <field name="x_recommended_qty"
                        string="Recommended Qty"
                        column_invisible="(not parent.x_is_pr_document and not parent.x_is_alternative_rfq) or parent.x_is_site_store"
-                       readonly="not x_is_ho or parent.x_pr_state != 'submitted' or parent.x_is_alternative_rfq"
+                       readonly="not x_is_ho or parent.x_pr_state != 'submitted'"
                        optional="show"/>
 
                 <!-- Mandatory reason when HO changes recommended qty (PR docs only) -->
@@ -275,11 +275,11 @@
                        column_invisible="not parent.x_is_pr_document or not parent.x_is_ceo"
                        optional="show"/>
 
-                <!-- Approved Qty: PR docs + site store + alternatives (read-only on alt) -->
+                <!-- Approved Qty: PR docs + site store + alternatives (CEO edits on all) -->
                 <field name="x_approved_qty"
                        string="Approved Qty"
                        column_invisible="not parent.x_is_pr_document and not parent.x_is_site_store and not parent.x_is_alternative_rfq"
-                       readonly="not x_is_ceo or parent.x_is_alternative_rfq"
+                       readonly="not x_is_ceo"
                        optional="show"/>
 
                 <!-- Exceeds Recommended warning: CEO only, PR docs only -->
@@ -434,9 +434,9 @@
                 <attribute name="readonly">x_pr_state not in ('submitted', 'ceo_final')</attribute>
             </xpath>
 
-            <!-- Alternatives tab: hidden for Site Store -->
+            <!-- Alternatives tab: hidden for Site Store and once PO is locked/confirmed -->
             <xpath expr="//page[@name='alternative_pos']" position="attributes">
-                <attribute name="invisible">x_is_site_store</attribute>
+                <attribute name="invisible">x_is_site_store or x_pr_state == 'po_locked'</attribute>
             </xpath>
 
             <!-- Upload Bill widget: hidden from EVERYONE — site accountant feature for later -->
