@@ -88,12 +88,12 @@
                         confirm="Reject at final stage? HO and initiator will be notified."/>
 
                 <!-- Confirm PO when locked but Odoo state not yet purchase.
-                     Also shown when already purchase but no pickings (to re-trigger _create_picking). -->
+                     Hidden on alternatives — they are auto-confirmed by CEO approval. -->
                 <button name="action_confirm_after_approval"
                         string="Confirm Order"
                         type="object"
                         class="btn-primary"
-                        invisible="x_pr_state != 'po_locked' or (state in ('purchase', 'done') and incoming_picking_count != 0)"
+                        invisible="x_is_alternative_rfq or x_pr_state != 'po_locked' or (state in ('purchase', 'done') and incoming_picking_count != 0)"
                         groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,site_operations.group_matracon_admin,base.group_system"/>
 
                 <!-- Single RFQ print (no prices) -->
@@ -107,9 +107,11 @@
             </xpath>
 
             <!-- ── 2. Standard buttons: hide from Site Store; hide on PR docs when rejected ── -->
-            <!-- Send RFQ buttons: hidden from Site Store and from PR docs when rejected -->
+            <!-- Send RFQ buttons: [1] is always hidden (duplicate from purchase_requisition).
+                 Keep only [2] (the standard purchase module button without amount).
+                 Hidden for Site Store, locked POs, and rejected/cancelled PR docs. -->
             <xpath expr="//header/button[@name='action_rfq_send'][1]" position="attributes">
-                <attribute name="invisible">x_is_site_store or x_pr_state in ('po_locked', 'dispatched') or (x_is_pr_document and x_pr_state in ('rejected', 'cancelled'))</attribute>
+                <attribute name="invisible">1</attribute>
             </xpath>
             <xpath expr="//header/button[@name='action_rfq_send'][2]" position="attributes">
                 <attribute name="invisible">x_is_site_store or x_pr_state in ('po_locked', 'dispatched') or (x_is_pr_document and x_pr_state in ('rejected', 'cancelled'))</attribute>

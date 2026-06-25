@@ -352,38 +352,52 @@ class PurchaseOrder(models.Model):
                 )
 
     def action_ceo_final_approve(self):
-        """CEO gives final line-level approval — PO confirmed and locked.
+        """CEO gives final line-level approval — PO confirmed, locked, others cancelled.
 
-        For the main PR: auto-confirms and creates receipt picking.
-        For alternative RFQs: just locks with po_locked state — HO picks the
-        winning vendor and uses Confirm Order on that specific alternative.
+        Works identically on the main PR and alternative RFQs:
+        - Locks this PO (po_locked) and auto-confirms it to create a receipt picking.
+        - Cancels all other open RFQs in the same tender/alternatives group so only
+          the approved vendor's order remains active.
         """
         for order in self:
             if order.x_pr_state != 'ceo_final':
                 raise UserError(_('PR must be in CEO Final Review state.'))
 
             if not order.x_is_alternative_rfq:
-                # Main PR: enforce approved qty on all lines
+                # Main PR: validate and sync approved_qty → product_qty
                 for line in order.order_line:
                     if line.x_approved_qty <= 0:
                         raise UserError(_('Please set Approved Qty > 0 for all lines before final approval.'))
-                # Sync product_qty to approved_qty for the actual PO
                 for line in order.order_line:
                     line.product_qty = line.x_approved_qty
 
             order.write({'x_pr_state': 'po_locked', 'x_ceo_status': 'approved'})
 
-            if not order.x_is_alternative_rfq:
-                # Confirm the PO in standard Odoo (button_confirm won't block po_locked)
-                order.button_confirm()
-                # Bypass native purchase double-approval — CEO approval is our final gate
-                if order.state not in ('purchase', 'done', 'cancel'):
-                    if hasattr(order, 'button_approve'):
-                        order.sudo().button_approve()
-                    else:
-                        order.write({'state': 'purchase'})
-                        if hasattr(order, '_create_picking'):
-                            order._create_picking()
+            # ── Confirm the PO and create the incoming receipt picking ──────────
+            order.button_confirm()
+            # Always call button_approve with sudo so we bypass Odoo's purchase
+            # double-validation amount threshold — CEO approval IS the final gate.
+            if hasattr(order, 'button_approve'):
+                order.sudo().button_approve()
+            # Belt-and-suspenders: if picking still doesn't exist, force-create it.
+            if order.state == 'purchase' and not order.picking_ids.filtered(
+                lambda p: p.state != 'cancel'
+            ):
+                if hasattr(order, '_create_picking'):
+                    order._create_picking()
+
+            # ── Cancel all other open RFQs in the same alternatives group ───────
+            if getattr(order, 'purchase_group_id', False) and order.purchase_group_id:
+                others = order.purchase_group_id.order_ids.filtered(
+                    lambda o: o.id != order.id and o.state not in ('purchase', 'done', 'cancel')
+                )
+                for other in others:
+                    try:
+                        other.with_context(cancel_procurement=True).button_cancel()
+                        if other.x_pr_state != 'cancelled':
+                            other.x_pr_state = 'cancelled'
+                    except Exception:
+                        pass  # Never block the main approval if a cancel fails
 
             order.message_post(
                 body=Markup('🔒 <b>CEO Final Approval</b> granted by <b>%s</b>. '
