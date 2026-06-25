@@ -130,27 +130,6 @@
                             </div>
                         </div>
 
-                        <div class="col-12 col-sm-6 col-xl-3">
-                            <div class="card border-0 h-100" style="box-shadow:0 1px 6px rgba(0,0,0,.12); border-radius:8px;">
-                                <div class="card-body py-3 px-3 px-md-4">
-                                    <div class="d-flex justify-content-between align-items-start">
-                                        <small class="text-muted text-uppercase fw-bold"
-                                               style="font-size:0.7rem; letter-spacing:0.06em;">Pending Returns</small>
-                                        <i class="fa fa-undo text-muted" title="Returns"/>
-                                    </div>
-                                    <div class="fw-bold text-danger mt-2 mb-1"
-                                         style="font-size:2.4rem; line-height:1.1;">
-                                        <field name="pending_returns_count" nolabel="1" readonly="1" class="oe_inline"/>
-                                    </div>
-                                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
-                                        <small class="text-muted">Awaiting Validation</small>
-                                        <button name="action_open_returns" type="object"
-                                                string="View" class="btn btn-sm btn-outline-danger"/>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
                     </div>
 
                     <div class="row g-3 mb-3" invisible="filter_section not in ('all', 'prs', 'receipts')">
@@ -280,50 +259,6 @@
                                             </list>
                                         </field>
                                     </div>
-                                </div>
-                            </div>
-                        </div>
-
-                    </div>
-
-                    <div class="row g-3 mb-3" invisible="filter_section not in ('all', 'returns', 'receipts')">
-
-                        <div class="col-12 col-lg-6" invisible="filter_section not in ('all', 'returns')">
-                            <div class="card border-0" style="box-shadow:0 1px 6px rgba(0,0,0,.12); border-radius:8px;">
-                                <div class="card-header py-2 px-3 px-md-4"
-                                     style="background:transparent; border-bottom:1px solid rgba(0,0,0,.07);">
-                                    <strong style="font-size:0.9rem;">Pending Returns</strong>
-                                </div>
-                                <div class="card-body p-0 matracon-dash-table-wrap matracon-dash-table-wrap--compact">
-                                    <field name="pending_return_ids" nolabel="1" readonly="1">
-                                        <list create="false" delete="false" edit="false">
-                                            <field name="name"/>
-                                            <field name="x_contact_id" string="Contact"/>
-                                            <field name="state" widget="badge"/>
-                                            <field name="x_original_issuance_id" string="Original" optional="hide"/>
-                                            <field name="x_return_type" optional="hide"/>
-                                        </list>
-                                    </field>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="col-12 col-lg-6" invisible="filter_section not in ('all', 'receipts')">
-                            <div class="card border-0" style="box-shadow:0 1px 6px rgba(0,0,0,.12); border-radius:8px;">
-                                <div class="card-header py-2 px-3 px-md-4"
-                                     style="background:transparent; border-bottom:1px solid rgba(0,0,0,.07);">
-                                    <strong style="font-size:0.9rem;">Receipts To Validate</strong>
-                                </div>
-                                <div class="card-body p-0 matracon-dash-table-wrap matracon-dash-table-wrap--compact">
-                                    <field name="pending_receipt_ids" nolabel="1" readonly="1">
-                                        <list create="false" delete="false" edit="false">
-                                            <field name="name"/>
-                                            <field name="partner_id" string="Vendor"/>
-                                            <field name="state" widget="badge"/>
-                                            <field name="origin" string="PO" optional="hide"/>
-                                            <field name="scheduled_date" optional="hide"/>
-                                        </list>
-                                    </field>
                                 </div>
                             </div>
                         </div>

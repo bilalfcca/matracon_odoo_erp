@@ -115,6 +115,14 @@ class PurchaseOrderTender(models.Model):
             if order.state in ('purchase', 'done'):
                 continue
             order.button_confirm()
+            # Bypass native purchase double-approval — CEO approval is our final gate
+            if order.state not in ('purchase', 'done', 'cancel'):
+                if hasattr(order, 'button_approve'):
+                    order.sudo().button_approve()
+                else:
+                    order.write({'state': 'purchase'})
+                    if hasattr(order, '_create_picking'):
+                        order._create_picking()
         return True
 
     # ─────────────────────────────────────────────────────────────────────────
@@ -349,6 +357,12 @@ class PurchaseOrderTender(models.Model):
             'x_initiator_id': root.x_initiator_id.id,
             'picking_type_id': root.picking_type_id.id,
             'date_planned': root.date_planned,
+            # Copy PM file and approval status from root PR so alternatives show full context
+            'x_pm_signed_pr': root.x_pm_signed_pr,
+            'x_pm_signed_pr_filename': root.x_pm_signed_pr_filename,
+            'x_ho_status': root.x_ho_status,
+            'x_ceo_status': root.x_ceo_status,
+            'x_pr_state': root.x_pr_state,
         }
         self.with_context(matracon_skip_alt_sync=True).write(vals)
         self._sync_alternative_lines_from_root(root)

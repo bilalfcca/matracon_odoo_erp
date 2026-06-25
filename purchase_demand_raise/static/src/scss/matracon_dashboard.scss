@@ -44,7 +44,7 @@
         margin-bottom: 1rem;
         padding: 0.75rem 1rem;
         background: var(--o-view-background-color, #fff);
-        border: 1px solid rgba(0, 0, 0, 0.08);
+        border: 1px solid var(--o-border-color, rgba(0, 0, 0, 0.08));
         border-radius: 8px;
 
         .matracon-dash-filters__label {
@@ -53,7 +53,7 @@
             font-weight: 700;
             letter-spacing: 0.06em;
             text-transform: uppercase;
-            color: #6c757d;
+            color: var(--o-text-muted, #6c757d);
             margin-bottom: 0.15rem;
         }
 
@@ -184,6 +184,55 @@
                     flex: 0 0 40% !important;
                 }
             }
+        }
+    }
+}
+
+/* ── Dark mode overrides ─────────────────────────────────────────── */
+/* Odoo 19 dark mode uses the `.o_dark` class on <html> or <body>     */
+/* and also respects `prefers-color-scheme: dark` via CSS vars.        */
+
+.o_dark .o_matracon_dashboard,
+[data-color-scheme="dark"] .o_matracon_dashboard {
+    /* Filter bar: readable label + visible border in dark */
+    .matracon-dash-filters {
+        border-color: rgba(255, 255, 255, 0.12);
+
+        .matracon-dash-filters__label {
+            color: var(--o-text-muted, rgba(255, 255, 255, 0.55));
+        }
+    }
+
+    /* Card chrome */
+    .card {
+        background-color: var(--o-surface-1, #2c2c2c);
+        box-shadow: 0 1px 6px rgba(0, 0, 0, 0.35) !important;
+    }
+
+    .card-header {
+        border-bottom-color: rgba(255, 255, 255, 0.1) !important;
+
+        /* Section title text (the "Active Requisitions", "Site Transfers" labels) */
+        strong {
+            color: var(--o-text-light, #e0e0e0) !important;
+        }
+
+        /* Small uppercase sub-labels */
+        small {
+            color: var(--o-text-muted, rgba(255, 255, 255, 0.55)) !important;
+        }
+    }
+
+    /* KPI card body labels */
+    .card-body {
+        small.text-muted,
+        small.text-uppercase {
+            color: var(--o-text-muted, rgba(255, 255, 255, 0.55)) !important;
+        }
+
+        /* "On Order" / "Recent GRNs" sub-section labels */
+        small.fw-bold {
+            color: var(--o-text-muted, rgba(255, 255, 255, 0.55)) !important;
         }
     }
 }

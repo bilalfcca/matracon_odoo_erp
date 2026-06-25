@@ -18,20 +18,20 @@ class PurchaseOrder(models.Model):
         ('dispatched', 'Dispatched'),
         ('rejected', 'Rejected'),
         ('cancelled', 'Cancelled'),
-    ], string='PR Status', default='draft', tracking=True, copy=False)
+    ], string='PR Status', default='draft', tracking=True)
 
     # ── HO & CEO Approval Status Badges ─────────────────────────────────────
     x_ho_status = fields.Selection([
         ('pending', 'Pending'),
         ('approved', 'Approved'),
         ('rejected', 'Rejected'),
-    ], string='HO Status', default='pending', tracking=True, copy=False)
+    ], string='HO Status', default='pending', tracking=True)
 
     x_ceo_status = fields.Selection([
         ('pending', 'Pending'),
         ('approved', 'Approved'),
         ('rejected', 'Rejected'),
-    ], string='CEO Status', default='pending', tracking=True, copy=False)
+    ], string='CEO Status', default='pending', tracking=True)
 
     # ── Category ─────────────────────────────────────────────────────────────
     x_category_id = fields.Many2one(
@@ -40,7 +40,7 @@ class PurchaseOrder(models.Model):
     )
 
     # ── PM Signed PR Attachment ───────────────────────────────────────────────
-    x_pm_signed_pr = fields.Binary(string='PM Signed PR', attachment=True, copy=False)
+    x_pm_signed_pr = fields.Binary(string='PM Signed PR', attachment=True)
     x_pm_signed_pr_filename = fields.Char(string='PM Signed PR Filename')
 
     # ── Project Analytic Account ──────────────────────────────────────────────
@@ -372,6 +372,14 @@ class PurchaseOrder(models.Model):
             order.write({'x_pr_state': 'po_locked', 'x_ceo_status': 'approved'})
             # Confirm the PO in standard Odoo (button_confirm won't block po_locked)
             order.button_confirm()
+            # Bypass native purchase double-approval — CEO approval is our final gate
+            if order.state not in ('purchase', 'done', 'cancel'):
+                if hasattr(order, 'button_approve'):
+                    order.sudo().button_approve()
+                else:
+                    order.write({'state': 'purchase'})
+                    if hasattr(order, '_create_picking'):
+                        order._create_picking()
 
             order.message_post(
                 body=Markup('🔒 <b>CEO Final Approval</b> granted by <b>%s</b>. '
