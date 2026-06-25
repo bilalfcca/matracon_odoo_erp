@@ -1,11 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- ════════════════════════════════════════════════════════════════════
-         Vendor Payments (Finance HO) — inherited account.payment form view,
-         plus standalone list/search views and window action.
-    ════════════════════════════════════════════════════════════════════════ -->
+    <!-- Finance HO vendor payment form — CEO-approved liability payments -->
 
-    <!-- ── Inherited Form View ──────────────────────────────────────────── -->
     <record id="view_account_payment_form_site_ops" model="ir.ui.view">
         <field name="name">account.payment.form.site.ops</field>
         <field name="model">account.payment</field>
@@ -13,11 +9,11 @@
         <field name="priority">20</field>
         <field name="arch" type="xml">
 
-            <!-- Status bar for x_payment_status -->
             <xpath expr="//header" position="inside">
                 <field name="x_payment_status"
                        widget="statusbar"
-                       statusbar_visible="draft,in_process,paid"/>
+                       statusbar_visible="draft,in_process,paid"
+                       invisible="payment_type != 'outbound' or not x_liability_sheet_id"/>
 
                 <button name="action_set_in_process"
                         type="object"
@@ -25,52 +21,80 @@
                         class="btn-primary"
                         groups="site_operations.group_finance_ho,purchase_demand_raise.group_head_office"
                         invisible="x_payment_status != 'draft' or payment_type != 'outbound'"/>
-
-                <button name="action_mark_paid"
-                        type="object"
-                        string="Mark as Paid"
-                        class="btn-success"
-                        groups="site_operations.group_finance_ho,purchase_demand_raise.group_head_office"
-                        invisible="x_payment_status != 'in_process' or payment_type != 'outbound'"/>
             </xpath>
 
-            <!-- Inject site ops fields after the partner field -->
+            <xpath expr="//field[@name='amount']" position="before">
+                <field name="x_liability_sheet_line_id" invisible="1"/>
+            </xpath>
+
+            <xpath expr="//field[@name='amount']" position="attributes">
+                <attribute name="readonly">0</attribute>
+            </xpath>
+
             <xpath expr="//field[@name='partner_id']" position="after">
+                <field name="x_liability_sheet_id" invisible="1"/>
+                <field name="x_liability_sheet_line_id" invisible="1"/>
+
+                <field name="x_gross_approved_amount"
+                       readonly="1"
+                       invisible="not x_liability_sheet_line_id"/>
+
                 <field name="x_fund_project_id"
                        string="Fund Project (Client Receipt)"
                        invisible="payment_type != 'inbound'"
                        required="payment_type == 'inbound'"/>
+
                 <field name="x_vendor_bank_account_id"
                        invisible="payment_type != 'outbound'"/>
+
                 <field name="x_liability_sheet_id"
-                       invisible="payment_type != 'outbound'"/>
-                <field name="x_total_liability"
                        readonly="1"
-                       invisible="not x_liability_sheet_id"/>
-                <field name="x_total_approved"
-                       readonly="1"
-                       invisible="not x_liability_sheet_id"/>
+                       invisible="payment_type != 'outbound' or not x_liability_sheet_id"/>
+
                 <field name="x_destination_project_id"
-                       string="Destination Project"
-                       invisible="payment_type != 'outbound'"/>
+                       string="Destination Project (Payment For)"
+                       invisible="payment_type != 'outbound'"
+                       required="payment_type == 'outbound' and x_liability_sheet_id"/>
+
                 <field name="x_source_project_ids"
                        widget="many2many_tags"
-                       invisible="payment_type != 'outbound'"/>
+                       invisible="payment_type != 'outbound'"
+                       required="payment_type == 'outbound' and x_liability_sheet_id"/>
+
                 <field name="x_available_bank_balance"
                        readonly="1"
                        invisible="payment_type != 'outbound'"/>
+
+                <field name="x_cheque_number"
+                       invisible="payment_type != 'outbound'"
+                       required="payment_type == 'outbound' and x_liability_sheet_id"/>
             </xpath>
 
-            <!-- Fund Allocation tab -->
+            <!-- Tax section (WHT applied here for the first time) -->
+            <xpath expr="//notebook" position="before">
+                <group string="Tax Compliance"
+                       invisible="payment_type != 'outbound' or not x_liability_sheet_id"
+                       col="4">
+                    <field name="x_wht_tax_id" required="payment_type == 'outbound' and x_liability_sheet_id"/>
+                    <field name="x_wht_amount" readonly="1"/>
+                    <field name="x_retention_tax_id" required="payment_type == 'outbound' and x_liability_sheet_id"/>
+                    <field name="x_retention_amount" readonly="1"/>
+                    <field name="x_other_tax_id" required="payment_type == 'outbound' and x_liability_sheet_id"/>
+                    <field name="x_other_tax_amount" readonly="1"/>
+                    <field name="x_total_tax_amount" readonly="1"/>
+                    <field name="x_net_payable" readonly="1"/>
+                </group>
+            </xpath>
+
             <xpath expr="//notebook" position="inside">
                 <page name="fund_allocation_tab"
-                      string="Fund Allocation"
+                      string="Fund Allocation &amp; Tracking"
                       invisible="payment_type != 'outbound'">
                     <field name="x_allocation_ids" widget="one2many">
                         <list string="Fund Allocation" editable="bottom">
                             <field name="project_analytic_account_id" string="Source Project"/>
+                            <field name="available_balance" string="Available Project Balance" readonly="1"/>
                             <field name="allocation_amount" string="Allocation Amount"/>
-                            <field name="available_balance" string="Available Balance" readonly="1"/>
                         </list>
                     </field>
                 </page>
@@ -79,92 +103,47 @@
         </field>
     </record>
 
-    <!-- ── Finance HO Payments List View ─────────────────────────────────── -->
     <record id="view_ho_payment_list" model="ir.ui.view">
         <field name="name">account.payment.ho.list</field>
         <field name="model">account.payment</field>
         <field name="arch" type="xml">
             <list string="Finance HO Payments"
-                  decoration-success="x_payment_status == 'paid'"
+                  decoration-success="state == 'posted'"
                   decoration-warning="x_payment_status == 'in_process'"
-                  decoration-muted="x_payment_status == 'draft'">
+                  decoration-muted="state == 'draft'">
                 <field name="name" string="Reference"/>
                 <field name="date" string="Payment Date"/>
                 <field name="partner_id" string="Vendor"/>
-                <field name="x_vendor_bank_account_id" string="Bank Account" optional="show"/>
                 <field name="x_liability_sheet_id" string="Liability Sheet" optional="show"/>
+                <field name="x_gross_approved_amount" string="CEO Approved" optional="show"/>
                 <field name="x_destination_project_id" string="Destination Project" optional="show"/>
-                <field name="amount" string="Amount"/>
-                <field name="journal_id" string="Journal" optional="show"/>
-                <field name="x_available_bank_balance" string="Bank Balance" optional="show"/>
-                <field name="x_payment_status" string="Payment Status"
-                       widget="badge"
-                       decoration-success="x_payment_status == 'paid'"
-                       decoration-warning="x_payment_status == 'in_process'"
-                       decoration-muted="x_payment_status == 'draft'"/>
-                <field name="state" string="Accounting Status"
-                       widget="badge"
-                       decoration-success="state == 'posted'"
-                       decoration-muted="state == 'draft'"
-                       optional="show"/>
+                <field name="amount" string="Net Payable"/>
+                <field name="x_total_tax_amount" string="Taxes" optional="show"/>
+                <field name="journal_id" string="Source Bank" optional="show"/>
+                <field name="x_cheque_number" string="Cheque No." optional="show"/>
+                <field name="x_payment_status" string="Status" widget="badge" optional="show"/>
+                <field name="state" string="Posted" widget="badge"/>
             </list>
         </field>
     </record>
 
-    <!-- ── Finance HO Payments Search View ──────────────────────────────── -->
     <record id="view_ho_payment_search" model="ir.ui.view">
         <field name="name">account.payment.ho.search</field>
         <field name="model">account.payment</field>
         <field name="arch" type="xml">
             <search string="Search HO Payments">
-                <field name="name" string="Reference"/>
-                <field name="partner_id" string="Vendor"/>
-                <field name="x_liability_sheet_id" string="Liability Sheet"/>
-                <field name="x_destination_project_id" string="Destination Project"/>
-
-                <!-- ── Payment Status Filters ── -->
-                <separator/>
-                <filter name="filter_status_draft"
-                        string="Draft"
-                        domain="[('x_payment_status', '=', 'draft')]"/>
-                <filter name="filter_status_in_process"
-                        string="In Process"
-                        domain="[('x_payment_status', '=', 'in_process')]"/>
-                <filter name="filter_status_paid"
-                        string="Paid"
-                        domain="[('x_payment_status', '=', 'paid')]"/>
-
-                <!-- ── Accounting Status Filters ── -->
-                <separator/>
-                <filter name="filter_posted"
-                        string="Posted"
-                        domain="[('state', '=', 'posted')]"/>
-
-                <!-- ── Date Filters ── -->
-                <separator/>
-                <filter name="filter_date_this_month"
-                        string="This Month"
-                        domain="[('date', '&gt;=', (context_today() + relativedelta(day=1)).strftime('%Y-%m-%d'))]"/>
-
-                <!-- ── Group By ── -->
-                <separator/>
-                <filter name="group_by_status"
-                        string="Group by Payment Status"
-                        context="{'group_by': 'x_payment_status'}"/>
-                <filter name="group_by_destination_project"
-                        string="Group by Destination Project"
-                        context="{'group_by': 'x_destination_project_id'}"/>
-                <filter name="group_by_partner"
-                        string="Group by Vendor"
-                        context="{'group_by': 'partner_id'}"/>
-                <filter name="group_by_date"
-                        string="Group by Payment Date"
-                        context="{'group_by': 'date:month'}"/>
+                <field name="name"/>
+                <field name="partner_id"/>
+                <field name="x_liability_sheet_id"/>
+                <field name="x_destination_project_id"/>
+                <filter name="filter_draft" string="Draft" domain="[('state', '=', 'draft')]"/>
+                <filter name="filter_posted" string="Posted" domain="[('state', '=', 'posted')]"/>
+                <filter name="filter_ceo_approved" string="From Liability Sheet"
+                        domain="[('x_liability_sheet_id', '!=', False)]"/>
             </search>
         </field>
     </record>
 
-    <!-- ── Window Action: Finance HO Payments ───────────────────────────── -->
     <record id="action_ho_vendor_payments" model="ir.actions.act_window">
         <field name="name">Finance Payments</field>
         <field name="res_model">account.payment</field>
@@ -177,14 +156,6 @@
         ]"/>
         <field name="search_view_id" ref="view_ho_payment_search"/>
         <field name="context">{'default_payment_type': 'outbound', 'default_partner_type': 'supplier'}</field>
-        <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">
-                No vendor payments found.
-            </p>
-            <p>
-                Register a new vendor payment against an approved liability sheet.
-            </p>
-        </field>
     </record>
 
 </odoo>

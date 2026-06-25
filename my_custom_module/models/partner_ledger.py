@@ -6,45 +6,19 @@ from odoo import models
 class PartnerLedgerReportHandler(models.AbstractModel):
     _inherit = 'account.partner.ledger.report.handler'
 
-    # -------------------------------------------------------------------------
-    # Tax helpers
-    # -------------------------------------------------------------------------
-
-    def _is_withholding_tax(self, tax):
-        """Return True when the tax is a withholding / WHT type tax."""
-        if tax.amount < 0:
-            return True
-        if getattr(tax, 'is_withholding_tax', False):
-            return True
-        tax_name = (tax.name or '').lower()
-        group_name = (tax.tax_group_id.name or '').lower() if tax.tax_group_id else ''
-        return any(
-            keyword in tax_name or keyword in group_name
-            for keyword in ('withhold', 'wht', 'tds')
-        )
-
     def _get_tax_amounts_by_move(self, moves):
-        """Return sales tax and withheld tax amounts grouped by account.move."""
-        result = defaultdict(lambda: {'tax_amount': 0.0, 'withheld_tax_amount': 0.0})
+        """Return total tax amount grouped by account.move (all tax types)."""
+        result = defaultdict(lambda: {'taxes_amount': 0.0})
         for move in moves:
-            sales_tax = 0.0
-            withheld_tax = 0.0
+            total = 0.0
             for line in move.line_ids:
-                if not line.tax_line_id:
-                    continue
-                amount = abs(line.balance)
-                if self._is_withholding_tax(line.tax_line_id):
-                    withheld_tax += amount
-                else:
-                    sales_tax += amount
-            result[move.id] = {
-                'tax_amount': sales_tax,
-                'withheld_tax_amount': withheld_tax,
-            }
+                if line.tax_line_id:
+                    total += abs(line.balance)
+            result[move.id] = {'taxes_amount': total}
         return result
 
     def _inject_tax_columns(self, aml_results):
-        """Add tax_amount and withheld_tax_amount to partner ledger AML rows."""
+        """Add combined taxes_amount to partner ledger AML rows."""
         if not aml_results:
             return
 
@@ -75,22 +49,11 @@ class PartnerLedgerReportHandler(models.AbstractModel):
                 continue
 
             if move_line.tax_line_id:
-                amount = abs(move_line.balance)
-                if self._is_withholding_tax(move_line.tax_line_id):
-                    values['withheld_tax_amount'] = amount
-                    values['tax_amount'] = 0.0
-                else:
-                    values['tax_amount'] = amount
-                    values['withheld_tax_amount'] = 0.0
+                values['taxes_amount'] = abs(move_line.balance)
                 continue
 
             taxes = tax_by_move.get(move_line.move_id.id, {})
-            values['tax_amount'] = taxes.get('tax_amount', 0.0)
-            values['withheld_tax_amount'] = taxes.get('withheld_tax_amount', 0.0)
-
-    # -------------------------------------------------------------------------
-    # Report hooks
-    # -------------------------------------------------------------------------
+            values['taxes_amount'] = taxes.get('taxes_amount', 0.0)
 
     def _get_aml_values(self, options, partner_ids, offset=0, limit=None):
         rslt = super()._get_aml_values(options, partner_ids, offset=offset, limit=limit)

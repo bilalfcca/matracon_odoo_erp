@@ -4,25 +4,31 @@
          Liability Sheet — Form, List, Search Views + Window Action
     ════════════════════════════════════════════════════════════════════════ -->
 
-    <!-- ── Form View ────────────────────────────────────────────────────── -->
     <record id="view_liability_sheet_form" model="ir.ui.view">
         <field name="name">x.liability.sheet.form</field>
         <field name="model">x.liability.sheet</field>
         <field name="arch" type="xml">
             <form string="Liability Sheet">
                 <header>
-                    <!-- Status bar -->
                     <field name="state" widget="statusbar"
                            statusbar_visible="draft,submitted,approved,paid"/>
 
-                    <!-- Workflow buttons -->
+                    <!-- Site Accountant: recommend + PM upload + submit -->
+                    <button name="action_download_pdf"
+                            type="object"
+                            string="Download for PM Signature"
+                            class="btn-secondary"
+                            groups="site_operations.group_site_accountant"
+                            invisible="state != 'draft'"/>
+
                     <button name="action_submit"
                             type="object"
-                            string="Submit for Approval"
+                            string="Submit for CEO Approval"
                             class="btn-primary"
                             groups="site_operations.group_site_accountant"
                             invisible="state != 'draft'"/>
 
+                    <!-- CEO approval -->
                     <button name="action_ceo_approve"
                             type="object"
                             string="Approve (CEO)"
@@ -35,26 +41,15 @@
                             string="Reset to Draft"
                             class="btn-warning"
                             groups="site_operations.group_site_accountant,purchase_demand_raise.group_head_office"
-                            invisible="state != 'submitted'"/>
-
-                    <button name="action_mark_paid"
-                            type="object"
-                            string="Mark as Paid"
-                            class="btn-primary"
-                            groups="site_operations.group_finance_ho,purchase_demand_raise.group_head_office"
-                            invisible="state != 'approved'"/>
+                            invisible="state not in ['submitted', 'approved']"/>
 
                     <button name="action_refresh_from_ledger"
                             type="object"
                             string="↻ Refresh from Ledger"
                             class="btn-secondary"
-                            title="Pull opening balance and new liability amounts from the actual partner ledger entries"/>
-
-                    <button name="action_pm_sign"
-                            type="object"
-                            string="✍ Sign as PM"
-                            class="btn-primary"
-                            invisible="pm_is_signed or state == 'draft'"/>
+                            groups="site_operations.group_site_accountant,purchase_demand_raise.group_head_office"
+                            invisible="state == 'paid'"
+                            title="Pull opening balance and new liability from partner ledger"/>
 
                     <button name="action_download_pdf"
                             type="object"
@@ -64,8 +59,14 @@
                 </header>
 
                 <sheet>
-                    <!-- ── Stat Buttons ── -->
                     <div class="oe_button_box" name="button_box">
+                        <button name="action_view_payments"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-money"
+                                invisible="not payment_ids">
+                            <field name="payment_ids" widget="statinfo" string="Payments"/>
+                        </button>
                         <button type="button" class="oe_stat_button" icon="fa-balance-scale">
                             <div class="o_stat_info">
                                 <field name="total_liability" widget="statinfo" string="Total Liability"/>
@@ -86,26 +87,14 @@
                                 <field name="total_paid" widget="statinfo" string="Paid"/>
                             </div>
                         </button>
-                        <button name="action_view_journal_entry"
-                                type="object"
-                                class="oe_stat_button"
-                                icon="fa-book"
-                                invisible="not account_move_id">
-                            <div class="o_stat_info">
-                                <span class="o_stat_text">Journal Entry</span>
-                            </div>
-                        </button>
                     </div>
-                    <field name="account_move_id" invisible="1"/>
 
-                    <!-- ── Title ── -->
                     <div class="oe_title">
                         <h1>
                             <field name="name" readonly="1" placeholder="LS/PROJECT/Mon-YYYY-Mon-YYYY"/>
                         </h1>
                     </div>
 
-                    <!-- ── Header Fields ── -->
                     <group name="header_fields">
                         <group name="left">
                             <field name="project_analytic_account_id"
@@ -115,26 +104,19 @@
                             <field name="date_to"
                                    readonly="state not in ['draft']"/>
                         </group>
-                        <group name="right">
-                            <field name="pm_id" string="Project Manager"/>
-                            <field name="pm_is_signed" string="PM Signed" readonly="1"/>
-                            <field name="pm_signature_date" string="Signed On"
-                                   invisible="not pm_is_signed" readonly="1"/>
-                        </group>
                     </group>
 
-                    <!-- ── PM Signed Copy Upload ── -->
-                    <group string="PM Signed Document" invisible="state == 'draft'">
-                        <group>
-                            <field name="pm_signed_sheet"
-                                   widget="binary"
-                                   filename="pm_signed_sheet_filename"
-                                   string="Upload Signed Copy"/>
-                            <field name="pm_signed_sheet_filename" invisible="1"/>
-                        </group>
+                    <!-- PM physical signature upload (no PM user field — PM has no license) -->
+                    <group string="PM Signed Document (Required before Submit)"
+                           invisible="state == 'paid'">
+                        <field name="pm_signed_sheet"
+                               widget="binary"
+                               filename="pm_signed_sheet_filename"
+                               string="Upload PM Signed Copy"
+                               readonly="state not in ['draft']"/>
+                        <field name="pm_signed_sheet_filename" invisible="1"/>
                     </group>
 
-                    <!-- ── Lines Notebook ── -->
                     <notebook>
                         <page name="lines_tab" string="Liability Lines">
                             <field name="line_ids" widget="one2many"
@@ -142,41 +124,32 @@
                                 <list string="Liability Lines" editable="bottom">
                                     <field name="sequence" widget="handle"/>
                                     <field name="description"/>
-                                    <field name="partner_id"
-                                           readonly="is_locked"/>
-                                    <field name="opening_balance"
-                                           readonly="is_locked"/>
-                                    <field name="new_liability"
-                                           readonly="is_locked"/>
+                                    <field name="partner_id" readonly="is_locked"/>
+                                    <field name="opening_balance" readonly="is_locked"/>
+                                    <field name="new_liability" readonly="is_locked"/>
                                     <field name="liability_amount" readonly="1"/>
                                     <field name="recommended_amount"
-                                           readonly="parent.state not in ['draft', 'submitted']"/>
+                                           readonly="parent.state != 'draft'"/>
                                     <field name="decision"
-                                           readonly="parent.state not in ['submitted', 'approved'] or not is_locked == False"/>
-                                    <field name="approved_pct"
-                                           optional="show"
-                                           readonly="parent.state not in ['submitted', 'approved'] or is_locked"/>
+                                           readonly="parent.state != 'submitted' or is_locked"/>
                                     <field name="approved_amount"
-                                           readonly="is_locked and parent.state == 'approved'"/>
+                                           readonly="is_locked"/>
+                                    <field name="approved_pct" optional="show" readonly="1"/>
                                     <field name="remarks" optional="show"/>
-                                    <field name="paid_amount"
-                                           readonly="parent.state != 'approved'"
-                                           optional="show"/>
+                                    <field name="paid_amount" readonly="1" optional="show"/>
                                     <field name="balance" readonly="1" optional="show"/>
+                                    <field name="payment_id" optional="hide" readonly="1"/>
                                     <field name="is_locked" column_invisible="1"/>
                                 </list>
                             </field>
                         </page>
                     </notebook>
                 </sheet>
-
-                <!-- ── Chatter ── -->
                 <chatter/>
             </form>
         </field>
     </record>
 
-    <!-- ── List View ────────────────────────────────────────────────────── -->
     <record id="view_liability_sheet_list" model="ir.ui.view">
         <field name="name">x.liability.sheet.list</field>
         <field name="model">x.liability.sheet</field>
@@ -204,7 +177,6 @@
         </field>
     </record>
 
-    <!-- ── Search View ───────────────────────────────────────────────────── -->
     <record id="view_liability_sheet_search" model="ir.ui.view">
         <field name="name">x.liability.sheet.search</field>
         <field name="model">x.liability.sheet</field>
@@ -212,44 +184,24 @@
             <search string="Search Liability Sheets">
                 <field name="name" string="Reference"/>
                 <field name="project_analytic_account_id" string="Project"/>
-
-                <!-- ── Status Filters ── -->
                 <separator/>
-                <filter name="filter_draft"
-                        string="Draft"
-                        domain="[('state', '=', 'draft')]"/>
-                <filter name="filter_submitted"
-                        string="Submitted"
-                        domain="[('state', '=', 'submitted')]"/>
-                <filter name="filter_approved"
-                        string="Approved"
-                        domain="[('state', '=', 'approved')]"/>
-                <filter name="filter_paid"
-                        string="Paid"
-                        domain="[('state', '=', 'paid')]"/>
-
-                <!-- ── Date Filters ── -->
+                <filter name="filter_draft" string="Draft" domain="[('state', '=', 'draft')]"/>
+                <filter name="filter_submitted" string="Submitted" domain="[('state', '=', 'submitted')]"/>
+                <filter name="filter_approved" string="Approved" domain="[('state', '=', 'approved')]"/>
+                <filter name="filter_paid" string="Paid" domain="[('state', '=', 'paid')]"/>
                 <separator/>
                 <filter name="filter_this_month"
                         string="This Month"
                         domain="[('date_from', '&gt;=', (context_today() + relativedelta(day=1)).strftime('%Y-%m-%d'))]"/>
-
-                <!-- ── Group By ── -->
                 <separator/>
-                <filter name="group_by_project"
-                        string="Group by Project"
+                <filter name="group_by_project" string="Group by Project"
                         context="{'group_by': 'project_analytic_account_id'}"/>
-                <filter name="group_by_state"
-                        string="Group by Status"
+                <filter name="group_by_state" string="Group by Status"
                         context="{'group_by': 'state'}"/>
-                <filter name="group_by_date_from"
-                        string="Group by Date"
-                        context="{'group_by': 'date_from:month'}"/>
             </search>
         </field>
     </record>
 
-    <!-- ── Window Action ─────────────────────────────────────────────────── -->
     <record id="action_liability_sheet" model="ir.actions.act_window">
         <field name="name">Liability Sheets</field>
         <field name="res_model">x.liability.sheet</field>
@@ -261,12 +213,8 @@
         ]"/>
         <field name="search_view_id" ref="view_liability_sheet_search"/>
         <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">
-                No liability sheets found.
-            </p>
-            <p>
-                Create a new liability sheet to track vendor payments for a project.
-            </p>
+            <p class="o_view_nocontent_smiling_face">No liability sheets found.</p>
+            <p>Create a liability sheet to track vendor and subcontractor payments for a project.</p>
         </field>
     </record>
 

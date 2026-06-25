@@ -1,6 +1,7 @@
 from . import stock_picking
 from . import stock_move
 from . import stock_return_picking
+from . import interproject_accounting
 from . import liability_sheet
 from . import analytic_distribution_mixin
 from . import project_project
