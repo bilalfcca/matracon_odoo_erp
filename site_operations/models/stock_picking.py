@@ -494,6 +494,21 @@ class StockPickingSiteOps(models.Model):
     # SITE-TO-SITE APPROVAL
     # ─────────────────────────────────────────────────────────────────────────
 
+    def _check_site_transfer_approver(self):
+        """Only CEO, Procurement HO, or Matracon Admin may approve/reject."""
+        if self.env.su:
+            return
+        approver_groups = (
+            'purchase_demand_raise.group_procurement_ho',
+            'purchase_demand_raise.group_ceo_approval',
+            'site_operations.group_matracon_admin',
+        )
+        if not any(self.env.user.has_group(g) for g in approver_groups):
+            raise UserError(_(
+                'Only Procurement HO, CEO, or Matracon Admin can approve '
+                'site-to-site transfers.'
+            ))
+
     def action_submit_site_transfer(self):
         """Source site submits MTN for CEO / Procurement HO approval."""
         for pick in self:
@@ -513,6 +528,9 @@ class StockPickingSiteOps(models.Model):
                     self.env.user.name))
 
     def action_approve_site_transfer(self):
+        """Approve and auto-validate the outbound site-to-site transfer."""
+        self._check_site_transfer_approver()
+        to_validate = self.env['stock.picking']
         for pick in self.filtered(
             lambda p: p.x_transfer_purpose == 'site_to_site' and not p.x_is_dest_receipt
         ):
@@ -520,9 +538,18 @@ class StockPickingSiteOps(models.Model):
                 raise UserError(_('Only transfers pending approval can be approved.'))
             pick.x_site_transfer_state = 'approved'
             pick.message_post(
-                body=Markup(_('Site-to-site transfer approved by <b>%s</b>.')) % self.env.user.name)
+                body=Markup(_('Site-to-site transfer approved by <b>%s</b>.')) % (
+                    self.env.user.name))
+            if pick.state not in ('done', 'cancel'):
+                to_validate |= pick
+        for pick in to_validate:
+            res = pick.sudo().button_validate()
+            if isinstance(res, dict) and res.get('type') == 'ir.actions.act_window':
+                return res
+        return True
 
     def action_reject_site_transfer(self):
+        self._check_site_transfer_approver()
         for pick in self.filtered(
             lambda p: p.x_transfer_purpose == 'site_to_site' and not p.x_is_dest_receipt
         ):
@@ -544,8 +571,8 @@ class StockPickingSiteOps(models.Model):
                     and not pick.x_is_dest_receipt
                     and pick.x_site_transfer_state != 'approved'):
                 raise UserError(_(
-                    'This site-to-site transfer must be approved by Procurement HO or CEO '
-                    'before dispatch. Use "Submit for Approval" first.'
+                    'This site-to-site transfer must be approved by Procurement HO, CEO, '
+                    'or Matracon Admin before dispatch. Use "Submit for Approval" first.'
                 ))
             if pick.x_is_return_transfer:
                 pick._apply_return_line_destinations()

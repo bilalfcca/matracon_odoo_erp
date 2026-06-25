@@ -1,5 +1,12 @@
 from odoo import models, fields, api, _
 
+# Demo / default site warehouses — one per Matracon project.
+_SITE_WAREHOUSE_DEFAULTS = {
+    'MCH - BAHAWALNAGAR': ('MCH', 'MCH Site Warehouse', 'warehouse_site_mch'),
+    'RWASA': ('RWASA', 'RWASA Site Warehouse', 'warehouse_site_rwasa'),
+    'STP - MARDAN': ('STP', 'STP Site Warehouse', 'warehouse_site_stp'),
+}
+
 
 class ProjectSiteConfigProjectLink(models.Model):
     _inherit = 'x.project.site.config'
@@ -181,3 +188,49 @@ class ProjectSiteConfigProjectLink(models.Model):
             'site_operations.action_project_financial_overview').read()[0]
         action['domain'] = [('id', '=', self.project_id.id)]
         return action
+
+    @api.model
+    def _matracon_ensure_site_warehouses(self):
+        """Ensure each site project config has a warehouse (demo + production)."""
+        Warehouse = self.env['stock.warehouse'].sudo()
+        company = self.env.company
+        for config in self.search([]):
+            if config.warehouse_id:
+                continue
+            wh = False
+            defaults = _SITE_WAREHOUSE_DEFAULTS.get(config.name)
+            if defaults:
+                _code, _name, xml_suffix = defaults
+                wh = self.env.ref(
+                    f'site_operations.{xml_suffix}', raise_if_not_found=False)
+            if not wh and defaults:
+                code, name, _xml_suffix = defaults
+                wh = Warehouse.search([
+                    ('code', '=', code),
+                    ('company_id', '=', company.id),
+                ], limit=1)
+                if not wh:
+                    wh = Warehouse.create({
+                        'name': name,
+                        'code': code,
+                        'company_id': company.id,
+                    })
+            elif not wh:
+                code = ''.join(
+                    part[0] for part in config.name.split() if part
+                )[:5].upper() or 'SITE'
+                name = f'{config.name} Site Warehouse'
+                wh = Warehouse.search([
+                    ('code', '=', code),
+                    ('company_id', '=', company.id),
+                ], limit=1)
+                if not wh:
+                    wh = Warehouse.create({
+                        'name': name,
+                        'code': code,
+                        'company_id': company.id,
+                    })
+            config.sudo().write({'warehouse_id': wh.id})
+            users = config.site_user_ids | config.x_site_accountant_ids
+            if users:
+                users.sudo().write({'x_default_warehouse_id': wh.id})

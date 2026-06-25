@@ -146,6 +146,7 @@ def sync_alternative_prs(env):
 def post_init_hook(env):
     try:
         configure_production_users(env)
+        env['x.project.site.config']._matracon_ensure_site_warehouses()
         sync_alternative_prs(env)
     except Exception as e:
         import logging
