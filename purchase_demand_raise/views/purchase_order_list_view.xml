@@ -33,7 +33,7 @@
                        widget="badge"
                        decoration-info="x_pr_state == 'draft'"
                        decoration-warning="x_pr_state in ('submitted', 'rfq_phase', 'ceo_final')"
-                       decoration-success="x_pr_state in ('po_locked', 'dispatched')"
+                       decoration-success="x_pr_state == 'po_locked'"
                        decoration-danger="x_pr_state in ('rejected', 'cancelled')"
                        optional="show"/>
                 <field name="x_ho_status" string="HO Status"
@@ -79,7 +79,7 @@
                        widget="badge"
                        decoration-info="x_pr_state == 'draft'"
                        decoration-warning="x_pr_state in ('submitted', 'rfq_phase', 'ceo_final')"
-                       decoration-success="x_pr_state in ('po_locked', 'dispatched')"
+                       decoration-success="x_pr_state == 'po_locked'"
                        decoration-danger="x_pr_state in ('rejected', 'cancelled')"
                        optional="show"/>
                 <field name="x_ho_status" string="HO Status"
@@ -142,10 +142,6 @@
                 <filter name="po_locked"
                         string="PO Locked — Ready to Dispatch"
                         domain="[('x_pr_state', '=', 'po_locked')]"/>
-
-                <filter name="dispatched"
-                        string="Dispatched"
-                        domain="[('x_pr_state', '=', 'dispatched')]"/>
 
                 <filter name="rejected"
                         string="Rejected"

@@ -34,7 +34,6 @@ class ProcurementHoDashboard(models.TransientModel):
         ('submitted', 'Submitted'),
         ('ceo_final', 'Pending CEO Approval'),
         ('po_locked', 'PO Locked'),
-        ('dispatched', 'Dispatched'),
         ('rejected', 'Rejected'),
         ('cancelled', 'Cancelled'),
     ], string='PR Status', default='')
@@ -57,9 +56,6 @@ class ProcurementHoDashboard(models.TransientModel):
     active_cs_count = fields.Integer(string='Active CS', readonly=True)
     ceo_pending_count = fields.Integer(string='Pending CEO Approval', readonly=True)
     confirmed_orders_count = fields.Integer(string='Confirmed Orders', readonly=True)
-    ready_dispatch_count = fields.Integer(string='Ready to Dispatch', readonly=True)
-    dispatched_mtd_count = fields.Integer(string='Dispatched (MTD)', readonly=True)
-
     pending_review_ids = fields.Many2many(
         'purchase.order', 'proc_ho_dash_pending_rel', 'dash_id', 'order_id',
         string='Pending HO Review', readonly=True)
@@ -69,12 +65,6 @@ class ProcurementHoDashboard(models.TransientModel):
     active_cs_ids = fields.Many2many(
         'purchase.order', 'proc_ho_dash_cs_rel', 'dash_id', 'order_id',
         string='Active CS / RFQ', readonly=True)
-    ready_dispatch_ids = fields.Many2many(
-        'purchase.order', 'proc_ho_dash_dispatch_rel', 'dash_id', 'order_id',
-        string='Ready to Dispatch', readonly=True)
-    recent_dispatched_ids = fields.Many2many(
-        'purchase.order', 'proc_ho_dash_dispatched_rel', 'dash_id', 'order_id',
-        string='Recently Dispatched', readonly=True)
     critical_demand_ids = fields.Many2many(
         'purchase.order', 'proc_ho_dash_critical_rel', 'dash_id', 'order_id',
         string='Critical Site Demands', readonly=True)
@@ -139,17 +129,9 @@ class ProcurementHoDashboard(models.TransientModel):
             order='date_order desc',
         )
         confirmed = PO.search(
-            base + [('x_pr_state', 'in', ('po_locked', 'dispatched')),
+            base + [('x_pr_state', '=', 'po_locked'),
                     ('state', 'in', ('purchase', 'done'))],
             order='date_order desc', limit=20,
-        )
-        dispatched_mtd = PO.search(base + [
-            ('x_pr_state', '=', 'dispatched'),
-            ('write_date', '>=', fields.Datetime.to_datetime(month_start)),
-        ])
-        recent_dispatched = PO.search(
-            base + [('x_pr_state', '=', 'dispatched')],
-            order='write_date desc', limit=10,
         )
         cutoff_critical = fields.Datetime.to_datetime(today - timedelta(days=3))
         critical = PO.search(
@@ -165,8 +147,7 @@ class ProcurementHoDashboard(models.TransientModel):
             order='date_order desc', limit=8,
         )
         tracked = (
-            pending_review | ceo_pending | active_cs | ready_dispatch
-            | recent_dispatched | critical | recent_pos
+            pending_review | ceo_pending | active_cs | confirmed | critical | recent_pos
         )
         messages = self.env['mail.message'].search([
             ('model', '=', 'purchase.order'),
@@ -185,15 +166,11 @@ class ProcurementHoDashboard(models.TransientModel):
             'active_cs_count': len(active_cs),
             'ceo_pending_count': len(ceo_pending),
             'confirmed_orders_count': len(confirmed),
-            'ready_dispatch_count': len(ready_dispatch),
-            'dispatched_mtd_count': len(dispatched_mtd),
             # Recordsets (M2M)
             'available_project_ids': site_projects,
             'pending_review_ids': pending_review,
             'ceo_pending_ids': ceo_pending,
             'active_cs_ids': active_cs,
-            'ready_dispatch_ids': ready_dispatch,
-            'recent_dispatched_ids': recent_dispatched,
             'critical_demand_ids': critical,
             'recent_po_ids': recent_pos,
             'activity_message_ids': messages,
@@ -334,18 +311,6 @@ class ProcurementHoDashboard(models.TransientModel):
             'view_mode': 'list,form',
             'domain': [('id', 'in', pending.ids)],
         }
-
-    def action_open_ready_dispatch(self):
-        return self._action_open_pos(
-            [('x_pr_state', '=', 'po_locked')],
-            _('Ready to Dispatch'),
-        )
-
-    def action_open_dispatched(self):
-        return self._action_open_pos(
-            [('x_pr_state', '=', 'dispatched')],
-            _('Dispatched'),
-        )
 
     def action_open_critical_demands(self):
         return self._action_open_pos(

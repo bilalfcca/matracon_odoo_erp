@@ -146,7 +146,7 @@
                                     <field name="pr_ids" nolabel="1" readonly="1">
                                         <list create="false" delete="false" edit="false"
                                               decoration-warning="x_pr_state == 'draft'"
-                                              decoration-success="x_pr_state in ('submitted', 'po_locked', 'dispatched')">
+                                              decoration-success="x_pr_state in ('submitted', 'po_locked')">
                                             <field name="name" string="Reference"/>
                                             <field name="date_order" string="Date"/>
                                             <field name="x_pr_state" string="Status" widget="badge"/>

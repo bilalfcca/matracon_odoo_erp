@@ -24,7 +24,6 @@ class SiteStoreDashboard(models.TransientModel):
         ('submitted', 'Submitted'),
         ('ceo_final', 'Pending CEO'),
         ('po_locked', 'PO Locked'),
-        ('dispatched', 'Dispatched'),
     ], string='PR Status', default='')
     filter_period_days = fields.Selection([
         ('7', 'Last 7 Days'),
@@ -164,7 +163,7 @@ class SiteStoreDashboard(models.TransientModel):
             ('purchase_id.x_project_analytic_account_id', '=', analytic.id if analytic else 0),
         ], order='date_done desc', limit=8)
         on_order = PO.search(po_base + [
-            ('x_pr_state', 'in', ('po_locked', 'dispatched')),
+            ('x_pr_state', '=', 'po_locked'),
             ('state', 'in', ('purchase', 'done')),
         ], order='date_order desc', limit=8)
 

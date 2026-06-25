@@ -15,7 +15,6 @@ class PurchaseOrder(models.Model):
         ('submitted', 'Submitted'),
         ('ceo_final', 'Pending CEO Approval'),
         ('po_locked', 'PO Locked'),
-        ('dispatched', 'Dispatched'),
         ('rejected', 'Rejected'),
         ('cancelled', 'Cancelled'),
     ], string='PR Status', default='draft', tracking=True)
@@ -373,18 +372,20 @@ class PurchaseOrder(models.Model):
 
             order.write({'x_pr_state': 'po_locked', 'x_ceo_status': 'approved'})
 
-            # ── Confirm the PO and create the incoming receipt picking ──────────
+            # ── Confirm the PO and ensure receipt picking is created ──────────
             order.button_confirm()
-            # Always call button_approve with sudo so we bypass Odoo's purchase
-            # double-validation amount threshold — CEO approval IS the final gate.
-            if hasattr(order, 'button_approve'):
-                order.sudo().button_approve()
-            # Belt-and-suspenders: if picking still doesn't exist, force-create it.
+            # Bypass double-validation gate: force purchase state if needed
+            # (CEO approval IS the final authority — no amount threshold applies)
+            if order.state not in ('purchase', 'done', 'cancel'):
+                order.sudo().write({'state': 'purchase', 'date_approve': fields.Datetime.now()})
+            # Invalidate computed field caches to ensure fresh picking_ids from DB
+            order.invalidate_recordset()
+            # Create picking if not yet created (handles all edge cases)
             if order.state == 'purchase' and not order.picking_ids.filtered(
-                lambda p: p.state != 'cancel'
+                lambda p: p.state not in ('done', 'cancel')
             ):
                 if hasattr(order, '_create_picking'):
-                    order._create_picking()
+                    order.sudo()._create_picking()
 
             # ── Cancel all other open RFQs in the same alternatives group ───────
             if getattr(order, 'purchase_group_id', False) and order.purchase_group_id:
@@ -436,33 +437,6 @@ class PurchaseOrder(models.Model):
                     Markup('❌ PO for your PR <b>%(pr)s</b> was rejected by CEO at the final stage.') % {'pr': order.name}
                 )
 
-    def action_dispatch_to_vendor(self):
-        """Dispatch confirmed PO to vendor — only after CEO final lock."""
-        self.ensure_one()
-        if self.x_pr_state != 'po_locked':
-            raise UserError(_('PO must be Locked (CEO final approved) before dispatching to vendor.'))
-        if not self.partner_id:
-            raise UserError(_('Please set the Vendor before dispatching the PO.'))
-
-        self.x_pr_state = 'dispatched'
-        self.message_post(
-            body=Markup('📤 PO dispatched to vendor <b>%(vendor)s</b> by <b>%(user)s</b>.') % {
-                'vendor': self.partner_id.name, 'user': self.env.user.name,
-            },
-            subtype_xmlid='mail.mt_log_note',
-        )
-        if self.x_initiator_id and self.x_initiator_id.partner_id:
-            self._notify_partners(
-                [self.x_initiator_id.partner_id.id],
-                Markup('📤 PO <b>%(pr)s</b> has been dispatched to vendor <b>%(vendor)s</b>. Materials are on their way!') % {
-                    'pr': self.name, 'vendor': self.partner_id.name,
-                }
-            )
-        # Print the Final PO report (CEO-approved vendor copy with prices)
-        return self.env.ref(
-            'purchase_demand_raise.action_report_final_po'
-        ).report_action(self)
-
     def button_confirm(self):
         """Override: guard standard Confirm Order against bypassing the PR workflow.
 
@@ -473,7 +447,7 @@ class PurchaseOrder(models.Model):
         For PR documents:
         - draft / submitted / rejected / cancelled → blocked
         - rfq_phase / ceo_final → allowed if vendor is set; auto-advances to po_locked
-        - po_locked / dispatched → pass-through (already CEO-approved)
+        - po_locked → pass-through (already CEO-approved)
         """
         _hard_block = ('draft', 'submitted', 'rejected', 'cancelled')
         _soft_check = ('ceo_final',)
@@ -506,7 +480,7 @@ class PurchaseOrder(models.Model):
         if self.env.user.has_group('purchase_demand_raise.group_site_store'):
             raise UserError(_('Site Store cannot send RFQs. Please submit the PR for approval.'))
         for order in self:
-            if order.x_pr_state not in ('submitted', 'ceo_final', 'po_locked', 'dispatched'):
+            if order.x_pr_state not in ('submitted', 'ceo_final', 'po_locked'):
                 raise UserError(_(
                     'RFQ cannot be sent at this stage.\n'
                     'Current PR Status: %s'

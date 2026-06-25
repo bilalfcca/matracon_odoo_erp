@@ -23,7 +23,7 @@
 
                 <!-- PR Status bar: visible on PR docs, site store, and alternative RFQs -->
                 <field name="x_pr_state" widget="statusbar"
-                       statusbar_visible="draft,submitted,ceo_final,po_locked,dispatched"
+                       statusbar_visible="draft,submitted,ceo_final,po_locked"
                        invisible="not x_is_pr_document and not x_is_site_store and not x_is_alternative_rfq"/>
 
                 <!-- Print PR: Site Store only, draft/submitted only -->
@@ -114,10 +114,10 @@
                 <attribute name="invisible">1</attribute>
             </xpath>
             <xpath expr="//header/button[@name='action_rfq_send'][2]" position="attributes">
-                <attribute name="invisible">x_is_site_store or x_pr_state in ('po_locked', 'dispatched') or (x_is_pr_document and x_pr_state in ('rejected', 'cancelled'))</attribute>
+                <attribute name="invisible">x_is_site_store or x_pr_state == 'po_locked' or (x_is_pr_document and x_pr_state in ('rejected', 'cancelled'))</attribute>
             </xpath>
             <xpath expr="//header/button[@name='action_rfq_send'][3]" position="attributes">
-                <attribute name="invisible">x_is_site_store or x_pr_state in ('po_locked', 'dispatched') or (x_is_pr_document and x_pr_state in ('rejected', 'cancelled'))</attribute>
+                <attribute name="invisible">x_is_site_store or x_pr_state == 'po_locked' or (x_is_pr_document and x_pr_state in ('rejected', 'cancelled'))</attribute>
             </xpath>
             <!-- Confirm Order:
                  - PR documents: HIDDEN (CEO Final Approve handles confirm)
@@ -125,11 +125,11 @@
                  - Site Store: never visible
             -->
             <xpath expr="//header/button[@name='button_confirm'][@id='draft_confirm']" position="attributes">
-                <attribute name="invisible">x_is_pr_document or x_is_site_store</attribute>
+                <attribute name="invisible">x_is_pr_document or x_is_site_store or x_is_alternative_rfq</attribute>
             </xpath>
             <!-- Cancel: hidden from Site Store and from PR docs once rejected/dispatched -->
             <xpath expr="//header/button[@name='button_cancel']" position="attributes">
-                <attribute name="invisible">x_is_site_store or (x_is_pr_document and x_pr_state in ('rejected', 'cancelled', 'dispatched'))</attribute>
+                <attribute name="invisible">x_is_site_store or (x_is_pr_document and x_pr_state in ('rejected', 'cancelled'))</attribute>
             </xpath>
             <!-- Hide duplicate standard Print Quotation buttons — use Print RFQ instead -->
             <xpath expr="//header/button[@name='print_quotation']" position="attributes">
@@ -215,7 +215,7 @@
 
             <!-- Lock entire order_line list when PR is rejected/cancelled/dispatched -->
             <xpath expr="//field[@name='order_line']" position="attributes">
-                <attribute name="readonly">state == 'cancel' or locked or (x_is_pr_document and x_pr_state in ('rejected', 'cancelled', 'dispatched'))</attribute>
+                <attribute name="readonly">state == 'cancel' or locked or (x_is_pr_document and x_pr_state in ('rejected', 'cancelled'))</attribute>
             </xpath>
 
             <!-- Role flags on lines (for readonly/invisible within lines) -->
@@ -337,7 +337,7 @@
                         class="oe_stat_button"
                         icon="fa-list-alt"
                         groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,base.group_system"
-                        invisible="x_is_site_store or x_has_tender_alternatives or x_pr_state not in ('submitted','ceo_final','po_locked','dispatched')">
+                        invisible="x_is_site_store or x_has_tender_alternatives or x_pr_state not in ('submitted','ceo_final','po_locked')">
                     <div class="o_field_widget o_stat_info">
                         <span class="o_stat_text">Manual</span>
                         <span class="o_stat_text">CS Entry</span>
