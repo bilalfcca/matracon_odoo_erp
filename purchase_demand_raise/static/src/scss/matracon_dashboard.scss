@@ -1,0 +1,237 @@
+/* Matracon Operations Dashboards — mobile-first responsive layout */
+
+.o_form_view.o_matracon_dashboard {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+}
+
+.o_matracon_dashboard {
+    overflow-x: hidden;
+    max-width: 100%;
+
+    .o_form_sheet,
+    .o_form_sheet_bg,
+    .o_content {
+        max-width: 100%;
+        overflow-x: hidden;
+    }
+
+    /* ── Header: wrap buttons instead of overflowing ── */
+    > header,
+    .o_form_statusbar {
+        flex-wrap: wrap !important;
+        gap: 0.35rem 0.5rem;
+        row-gap: 0.5rem;
+        max-width: 100%;
+        overflow-x: hidden;
+
+        .btn,
+        button {
+            white-space: normal;
+            text-align: center;
+        }
+    }
+
+    /* ── Filter toolbar (inside sheet) ── */
+    .matracon-dash-filters {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-end;
+        gap: 0.5rem 0.75rem;
+        width: 100%;
+        max-width: 100%;
+        margin-bottom: 1rem;
+        padding: 0.75rem 1rem;
+        background: var(--o-view-background-color, #fff);
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        border-radius: 8px;
+
+        .matracon-dash-filters__label {
+            flex: 0 0 100%;
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: #6c757d;
+            margin-bottom: 0.15rem;
+        }
+
+        .matracon-dash-filters__field {
+            flex: 1 1 9rem;
+            min-width: 0 !important;
+            max-width: 100%;
+
+            .o_field_widget,
+            .o_input,
+            select,
+            input {
+                min-width: 0 !important;
+                max-width: 100%;
+                width: 100%;
+            }
+        }
+
+        .matracon-dash-filters__actions {
+            flex: 0 0 auto;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.35rem;
+        }
+    }
+
+    /* ── Title block ── */
+    .oe_title {
+        max-width: 100%;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+
+        h1 {
+            font-size: clamp(1.15rem, 4.5vw, 1.75rem);
+            line-height: 1.25;
+            overflow-wrap: anywhere;
+        }
+
+        p,
+        h3 {
+            overflow-wrap: anywhere;
+        }
+    }
+
+    /* ── KPI cards ── */
+    .row {
+        margin-left: 0;
+        margin-right: 0;
+        max-width: 100%;
+    }
+
+    .card {
+        max-width: 100%;
+        overflow: hidden;
+    }
+
+    .card-header {
+        flex-wrap: wrap;
+        gap: 0.35rem 0.5rem;
+    }
+
+    .card-body {
+        max-width: 100%;
+        overflow: hidden;
+    }
+
+    /* ── Embedded list tables: scroll inside card, not whole page ── */
+    .matracon-dash-table-wrap {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior-x: contain;
+
+        .o_field_widget {
+            max-width: 100%;
+        }
+
+        .o_list_renderer,
+        .o_list_view {
+            max-width: 100%;
+        }
+
+        table.o_list_table {
+            margin-bottom: 0;
+        }
+    }
+
+    /* ── Stock alert banner ── */
+    .matracon-dash-alert {
+        flex-wrap: wrap !important;
+        max-width: 100%;
+
+        .flex-grow-1 {
+            min-width: 0;
+            flex: 1 1 12rem;
+        }
+    }
+
+    /* ── Issuance split bar ── */
+    .matracon-issuance-bar {
+        flex-wrap: wrap;
+        height: auto !important;
+        min-height: 28px;
+
+        > div {
+            flex: 1 1 100% !important;
+            min-height: 28px;
+            padding: 0.25rem 0.5rem;
+        }
+    }
+
+    @media (min-width: 576px) {
+        .matracon-issuance-bar > div {
+            flex: 1 1 50% !important;
+        }
+    }
+
+    @media (min-width: 992px) {
+        .matracon-issuance-bar {
+            flex-wrap: nowrap;
+            height: 28px !important;
+
+            > div {
+                flex: 0 0 60% !important;
+
+                + div {
+                    flex: 0 0 40% !important;
+                }
+            }
+        }
+    }
+}
+
+@media (max-width: 767.98px) {
+    .o_matracon_dashboard {
+        /* Tighter sheet padding on phones */
+        .o_form_sheet {
+            padding-left: 0.65rem !important;
+            padding-right: 0.65rem !important;
+        }
+
+        .matracon-dash-filters__field {
+            flex: 1 1 100%;
+        }
+
+        /* Smaller KPI numbers */
+        .card-body .fw-bold[style*="font-size:2"] {
+            font-size: 2rem !important;
+        }
+
+        /* Header: full-width primary actions */
+        > header {
+            .btn-primary,
+            .btn-secondary {
+                flex: 1 1 calc(50% - 0.25rem);
+                min-width: 0;
+            }
+        }
+
+        /* Hide low-priority list columns on very small screens */
+        .matracon-dash-table-wrap--compact {
+            th[data-name="x_category_id"],
+            td[name="x_category_id"],
+            th[data-name="x_initiator_id"],
+            td[name="x_initiator_id"],
+            th[data-name="x_ho_status"],
+            td[name="x_ho_status"],
+            th[data-name="x_has_tender_alternatives"],
+            td[name="x_has_tender_alternatives"],
+            th[data-name="date_order"],
+            td[name="date_order"],
+            th[data-name="origin"],
+            td[name="origin"],
+            th[data-name="scheduled_date"],
+            td[name="scheduled_date"] {
+                display: none;
+            }
+        }
+    }
+}

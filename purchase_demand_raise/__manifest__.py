@@ -1,6 +1,6 @@
 {
     'name': 'Demand Raise Module',
-    'version': '1.2.8',
+    'version': '1.2.9',
     'summary': 'Purchase Demand Raise — Phase 1: PR to PO with role-based access, Comparative Statement, and CEO approval tiers',
     'author': 'Matracon Pakistan',
     'depends': ['purchase', 'purchase_requisition', 'stock', 'analytic', 'mail', 'purchase_stock'],
@@ -29,4 +29,9 @@
     'installable': True,
     'application': False,
     'license': 'LGPL-3',
+    'assets': {
+        'web.assets_backend': [
+            'purchase_demand_raise/static/src/scss/matracon_dashboard.scss',
+        ],
+    },
 }

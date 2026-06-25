@@ -5,46 +5,43 @@
         <field name="name">x.site.store.dashboard.form</field>
         <field name="model">x.site.store.dashboard</field>
         <field name="arch" type="xml">
-            <form string="Site Store Dashboard" create="false" delete="false">
+            <form string="Site Store Dashboard" class="o_matracon_dashboard" create="false" delete="false">
                 <header>
                     <button name="action_refresh" type="object" string="Refresh"
                             class="btn-secondary" icon="fa-refresh"/>
                     <button name="action_raise_pr" type="object" string="New PR"
                             class="btn-primary"/>
                     <button name="action_open_issuance" type="object"
-                            string="Material Issuance" class="btn-secondary"/>
+                            string="Issuance" class="btn-secondary"/>
                     <button name="action_open_transfers" type="object"
-                            string="Site Transfer" class="btn-secondary"/>
-                    <!-- Inline filters in the header bar -->
-                    <field name="filter_pr_state" nolabel="1"
-                           placeholder="PR Status"
-                           class="o_field_widget ms-3" style="min-width:120px;"/>
-                    <field name="filter_period_days" nolabel="1"
-                           placeholder="Date Range"
-                           class="o_field_widget ms-2" style="min-width:110px;"/>
-                    <field name="filter_section" nolabel="1"
-                           placeholder="Section"
-                           class="o_field_widget ms-2" style="min-width:130px;"/>
+                            string="Transfer" class="btn-secondary"/>
                     <button name="action_clear_filters" type="object"
-                            string="Clear" class="btn-secondary ms-2" icon="fa-times"/>
+                            string="Clear Filters" class="btn-secondary" icon="fa-times"/>
                 </header>
                 <sheet>
 
-                    <!-- ── Title ────────────────────────────────────────────── -->
-                    <div class="row mb-3">
-                        <div class="col">
-                            <div class="oe_title">
-                                <h1><field name="project_name" readonly="1" class="oe_inline"/></h1>
-                                <p class="text-muted mb-0">
-                                    <field name="user_name" readonly="1" class="oe_inline"/>
-                                    — Site Store Manager
-                                </p>
-                            </div>
+                    <div class="oe_title mb-3">
+                        <h1><field name="project_name" readonly="1" class="oe_inline"/></h1>
+                        <p class="text-muted mb-0">
+                            <field name="user_name" readonly="1" class="oe_inline"/>
+                            — Site Store Manager
+                        </p>
+                    </div>
+
+                    <div class="matracon-dash-filters">
+                        <span class="matracon-dash-filters__label">Filters</span>
+                        <div class="matracon-dash-filters__field">
+                            <field name="filter_pr_state" nolabel="1" placeholder="PR Status"/>
+                        </div>
+                        <div class="matracon-dash-filters__field">
+                            <field name="filter_period_days" nolabel="1" placeholder="Date Range"/>
+                        </div>
+                        <div class="matracon-dash-filters__field">
+                            <field name="filter_section" nolabel="1" placeholder="Section"/>
                         </div>
                     </div>
 
-                    <!-- ── Stock Alert ──────────────────────────────────────── -->
-                    <div class="alert alert-warning d-flex align-items-start gap-3 mb-4"
+                    <div class="alert alert-warning matracon-dash-alert d-flex align-items-start gap-3 mb-4"
                          role="alert" invisible="not has_stock_alert">
                         <i class="fa fa-exclamation-triangle fa-lg mt-1" title="Alert"/>
                         <div class="flex-grow-1">
@@ -57,15 +54,11 @@
                                 string="Raise PR" class="btn btn-warning btn-sm flex-shrink-0"/>
                     </div>
 
-                    <!-- ══════════════════════════════════════════════════════
-                         KPI CARDS — 4 in a row (Image 14 style)
-                    ══════════════════════════════════════════════════════ -->
                     <div class="row g-3 mb-4">
 
-                        <!-- Open Requisitions -->
                         <div class="col-12 col-sm-6 col-xl-3">
                             <div class="card border-0 h-100" style="box-shadow:0 1px 6px rgba(0,0,0,.12); border-radius:8px;">
-                                <div class="card-body py-3 px-4">
+                                <div class="card-body py-3 px-3 px-md-4">
                                     <div class="d-flex justify-content-between align-items-start">
                                         <small class="text-muted text-uppercase fw-bold"
                                                style="font-size:0.7rem; letter-spacing:0.06em;">Open Requisitions</small>
@@ -75,77 +68,71 @@
                                          style="font-size:2.4rem; line-height:1.1;">
                                         <field name="open_pr_count" nolabel="1" readonly="1" class="oe_inline"/>
                                     </div>
-                                    <div class="d-flex align-items-center justify-content-between">
+                                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
                                         <small class="text-warning fw-bold">
                                             <i class="fa fa-pencil me-1" title="Signature"/>
                                             <field name="pending_signature_count" nolabel="1" readonly="1" class="oe_inline"/>
                                             Pending Signature
                                         </small>
                                         <button name="action_open_prs" type="object"
-                                                string="View" class="btn btn-sm btn-outline-primary"
-                                                style="font-size:0.72rem; padding:2px 8px;"/>
+                                                string="View" class="btn btn-sm btn-outline-primary"/>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Material Arrivals Today -->
                         <div class="col-12 col-sm-6 col-xl-3">
                             <div class="card border-0 h-100" style="box-shadow:0 1px 6px rgba(0,0,0,.12); border-radius:8px;">
-                                <div class="card-body py-3 px-4">
+                                <div class="card-body py-3 px-3 px-md-4">
                                     <div class="d-flex justify-content-between align-items-start">
                                         <small class="text-muted text-uppercase fw-bold"
-                                               style="font-size:0.7rem; letter-spacing:0.06em;">Material Arrivals (Today)</small>
+                                               style="font-size:0.7rem; letter-spacing:0.06em;">Arrivals Today</small>
                                         <i class="fa fa-truck text-muted" title="Arrivals"/>
                                     </div>
                                     <div class="fw-bold text-success mt-2 mb-1"
                                          style="font-size:2.4rem; line-height:1.1;">
                                         <field name="arrivals_today_count" nolabel="1" readonly="1" class="oe_inline"/>
                                     </div>
-                                    <div class="d-flex align-items-center justify-content-between">
+                                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
                                         <small class="text-info fw-bold">
                                             <i class="fa fa-exclamation-circle me-1" title="Partial"/>
                                             <field name="partial_receipts_count" nolabel="1" readonly="1" class="oe_inline"/>
-                                            Partial Receipts
+                                            Partial
                                         </small>
                                         <button name="action_open_receipts" type="object"
-                                                string="View" class="btn btn-sm btn-outline-success"
-                                                style="font-size:0.72rem; padding:2px 8px;"/>
+                                                string="View" class="btn btn-sm btn-outline-success"/>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Total Issuance MTD -->
                         <div class="col-12 col-sm-6 col-xl-3">
                             <div class="card border-0 h-100" style="box-shadow:0 1px 6px rgba(0,0,0,.12); border-radius:8px;">
-                                <div class="card-body py-3 px-4">
+                                <div class="card-body py-3 px-3 px-md-4">
                                     <div class="d-flex justify-content-between align-items-start">
                                         <small class="text-muted text-uppercase fw-bold"
-                                               style="font-size:0.7rem; letter-spacing:0.06em;">Total Issuance (MTD)</small>
+                                               style="font-size:0.7rem; letter-spacing:0.06em;">Issuance (MTD)</small>
                                         <i class="fa fa-sign-out text-muted" title="Issuances"/>
                                     </div>
                                     <div class="fw-bold mt-2 mb-1"
                                          style="font-size:2.4rem; line-height:1.1; color:#6f42c1;">
                                         <field name="issuance_mtd_count" nolabel="1" readonly="1" class="oe_inline"/>
                                     </div>
-                                    <div class="d-flex align-items-center justify-content-between">
+                                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
                                         <small class="text-muted">
-                                            <field name="normal_issuance_pct" nolabel="1" readonly="1" class="oe_inline"/>% Normal /
-                                            <field name="subcontractor_issuance_pct" nolabel="1" readonly="1" class="oe_inline"/>% Sub
+                                            <field name="normal_issuance_pct" nolabel="1" readonly="1" class="oe_inline"/>% N /
+                                            <field name="subcontractor_issuance_pct" nolabel="1" readonly="1" class="oe_inline"/>% S
                                         </small>
                                         <button name="action_open_issuance" type="object"
-                                                string="View" class="btn btn-sm btn-outline-secondary"
-                                                style="font-size:0.72rem; padding:2px 8px;"/>
+                                                string="View" class="btn btn-sm btn-outline-secondary"/>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Pending Returns -->
                         <div class="col-12 col-sm-6 col-xl-3">
                             <div class="card border-0 h-100" style="box-shadow:0 1px 6px rgba(0,0,0,.12); border-radius:8px;">
-                                <div class="card-body py-3 px-4">
+                                <div class="card-body py-3 px-3 px-md-4">
                                     <div class="d-flex justify-content-between align-items-start">
                                         <small class="text-muted text-uppercase fw-bold"
                                                style="font-size:0.7rem; letter-spacing:0.06em;">Pending Returns</small>
@@ -155,11 +142,10 @@
                                          style="font-size:2.4rem; line-height:1.1;">
                                         <field name="pending_returns_count" nolabel="1" readonly="1" class="oe_inline"/>
                                     </div>
-                                    <div class="d-flex align-items-center justify-content-between">
+                                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
                                         <small class="text-muted">Awaiting Validation</small>
                                         <button name="action_open_returns" type="object"
-                                                string="View" class="btn btn-sm btn-outline-danger"
-                                                style="font-size:0.72rem; padding:2px 8px;"/>
+                                                string="View" class="btn btn-sm btn-outline-danger"/>
                                     </div>
                                 </div>
                             </div>
@@ -167,41 +153,35 @@
 
                     </div>
 
-                    <!-- ══════════════════════════════════════════════════════
-                         ROW 2: Active Requisitions (left) + Material Receipt (right)
-                    ══════════════════════════════════════════════════════ -->
                     <div class="row g-3 mb-3" invisible="filter_section not in ('all', 'prs', 'receipts')">
 
-                        <!-- Active Requisitions (Demand Raise) -->
-                        <div class="col-12 col-xl-7" invisible="filter_section not in ('all', 'prs')">
+                        <div class="col-12 col-lg-7" invisible="filter_section not in ('all', 'prs')">
                             <div class="card border-0 h-100" style="box-shadow:0 1px 6px rgba(0,0,0,.12); border-radius:8px;">
-                                <div class="card-header d-flex justify-content-between align-items-center py-2 px-4"
+                                <div class="card-header d-flex flex-wrap justify-content-between align-items-center py-2 px-3 px-md-4 gap-2"
                                      style="background:transparent; border-bottom:1px solid rgba(0,0,0,.07);">
-                                    <strong style="font-size:0.9rem;">Active Requisitions (Demand Raise)</strong>
+                                    <strong style="font-size:0.9rem;">Active Requisitions</strong>
                                     <button name="action_open_prs" type="object"
-                                            string="View All PRs" class="btn btn-sm btn-outline-primary"
-                                            style="font-size:0.72rem;"/>
+                                            string="View All" class="btn btn-sm btn-outline-primary"/>
                                 </div>
-                                <div class="card-body p-0">
+                                <div class="card-body p-0 matracon-dash-table-wrap matracon-dash-table-wrap--compact">
                                     <field name="pr_ids" nolabel="1" readonly="1">
                                         <list create="false" delete="false" edit="false"
                                               decoration-warning="x_pr_state == 'draft'"
                                               decoration-success="x_pr_state in ('submitted', 'po_locked', 'dispatched')">
                                             <field name="name" string="Reference"/>
-                                            <field name="x_project_analytic_account_id" string="Project" optional="show"/>
                                             <field name="date_order" string="Date"/>
-                                            <field name="x_initiator_id" string="Requester"/>
                                             <field name="x_pr_state" string="Status" widget="badge"/>
+                                            <field name="x_project_analytic_account_id" string="Project" optional="hide"/>
+                                            <field name="x_initiator_id" string="Requester" optional="hide"/>
                                         </list>
                                     </field>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Material Receipt Status -->
-                        <div class="col-12 col-xl-5" invisible="filter_section not in ('all', 'receipts')">
+                        <div class="col-12 col-lg-5" invisible="filter_section not in ('all', 'receipts')">
                             <div class="card border-0 h-100" style="box-shadow:0 1px 6px rgba(0,0,0,.12); border-radius:8px;">
-                                <div class="card-header d-flex justify-content-between align-items-center py-2 px-4"
+                                <div class="card-header py-2 px-3 px-md-4"
                                      style="background:transparent; border-bottom:1px solid rgba(0,0,0,.07);">
                                     <strong style="font-size:0.9rem;">Material Receipt Status</strong>
                                 </div>
@@ -209,144 +189,139 @@
                                     <div class="px-3 pt-2">
                                         <small class="text-muted text-uppercase fw-bold"
                                                style="font-size:0.68rem; letter-spacing:0.06em;">
-                                            On Order (Dispatched POs)
+                                            On Order
                                         </small>
                                     </div>
-                                    <field name="on_order_po_ids" nolabel="1" readonly="1">
-                                        <list create="false" delete="false" edit="false">
-                                            <field name="name"/>
-                                            <field name="partner_id" string="Vendor"/>
-                                            <field name="date_order" string="Expected"/>
-                                            <field name="x_pr_state" string="Status" widget="badge"/>
-                                        </list>
-                                    </field>
+                                    <div class="matracon-dash-table-wrap matracon-dash-table-wrap--compact">
+                                        <field name="on_order_po_ids" nolabel="1" readonly="1">
+                                            <list create="false" delete="false" edit="false">
+                                                <field name="name"/>
+                                                <field name="partner_id" string="Vendor"/>
+                                                <field name="x_pr_state" string="Status" widget="badge"/>
+                                                <field name="date_order" string="Expected" optional="hide"/>
+                                            </list>
+                                        </field>
+                                    </div>
                                     <div class="px-3 pt-2">
                                         <small class="text-muted text-uppercase fw-bold"
                                                style="font-size:0.68rem; letter-spacing:0.06em;">
                                             Recent GRNs
                                         </small>
                                     </div>
-                                    <field name="recent_grn_ids" nolabel="1" readonly="1">
-                                        <list create="false" delete="false" edit="false">
-                                            <field name="name"/>
-                                            <field name="partner_id" string="Vendor"/>
-                                            <field name="date_done" string="Received On"/>
-                                            <field name="state" widget="badge"/>
-                                        </list>
-                                    </field>
+                                    <div class="matracon-dash-table-wrap matracon-dash-table-wrap--compact">
+                                        <field name="recent_grn_ids" nolabel="1" readonly="1">
+                                            <list create="false" delete="false" edit="false">
+                                                <field name="name"/>
+                                                <field name="partner_id" string="Vendor"/>
+                                                <field name="state" widget="badge"/>
+                                                <field name="date_done" string="Received" optional="hide"/>
+                                            </list>
+                                        </field>
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
                     </div>
 
-                    <!-- ══════════════════════════════════════════════════════
-                         ROW 3: Transfers (left) + Issuance Overview (right)
-                    ══════════════════════════════════════════════════════ -->
                     <div class="row g-3 mb-3" invisible="filter_section not in ('all', 'transfers', 'issuances')">
 
-                        <!-- Inter-Site Transfers -->
-                        <div class="col-12 col-xl-6" invisible="filter_section not in ('all', 'transfers')">
+                        <div class="col-12 col-lg-6" invisible="filter_section not in ('all', 'transfers')">
                             <div class="card border-0 h-100" style="box-shadow:0 1px 6px rgba(0,0,0,.12); border-radius:8px;">
-                                <div class="card-header d-flex justify-content-between align-items-center py-2 px-4"
+                                <div class="card-header d-flex flex-wrap justify-content-between align-items-center py-2 px-3 px-md-4 gap-2"
                                      style="background:transparent; border-bottom:1px solid rgba(0,0,0,.07);">
                                     <strong style="font-size:0.9rem;">
                                         <i class="fa fa-exchange me-2 text-info" title="Transfers"/>
-                                        Inter-Site Transfers (MTN)
+                                        Site Transfers
                                     </strong>
                                     <button name="action_open_transfers" type="object"
-                                            string="View All" class="btn btn-sm btn-outline-info"
-                                            style="font-size:0.72rem;"/>
+                                            string="View All" class="btn btn-sm btn-outline-info"/>
                                 </div>
-                                <div class="card-body p-0">
+                                <div class="card-body p-0 matracon-dash-table-wrap matracon-dash-table-wrap--compact">
                                     <field name="transfer_ids" nolabel="1" readonly="1">
                                         <list create="false" delete="false" edit="false">
                                             <field name="name"/>
                                             <field name="x_issuance_project_id" string="From"/>
                                             <field name="x_dest_project_id" string="To"/>
                                             <field name="x_site_transfer_state" string="Status" widget="badge"/>
-                                            <field name="state" widget="badge"/>
+                                            <field name="state" widget="badge" optional="hide"/>
                                         </list>
                                     </field>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Issuance Overview -->
-                        <div class="col-12 col-xl-6" invisible="filter_section not in ('all', 'issuances')">
+                        <div class="col-12 col-lg-6" invisible="filter_section not in ('all', 'issuances')">
                             <div class="card border-0 h-100" style="box-shadow:0 1px 6px rgba(0,0,0,.12); border-radius:8px;">
-                                <div class="card-header d-flex justify-content-between align-items-center py-2 px-4"
+                                <div class="card-header py-2 px-3 px-md-4"
                                      style="background:transparent; border-bottom:1px solid rgba(0,0,0,.07);">
                                     <strong style="font-size:0.9rem;">Issuance Overview</strong>
                                 </div>
-                                <div class="card-body px-4 py-3">
-                                    <!-- Split bar -->
-                                    <div class="d-flex rounded overflow-hidden mb-3" style="height:28px;">
+                                <div class="card-body px-3 px-md-4 py-3">
+                                    <div class="d-flex rounded overflow-hidden mb-3 matracon-issuance-bar" style="height:28px;">
                                         <div class="d-flex align-items-center justify-content-center text-white fw-bold"
                                              style="font-size:0.78rem; background:#4e73df; flex:0 0 60%;">
-                                            Normal Site (<field name="normal_issuance_pct" nolabel="1" readonly="1" class="oe_inline"/>%)
+                                            Normal (<field name="normal_issuance_pct" nolabel="1" readonly="1" class="oe_inline"/>%)
                                         </div>
                                         <div class="d-flex align-items-center justify-content-center text-white fw-bold"
                                              style="font-size:0.78rem; background:#e74a3b; flex:0 0 40%;">
                                             3rd Party (<field name="subcontractor_issuance_pct" nolabel="1" readonly="1" class="oe_inline"/>%)
                                         </div>
                                     </div>
-                                    <!-- Recent Issuances -->
-                                    <field name="recent_issuance_ids" nolabel="1" readonly="1">
-                                        <list create="false" delete="false" edit="false">
-                                            <field name="name"/>
-                                            <field name="x_contact_id" string="Contact"/>
-                                            <field name="x_issue_type" string="Type" widget="badge"/>
-                                            <field name="x_backcharge_applicable" string="Backcharge"
-                                                   widget="boolean_toggle"/>
-                                            <field name="state" widget="badge"/>
-                                        </list>
-                                    </field>
+                                    <div class="matracon-dash-table-wrap matracon-dash-table-wrap--compact">
+                                        <field name="recent_issuance_ids" nolabel="1" readonly="1">
+                                            <list create="false" delete="false" edit="false">
+                                                <field name="name"/>
+                                                <field name="x_contact_id" string="Contact"/>
+                                                <field name="x_issue_type" string="Type" widget="badge"/>
+                                                <field name="state" widget="badge"/>
+                                                <field name="x_backcharge_applicable" string="Backcharge"
+                                                       widget="boolean_toggle" optional="hide"/>
+                                            </list>
+                                        </field>
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
                     </div>
 
-                    <!-- ══════════════════════════════════════════════════════
-                         ROW 4: Pending Returns + Receipts To Validate
-                    ══════════════════════════════════════════════════════ -->
                     <div class="row g-3 mb-3" invisible="filter_section not in ('all', 'returns', 'receipts')">
 
-                        <div class="col-12 col-xl-6" invisible="filter_section not in ('all', 'returns')">
+                        <div class="col-12 col-lg-6" invisible="filter_section not in ('all', 'returns')">
                             <div class="card border-0" style="box-shadow:0 1px 6px rgba(0,0,0,.12); border-radius:8px;">
-                                <div class="card-header py-2 px-4"
+                                <div class="card-header py-2 px-3 px-md-4"
                                      style="background:transparent; border-bottom:1px solid rgba(0,0,0,.07);">
                                     <strong style="font-size:0.9rem;">Pending Returns</strong>
                                 </div>
-                                <div class="card-body p-0">
+                                <div class="card-body p-0 matracon-dash-table-wrap matracon-dash-table-wrap--compact">
                                     <field name="pending_return_ids" nolabel="1" readonly="1">
                                         <list create="false" delete="false" edit="false">
                                             <field name="name"/>
-                                            <field name="x_original_issuance_id" string="Original"/>
                                             <field name="x_contact_id" string="Contact"/>
-                                            <field name="x_return_type"/>
                                             <field name="state" widget="badge"/>
+                                            <field name="x_original_issuance_id" string="Original" optional="hide"/>
+                                            <field name="x_return_type" optional="hide"/>
                                         </list>
                                     </field>
                                 </div>
                             </div>
                         </div>
 
-                        <div class="col-12 col-xl-6" invisible="filter_section not in ('all', 'receipts')">
+                        <div class="col-12 col-lg-6" invisible="filter_section not in ('all', 'receipts')">
                             <div class="card border-0" style="box-shadow:0 1px 6px rgba(0,0,0,.12); border-radius:8px;">
-                                <div class="card-header py-2 px-4"
+                                <div class="card-header py-2 px-3 px-md-4"
                                      style="background:transparent; border-bottom:1px solid rgba(0,0,0,.07);">
                                     <strong style="font-size:0.9rem;">Receipts To Validate</strong>
                                 </div>
-                                <div class="card-body p-0">
+                                <div class="card-body p-0 matracon-dash-table-wrap matracon-dash-table-wrap--compact">
                                     <field name="pending_receipt_ids" nolabel="1" readonly="1">
                                         <list create="false" delete="false" edit="false">
                                             <field name="name"/>
                                             <field name="partner_id" string="Vendor"/>
-                                            <field name="origin" string="PO"/>
-                                            <field name="scheduled_date"/>
                                             <field name="state" widget="badge"/>
+                                            <field name="origin" string="PO" optional="hide"/>
+                                            <field name="scheduled_date" optional="hide"/>
                                         </list>
                                     </field>
                                 </div>
@@ -355,7 +330,6 @@
 
                     </div>
 
-                    <!-- Hidden fields for invisible conditions -->
                     <field name="name" invisible="1"/>
                     <field name="project_analytic_account_id" invisible="1"/>
                     <field name="has_stock_alert" invisible="1"/>
