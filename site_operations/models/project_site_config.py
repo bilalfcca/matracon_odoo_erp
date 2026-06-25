@@ -215,23 +215,25 @@ class ProjectSiteConfigProjectLink(models.Model):
             ('quantity', '>', 0),
         ]))
 
-    def _matracon_operational_warehouse_for_config(self, config, company):
+    def _matracon_operational_warehouse_for_config(self, company):
         """Site warehouse when it holds stock; otherwise company main WH (demo/migration)."""
-        site_wh = config.warehouse_id
+        self.ensure_one()
+        site_wh = self.warehouse_id
         main_wh = self._matracon_main_operational_warehouse(company)
         if site_wh and self._matracon_site_warehouse_has_stock(site_wh):
             return site_wh
         return main_wh or site_wh
 
-    def _matracon_sync_user_operational_warehouse(self, config):
+    def _matracon_sync_user_operational_warehouse(self):
         """Keep receive/issue/on-hand on the warehouse that actually holds stock."""
         company = self.env.company
-        op_wh = self._matracon_operational_warehouse_for_config(config, company)
-        if not op_wh:
-            return
-        users = config.site_user_ids | config.x_site_accountant_ids
-        if users:
-            users.sudo().write({'x_default_warehouse_id': op_wh.id})
+        for config in self:
+            op_wh = config._matracon_operational_warehouse_for_config(company)
+            if not op_wh:
+                continue
+            users = config.site_user_ids | config.x_site_accountant_ids
+            if users:
+                users.sudo().write({'x_default_warehouse_id': op_wh.id})
 
     @api.model
     def _matracon_ensure_site_warehouses(self):
