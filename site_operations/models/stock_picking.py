@@ -838,7 +838,6 @@ class StockPickingSiteOps(models.Model):
         move_vals = []
         for move in self.move_ids.filtered(lambda m: m.state == 'done' and m.product_id):
             move_vals.append((0, 0, {
-                'name': move.product_id.display_name,
                 'product_id': move.product_id.id,
                 'product_uom': move.product_uom.id,
                 'product_uom_qty': move.quantity,
