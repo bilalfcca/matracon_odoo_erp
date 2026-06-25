@@ -1,11 +1,15 @@
-"""Shared inter-project receivable / payable journal helpers."""
+"""Inter-project receivable / payable journal helpers on account.payment."""
 
 from odoo import models, fields, _
 
 
-class InterprojectAccountingMixin(models.AbstractModel):
-    _name = 'x.interproject.accounting.mixin'
-    _description = 'Inter-Project Accounting Helpers'
+class AccountPaymentInterproject(models.Model):
+    _inherit = 'account.payment'
+
+    x_interproject_move_ids = fields.Many2many(
+        'account.move', 'payment_interproject_move_rel',
+        'payment_id', 'move_id',
+        string='Inter-Project Entries', readonly=True, copy=False)
 
     def _get_or_create_interproject_journal(self):
         Journal = self.env['account.journal'].sudo()

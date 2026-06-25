@@ -3,7 +3,7 @@ from odoo.exceptions import UserError
 
 
 class AccountPaymentSiteOps(models.Model):
-    _inherit = ['account.payment', 'x.interproject.accounting.mixin']
+    _inherit = 'account.payment'
 
     x_payment_status = fields.Selection([
         ('draft', 'Draft'),
@@ -102,11 +102,6 @@ class AccountPaymentSiteOps(models.Model):
     x_available_bank_balance = fields.Float(
         string='Available Bank Balance',
         compute='_compute_available_bank_balance', store=False)
-
-    x_interproject_move_ids = fields.Many2many(
-        'account.move', 'payment_interproject_move_rel',
-        'payment_id', 'move_id',
-        string='Inter-Project Entries', readonly=True, copy=False)
 
     # ─────────────────────────────────────────────────────────────────────────
     # COMPUTE

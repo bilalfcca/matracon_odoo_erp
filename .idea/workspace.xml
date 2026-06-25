@@ -4,17 +4,9 @@
     <option name="autoReloadType" value="NONE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="d5df9394-1441-428e-81ef-eb75170c5523" name="Changes" comment="groups wise access - 3">
-      <change beforePath="$PROJECT_DIR$/purchase_demand_raise/__manifest__.py" beforeDir="false" afterPath="$PROJECT_DIR$/purchase_demand_raise/__manifest__.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/purchase_demand_raise/models/purchase_order.py" beforeDir="false" afterPath="$PROJECT_DIR$/purchase_demand_raise/models/purchase_order.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/purchase_demand_raise/models/purchase_order_tender.py" beforeDir="false" afterPath="$PROJECT_DIR$/purchase_demand_raise/models/purchase_order_tender.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/purchase_demand_raise/models/res_users.py" beforeDir="false" afterPath="$PROJECT_DIR$/purchase_demand_raise/models/res_users.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/purchase_demand_raise/report/rfq_report.xml" beforeDir="false" afterPath="$PROJECT_DIR$/purchase_demand_raise/report/rfq_report.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/purchase_demand_raise/views/purchase_order_views.xml" beforeDir="false" afterPath="$PROJECT_DIR$/purchase_demand_raise/views/purchase_order_views.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/site_operations/__manifest__.py" beforeDir="false" afterPath="$PROJECT_DIR$/site_operations/__manifest__.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/site_operations/hooks.py" beforeDir="false" afterPath="$PROJECT_DIR$/site_operations/hooks.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/site_operations/models/stock_move.py" beforeDir="false" afterPath="$PROJECT_DIR$/site_operations/models/stock_move.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/site_operations/models/stock_picking.py" beforeDir="false" afterPath="$PROJECT_DIR$/site_operations/models/stock_picking.py" afterDir="false" />
+    <list default="true" id="d5df9394-1441-428e-81ef-eb75170c5523" name="Changes" comment="Procurement And sie store issues fixed -2">
+      <change beforePath="$PROJECT_DIR$/.idea/other.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/other.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -221,8 +213,35 @@
       <option name="project" value="LOCAL" />
       <updated>1782205517022</updated>
     </task>
-    <option name="localTasksCounter" value="18" />
+    <task id="LOCAL-00018" summary="Procurement And sie store issues fixed">
+      <option name="closed" value="true" />
+      <created>1782216535018</created>
+      <option name="number" value="00018" />
+      <option name="presentableId" value="LOCAL-00018" />
+      <option name="project" value="LOCAL" />
+      <updated>1782216535018</updated>
+    </task>
+    <task id="LOCAL-00019" summary="Procurement And sie store issues fixed -2">
+      <option name="closed" value="true" />
+      <created>1782221973262</created>
+      <option name="number" value="00019" />
+      <option name="presentableId" value="LOCAL-00019" />
+      <option name="project" value="LOCAL" />
+      <updated>1782221973262</updated>
+    </task>
+    <option name="localTasksCounter" value="20" />
     <servers />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="first commit" />
@@ -238,6 +257,8 @@
     <MESSAGE value="groups wise access" />
     <MESSAGE value="groups wise access - 2" />
     <MESSAGE value="groups wise access - 3" />
-    <option name="LAST_COMMIT_MESSAGE" value="groups wise access - 3" />
+    <MESSAGE value="Procurement And sie store issues fixed" />
+    <MESSAGE value="Procurement And sie store issues fixed -2" />
+    <option name="LAST_COMMIT_MESSAGE" value="Procurement And sie store issues fixed -2" />
   </component>
 </project>
