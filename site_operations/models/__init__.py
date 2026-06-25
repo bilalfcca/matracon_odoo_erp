@@ -4,6 +4,7 @@ from . import stock_return_picking
 from . import liability_sheet
 from . import analytic_distribution_mixin
 from . import project_project
+from . import account_move
 from . import account_payment
 from . import payment_allocation
 from . import project_site_config

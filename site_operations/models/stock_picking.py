@@ -1,6 +1,8 @@
 from datetime import date as dt_date
 from dateutil.relativedelta import relativedelta
 
+from markupsafe import Markup
+
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
 
@@ -507,7 +509,7 @@ class StockPickingSiteOps(models.Model):
                 raise UserError(_('This transfer has already been submitted.'))
             pick.x_site_transfer_state = 'pending_approval'
             pick.message_post(
-                body=_('Material Transfer Note submitted for approval by <b>%s</b>.') % (
+                body=Markup(_('Material Transfer Note submitted for approval by <b>%s</b>.')) % (
                     self.env.user.name))
 
     def action_approve_site_transfer(self):
@@ -518,7 +520,7 @@ class StockPickingSiteOps(models.Model):
                 raise UserError(_('Only transfers pending approval can be approved.'))
             pick.x_site_transfer_state = 'approved'
             pick.message_post(
-                body=_('Site-to-site transfer approved by <b>%s</b>.') % self.env.user.name)
+                body=Markup(_('Site-to-site transfer approved by <b>%s</b>.')) % self.env.user.name)
 
     def action_reject_site_transfer(self):
         for pick in self.filtered(
@@ -528,7 +530,7 @@ class StockPickingSiteOps(models.Model):
                 raise UserError(_('Only transfers pending approval can be rejected.'))
             pick.x_site_transfer_state = 'rejected'
             pick.message_post(
-                body=_('Site-to-site transfer rejected by <b>%s</b>.') % self.env.user.name)
+                body=Markup(_('Site-to-site transfer rejected by <b>%s</b>.')) % self.env.user.name)
 
     # ─────────────────────────────────────────────────────────────────────────
     # VALIDATION
@@ -679,7 +681,7 @@ class StockPickingSiteOps(models.Model):
             return
         self.x_backcharge_refund_entry_id = entry
         self.message_post(
-            body=_('Backcharge entry <b>%s</b> (%.2f) posted to partner ledger.')
+            body=Markup(_('Backcharge entry <b>%s</b> (%.2f) posted to partner ledger.'))
             % (entry.name, amount)
         )
         self._auto_update_liability_sheet(amount)
@@ -712,9 +714,9 @@ class StockPickingSiteOps(models.Model):
                 if entry:
                     self.x_return_backcharge_entry_id = entry
                     self.message_post(
-                        body=_(
+                        body=Markup(_(
                             'Backcharge reversal <b>%s</b> (%.2f) posted to partner ledger.'
-                        ) % (entry.name, adj_amount)
+                        )) % (entry.name, adj_amount)
                     )
                     self._auto_adjust_liability_sheet_on_return(adj_amount, orig)
 
@@ -736,7 +738,7 @@ class StockPickingSiteOps(models.Model):
         if entry:
             self.x_damage_backcharge_entry_id = entry
             self.message_post(
-                body=_('Damage backcharge <b>%s</b> (%.2f) posted.') % (
+                body=Markup(_('Damage backcharge <b>%s</b> (%.2f) posted.')) % (
                     entry.name, amount)
             )
             self._auto_update_liability_sheet(amount)
@@ -788,10 +790,10 @@ class StockPickingSiteOps(models.Model):
         move.action_post()
         self.x_interproject_entry_id = move
         self.message_post(
-            body=_(
+            body=Markup(_(
                 'Inter-project entry <b>%s</b> created — Receivable on <b>%s</b>, '
                 'Payable on <b>%s</b> (%.2f).'
-            ) % (move.name, src_project.name, dst_project.name, total_value)
+            )) % (move.name, src_project.name, dst_project.name, total_value)
         )
 
     def _create_destination_site_transfer(self):
@@ -836,13 +838,13 @@ class StockPickingSiteOps(models.Model):
         dest_picking.action_assign()
         self.x_dest_picking_id = dest_picking.id
         self.message_post(
-            body=_(
+            body=Markup(_(
                 'Destination receipt <b>%s</b> created for <b>%s</b>. '
                 'Destination site store must validate receipt.'
-            ) % (dest_picking.name, self.x_dest_project_id.name)
+            )) % (dest_picking.name, self.x_dest_project_id.name)
         )
         dest_picking.message_post(
-            body=_('Incoming site-to-site transfer from <b>%s</b> (%s).') % (
+            body=Markup(_('Incoming site-to-site transfer from <b>%s</b> (%s).')) % (
                 self.x_issuance_project_id.name, self.name)
         )
 
@@ -1007,7 +1009,7 @@ class StockPickingSiteOps(models.Model):
                 'date_to': month_end,
             })
             self.message_post(
-                body=_('Liability Sheet <b>%s</b> auto-created for %s.') % (
+                body=Markup(_('Liability Sheet <b>%s</b> auto-created for %s.')) % (
                     sheet.name, self.x_issuance_project_id.name)
             )
 
@@ -1022,7 +1024,7 @@ class StockPickingSiteOps(models.Model):
                 'recommended_amount': line.recommended_amount + amount,
             })
             self.message_post(
-                body=_('Liability Sheet <b>%s</b> updated for <b>%s</b>: +%s (total %s)') % (
+                body=Markup(_('Liability Sheet <b>%s</b> updated for <b>%s</b>: +%s (total %s)')) % (
                     sheet.name,
                     self.x_contact_id.name,
                     f'{amount:,.2f}',
@@ -1040,7 +1042,7 @@ class StockPickingSiteOps(models.Model):
                 })]
             })
             self.message_post(
-                body=_('Line added to Liability Sheet <b>%s</b>: %s — %s') % (
+                body=Markup(_('Line added to Liability Sheet <b>%s</b>: %s — %s')) % (
                     sheet.name, desc, f'{amount:,.2f}')
             )
 
@@ -1065,10 +1067,10 @@ class StockPickingSiteOps(models.Model):
                         'recommended_amount': new_recommended,
                     })
                     self.message_post(
-                        body=_(
+                        body=Markup(_(
                             'Liability Sheet <b>%s</b> updated for <b>%s</b>: '
                             'reduced by <b>%s</b>.'
-                        ) % (
+                        )) % (
                             sheet.name,
                             original.x_contact_id.name,
                             f'{adj_amount:,.2f}',

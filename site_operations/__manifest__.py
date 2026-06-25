@@ -24,6 +24,7 @@
         'views/material_issuance_list_views.xml',
         'views/site_store_dashboard_views.xml',
         'views/liability_sheet_views.xml',
+        'views/vendor_bill_views.xml',
         'views/vendor_payment_views.xml',
         'views/site_config_views.xml',
         'views/return_picking_views.xml',

@@ -1,3 +1,5 @@
+from markupsafe import Markup
+
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
 
@@ -119,12 +121,12 @@ class LiabilitySheet(models.Model):
             sheet.line_ids.write({'is_locked': True})
             # Post journal entry so vendors appear in partner ledger
             move = sheet._create_liability_journal_entry()
-            msg = _(
+            msg = Markup(_(
                 'Liability Sheet approved and locked by CEO. '
                 'Total Approved: %s'
-            ) % f'{sheet.total_approved:,.2f}'
+            )) % f'{sheet.total_approved:,.2f}'
             if move:
-                msg += _('<br/>Journal entry <b>%s</b> posted to partner ledger.') % move.name
+                msg += Markup(_('<br/>Journal entry <b>%s</b> posted to partner ledger.')) % move.name
             sheet.message_post(body=msg)
 
     def action_mark_paid(self):
@@ -232,7 +234,7 @@ class LiabilitySheet(models.Model):
                 'pm_id': self.env.user.id,
             })
             sheet.message_post(
-                body=_('Liability Sheet signed by Project Manager: <b>%s</b> on %s.') % (
+                body=Markup(_('Liability Sheet signed by Project Manager: <b>%s</b> on %s.')) % (
                     self.env.user.name,
                     fields.Datetime.now().strftime('%d-%b-%Y %H:%M'),
                 )
@@ -283,7 +285,7 @@ class LiabilitySheet(models.Model):
                 })
 
             sheet.message_post(
-                body=_('Liability amounts refreshed from partner ledger by <b>%s</b>.')
+                body=Markup(_('Liability amounts refreshed from partner ledger by <b>%s</b>.'))
                 % self.env.user.name
             )
 

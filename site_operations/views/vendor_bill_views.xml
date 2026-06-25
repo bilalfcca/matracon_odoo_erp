@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+        Extend the standard vendor bill form to add:
+          • Project (Site)           — selects which liability sheet to update
+          • Liability Registered     — read-only audit flag shown after posting
+    -->
+    <record id="view_vendor_bill_site_ops_form" model="ir.ui.view">
+        <field name="name">account.move.vendor.bill.site.ops.form</field>
+        <field name="model">account.move</field>
+        <field name="inherit_id" ref="account.view_move_form"/>
+        <field name="arch" type="xml">
+
+            <!-- Insert the project field right after the vendor (partner) field -->
+            <xpath expr="//field[@name='partner_id']" position="after">
+                <field
+                    name="x_project_analytic_account_id"
+                    invisible="move_type != 'in_invoice'"
+                    options="{'no_create': True}"
+                    placeholder="Select project…"
+                />
+            </xpath>
+
+            <!-- Show the liability-registered status badge near the bottom
+                 (only visible on posted bills that have updated a sheet) -->
+            <xpath expr="//field[@name='narration']" position="before">
+                <div
+                    class="alert alert-info mb-2 py-1"
+                    role="status"
+                    invisible="not x_liability_registered">
+                    <i class="fa fa-check-circle me-1"/>
+                    Liability sheet updated — <field name="x_liability_amount_registered" readonly="1"/> registered.
+                </div>
+            </xpath>
+
+        </field>
+    </record>
+
+</odoo>
