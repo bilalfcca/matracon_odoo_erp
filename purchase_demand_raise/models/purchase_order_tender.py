@@ -103,7 +103,12 @@ class PurchaseOrderTender(models.Model):
         ).report_action(self)
 
     def action_confirm_after_approval(self):
-        """Confirm PO immediately when HO + CEO have approved (po_locked)."""
+        """Confirm PO immediately when HO + CEO have approved (po_locked).
+
+        Also handles the edge case where state is already 'purchase' but
+        pickings were never created (e.g., Odoo double-approval intercepted the
+        original button_confirm call and no receipt was generated).
+        """
         for order in self:
             if order.x_is_alternative_rfq:
                 raise UserError(_(
@@ -112,17 +117,22 @@ class PurchaseOrderTender(models.Model):
                 ))
             if order.x_pr_state != 'po_locked':
                 raise UserError(_('PO must be in PO Locked state to confirm.'))
+
             if order.state in ('purchase', 'done'):
+                # Already confirmed — ensure receipt picking exists (re-trigger if missing)
+                if order.state == 'purchase' and not order.picking_ids:
+                    if hasattr(order, '_create_picking'):
+                        order._create_picking()
                 continue
+
             order.button_confirm()
             # Bypass native purchase double-approval — CEO approval is our final gate
             if order.state not in ('purchase', 'done', 'cancel'):
                 if hasattr(order, 'button_approve'):
                     order.sudo().button_approve()
-                else:
+                elif hasattr(order, '_create_picking'):
                     order.write({'state': 'purchase'})
-                    if hasattr(order, '_create_picking'):
-                        order._create_picking()
+                    order._create_picking()
         return True
 
     # ─────────────────────────────────────────────────────────────────────────

@@ -87,12 +87,13 @@
                         groups="purchase_demand_raise.group_ceo_approval"
                         confirm="Reject at final stage? HO and initiator will be notified."/>
 
-                <!-- Confirm PO when locked but Odoo state not yet purchase -->
+                <!-- Confirm PO when locked but Odoo state not yet purchase.
+                     Also shown when already purchase but no pickings (to re-trigger _create_picking). -->
                 <button name="action_confirm_after_approval"
                         string="Confirm Order"
                         type="object"
                         class="btn-primary"
-                        invisible="x_pr_state != 'po_locked' or state in ('purchase', 'done')"
+                        invisible="x_pr_state != 'po_locked' or (state in ('purchase', 'done') and incoming_picking_count != 0)"
                         groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,site_operations.group_matracon_admin,base.group_system"/>
 
                 <!-- Single RFQ print (no prices) -->
@@ -446,13 +447,16 @@
                 <attribute name="invisible">1</attribute>
             </xpath>
 
-            <!-- Receive Products: Site Store only (not HO / CEO) -->
+            <!-- Receive Products header button: keep default Odoo groups (stock.group_stock_user);
+                 restrict VISIBILITY to site store only via invisible (build on top, not replace). -->
             <xpath expr="//header/button[@name='action_view_picking']" position="attributes">
+                <attribute name="invisible">is_shipped or state != 'purchase' or incoming_picking_count == 0 or not x_is_site_store</attribute>
                 <attribute name="groups">purchase_demand_raise.group_site_store,site_operations.group_matracon_admin,base.group_system</attribute>
             </xpath>
 
-            <!-- Receipt smart button on form: Site Store only -->
+            <!-- Receipt smart stat button: also restrict to site store only -->
             <xpath expr="//div[@name='button_box']//button[@name='action_view_picking']" position="attributes">
+                <attribute name="invisible">incoming_picking_count == 0 or not x_is_site_store</attribute>
                 <attribute name="groups">purchase_demand_raise.group_site_store,site_operations.group_matracon_admin,base.group_system</attribute>
             </xpath>
 
