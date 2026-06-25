@@ -69,6 +69,10 @@ class ProjectSiteConfigProjectLink(models.Model):
             'name', 'analytic_account_id', 'site_user_ids', 'x_site_accountant_ids',
         )):
             self._ensure_project_record()
+        if any(k in vals for k in (
+            'warehouse_id', 'site_user_ids', 'x_site_accountant_ids',
+        )):
+            self._matracon_sync_user_operational_warehouse()
         return res
 
     def _ensure_project_record(self):
@@ -107,6 +111,7 @@ class ProjectSiteConfigProjectLink(models.Model):
         for user in users:
             if self.project_id:
                 user.sudo().write({'x_default_project_id': self.project_id.id})
+        self._matracon_sync_user_operational_warehouse()
 
     def _assign_accountants(self, users):
         """Assign Site Accountant group and project defaults."""
@@ -125,6 +130,7 @@ class ProjectSiteConfigProjectLink(models.Model):
                 Users._matracon_add_group(user, accountant_group)
             if self.project_id:
                 user.sudo().write({'x_default_project_id': self.project_id.id})
+        self._matracon_sync_user_operational_warehouse()
 
     def _unassign_accountants(self, users):
         """Reverse accountant assignment when removed from site config."""
@@ -189,6 +195,44 @@ class ProjectSiteConfigProjectLink(models.Model):
         action['domain'] = [('id', '=', self.project_id.id)]
         return action
 
+    def _matracon_main_operational_warehouse(self, company):
+        """Company main warehouse where stock is received and issued (usually code WH)."""
+        Warehouse = self.env['stock.warehouse'].sudo()
+        main = Warehouse.search([
+            ('company_id', '=', company.id),
+            ('code', '=', 'WH'),
+        ], limit=1)
+        if main:
+            return main
+        return Warehouse.search(
+            [('company_id', '=', company.id)], order='id asc', limit=1)
+
+    def _matracon_site_warehouse_has_stock(self, warehouse):
+        if not warehouse or not warehouse.lot_stock_id:
+            return False
+        return bool(self.env['stock.quant'].sudo().search_count([
+            ('location_id', 'child_of', warehouse.lot_stock_id.id),
+            ('quantity', '>', 0),
+        ]))
+
+    def _matracon_operational_warehouse_for_config(self, config, company):
+        """Site warehouse when it holds stock; otherwise company main WH (demo/migration)."""
+        site_wh = config.warehouse_id
+        main_wh = self._matracon_main_operational_warehouse(company)
+        if site_wh and self._matracon_site_warehouse_has_stock(site_wh):
+            return site_wh
+        return main_wh or site_wh
+
+    def _matracon_sync_user_operational_warehouse(self, config):
+        """Keep receive/issue/on-hand on the warehouse that actually holds stock."""
+        company = self.env.company
+        op_wh = self._matracon_operational_warehouse_for_config(config, company)
+        if not op_wh:
+            return
+        users = config.site_user_ids | config.x_site_accountant_ids
+        if users:
+            users.sudo().write({'x_default_warehouse_id': op_wh.id})
+
     @api.model
     def _matracon_ensure_site_warehouses(self):
         """Ensure each site project config has a warehouse (demo + production)."""
@@ -196,6 +240,7 @@ class ProjectSiteConfigProjectLink(models.Model):
         company = self.env.company
         for config in self.search([]):
             if config.warehouse_id:
+                config._matracon_sync_user_operational_warehouse()
                 continue
             wh = False
             defaults = _SITE_WAREHOUSE_DEFAULTS.get(config.name)
@@ -231,6 +276,4 @@ class ProjectSiteConfigProjectLink(models.Model):
                         'company_id': company.id,
                     })
             config.sudo().write({'warehouse_id': wh.id})
-            users = config.site_user_ids | config.x_site_accountant_ids
-            if users:
-                users.sudo().write({'x_default_warehouse_id': wh.id})
+            config._matracon_sync_user_operational_warehouse()
