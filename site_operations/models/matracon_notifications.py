@@ -1,13 +1,16 @@
-"""Shared workflow notifications — email + in-app via chatter followers."""
+"""Shared workflow notifications — email + in-app via chatter followers.
+
+Plain Python mixin (not an Odoo _inherit target) so it can be mixed into
+account.move without duplicating standard relational fields.
+"""
 
 from markupsafe import Markup
 
-from odoo import models, _
+from odoo import _
 
 
-class MatraconNotificationsMixin(models.AbstractModel):
-    _name = 'x.matracon.notifications.mixin'
-    _description = 'Matracon Workflow Notifications'
+class MatraconNotificationsMixin:
+    """Mixin providing notification helpers for models with mail.thread."""
 
     def _matracon_notify_users(self, users, body, summary=None):
         """Notify users via chatter (email if follower + mail enabled)."""

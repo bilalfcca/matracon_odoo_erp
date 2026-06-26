@@ -4,10 +4,12 @@ from markupsafe import Markup
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
 
+from .matracon_notifications import MatraconNotificationsMixin
 
-class AccountMoveSiteOps(models.Model):
+
+class AccountMoveSiteOps(MatraconNotificationsMixin, models.Model):
     """Vendor bills: PO link, liability sheet, project balance, notifications."""
-    _inherit = ['account.move', 'x.matracon.notifications.mixin']
+    _inherit = 'account.move'
 
     @api.model
     def _register_hook(self):

@@ -5,11 +5,13 @@ from markupsafe import Markup
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
 
+from .matracon_notifications import MatraconNotificationsMixin
 
-class LiabilitySheet(models.Model):
+
+class LiabilitySheet(MatraconNotificationsMixin, models.Model):
     _name = 'x.liability.sheet'
     _description = 'Liability Sheet'
-    _inherit = ['mail.thread', 'mail.activity.mixin', 'x.matracon.notifications.mixin']
+    _inherit = ['mail.thread', 'mail.activity.mixin']
     _order = 'date_from desc, id desc'
 
     # ── Schema guard: runs on every server startup ────────────────────────────
