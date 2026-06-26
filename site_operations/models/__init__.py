@@ -1,3 +1,7 @@
+from . import hr_employee_ext
+from . import attendance_sheet
+from . import salary_sheet
+from . import petty_cash
 from . import matracon_notifications
 from . import app_visibility
 from . import stock_picking

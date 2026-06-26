@@ -101,17 +101,31 @@ class PurchaseOrder(models.Model):
             order.x_is_ho = is_ho
             order.x_is_ceo = is_ceo
 
+    x_ceo_bypass_ho = fields.Boolean(
+        string='CEO Bypassed HO',
+        default=False, copy=False, readonly=True,
+        help='Set when CEO approves directly from Submitted without HO review.',
+    )
+
+    x_pr_origin = fields.Selection([
+        ('site_store', 'Site Store'),
+        ('procurement_ho', 'Procurement Officer'),
+    ], string='PR Origin', default='site_store', tracking=True)
+
     # ── Computed helper: can Submit button be enabled? ────────────────────────
     x_can_submit = fields.Boolean(compute='_compute_can_submit')
 
-    @api.depends('x_pm_signed_pr', 'x_pr_state', 'order_line')
+    @api.depends('x_pm_signed_pr', 'x_pr_state', 'order_line', 'x_pr_origin')
     def _compute_can_submit(self):
+        is_ho = self.env.user.has_group('purchase_demand_raise.group_procurement_ho')
         for order in self:
-            order.x_can_submit = bool(
-                order.x_pm_signed_pr
-                and order.x_pr_state == 'draft'
-                and order.order_line
-            )
+            if order.x_pr_state != 'draft' or not order.order_line:
+                order.x_can_submit = False
+                continue
+            if order.x_pr_origin == 'procurement_ho' or is_ho:
+                order.x_can_submit = True
+            else:
+                order.x_can_submit = bool(order.x_pm_signed_pr)
 
     # ── Override create: set initiator + PR flag + analytic for site users ──────
     @api.model
@@ -126,14 +140,19 @@ class PurchaseOrder(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        is_site_store = self.env.user.has_group('purchase_demand_raise.group_site_store')
+        user = self.env.user
+        is_site_store = user.has_group('purchase_demand_raise.group_site_store')
+        is_ho = user.has_group('purchase_demand_raise.group_procurement_ho')
         for vals in vals_list:
             if 'x_initiator_id' not in vals:
-                vals['x_initiator_id'] = self.env.user.id
-            if is_site_store:
-                # Auto-assign project analytic account for site store users
+                vals['x_initiator_id'] = user.id
+            if is_ho and not is_site_store:
+                vals.setdefault('x_pr_origin', 'procurement_ho')
+            elif is_site_store:
+                vals.setdefault('x_pr_origin', 'site_store')
+            if is_site_store or vals.get('x_pr_origin') == 'site_store':
                 if 'x_project_analytic_account_id' not in vals:
-                    analytic = self.env.user.x_default_analytic_account_id
+                    analytic = user.x_default_analytic_account_id
                     if analytic:
                         vals['x_project_analytic_account_id'] = analytic.id
                 if not vals.get('picking_type_id'):
@@ -241,12 +260,18 @@ class PurchaseOrder(models.Model):
     # ════════════════════════════════════════════════════════
 
     def action_submit_pr(self):
-        """Site Store submits the PR — routes to Procurement HO for review and vendor recommendation."""
+        """Submit PR — Site Store (with PM doc) or Procurement Officer (direct)."""
         for order in self:
-            if not order.x_pm_signed_pr:
+            is_ho = self.env.user.has_group('purchase_demand_raise.group_procurement_ho')
+            if not is_ho and not order.x_pm_signed_pr:
                 raise UserError(_('Please attach the PM Signed PR before submitting.'))
             if not order.order_line:
                 raise UserError(_('Please add at least one product line before submitting.'))
+            if is_ho and order.x_pr_origin != 'site_store':
+                order.x_pr_origin = 'procurement_ho'
+                for line in order.order_line:
+                    if not line.x_recommended_qty and line.x_requested_qty:
+                        line.x_recommended_qty = line.x_requested_qty
 
             order.write({
                 'x_pr_state': 'submitted',
@@ -369,27 +394,67 @@ class PurchaseOrder(models.Model):
                     Markup('❌ Your PR <b>%(pr)s</b> was rejected by Procurement HO. Please review and re-submit if needed.') % {'pr': order.name}
                 )
 
-    def action_ceo_final_approve(self):
-        """CEO gives final line-level approval — PO confirmed, locked, others cancelled.
+    def _matracon_fetch_vendor_prices(self):
+        """Populate line prices from vendor pricelist or product cost."""
+        self.ensure_one()
+        today = fields.Date.today()
+        for line in self.order_line:
+            if not line.product_id:
+                continue
+            qty = (
+                line.x_recommended_qty or line.x_requested_qty
+                or line.product_qty or 1.0
+            )
+            if self.partner_id:
+                seller = line.product_id._select_seller(
+                    partner_id=self.partner_id,
+                    quantity=qty,
+                    date=self.date_order or today,
+                    uom_id=line.product_uom_id,
+                )
+                if seller:
+                    line.price_unit = seller.price
+            if not line.price_unit:
+                line.price_unit = line.product_id.standard_price
 
-        Works identically on the main PR and alternative RFQs:
-        - Locks this PO (po_locked) and auto-confirms it to create a receipt picking.
-        - Cancels all other open RFQs in the same tender/alternatives group so only
-          the approved vendor's order remains active.
-        """
+    def action_ceo_final_approve(self):
+        """CEO gives final line-level approval — PO confirmed, locked, others cancelled."""
         for order in self:
-            if order.x_pr_state != 'ceo_final':
-                raise UserError(_('PR must be in CEO Final Review state.'))
+            bypass_ho = order.x_pr_state == 'submitted'
+            if order.x_pr_state not in ('ceo_final', 'submitted'):
+                raise UserError(_(
+                    'PR must be in Submitted or Pending CEO Approval state.'
+                ))
+
+            if bypass_ho:
+                if not order.partner_id:
+                    raise UserError(_(
+                        'Select a vendor before CEO final approval when bypassing '
+                        'Procurement Officer review.'
+                    ))
+                for line in order.order_line:
+                    if not line.x_recommended_qty and line.x_requested_qty:
+                        line.x_recommended_qty = line.x_requested_qty
+                order._matracon_fetch_vendor_prices()
+                order.x_ceo_bypass_ho = True
 
             if not order.x_is_alternative_rfq:
-                # Main PR: validate and sync approved_qty → product_qty
                 for line in order.order_line:
+                    base_qty = line._get_ceo_qty_base()
+                    if line.x_approved_qty <= 0 and base_qty > 0:
+                        line.x_approved_qty = base_qty
                     if line.x_approved_qty <= 0:
-                        raise UserError(_('Please set Approved Qty > 0 for all lines before final approval.'))
+                        raise UserError(_(
+                            'Please set Approved Qty > 0 for all lines before final approval.'
+                        ))
                 for line in order.order_line:
                     line.product_qty = line.x_approved_qty
 
-            order.write({'x_pr_state': 'po_locked', 'x_ceo_status': 'approved'})
+            order.write({
+                'x_pr_state': 'po_locked',
+                'x_ceo_status': 'approved',
+                'x_ho_status': order.x_ho_status if not bypass_ho else 'pending',
+            })
 
             # ── Confirm the PO and ensure receipt picking is created ──────────
             order.button_confirm()
@@ -416,8 +481,14 @@ class PurchaseOrder(models.Model):
                         pass  # Never block the main approval if a cancel fails
 
             order.message_post(
-                body=Markup('🔒 <b>CEO Final Approval</b> granted by <b>%s</b>. '
-                            'PO is now locked and confirmed — ready for dispatch to vendor.') % self.env.user.name,
+                body=Markup(
+                    '🔒 <b>CEO Final Approval</b> granted by <b>%(user)s</b>.%(bypass)s '
+                    'PO is now locked and confirmed — ready for dispatch to vendor.'
+                ) % {
+                    'user': self.env.user.name,
+                    'bypass': Markup('<br/><i>Procurement HO review was bypassed.</i>')
+                    if bypass_ho else Markup(''),
+                },
                 subtype_xmlid='mail.mt_log_note',
             )
             ho_partners = order._get_group_partners('purchase_demand_raise.group_procurement_ho')
@@ -434,8 +505,10 @@ class PurchaseOrder(models.Model):
                 )
 
     def action_ceo_final_reject(self):
-        """CEO rejects at final stage."""
+        """CEO rejects at final stage (or bypass review from submitted)."""
         for order in self:
+            if order.x_pr_state not in ('ceo_final', 'submitted'):
+                raise UserError(_('PR is not awaiting CEO decision.'))
             order.write({'x_ceo_status': 'rejected', 'x_pr_state': 'rejected'})
             order.message_post(
                 body=Markup('❌ PO rejected by <b>CEO</b> at final stage (%s).') % self.env.user.name,

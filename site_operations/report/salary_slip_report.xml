@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="action_report_salary_slip" model="ir.actions.report">
+        <field name="name">Salary Slip</field>
+        <field name="model">x.salary.sheet.line</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">site_operations.report_salary_slip</field>
+        <field name="report_file">site_operations.report_salary_slip</field>
+        <field name="print_report_name">'Salary Slip - %s' % (object.employee_id.name)</field>
+    </record>
+
+    <template id="report_salary_slip">
+        <t t-call="web.external_layout">
+            <t t-foreach="docs" t-as="line">
+                <div class="page matracon-salary-slip-pdf">
+                    <h2>Salary Slip</h2>
+                    <p><strong>Employee:</strong> <span t-field="line.employee_id.name"/></p>
+                    <p><strong>Period:</strong>
+                        <span t-field="line.sheet_id.date_from"/> —
+                        <span t-field="line.sheet_id.date_to"/>
+                    </p>
+                    <h4>Earnings</h4>
+                    <table class="table table-sm">
+                        <tr><td>Basic Salary</td><td class="text-end"><span t-field="line.basic_salary"/></td></tr>
+                        <tr><td>HRA</td><td class="text-end"><span t-field="line.detail_hra"/></td></tr>
+                        <tr><td>Site Allowance</td><td class="text-end"><span t-field="line.detail_site_allowance"/></td></tr>
+                        <tr><td><strong>Gross Earnings</strong></td><td class="text-end"><strong><span t-field="line.allowances" t-options='{"widget": "monetary"}'/></strong></td></tr>
+                    </table>
+                    <h4>Deductions</h4>
+                    <table class="table table-sm">
+                        <tr><td>WHT</td><td class="text-end"><span t-field="line.detail_wht"/></td></tr>
+                        <tr><td>EOBI</td><td class="text-end"><span t-field="line.detail_eobi"/></td></tr>
+                        <tr><td>Advance Recovery</td><td class="text-end"><span t-field="line.detail_advance"/></td></tr>
+                        <tr><td><strong>Total Deductions</strong></td><td class="text-end"><strong><span t-field="line.deductions"/></strong></td></tr>
+                    </table>
+                    <h3>Net Payable: <span t-field="line.net_payable"/></h3>
+                </div>
+            </t>
+        </t>
+    </template>
+
+</odoo>

@@ -14,8 +14,17 @@
             </xpath>
 
             <xpath expr="//header" position="inside">
-                <field name="x_liability_sheet_id" invisible="1"/>
-                <field name="x_is_cheque_payment" invisible="1"/>
+                <button name="action_ceo_approve_payment"
+                        type="object"
+                        string="Approve (CEO)"
+                        class="btn-success"
+                        groups="purchase_demand_raise.group_ceo_approval"
+                        invisible="x_ceo_approval_state != 'pending'"/>
+
+                <field name="x_payment_category" invisible="1"/>
+                <field name="x_ceo_approval_state"
+                       invisible="x_payment_category not in ('salary', 'petty_cash')"
+                       readonly="1"/>
 
                 <field name="x_payment_status"
                        widget="statusbar"

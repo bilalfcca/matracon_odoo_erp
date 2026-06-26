@@ -65,5 +65,30 @@
             <field name="groups" eval="[(4, ref('base.group_system'))]"/>
             <field name="domain_force">[(1, '=', 1)]</field>
         </record>
+
+        <record id="rule_attendance_sheet_site_accountant" model="ir.rule">
+            <field name="name">Attendance: Site Accountant own project</field>
+            <field name="model_id" ref="model_x_attendance_sheet"/>
+            <field name="domain_force">[('project_analytic_account_id', '=', user.x_default_analytic_account_id.id)]</field>
+            <field name="groups" eval="[(4, ref('site_operations.group_site_accountant'))]"/>
+        </record>
+        <record id="rule_salary_sheet_site_accountant" model="ir.rule">
+            <field name="name">Salary Sheet: Site Accountant own project</field>
+            <field name="model_id" ref="model_x_salary_sheet"/>
+            <field name="domain_force">[('project_analytic_account_id', '=', user.x_default_analytic_account_id.id)]</field>
+            <field name="groups" eval="[(4, ref('site_operations.group_site_accountant'))]"/>
+        </record>
+        <record id="rule_petty_cash_site_accountant" model="ir.rule">
+            <field name="name">Petty Cash: Site Accountant own project</field>
+            <field name="model_id" ref="model_x_petty_cash_request"/>
+            <field name="domain_force">[('project_analytic_account_id', '=', user.x_default_analytic_account_id.id)]</field>
+            <field name="groups" eval="[(4, ref('site_operations.group_site_accountant'))]"/>
+        </record>
+        <record id="rule_petty_cash_expense_site_accountant" model="ir.rule">
+            <field name="name">Petty Cash Expense: Site Accountant own project</field>
+            <field name="model_id" ref="model_x_petty_cash_expense"/>
+            <field name="domain_force">[('project_analytic_account_id', '=', user.x_default_analytic_account_id.id)]</field>
+            <field name="groups" eval="[(4, ref('site_operations.group_site_accountant'))]"/>
+        </record>
     </data>
 </odoo>

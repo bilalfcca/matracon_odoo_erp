@@ -1,0 +1,24 @@
+/* Attendance grid + salary sheet mockup styling */
+
+.o_form_view .matracon-attendance-grid {
+    .o_list_table {
+        th, td {
+            text-align: center;
+            min-width: 2rem;
+        }
+        td[name="employee_id"] {
+            text-align: left;
+            min-width: 10rem;
+        }
+    }
+}
+
+.o_form_view .matracon-salary-sheet {
+    .oe_button_box .o_stat_info {
+        min-width: 7rem;
+    }
+}
+
+.o_form_view .matracon-attendance-form .o_progressbar {
+    min-width: 12rem;
+}

@@ -1,6 +1,8 @@
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
 
+from . import matracon_notifications as matracon_notify
+
 
 class AccountPaymentSiteOps(models.Model):
     _inherit = 'account.payment'
@@ -46,6 +48,24 @@ class AccountPaymentSiteOps(models.Model):
 
     x_liability_sheet_line_id = fields.Many2one(
         'x.liability.sheet.line', string='Liability Line',
+        readonly=True, copy=False)
+
+    x_payment_category = fields.Selection([
+        ('vendor', 'Vendor / Liability'),
+        ('salary', 'Salary'),
+        ('petty_cash', 'Petty Cash'),
+    ], string='Payment Category', default='vendor', tracking=True)
+
+    x_ceo_approval_state = fields.Selection([
+        ('not_required', 'Not Required'),
+        ('pending', 'Pending CEO'),
+        ('approved', 'CEO Approved'),
+    ], string='CEO Approval', default='not_required', tracking=True)
+
+    x_salary_sheet_id = fields.Many2one(
+        'x.salary.sheet', string='Salary Sheet', readonly=True, copy=False)
+    x_petty_cash_request_id = fields.Many2one(
+        'x.petty.cash.request', string='Petty Cash Request',
         readonly=True, copy=False)
 
     x_gross_approved_amount = fields.Monetary(
@@ -251,7 +271,77 @@ class AccountPaymentSiteOps(models.Model):
                     'effect': 'deduct',
                     'sequence': 10,
                 })]
-        return super().create(vals_list)
+            category = vals.get('x_payment_category', 'vendor')
+            if category in ('salary', 'petty_cash'):
+                if self.env.user.has_group('purchase_demand_raise.group_ceo_approval'):
+                    vals['x_ceo_approval_state'] = 'approved'
+                elif self.env.user.has_group('site_operations.group_finance_ho'):
+                    vals['x_ceo_approval_state'] = 'pending'
+        payments = super().create(vals_list)
+        payments._matracon_notify_ceo_on_payment_create()
+        return payments
+
+    def _matracon_notify_ceo_on_payment_create(self):
+        ceo_users = self.env['res.users'].search([
+            ('group_ids', 'in', self.env.ref(
+                'purchase_demand_raise.group_ceo_approval').id),
+        ])
+        fo_users = self.env['res.users'].search([
+            ('group_ids', 'in', self.env.ref(
+                'site_operations.group_finance_ho').id),
+        ])
+        for payment in self.filtered(
+            lambda p: p.x_ceo_approval_state == 'pending'
+        ):
+            matracon_notify.notify_users(
+                payment,
+                ceo_users,
+                _('%(category)s payment <b>%(name)s</b> requires CEO approval.') % {
+                    'category': dict(
+                        payment._fields['x_payment_category'].selection
+                    ).get(payment.x_payment_category, ''),
+                    'name': payment.name or _('Draft'),
+                },
+                summary=_('Payment CEO Approval'),
+            )
+            matracon_notify.schedule_activity(
+                payment,
+                ceo_users,
+                _('Approve %s payment') % payment.x_payment_category,
+            )
+        for payment in self.filtered(
+            lambda p: p.x_ceo_approval_state == 'approved'
+            and p.x_payment_category in ('salary', 'petty_cash')
+            and self.env.user.has_group('purchase_demand_raise.group_ceo_approval')
+        ):
+            matracon_notify.notify_users(
+                payment,
+                fo_users,
+                _('CEO created %s payment <b>%s</b> — ready for Finance HO.')
+                % (payment.x_payment_category, payment.name or _('Draft')),
+                summary=_('Payment Ready for FO'),
+            )
+
+    def action_ceo_approve_payment(self):
+        for payment in self:
+            if payment.x_payment_category not in ('salary', 'petty_cash'):
+                raise UserError(_('CEO approval applies to salary and petty cash only.'))
+            if payment.x_ceo_approval_state != 'pending':
+                raise UserError(_('This payment is not pending CEO approval.'))
+            payment.x_ceo_approval_state = 'approved'
+            payment.message_post(body=_('CEO approved payment.'))
+            fo_users = self.env['res.users'].search([
+                ('group_ids', 'in', self.env.ref(
+                    'site_operations.group_finance_ho').id),
+            ])
+            matracon_notify.notify_users(
+                payment,
+                fo_users,
+                _('CEO approved <b>%s</b> payment — please process.') % payment.name,
+                summary=_('Payment Approved by CEO'),
+            )
+            matracon_notify.schedule_activity(
+                payment, fo_users, _('Process payment %s') % payment.name)
 
     def _matracon_ensure_fund_allocations(self):
         """Auto-fill fund allocation from source projects when FO posts payment."""
@@ -370,7 +460,32 @@ class AccountPaymentSiteOps(models.Model):
             if payment.x_liability_sheet_id:
                 payment.x_liability_sheet_id.action_finalize_if_fully_paid()
 
+    def _validate_ceo_payment_approval(self):
+        for payment in self.filtered(
+            lambda p: p.x_payment_category in ('salary', 'petty_cash')
+        ):
+            if payment.x_ceo_approval_state == 'pending':
+                raise UserError(_(
+                    'CEO approval is required before posting this %s payment.'
+                ) % payment.x_payment_category)
+
+    def _matracon_update_petty_cash_on_post(self):
+        for payment in self.filtered(
+            lambda p: p.state == 'posted' and p.x_petty_cash_request_id
+        ):
+            payment.x_petty_cash_request_id.action_mark_released(payment.amount)
+
+    def _matracon_update_salary_on_post(self):
+        for payment in self.filtered(
+            lambda p: p.state == 'posted' and p.x_salary_sheet_id
+        ):
+            sheet = payment.x_salary_sheet_id
+            if sheet.state != 'paid':
+                sheet.state = 'paid'
+                sheet.message_post(body=_('Salary payment posted by Finance HO.'))
+
     def action_post(self):
+        self._validate_ceo_payment_approval()
         for payment in self.filtered(lambda p: p.x_liability_sheet_line_id):
             payment.amount = payment.x_net_payable or payment.amount
         self._validate_liability_payment()
@@ -381,6 +496,8 @@ class AccountPaymentSiteOps(models.Model):
             payment._matracon_tag_payment_move_analytic()
             payment._matracon_create_interproject_entries()
             payment._matracon_update_liability_on_post()
+            payment._matracon_update_petty_cash_on_post()
+            payment._matracon_update_salary_on_post()
             payment._matracon_invalidate_project_funds()
         return res
 

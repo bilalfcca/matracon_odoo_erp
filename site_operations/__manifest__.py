@@ -1,6 +1,6 @@
 {
     'name': 'Site Operations',
-    'version': '1.5.0',
+    'version': '1.6.0',
     'summary': 'Material Issuance, Returns, Site-to-Site Transfers, Liability Sheets, Finance HO Payments',
     'author': 'Matracon Pakistan',
     'depends': [
@@ -27,7 +27,12 @@
         'data/bank_journals_data.xml',
         'data/site_config_data.xml',
         'data/site_warehouses_data.xml',
+        'data/petty_cash_sequence.xml',
         'data/app_visibility_data.xml',
+        'views/hr_employee_views.xml',
+        'views/attendance_views.xml',
+        'views/salary_views.xml',
+        'views/petty_cash_views.xml',
         'views/project_project_views.xml',
         'views/material_issuance_form_views.xml',
         'views/backcharge_views.xml',
@@ -45,11 +50,13 @@
         'report/mif_report_template.xml',
         'report/liability_sheet_report.xml',
         'report/liability_sheet_template.xml',
+        'report/salary_slip_report.xml',
     ],
     'post_init_hook': 'post_init_hook',
     'assets': {
         'web.assets_backend': [
             'site_operations/static/src/scss/matracon_payment_form.scss',
+            'site_operations/static/src/scss/matracon_hr.scss',
         ],
     },
     'demo': [

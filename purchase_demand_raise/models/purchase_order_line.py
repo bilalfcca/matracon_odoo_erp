@@ -168,28 +168,34 @@ class PurchaseOrderLine(models.Model):
             else:
                 line.x_qty_on_hand = line.product_id.qty_available
 
-    # ── Approved Qty: auto-compute from Decision + Recommended Qty ────────────
-    @api.depends('x_decision', 'x_recommended_qty')
+    def _get_ceo_qty_base(self):
+        """Quantity base for CEO % decisions — recommended if set, else requested."""
+        self.ensure_one()
+        if self.x_recommended_qty and self.x_recommended_qty > 0:
+            return self.x_recommended_qty
+        return self.x_requested_qty or 0.0
+
+    # ── Approved Qty: auto-compute from Decision + base qty ────────────
+    @api.depends('x_decision', 'x_recommended_qty', 'x_requested_qty')
     def _compute_approved_qty(self):
         pct = {'full': 1.0, '25': 0.25, '50': 0.50, '75': 0.75}
         for line in self:
             if line.x_decision in pct:
-                line.x_approved_qty = line.x_recommended_qty * pct[line.x_decision]
-            # 'manual': leave whatever is stored
+                line.x_approved_qty = line._get_ceo_qty_base() * pct[line.x_decision]
 
-    @api.onchange('x_decision')
+    @api.onchange('x_decision', 'x_recommended_qty', 'x_requested_qty')
     def _onchange_decision(self):
-        """Instant UI recompute when Decision changes."""
+        """Instant UI recompute when Decision or qty base changes."""
         pct = {'full': 1.0, '25': 0.25, '50': 0.50, '75': 0.75}
         if self.x_decision in pct:
-            self.x_approved_qty = self.x_recommended_qty * pct[self.x_decision]
+            self.x_approved_qty = self._get_ceo_qty_base() * pct[self.x_decision]
 
     @api.onchange('x_approved_qty')
     def _onchange_approved_qty(self):
         """If CEO manually edits Approved Qty away from the % result → switch to Manual."""
         pct = {'full': 1.0, '25': 0.25, '50': 0.50, '75': 0.75}
         if self.x_decision in pct:
-            expected = self.x_recommended_qty * pct[self.x_decision]
+            expected = self._get_ceo_qty_base() * pct[self.x_decision]
             if abs((self.x_approved_qty or 0.0) - expected) > 0.001:
                 self.x_decision = 'manual'
 

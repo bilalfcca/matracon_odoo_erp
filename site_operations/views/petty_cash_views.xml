@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_petty_cash_fund_form" model="ir.ui.view">
+        <field name="name">x.petty.cash.fund.form</field>
+        <field name="model">x.petty.cash.fund</field>
+        <field name="arch" type="xml">
+            <form string="Petty Cash Fund">
+                <sheet>
+                    <group>
+                        <field name="project_analytic_account_id" readonly="1"/>
+                        <field name="balance" readonly="1"/>
+                        <field name="total_released" readonly="1"/>
+                        <field name="total_expensed" readonly="1"/>
+                        <field name="currency_id" invisible="1"/>
+                    </group>
+                    <notebook>
+                        <page string="Requests">
+                            <field name="request_ids" readonly="1">
+                                <list>
+                                    <field name="name"/>
+                                    <field name="requested_amount"/>
+                                    <field name="released_amount"/>
+                                    <field name="state" widget="badge"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Expenses">
+                            <field name="expense_ids">
+                                <list editable="bottom">
+                                    <field name="expense_date"/>
+                                    <field name="name"/>
+                                    <field name="category"/>
+                                    <field name="amount"/>
+                                    <field name="state" widget="badge"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_petty_cash_request_form" model="ir.ui.view">
+        <field name="name">x.petty.cash.request.form</field>
+        <field name="model">x.petty.cash.request</field>
+        <field name="arch" type="xml">
+            <form string="Petty Cash Request">
+                <header>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,submitted,released,confirmed"/>
+                    <button name="action_submit" type="object" string="Submit to Finance HO"
+                            class="btn-primary" invisible="state != 'draft'"
+                            groups="site_operations.group_site_accountant"/>
+                    <button name="action_release" type="object" string="Release Petty Cash"
+                            class="btn-primary" invisible="state != 'submitted'"
+                            groups="site_operations.group_finance_ho,purchase_demand_raise.group_head_office"/>
+                    <button name="action_confirm_receipt" type="object" string="Confirm Receipt"
+                            class="btn-success" invisible="state != 'released'"
+                            groups="site_operations.group_site_accountant"/>
+                </header>
+                <sheet>
+                    <group>
+                        <field name="name" readonly="1"/>
+                        <field name="fund_id" readonly="state != 'draft'"/>
+                        <field name="project_analytic_account_id" readonly="1"/>
+                        <field name="current_balance" readonly="1"/>
+                        <field name="requested_amount" readonly="state != 'draft'"/>
+                        <field name="reason" readonly="state != 'draft'"/>
+                        <field name="released_amount" readonly="1"/>
+                        <field name="payment_id" readonly="1"/>
+                        <field name="currency_id" invisible="1"/>
+                    </group>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_petty_cash_request_list" model="ir.ui.view">
+        <field name="name">x.petty.cash.request.list</field>
+        <field name="model">x.petty.cash.request</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name"/>
+                <field name="project_analytic_account_id"/>
+                <field name="requested_amount"/>
+                <field name="released_amount"/>
+                <field name="state" widget="badge"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_petty_cash_expense_form" model="ir.ui.view">
+        <field name="name">x.petty.cash.expense.form</field>
+        <field name="model">x.petty.cash.expense</field>
+        <field name="arch" type="xml">
+            <form string="Petty Cash Expense">
+                <header>
+                    <button name="action_post" type="object" string="Post Expense"
+                            class="btn-primary" invisible="state != 'draft'"
+                            groups="site_operations.group_site_accountant"/>
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <group>
+                        <field name="fund_id"/>
+                        <field name="project_analytic_account_id" readonly="1"/>
+                        <field name="expense_date"/>
+                        <field name="category"/>
+                        <field name="name"/>
+                        <field name="amount"/>
+                        <field name="receipt" filename="receipt_filename"/>
+                        <field name="receipt_filename" invisible="1"/>
+                        <field name="currency_id" invisible="1"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_petty_cash_expense_list" model="ir.ui.view">
+        <field name="name">x.petty.cash.expense.list</field>
+        <field name="model">x.petty.cash.expense</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="expense_date"/>
+                <field name="name"/>
+                <field name="project_analytic_account_id"/>
+                <field name="category"/>
+                <field name="amount"/>
+                <field name="state" widget="badge"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_petty_cash_request" model="ir.actions.act_window">
+        <field name="name">Petty Cash Requests</field>
+        <field name="res_model">x.petty.cash.request</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <record id="action_petty_cash_expense" model="ir.actions.act_window">
+        <field name="name">Petty Cash Expenses</field>
+        <field name="res_model">x.petty.cash.expense</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <record id="action_petty_cash_fund" model="ir.actions.act_window">
+        <field name="name">Petty Cash Funds</field>
+        <field name="res_model">x.petty.cash.fund</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+</odoo>

@@ -53,6 +53,15 @@
                         groups="purchase_demand_raise.group_site_store"
                         disabled="1"/>
 
+                <!-- Procurement Officer: Submit PR (no PM doc required) -->
+                <button name="action_submit_pr"
+                        string="Submit PR"
+                        type="object"
+                        class="btn-primary"
+                        invisible="x_pr_state != 'draft' or not x_can_submit"
+                        groups="purchase_demand_raise.group_procurement_ho"
+                        confirm="Submit this PR for CEO approval?"/>
+
                 <!-- HO: Approve + recommend vendor → routes directly to CEO (single step) -->
                 <button name="action_ho_approve"
                         string="✓ Approve &amp; Submit to CEO"
@@ -70,12 +79,12 @@
                         groups="purchase_demand_raise.group_procurement_ho"
                         confirm="Reject this PR? The initiator will be notified."/>
 
-                <!-- CEO: Final Approve / Reject -->
+                <!-- CEO: Final Approve / Reject (also from Submitted when bypassing HO) -->
                 <button name="action_ceo_final_approve"
                         string="✓ Final Approve &amp; Lock PO"
                         type="object"
                         class="btn-success"
-                        invisible="x_pr_state != 'ceo_final'"
+                        invisible="x_pr_state not in ('ceo_final', 'submitted')"
                         groups="purchase_demand_raise.group_ceo_approval"
                         confirm="This will LOCK the PO and confirm the order. Continue?"/>
 
@@ -83,7 +92,7 @@
                         string="✗ Reject"
                         type="object"
                         class="btn-danger"
-                        invisible="x_pr_state != 'ceo_final'"
+                        invisible="x_pr_state not in ('ceo_final', 'submitted')"
                         groups="purchase_demand_raise.group_ceo_approval"
                         confirm="Reject at final stage? HO and initiator will be notified."/>
 
@@ -240,7 +249,7 @@
                 <field name="x_requested_qty"
                        string="Requested Qty"
                        column_invisible="not parent.x_is_pr_document and not parent.x_is_site_store and not parent.x_is_alternative_rfq"
-                       readonly="not x_is_site_store and not parent.x_is_alternative_rfq"
+                       readonly="not x_is_site_store and not (x_is_ho and parent.x_pr_state in ('draft', 'submitted')) and not parent.x_is_alternative_rfq"
                        optional="show"/>
             </field>
 
@@ -275,13 +284,14 @@
                 <field name="x_decision"
                        string="Decision"
                        column_invisible="not parent.x_is_pr_document or not parent.x_is_ceo"
+                       readonly="parent.x_pr_state not in ('ceo_final', 'submitted')"
                        optional="show"/>
 
                 <!-- Approved Qty: PR docs + site store + alternatives (CEO edits on all) -->
                 <field name="x_approved_qty"
                        string="Approved Qty"
                        column_invisible="not parent.x_is_pr_document and not parent.x_is_site_store and not parent.x_is_alternative_rfq"
-                       readonly="not x_is_ceo"
+                       readonly="not x_is_ceo or parent.x_pr_state not in ('ceo_final', 'submitted')"
                        optional="show"/>
 
                 <!-- Exceeds Recommended warning: CEO only, PR docs only -->

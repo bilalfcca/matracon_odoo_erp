@@ -80,4 +80,34 @@
               sequence="5"
               groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,site_operations.group_matracon_admin,base.group_system"/>
 
+    <!-- HR / Payroll menus -->
+    <menuitem id="menu_attendance_registry"
+              name="Attendance Registry"
+              parent="hr_attendance.menu_hr_attendance_root"
+              action="site_operations.action_attendance_sheet"
+              sequence="5"
+              groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_head_office,site_operations.group_matracon_admin,base.group_system"/>
+
+    <menuitem id="menu_salary_sheets"
+              name="Salary Sheets"
+              parent="hr.menu_hr_root"
+              action="site_operations.action_salary_sheet"
+              sequence="25"
+              groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,site_operations.group_matracon_admin,base.group_system"/>
+
+    <!-- Petty Cash -->
+    <menuitem id="menu_petty_cash_requests"
+              name="Petty Cash Requests"
+              parent="account.menu_finance_payables"
+              action="site_operations.action_petty_cash_request"
+              sequence="27"
+              groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_head_office,site_operations.group_matracon_admin,base.group_system"/>
+
+    <menuitem id="menu_petty_cash_expenses"
+              name="Petty Cash Expenses"
+              parent="account.menu_finance_payables"
+              action="site_operations.action_petty_cash_expense"
+              sequence="28"
+              groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_head_office,site_operations.group_matracon_admin,base.group_system"/>
+
 </odoo>
