@@ -4,10 +4,10 @@ from markupsafe import Markup
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
 
-from .matracon_notifications import MatraconNotificationsMixin
+from . import matracon_notifications as matracon_notify
 
 
-class AccountMoveSiteOps(MatraconNotificationsMixin, models.Model):
+class AccountMoveSiteOps(models.Model):
     """Vendor bills: PO link, liability sheet, project balance, notifications."""
     _inherit = 'account.move'
 
@@ -214,9 +214,10 @@ class AccountMoveSiteOps(MatraconNotificationsMixin, models.Model):
                 'amount': f'{amount:,.2f}',
             })
             if notify:
-                accountants = self._matracon_site_accountants_for_analytic(
-                    self.x_project_analytic_account_id)
-                self._matracon_notify_users(
+                accountants = matracon_notify.site_accountants_for_analytic(
+                    self.env, self.x_project_analytic_account_id)
+                matracon_notify.notify_users(
+                    self,
                     accountants,
                     _('Vendor bill <b>%s</b> posted — liability sheet <b>%s</b> updated.')
                     % (self.name, sheet.name),
@@ -233,9 +234,10 @@ class AccountMoveSiteOps(MatraconNotificationsMixin, models.Model):
                 'Liability Sheet <b>%s</b> auto-created for draft vendor bill.'
             )) % sheet.name)
             if notify:
-                accountants = self._matracon_site_accountants_for_analytic(
-                    self.x_project_analytic_account_id)
-                self._matracon_notify_users(
+                accountants = matracon_notify.site_accountants_for_analytic(
+                    self.env, self.x_project_analytic_account_id)
+                matracon_notify.notify_users(
+                    self,
                     accountants,
                     _('Draft vendor bill <b>%s</b> — liability sheet <b>%s</b> created.')
                     % (self.name or _('New'), sheet.name),
@@ -400,15 +402,17 @@ class AccountMoveSiteOps(MatraconNotificationsMixin, models.Model):
             'ref': _('GRN %s') % picking.name,
             'invoice_line_ids': line_vals,
         })
-        accountants = bill._matracon_site_accountants_for_analytic(
-            bill.x_project_analytic_account_id)
-        bill._matracon_notify_users(
+        accountants = matracon_notify.site_accountants_for_analytic(
+            self.env, bill.x_project_analytic_account_id)
+        matracon_notify.notify_users(
+            bill,
             accountants,
             _('Draft vendor bill <b>%s</b> auto-created from receipt <b>%s</b>.')
             % (bill.name or _('New'), picking.name),
             summary=_('Vendor Bill Ready for Review'),
         )
-        bill._matracon_schedule_activity(
+        matracon_notify.schedule_activity(
+            bill,
             accountants,
             _('Review vendor bill for %s') % po.name,
             note=_('Receipt %s validated — vendor bill draft created.') % picking.name,

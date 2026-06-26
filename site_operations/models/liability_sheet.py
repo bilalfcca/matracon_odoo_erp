@@ -5,10 +5,10 @@ from markupsafe import Markup
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
 
-from .matracon_notifications import MatraconNotificationsMixin
+from . import matracon_notifications as matracon_notify
 
 
-class LiabilitySheet(MatraconNotificationsMixin, models.Model):
+class LiabilitySheet(models.Model):
     _name = 'x.liability.sheet'
     _description = 'Liability Sheet'
     _inherit = ['mail.thread', 'mail.activity.mixin']
@@ -144,12 +144,14 @@ class LiabilitySheet(MatraconNotificationsMixin, models.Model):
                 ('group_ids', 'in', self.env.ref(
                     'purchase_demand_raise.group_ceo_approval').id),
             ])
-            sheet._matracon_notify_users(
+            matracon_notify.notify_users(
+                sheet,
                 ceo_users,
                 _('Liability Sheet <b>%s</b> submitted — CEO approval required.') % sheet.name,
                 summary=_('Liability Sheet Approval'),
             )
-            sheet._matracon_schedule_activity(
+            matracon_notify.schedule_activity(
+                sheet,
                 ceo_users,
                 _('Approve Liability Sheet %s') % sheet.name,
             )
@@ -190,13 +192,15 @@ class LiabilitySheet(MatraconNotificationsMixin, models.Model):
                 ('group_ids', 'in', self.env.ref(
                     'site_operations.group_finance_ho').id),
             ])
-            sheet._matracon_notify_users(
+            matracon_notify.notify_users(
+                sheet,
                 fo_users,
                 _('CEO approved liability sheet <b>%s</b> — %d payment draft(s) ready for Finance HO.')
                 % (sheet.name, len(payments)),
                 summary=_('Payments Ready for Finance HO'),
             )
-            sheet._matracon_schedule_activity(
+            matracon_notify.schedule_activity(
+                sheet,
                 fo_users,
                 _('Process vendor payments for %s') % sheet.name,
             )
