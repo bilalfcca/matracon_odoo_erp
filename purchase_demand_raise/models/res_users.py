@@ -68,6 +68,16 @@ class ResUsers(models.Model):
             or self._matracon_is_admin()
         )
 
+    def _matracon_can_open_procurement_dashboard(self):
+        """Procurement HO, admin, or any user who has raised at least one PR."""
+        self.ensure_one()
+        if self._matracon_is_procurement_officer():
+            return True
+        return bool(self.env['purchase.order'].sudo().search_count([
+            ('x_is_pr_document', '=', True),
+            ('x_initiator_id', '=', self.id),
+        ], limit=1))
+
     @api.model
     def _matracon_add_group(self, user, group):
         """Idempotently add a security group to a user (Odoo 19: group_ids)."""

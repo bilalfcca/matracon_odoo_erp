@@ -332,10 +332,9 @@ class SiteStoreDashboard(models.TransientModel):
         dashboard so that they always land on a single, unified operations view.
         """
         user = self.env.user
-        # Admin / HO users → redirect to the Procurement HO dashboard
         if user._matracon_is_admin() or (
             not user.has_group('purchase_demand_raise.group_site_store')
-            and user._matracon_is_procurement_officer()
+            and user._matracon_can_open_procurement_dashboard()
         ):
             return self.env['x.procurement.ho.dashboard'].action_open_dashboard()
         if not user.has_group('purchase_demand_raise.group_site_store'):

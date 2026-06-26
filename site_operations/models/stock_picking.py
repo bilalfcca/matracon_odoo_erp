@@ -1265,3 +1265,33 @@ class StockPickingSiteOps(models.Model):
     def action_print_gate_pass(self):
         return self.env.ref(
             'site_operations.action_report_gate_pass').report_action(self)
+
+    x_vendor_bill_count = fields.Integer(compute='_compute_x_vendor_bill_count')
+
+    @api.depends('purchase_id')
+    def _compute_x_vendor_bill_count(self):
+        Bill = self.env['account.move']
+        for picking in self:
+            if picking.purchase_id:
+                picking.x_vendor_bill_count = Bill.search_count([
+                    ('move_type', '=', 'in_invoice'),
+                    ('x_purchase_order_id', '=', picking.purchase_id.id),
+                ])
+            else:
+                picking.x_vendor_bill_count = 0
+
+    def action_view_vendor_bills(self):
+        self.ensure_one()
+        bills = self.env['account.move']
+        if self.purchase_id:
+            bills = bills.search([
+                ('move_type', '=', 'in_invoice'),
+                ('x_purchase_order_id', '=', self.purchase_id.id),
+            ])
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Vendor Bills'),
+            'res_model': 'account.move',
+            'view_mode': 'list,form',
+            'domain': [('id', 'in', bills.ids)],
+        }

@@ -9,7 +9,7 @@ from odoo.exceptions import UserError
 class LiabilitySheet(models.Model):
     _name = 'x.liability.sheet'
     _description = 'Liability Sheet'
-    _inherit = ['mail.thread', 'mail.activity.mixin']
+    _inherit = ['mail.thread', 'mail.activity.mixin', 'x.matracon.notifications.mixin']
     _order = 'date_from desc, id desc'
 
     # ── Schema guard: runs on every server startup ────────────────────────────
@@ -138,6 +138,19 @@ class LiabilitySheet(models.Model):
                 body=Markup(_(
                     'Liability Sheet submitted for CEO approval by <b>%s</b>.'
                 )) % self.env.user.name)
+            ceo_users = self.env['res.users'].search([
+                ('group_ids', 'in', self.env.ref(
+                    'purchase_demand_raise.group_ceo_approval').id),
+            ])
+            sheet._matracon_notify_users(
+                ceo_users,
+                _('Liability Sheet <b>%s</b> submitted — CEO approval required.') % sheet.name,
+                summary=_('Liability Sheet Approval'),
+            )
+            sheet._matracon_schedule_activity(
+                ceo_users,
+                _('Approve Liability Sheet %s') % sheet.name,
+            )
 
     def action_ceo_approve(self):
         """CEO locks approved amounts and creates vendor payment drafts for FO."""
@@ -171,6 +184,20 @@ class LiabilitySheet(models.Model):
                     '<br/>%d vendor payment draft(s) created for Finance HO.'
                 )) % len(payments)
             sheet.message_post(body=msg)
+            fo_users = self.env['res.users'].search([
+                ('group_ids', 'in', self.env.ref(
+                    'site_operations.group_finance_ho').id),
+            ])
+            sheet._matracon_notify_users(
+                fo_users,
+                _('CEO approved liability sheet <b>%s</b> — %d payment draft(s) ready for Finance HO.')
+                % (sheet.name, len(payments)),
+                summary=_('Payments Ready for Finance HO'),
+            )
+            sheet._matracon_schedule_activity(
+                fo_users,
+                _('Process vendor payments for %s') % sheet.name,
+            )
 
     def _create_ceo_payment_drafts(self):
         """One locked outbound payment draft per approved vendor line."""

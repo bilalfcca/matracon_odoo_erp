@@ -15,6 +15,8 @@
 #   STP:      accountant  9, store  8
 # ═══════════════════════════════════════════════════════════════════════════
 
+from odoo import fields, _
+
 PRODUCTION_CONFIG = {
     'head_office_ids': [2, 5, 10, 11],
     'ceo_ids': [5],
@@ -143,11 +145,64 @@ def sync_alternative_prs(env):
         order.x_pr_state = 'cancelled'
 
 
+def seed_demo_bank_balances(env):
+    """Opening balances for HBL / BOK demo bank journals (idempotent)."""
+    import logging
+    _logger = logging.getLogger(__name__)
+    Move = env['account.move'].sudo()
+    journal_refs = {
+        'site_operations.bank_journal_hbl': 50_000_000.0,
+        'site_operations.bank_journal_bok': 25_000_000.0,
+    }
+    company = env.company
+    equity = env.ref('account.1_equity', raise_if_not_found=False)
+    if not equity:
+        equity = env['account.account'].search([
+            ('account_type', '=', 'equity'),
+            ('company_ids', 'in', company.id),
+        ], limit=1)
+    if not equity:
+        _logger.warning('seed_demo_bank_balances: no equity account — skipped')
+        return
+    for xml_id, amount in journal_refs.items():
+        journal = env.ref(xml_id, raise_if_not_found=False)
+        if not journal or not journal.default_account_id:
+            continue
+        ref = 'matracon_opening_%s' % journal.code
+        if Move.search([('ref', '=', ref)], limit=1):
+            continue
+        bank_acc = journal.default_account_id
+        Move.create({
+            'move_type': 'entry',
+            'date': fields.Date.today(),
+            'ref': ref,
+            'journal_id': env['account.journal'].search([
+                ('type', '=', 'general'),
+                ('company_id', '=', company.id),
+            ], limit=1).id,
+            'line_ids': [
+                (0, 0, {
+                    'name': _('Opening balance %s') % journal.name,
+                    'account_id': bank_acc.id,
+                    'debit': amount,
+                    'credit': 0.0,
+                }),
+                (0, 0, {
+                    'name': _('Opening balance %s') % journal.name,
+                    'account_id': equity.id,
+                    'debit': 0.0,
+                    'credit': amount,
+                }),
+            ],
+        }).action_post()
+
+
 def post_init_hook(env):
     try:
         configure_production_users(env)
         env['x.project.site.config']._matracon_ensure_site_warehouses()
         sync_alternative_prs(env)
+        seed_demo_bank_balances(env)
     except Exception as e:
         import logging
         logging.getLogger(__name__).warning(

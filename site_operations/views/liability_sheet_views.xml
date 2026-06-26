@@ -8,7 +8,7 @@
         <field name="name">x.liability.sheet.form</field>
         <field name="model">x.liability.sheet</field>
         <field name="arch" type="xml">
-            <form string="Liability Sheet">
+            <form string="Liability Sheet" class="matracon-liability-stats">
                 <header>
                     <field name="state" widget="statusbar"
                            statusbar_visible="draft,submitted,approved,paid"/>

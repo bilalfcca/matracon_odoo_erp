@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- Finance HO vendor payment form — CEO-approved liability payments -->
 
     <record id="view_account_payment_form_site_ops" model="ir.ui.view">
         <field name="name">account.payment.form.site.ops</field>
@@ -9,7 +8,15 @@
         <field name="priority">20</field>
         <field name="arch" type="xml">
 
+            <!-- Hide Odoo default payment state bar when using Matracon liability workflow -->
+            <xpath expr="//field[@name='state'][@widget='statusbar']" position="attributes">
+                <attribute name="invisible">payment_type == 'outbound' and x_liability_sheet_id</attribute>
+            </xpath>
+
             <xpath expr="//header" position="inside">
+                <field name="x_liability_sheet_id" invisible="1"/>
+                <field name="x_is_cheque_payment" invisible="1"/>
+
                 <field name="x_payment_status"
                        widget="statusbar"
                        statusbar_visible="draft,in_process,paid"
@@ -32,7 +39,6 @@
             </xpath>
 
             <xpath expr="//field[@name='partner_id']" position="after">
-                <field name="x_liability_sheet_id" invisible="1"/>
                 <field name="x_liability_sheet_line_id" invisible="1"/>
 
                 <field name="x_gross_approved_amount"
@@ -61,29 +67,35 @@
                        invisible="payment_type != 'outbound'"
                        required="payment_type == 'outbound' and x_liability_sheet_id"/>
 
-                <field name="x_available_bank_balance"
-                       readonly="1"
-                       invisible="payment_type != 'outbound'"/>
-
                 <field name="x_cheque_number"
-                       invisible="payment_type != 'outbound'"
-                       required="payment_type == 'outbound' and x_liability_sheet_id"/>
+                       invisible="payment_type != 'outbound' or not x_is_cheque_payment"
+                       required="payment_type == 'outbound' and x_is_cheque_payment and x_liability_sheet_id"/>
             </xpath>
 
-            <!-- Tax section (WHT applied here for the first time) -->
+            <!-- Bank balance directly under journal selection -->
+            <xpath expr="//field[@name='journal_id']" position="after">
+                <field name="x_available_bank_balance"
+                       string="Bank Balance"
+                       readonly="1"
+                       invisible="not journal_id"/>
+            </xpath>
+
+            <!-- Tax section — optional fields, non-overlapping layout -->
             <xpath expr="//notebook" position="before">
-                <group string="Tax Compliance"
-                       invisible="payment_type != 'outbound' or not x_liability_sheet_id"
-                       col="4">
-                    <field name="x_wht_tax_id" required="payment_type == 'outbound' and x_liability_sheet_id"/>
+                <div class="matracon-tax-compliance"
+                     invisible="payment_type != 'outbound' or not x_liability_sheet_id">
+                    <div class="matracon-tax-compliance__title">Tax Compliance</div>
+                    <field name="x_wht_tax_id" string="Withholding Tax (WHT)"/>
                     <field name="x_wht_amount" readonly="1"/>
-                    <field name="x_retention_tax_id" required="payment_type == 'outbound' and x_liability_sheet_id"/>
+                    <field name="x_retention_tax_id" string="Retention Money"/>
                     <field name="x_retention_amount" readonly="1"/>
-                    <field name="x_other_tax_id" required="payment_type == 'outbound' and x_liability_sheet_id"/>
+                    <field name="x_other_tax_id" string="Other Tax"/>
                     <field name="x_other_tax_amount" readonly="1"/>
-                    <field name="x_total_tax_amount" readonly="1"/>
-                    <field name="x_net_payable" readonly="1"/>
-                </group>
+                    <div class="matracon-tax-compliance__totals">
+                        <field name="x_total_tax_amount" readonly="1"/>
+                        <field name="x_net_payable" readonly="1"/>
+                    </div>
+                </div>
             </xpath>
 
             <xpath expr="//notebook" position="inside">

@@ -64,10 +64,10 @@
                                          style="font-size:2.6rem; line-height:1.1;">
                                         <field name="pending_review_count" nolabel="1" readonly="1" class="oe_inline"/>
                                     </div>
-                                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                                    <div class="d-flex flex-column gap-2">
                                         <small class="text-muted">Awaiting HO Review</small>
                                         <button name="action_open_pending_review" type="object"
-                                                string="Review" class="btn btn-sm btn-outline-danger"/>
+                                                string="Review" class="btn btn-sm btn-outline-danger align-self-start"/>
                                     </div>
                                 </div>
                             </div>
@@ -82,10 +82,10 @@
                                          style="font-size:2.6rem; line-height:1.1; color:#fd7e14;">
                                         <field name="active_cs_count" nolabel="1" readonly="1" class="oe_inline"/>
                                     </div>
-                                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                                    <div class="d-flex flex-column gap-2">
                                         <small class="text-muted">Comparative Statements</small>
                                         <button name="action_open_active_cs" type="object"
-                                                string="View CS" class="btn btn-sm btn-outline-warning"/>
+                                                string="View CS" class="btn btn-sm btn-outline-warning align-self-start"/>
                                     </div>
                                 </div>
                             </div>

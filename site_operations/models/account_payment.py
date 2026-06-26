@@ -69,11 +69,17 @@ class AccountPaymentSiteOps(models.Model):
 
     x_cheque_number = fields.Char(string='Cheque / Reference No.', tracking=True)
 
+    x_is_cheque_payment = fields.Boolean(
+        string='Cheque Payment',
+        compute='_compute_x_is_cheque_payment',
+        store=False,
+    )
+
     x_wht_tax_id = fields.Many2one(
         'account.tax', string='Withholding Tax (WHT)',
         domain="[('type_tax_use', '=', 'purchase'), ('active', '=', True)]")
     x_retention_tax_id = fields.Many2one(
-        'account.tax', string='Retention Tax',
+        'account.tax', string='Retention Money',
         domain="[('type_tax_use', '=', 'purchase'), ('active', '=', True)]")
     x_other_tax_id = fields.Many2one(
         'account.tax', string='Other Tax',
@@ -83,7 +89,7 @@ class AccountPaymentSiteOps(models.Model):
         string='WHT Amount', compute='_compute_tax_amounts', store=True,
         currency_field='currency_id')
     x_retention_amount = fields.Monetary(
-        string='Retention Amount', compute='_compute_tax_amounts', store=True,
+        string='Retention Money Amount', compute='_compute_tax_amounts', store=True,
         currency_field='currency_id')
     x_other_tax_amount = fields.Monetary(
         string='Other Tax Amount', compute='_compute_tax_amounts', store=True,
@@ -132,6 +138,16 @@ class AccountPaymentSiteOps(models.Model):
                 payment.x_available_bank_balance = balance
             else:
                 payment.x_available_bank_balance = 0.0
+
+    @api.depends('payment_method_line_id', 'payment_method_line_id.code', 'payment_method_line_id.name')
+    def _compute_x_is_cheque_payment(self):
+        for payment in self:
+            code = (payment.payment_method_line_id.code or '').lower()
+            name = (payment.payment_method_line_id.name or '').lower()
+            payment.x_is_cheque_payment = (
+                'check' in code or 'cheque' in code
+                or 'check' in name or 'cheque' in name
+            )
 
     def _matracon_tax_amount(self, tax, base_amount):
         if not tax or base_amount <= 0:
@@ -219,10 +235,8 @@ class AccountPaymentSiteOps(models.Model):
                 raise UserError(_('Select at least one Source Project.'))
             if not payment.journal_id:
                 raise UserError(_('Source Bank / Payment Journal is required.'))
-            if not payment.x_cheque_number:
-                raise UserError(_('Cheque / Reference Number is required.'))
-            if not payment.x_wht_tax_id:
-                raise UserError(_('Withholding Tax (WHT) is required.'))
+            if payment.x_is_cheque_payment and not payment.x_cheque_number:
+                raise UserError(_('Cheque / Reference Number is required for cheque payments.'))
             if payment.x_allocation_ids:
                 total_alloc = sum(payment.x_allocation_ids.mapped('allocation_amount'))
                 if abs(total_alloc - payment.amount) > 0.02:
@@ -232,37 +246,8 @@ class AccountPaymentSiteOps(models.Model):
                     ) % {'alloc': total_alloc, 'pay': payment.amount})
 
     def _validate_fund_allocations(self):
-        Project = self.env['project.project']
-        for payment in self:
-            if payment.payment_type != 'outbound' or payment.state == 'posted':
-                continue
-            if payment.x_allocation_ids:
-                for alloc in payment.x_allocation_ids:
-                    if alloc.allocation_amount <= 0:
-                        continue
-                    available = Project.get_available_balance_for_analytic(
-                        alloc.project_analytic_account_id)
-                    if alloc.allocation_amount > available + 0.01:
-                        raise UserError(_(
-                            'Insufficient fund balance on project "%(proj)s".\n'
-                            'Available: %(avail).2f — Requested: %(req).2f'
-                        ) % {
-                            'proj': alloc.project_analytic_account_id.name,
-                            'avail': available,
-                            'req': alloc.allocation_amount,
-                        })
-            elif payment.x_fund_project_id and payment.amount:
-                available = Project.get_available_balance_for_analytic(
-                    payment.x_fund_project_id)
-                if payment.amount > available + 0.01:
-                    raise UserError(_(
-                        'Insufficient fund balance on project "%(proj)s".\n'
-                        'Available: %(avail).2f — Payment: %(pay).2f'
-                    ) % {
-                        'proj': payment.x_fund_project_id.name,
-                        'avail': available,
-                        'pay': payment.amount,
-                    })
+        """Allow payments even when project fund balance is zero or negative."""
+        return
 
     def _matracon_create_interproject_entries(self):
         for payment in self.filtered(lambda p: p.state == 'posted'):

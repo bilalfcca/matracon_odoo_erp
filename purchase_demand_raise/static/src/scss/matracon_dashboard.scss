@@ -118,6 +118,10 @@
     .card-body {
         max-width: 100%;
         overflow: hidden;
+
+        .d-flex.flex-column.gap-2 {
+            margin-top: 0.25rem;
+        }
     }
 
     /* ── Embedded list tables: scroll inside card, not whole page ── */
