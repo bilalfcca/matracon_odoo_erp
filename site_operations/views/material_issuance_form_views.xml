@@ -150,6 +150,7 @@
                 <field name="x_is_dest_receipt" invisible="1"/>
                 <field name="x_dest_picking_id" invisible="1"/>
                 <field name="x_source_transfer_id" invisible="1"/>
+                <field name="x_product_ids_at_location" invisible="1"/>
 
                 <!-- ─ Project (readonly, auto-filled, hidden when empty) ─ -->
                 <field name="x_issuance_project_id"
@@ -253,7 +254,18 @@
                 <attribute name="invisible">x_transfer_purpose in ['material_issuance', 'site_to_site']</attribute>
             </xpath>
 
+            <!-- Lock source location to site warehouse for material issuance -->
+            <xpath expr="//field[@name='location_id'][not(@column_invisible)]" position="attributes">
+                <attribute name="readonly">x_transfer_purpose == 'material_issuance'</attribute>
+            </xpath>
+
             <!-- ── On Hand qty column (screen only, not in reports) ────────── -->
+            <xpath expr="//field[@name='move_ids']/list/field[@name='product_id']" position="before">
+                <field name="x_allowed_product_ids" column_invisible="1"/>
+            </xpath>
+            <xpath expr="//field[@name='move_ids']/list/field[@name='product_id']" position="attributes">
+                <attribute name="domain">[('id', 'in', x_allowed_product_ids)] if parent.x_transfer_purpose == 'material_issuance' else []</attribute>
+            </xpath>
             <xpath expr="//field[@name='move_ids']/list/field[@name='product_uom_qty']"
                    position="before">
                 <field name="x_qty_on_hand"

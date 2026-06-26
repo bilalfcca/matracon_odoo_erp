@@ -23,7 +23,8 @@ class AccountMoveSiteOps(models.Model):
                 ADD COLUMN IF NOT EXISTS x_purchase_order_id             INTEGER,
                 ADD COLUMN IF NOT EXISTS x_liability_sheet_id            INTEGER,
                 ADD COLUMN IF NOT EXISTS x_wht_tax_id                    INTEGER,
-                ADD COLUMN IF NOT EXISTS x_fbr_payment_id                INTEGER
+                ADD COLUMN IF NOT EXISTS x_fbr_payment_id                INTEGER,
+                ADD COLUMN IF NOT EXISTS x_source_picking_id             INTEGER
         """)
         return super()._register_hook()
 
@@ -43,6 +44,11 @@ class AccountMoveSiteOps(models.Model):
         string='Liability Registered', default=False, readonly=True, copy=False)
     x_liability_amount_registered = fields.Float(
         string='Liability Amount Registered', default=0.0, readonly=True, copy=False)
+    x_source_picking_id = fields.Many2one(
+        'stock.picking', string='Source Material Issuance',
+        readonly=True, copy=False, index=True,
+        help='Material issuance that generated this backcharge journal entry.',
+    )
     x_wht_tax_id = fields.Many2one(
         'account.tax', string='Withholding Tax (WHT)',
         domain="[('type_tax_use', '=', 'purchase'), ('active', '=', True)]",

@@ -65,10 +65,12 @@ class StockMoveSiteOps(models.Model):
                 move.x_qty_on_hand = 0.0
                 continue
             location = move._get_on_hand_location()
-            qty = move._qty_on_hand_at_location(move.product_id, location)
-            if qty <= 0:
-                qty = move.product_id.qty_available
-            move.x_qty_on_hand = qty
+            move.x_qty_on_hand = move._qty_on_hand_at_location(move.product_id, location)
+
+    x_allowed_product_ids = fields.Many2many(
+        related='picking_id.x_product_ids_at_location',
+        string='Allowed Products',
+    )
 
     x_unit_cost = fields.Float(
         string='Unit Cost',
@@ -104,8 +106,7 @@ class StockMoveSiteOps(models.Model):
         if self.product_id:
             self.x_unit_cost = self.product_id.standard_price
             location = self._get_on_hand_location()
-            qty = self._qty_on_hand_at_location(self.product_id, location)
-            self.x_qty_on_hand = qty if qty > 0 else self.product_id.qty_available
+            self.x_qty_on_hand = self._qty_on_hand_at_location(self.product_id, location)
         if self.product_id and self.picking_id:
             loc = self.picking_id.location_id or self.picking_id.picking_type_id.default_location_src_id
             if loc:

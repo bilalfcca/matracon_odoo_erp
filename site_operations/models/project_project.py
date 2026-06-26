@@ -160,31 +160,50 @@ class ProjectProjectMatracon(models.Model):
 
         available = funds_received - total_spent
 
-        # ── Liabilities: unreconciled payable lines with this analytic ──────
+        # ── Liabilities: open liability sheet balances (primary) ───────────
         vendor_liability = 0.0
         sub_liability = 0.0
-        str_aid = str(analytic_id)
-        payable_lines = AML.search([
-            ('parent_state', '=', 'posted'),
-            ('account_id.account_type', '=', 'liability_payable'),
-            ('reconciled', '=', False),
-            ('analytic_distribution', '!=', False),
+        open_sheets = self.env['x.liability.sheet'].search([
+            ('project_analytic_account_id', '=', analytic_id),
+            ('state', 'in', ('draft', 'submitted', 'approved')),
         ])
-        for line in payable_lines:
-            dist = line.analytic_distribution or {}
-            if str_aid not in dist:
-                continue
-            pct = dist[str_aid] / 100.0
-            balance = (line.credit - line.debit) * pct
-            if balance <= 0:
-                continue
-            partner = line.partner_id
-            if partner and partner.category_id.filtered(
-                lambda c: 'subcontractor' in (c.name or '').lower()
-            ):
-                sub_liability += balance
-            else:
-                vendor_liability += balance
+        for sheet in open_sheets:
+            for line in sheet.line_ids:
+                remaining = max(line.liability_amount - line.paid_amount, 0.0)
+                if remaining <= 0:
+                    continue
+                partner = line.partner_id
+                if partner and partner.category_id.filtered(
+                    lambda c: 'subcontractor' in (c.name or '').lower()
+                ):
+                    sub_liability += remaining
+                else:
+                    vendor_liability += remaining
+
+        # Fallback: unreconciled payable AML with analytic tag
+        if not open_sheets:
+            str_aid = str(analytic_id)
+            payable_lines = AML.search([
+                ('parent_state', '=', 'posted'),
+                ('account_id.account_type', '=', 'liability_payable'),
+                ('reconciled', '=', False),
+                ('analytic_distribution', '!=', False),
+            ])
+            for line in payable_lines:
+                dist = line.analytic_distribution or {}
+                if str_aid not in dist:
+                    continue
+                pct = dist[str_aid] / 100.0
+                balance = (line.credit - line.debit) * pct
+                if balance <= 0:
+                    continue
+                partner = line.partner_id
+                if partner and partner.category_id.filtered(
+                    lambda c: 'subcontractor' in (c.name or '').lower()
+                ):
+                    sub_liability += balance
+                else:
+                    vendor_liability += balance
 
         return {
             'x_funds_received': funds_received,

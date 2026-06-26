@@ -288,6 +288,42 @@ class LiabilitySheet(models.Model):
             'line_ids': line_vals,
         })
 
+    def action_fo_mark_paid(self):
+        """Finance HO closes the sheet after all vendor payments are posted."""
+        for sheet in self:
+            if sheet.state != 'approved':
+                raise UserError(_('Only approved liability sheets can be marked paid.'))
+            if not sheet.payment_ids:
+                raise UserError(_('No vendor payments linked to this liability sheet.'))
+            unposted = sheet.payment_ids.filtered(lambda p: p.state != 'posted')
+            if unposted:
+                raise UserError(_(
+                    'Post all vendor payments before closing the sheet: %s'
+                ) % ', '.join(unposted.mapped('name')))
+            sheet._sync_paid_amounts_from_payments()
+            unpaid = sheet.line_ids.filtered(
+                lambda l: l.approved_amount > 0
+                and l.paid_amount < l.approved_amount - 0.01
+            )
+            if unpaid:
+                raise UserError(_(
+                    'Some approved lines are not fully paid yet: %s'
+                ) % ', '.join(unpaid.mapped('partner_id.display_name')))
+            sheet.action_finalize_if_fully_paid()
+
+    def _sync_paid_amounts_from_payments(self):
+        """Refresh line paid amounts from posted vendor payments."""
+        for sheet in self:
+            for line in sheet.line_ids:
+                payments = sheet.payment_ids.filtered(
+                    lambda p: p.state == 'posted'
+                    and p.x_liability_sheet_line_id == line
+                )
+                if payments:
+                    line.paid_amount = sum(
+                        p.x_gross_approved_amount or p.amount for p in payments
+                    )
+
     def action_reset_draft(self):
         for sheet in self:
             if sheet.state not in ('submitted', 'approved'):
@@ -380,6 +416,8 @@ class LiabilitySheetLine(models.Model):
     payment_id = fields.Many2one(
         'account.payment', string='Payment Draft', readonly=True, copy=False)
 
+    x_is_ceo = fields.Boolean(compute='_compute_role_flags')
+
     decision = fields.Selection([
         ('full', 'Full'),
         ('manual', 'Manual'),
@@ -402,6 +440,11 @@ class LiabilitySheetLine(models.Model):
     # ─────────────────────────────────────────────────────────────────────────
     # COMPUTE
     # ─────────────────────────────────────────────────────────────────────────
+
+    def _compute_role_flags(self):
+        is_ceo = self.env.user.has_group('purchase_demand_raise.group_ceo_approval')
+        for line in self:
+            line.x_is_ceo = is_ceo
 
     @api.depends('opening_balance', 'new_liability')
     def _compute_liability_amount(self):
@@ -447,7 +490,30 @@ class LiabilitySheetLine(models.Model):
 
     @api.onchange('approved_amount')
     def _onchange_approved_amount(self):
-        if self.recommended_amount and abs(
-            self.approved_amount - self.recommended_amount
-        ) > 0.01:
-            self.decision = 'manual'
+        if not self.recommended_amount:
+            return
+        pct_map = {'25': 0.25, '50': 0.50, '75': 0.75}
+        for key, pct in pct_map.items():
+            expected = self.recommended_amount * pct
+            if abs(self.approved_amount - expected) < 0.01:
+                self.decision = key
+                return
+        if abs(self.approved_amount - self.recommended_amount) < 0.01:
+            self.decision = 'full'
+            return
+        self.decision = 'manual'
+
+    def write(self, vals):
+        user = self.env.user
+        can_approve = (
+            user.has_group('purchase_demand_raise.group_ceo_approval')
+            or user.has_group('site_operations.group_matracon_admin')
+            or user.has_group('base.group_system')
+        )
+        if not can_approve:
+            blocked = {'approved_amount', 'decision', 'is_locked'} & set(vals)
+            if blocked:
+                raise UserError(_(
+                    'Only the CEO can set approval decisions and approved amounts.'
+                ))
+        return super().write(vals)

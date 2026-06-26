@@ -85,6 +85,12 @@ class AccountPaymentSiteOps(models.Model):
         'account.tax', string='Other Tax',
         domain="[('type_tax_use', '=', 'purchase'), ('active', '=', True)]")
 
+    x_tax_line_ids = fields.One2many(
+        'x.payment.tax.line', 'payment_id',
+        string='Tax Compliance Lines',
+        copy=True,
+    )
+
     x_wht_amount = fields.Monetary(
         string='WHT Amount', compute='_compute_tax_amounts', store=True,
         currency_field='currency_id')
@@ -162,19 +168,39 @@ class AccountPaymentSiteOps(models.Model):
 
     @api.depends(
         'x_gross_approved_amount', 'amount',
+        'x_tax_line_ids.amount', 'x_tax_line_ids.effect',
         'x_wht_tax_id', 'x_retention_tax_id', 'x_other_tax_id',
     )
     def _compute_tax_amounts(self):
         for payment in self:
             base = payment.x_gross_approved_amount or payment.amount or 0.0
-            wht = payment._matracon_tax_amount(payment.x_wht_tax_id, base)
-            retention = payment._matracon_tax_amount(payment.x_retention_tax_id, base)
-            other = payment._matracon_tax_amount(payment.x_other_tax_id, base)
-            payment.x_wht_amount = wht
-            payment.x_retention_amount = retention
-            payment.x_other_tax_amount = other
-            payment.x_total_tax_amount = wht + retention + other
-            payment.x_net_payable = max(base - payment.x_total_tax_amount, 0.0)
+            if payment.x_tax_line_ids:
+                deduct = sum(
+                    l.amount for l in payment.x_tax_line_ids if l.effect == 'deduct'
+                )
+                add = sum(
+                    l.amount for l in payment.x_tax_line_ids if l.effect == 'add'
+                )
+                payment.x_wht_amount = sum(
+                    l.amount for l in payment.x_tax_line_ids if l.tax_type == 'wht'
+                )
+                payment.x_retention_amount = sum(
+                    l.amount for l in payment.x_tax_line_ids if l.tax_type == 'retention'
+                )
+                payment.x_other_tax_amount = sum(
+                    l.amount for l in payment.x_tax_line_ids if l.tax_type == 'other'
+                )
+                payment.x_total_tax_amount = deduct
+                payment.x_net_payable = max(base - deduct + add, 0.0)
+            else:
+                wht = payment._matracon_tax_amount(payment.x_wht_tax_id, base)
+                retention = payment._matracon_tax_amount(payment.x_retention_tax_id, base)
+                other = payment._matracon_tax_amount(payment.x_other_tax_id, base)
+                payment.x_wht_amount = wht
+                payment.x_retention_amount = retention
+                payment.x_other_tax_amount = other
+                payment.x_total_tax_amount = wht + retention + other
+                payment.x_net_payable = max(base - payment.x_total_tax_amount, 0.0)
 
     # ─────────────────────────────────────────────────────────────────────────
     # ONCHANGE
@@ -208,12 +234,72 @@ class AccountPaymentSiteOps(models.Model):
             )
 
     @api.onchange(
+        'x_tax_line_ids', 'x_tax_line_ids.tax_id', 'x_tax_line_ids.effect',
         'x_wht_tax_id', 'x_retention_tax_id', 'x_other_tax_id',
         'x_gross_approved_amount',
     )
     def _onchange_taxes_set_net_amount(self):
         if self.x_liability_sheet_line_id and self.x_net_payable:
             self.amount = self.x_net_payable
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        for vals in vals_list:
+            if vals.get('x_liability_sheet_line_id') and not vals.get('x_tax_line_ids'):
+                vals['x_tax_line_ids'] = [(0, 0, {
+                    'tax_type': 'wht',
+                    'effect': 'deduct',
+                    'sequence': 10,
+                })]
+        return super().create(vals_list)
+
+    def _matracon_ensure_fund_allocations(self):
+        """Auto-fill fund allocation from source projects when FO posts payment."""
+        Allocation = self.env['x.payment.project.allocation']
+        for payment in self.filtered(
+            lambda p: p.payment_type == 'outbound'
+            and p.state == 'posted'
+            and p.x_source_project_ids
+            and not p.x_allocation_ids
+        ):
+            amount = payment.amount
+            projects = payment.x_source_project_ids
+            if not projects or amount <= 0:
+                continue
+            share = round(amount / len(projects), 2)
+            lines = []
+            allocated = 0.0
+            for idx, analytic in enumerate(projects):
+                alloc_amount = share
+                if idx == len(projects) - 1:
+                    alloc_amount = round(amount - allocated, 2)
+                allocated += alloc_amount
+                lines.append({
+                    'payment_id': payment.id,
+                    'project_analytic_account_id': analytic.id,
+                    'allocation_amount': alloc_amount,
+                })
+            Allocation.create(lines)
+
+    def _matracon_invalidate_project_funds(self):
+        Project = self.env['project.project']
+        analytic_ids = set()
+        for payment in self:
+            if payment.x_fund_project_id:
+                analytic_ids.add(payment.x_fund_project_id.id)
+            analytic_ids.update(payment.x_source_project_ids.ids)
+            analytic_ids.update(
+                payment.x_allocation_ids.mapped('project_analytic_account_id').ids
+            )
+        if analytic_ids:
+            projects = Project.search([
+                ('x_analytic_account_id', 'in', list(analytic_ids)),
+            ])
+            if projects:
+                projects.invalidate_recordset([
+                    'x_funds_received', 'x_total_spent', 'x_available_balance',
+                    'x_total_vendor_liability', 'x_total_sub_liability',
+                ])
 
     # ─────────────────────────────────────────────────────────────────────────
     # VALIDATION & POSTING
@@ -272,7 +358,14 @@ class AccountPaymentSiteOps(models.Model):
             lambda p: p.state == 'posted' and p.x_liability_sheet_line_id
         ):
             line = payment.x_liability_sheet_line_id
-            line.paid_amount = (line.paid_amount or 0.0) + payment.amount
+            gross_paid = payment.x_gross_approved_amount or payment.amount
+            payments = payment.x_liability_sheet_id.payment_ids.filtered(
+                lambda p: p.state == 'posted'
+                and p.x_liability_sheet_line_id == line
+            )
+            line.paid_amount = sum(
+                p.x_gross_approved_amount or p.amount for p in payments
+            )
             payment.x_payment_status = 'paid'
             if payment.x_liability_sheet_id:
                 payment.x_liability_sheet_id.action_finalize_if_fully_paid()
@@ -284,9 +377,11 @@ class AccountPaymentSiteOps(models.Model):
         self._validate_fund_allocations()
         res = super().action_post()
         for payment in self.filtered(lambda p: p.state == 'posted'):
+            payment._matracon_ensure_fund_allocations()
             payment._matracon_tag_payment_move_analytic()
             payment._matracon_create_interproject_entries()
             payment._matracon_update_liability_on_post()
+            payment._matracon_invalidate_project_funds()
         return res
 
     def _matracon_tag_payment_move_analytic(self):
@@ -332,6 +427,9 @@ class AccountPaymentSiteOps(models.Model):
 
     def action_mark_paid(self):
         self.write({'x_payment_status': 'paid'})
+        for payment in self.filtered(lambda p: p.state == 'posted'):
+            payment._matracon_update_liability_on_post()
+            payment._matracon_invalidate_project_funds()
         self.message_post(body=_('Payment marked as Paid.'))
 
     def write(self, vals):

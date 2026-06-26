@@ -28,6 +28,13 @@
                         class="btn-primary"
                         groups="site_operations.group_finance_ho,purchase_demand_raise.group_head_office"
                         invisible="x_payment_status != 'draft' or payment_type != 'outbound'"/>
+
+                <button name="action_mark_paid"
+                        type="object"
+                        string="Mark Paid"
+                        class="btn-success"
+                        groups="site_operations.group_finance_ho,purchase_demand_raise.group_head_office"
+                        invisible="x_payment_status == 'paid' or payment_type != 'outbound' or state != 'posted'"/>
             </xpath>
 
             <xpath expr="//field[@name='amount']" position="before">
@@ -80,22 +87,25 @@
                        invisible="not journal_id"/>
             </xpath>
 
-            <!-- Tax section — optional fields, non-overlapping layout -->
+            <!-- Tax section — multi-line with add-more -->
             <xpath expr="//notebook" position="before">
-                <div class="matracon-tax-compliance"
+                <group string="Tax Compliance"
+                     class="matracon-tax-compliance"
                      invisible="payment_type != 'outbound' or not x_liability_sheet_id">
-                    <div class="matracon-tax-compliance__title">Tax Compliance</div>
-                    <field name="x_wht_tax_id" string="Withholding Tax (WHT)"/>
-                    <field name="x_wht_amount" readonly="1"/>
-                    <field name="x_retention_tax_id" string="Retention Money"/>
-                    <field name="x_retention_amount" readonly="1"/>
-                    <field name="x_other_tax_id" string="Other Tax"/>
-                    <field name="x_other_tax_amount" readonly="1"/>
-                    <div class="matracon-tax-compliance__totals">
-                        <field name="x_total_tax_amount" readonly="1"/>
-                        <field name="x_net_payable" readonly="1"/>
-                    </div>
-                </div>
+                    <field name="x_tax_line_ids" nolabel="1" colspan="2">
+                        <list string="Taxes" editable="bottom">
+                            <field name="sequence" widget="handle"/>
+                            <field name="tax_type" string="Type"/>
+                            <field name="tax_id" string="Tax"/>
+                            <field name="effect" string="Effect"/>
+                            <field name="amount" string="Amount" readonly="1"/>
+                        </list>
+                    </field>
+                    <group>
+                        <field name="x_total_tax_amount" string="Total Deducted" readonly="1"/>
+                        <field name="x_net_payable" string="Net Payable to Vendor" readonly="1"/>
+                    </group>
+                </group>
             </xpath>
 
             <xpath expr="//notebook" position="inside">

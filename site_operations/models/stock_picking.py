@@ -37,6 +37,13 @@ class StockPickingSiteOps(models.Model):
         tracking=True, readonly=True,
         help='Auto-filled from the logged-in user site configuration')
 
+    x_product_ids_at_location = fields.Many2many(
+        'product.product',
+        compute='_compute_product_ids_at_location',
+        string='Products At Source Location',
+        help='Products with stock at the site warehouse source location.',
+    )
+
     # ── Gate Pass ─────────────────────────────────────────────────────────────
     x_generate_gate_pass = fields.Boolean(
         string='Generate Gate Pass Outward', default=True)
@@ -129,6 +136,62 @@ class StockPickingSiteOps(models.Model):
             pick.x_is_site_store = is_store
 
     # ─────────────────────────────────────────────────────────────────────────
+    # SITE WAREHOUSE / PRODUCT FILTERING
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def _get_site_warehouse(self):
+        """Warehouse for the site store user or issuance project."""
+        self.ensure_one()
+        user = self.env.user
+        warehouse = (
+            user.x_default_warehouse_id
+            if hasattr(user, 'x_default_warehouse_id') else False
+        )
+        if not warehouse and self.x_issuance_project_id:
+            config = self.env['x.project.site.config'].sudo().search([
+                ('analytic_account_id', '=', self.x_issuance_project_id.id),
+            ], limit=1)
+            warehouse = config.warehouse_id
+        return warehouse
+
+    def _get_site_stock_location(self):
+        """Main stock location for material issuance at the site warehouse."""
+        warehouse = self._get_site_warehouse()
+        if warehouse and warehouse.lot_stock_id:
+            return warehouse.lot_stock_id
+        return self.env['stock.location']
+
+    @api.model
+    def _matracon_site_stock_location_id(self, vals=None):
+        """Resolve site stock location id for default_get / create."""
+        user = self.env.user
+        warehouse = False
+        analytic_id = (vals or {}).get('x_issuance_project_id')
+        if analytic_id:
+            config = self.env['x.project.site.config'].sudo().search([
+                ('analytic_account_id', '=', analytic_id),
+            ], limit=1)
+            warehouse = config.warehouse_id
+        if not warehouse and hasattr(user, 'x_default_warehouse_id'):
+            warehouse = user.x_default_warehouse_id
+        if warehouse and warehouse.lot_stock_id:
+            return warehouse.lot_stock_id.id
+        return False
+
+    @api.depends('location_id', 'x_transfer_purpose', 'x_issuance_project_id')
+    def _compute_product_ids_at_location(self):
+        Quant = self.env['stock.quant'].sudo()
+        for pick in self:
+            if pick.x_transfer_purpose != 'material_issuance' or not pick.location_id:
+                pick.x_product_ids_at_location = [(5, 0, 0)]
+                continue
+            quants = Quant.search([
+                ('location_id', 'child_of', pick.location_id.id),
+                ('quantity', '>', 0),
+            ])
+            pick.x_product_ids_at_location = [(6, 0, quants.mapped('product_id').ids)]
+
+    # ─────────────────────────────────────────────────────────────────────────
     # DEFAULT GET  (called when a new form is opened)
     # ─────────────────────────────────────────────────────────────────────────
 
@@ -153,10 +216,15 @@ class StockPickingSiteOps(models.Model):
                     [('code', '=', 'internal')], limit=1)
             if pt and not res.get('picking_type_id'):
                 res['picking_type_id'] = pt.id
-                if pt.default_location_src_id:
-                    res.setdefault('location_id', pt.default_location_src_id.id)
                 if pt.default_location_dest_id:
                     res.setdefault('location_dest_id', pt.default_location_dest_id.id)
+            # Material issuance always issues from site warehouse stock location
+            if res.get('x_transfer_purpose') == 'material_issuance':
+                site_loc_id = self._matracon_site_stock_location_id(res)
+                if site_loc_id:
+                    res['location_id'] = site_loc_id
+            elif pt and pt.default_location_src_id:
+                res.setdefault('location_id', pt.default_location_src_id.id)
             # Fallback: use warehouse's main stock location (lot_stock_id)
             if not res.get('location_id'):
                 if hasattr(user, 'x_default_warehouse_id') and user.x_default_warehouse_id:
@@ -206,12 +274,28 @@ class StockPickingSiteOps(models.Model):
         """Refresh outstanding materials summary live in the form."""
         self._compute_outstanding_materials()
 
+    @api.onchange('x_issuance_project_id', 'x_transfer_purpose')
+    def _onchange_issuance_project_location(self):
+        """Set source location from site warehouse when project is known."""
+        if self.x_transfer_purpose != 'material_issuance':
+            return
+        loc = self._get_site_stock_location()
+        if loc:
+            self.location_id = loc
+            warehouse = self._get_site_warehouse()
+            if warehouse and warehouse.int_type_id:
+                self.picking_type_id = warehouse.int_type_id
+
     @api.onchange('picking_type_id', 'x_transfer_purpose')
     def _onchange_site_ops_picking_type(self):
         """Ensure source/dest locations are set for material issuance forms."""
         if self.x_transfer_purpose not in ('material_issuance', 'site_to_site'):
             return
-        if self.picking_type_id:
+        if self.x_transfer_purpose == 'material_issuance':
+            loc = self._get_site_stock_location()
+            if loc:
+                self.location_id = loc
+        elif self.picking_type_id:
             if self.picking_type_id.default_location_src_id:
                 self.location_id = self.picking_type_id.default_location_src_id
             if (self.picking_type_id.default_location_dest_id
@@ -320,10 +404,15 @@ class StockPickingSiteOps(models.Model):
                             [('code', '=', 'internal')], limit=1)
                     if pt:
                         vals['picking_type_id'] = pt.id
-                        vals.setdefault('location_id',
-                                        pt.default_location_src_id.id if pt.default_location_src_id else False)
+                        if vals.get('x_transfer_purpose') != 'material_issuance':
+                            vals.setdefault('location_id',
+                                            pt.default_location_src_id.id if pt.default_location_src_id else False)
                         vals.setdefault('location_dest_id',
                                         pt.default_location_dest_id.id if pt.default_location_dest_id else False)
+                if vals.get('x_transfer_purpose') == 'material_issuance':
+                    site_loc_id = self._matracon_site_stock_location_id(vals)
+                    if site_loc_id:
+                        vals['location_id'] = site_loc_id
                 # Fallback: use warehouse's main stock location (lot_stock_id)
                 if not vals.get('location_id'):
                     if hasattr(user, 'x_default_warehouse_id') and user.x_default_warehouse_id:
@@ -936,6 +1025,7 @@ class StockPickingSiteOps(models.Model):
             'ref': label,
             'invoice_date': fields.Date.today(),
             'narration': self.x_backcharge_description or False,
+            'x_source_picking_id': self.id,
             'line_ids': [
                 (0, 0, {
                     'account_id': dr_account.id,
@@ -987,6 +1077,7 @@ class StockPickingSiteOps(models.Model):
             'journal_id': journal.id,
             'ref': label,
             'invoice_date': fields.Date.today(),
+            'x_source_picking_id': self.id,
             'line_ids': [
                 (0, 0, {
                     'account_id': payable_account.id,
@@ -1231,21 +1322,48 @@ class StockPickingSiteOps(models.Model):
         }
 
     def action_view_backcharge_entries(self):
-        """Open backcharge accounting entries."""
+        """Open backcharge journal entries linked to this issuance."""
         self.ensure_one()
+        Move = self.env['account.move'].sudo()
         entry_ids = []
-        if self.x_backcharge_refund_entry_id:
-            entry_ids.append(self.x_backcharge_refund_entry_id.id)
-        if self.x_return_backcharge_entry_id:
-            entry_ids.append(self.x_return_backcharge_entry_id.id)
-        if self.x_damage_backcharge_entry_id:
-            entry_ids.append(self.x_damage_backcharge_entry_id.id)
+        for field_name in (
+            'x_backcharge_refund_entry_id',
+            'x_return_backcharge_entry_id',
+            'x_damage_backcharge_entry_id',
+        ):
+            entry = getattr(self, field_name)
+            if entry:
+                entry_ids.append(entry.id)
+        if not entry_ids:
+            entry_ids = Move.search([
+                ('x_source_picking_id', '=', self.id),
+                ('move_type', '=', 'entry'),
+            ]).ids
+        if not entry_ids:
+            raise UserError(_('No backcharge journal entry found for this transfer.'))
+        if len(entry_ids) == 1:
+            return {
+                'name': _('Backcharge Entry'),
+                'type': 'ir.actions.act_window',
+                'res_model': 'account.move',
+                'view_mode': 'form',
+                'res_id': entry_ids[0],
+                'views': [(False, 'form')],
+                'context': {'create': False},
+            }
+        list_view = self.env.ref(
+            'site_operations.view_backcharge_move_list', raise_if_not_found=False)
         return {
             'name': _('Backcharge Entries'),
             'type': 'ir.actions.act_window',
             'res_model': 'account.move',
             'view_mode': 'list,form',
             'domain': [('id', 'in', entry_ids)],
+            'views': [
+                (list_view.id if list_view else False, 'list'),
+                (False, 'form'),
+            ],
+            'context': {'create': False},
         }
 
     def action_view_interproject_entry(self):

@@ -1,6 +1,6 @@
 {
     'name': 'Site Operations',
-    'version': '1.4.2',
+    'version': '1.5.0',
     'summary': 'Material Issuance, Returns, Site-to-Site Transfers, Liability Sheets, Finance HO Payments',
     'author': 'Matracon Pakistan',
     'depends': [
@@ -30,6 +30,7 @@
         'data/app_visibility_data.xml',
         'views/project_project_views.xml',
         'views/material_issuance_form_views.xml',
+        'views/backcharge_views.xml',
         'views/material_issuance_list_views.xml',
         'views/site_store_dashboard_views.xml',
         'views/liability_sheet_views.xml',

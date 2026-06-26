@@ -56,6 +56,14 @@
                             string="⬇ Download PDF"
                             class="btn-secondary"
                             invisible="state == 'draft'"/>
+
+                    <button name="action_fo_mark_paid"
+                            type="object"
+                            string="Mark Paid (FO)"
+                            class="btn-success"
+                            groups="site_operations.group_finance_ho,purchase_demand_raise.group_head_office"
+                            invisible="state != 'approved'"
+                            confirm="Confirm all vendor payments are posted and close this liability sheet?"/>
                 </header>
 
                 <sheet>
@@ -123,6 +131,7 @@
                                    readonly="state == 'paid'">
                                 <list string="Liability Lines" editable="bottom">
                                     <field name="sequence" widget="handle"/>
+                                    <field name="x_is_ceo" column_invisible="1"/>
                                     <field name="description"/>
                                     <field name="partner_id" readonly="is_locked"/>
                                     <field name="opening_balance" readonly="is_locked"/>
@@ -131,9 +140,9 @@
                                     <field name="recommended_amount"
                                            readonly="parent.state != 'draft'"/>
                                     <field name="decision"
-                                           readonly="parent.state != 'submitted' or is_locked"/>
+                                           readonly="parent.state != 'submitted' or is_locked or not x_is_ceo"/>
                                     <field name="approved_amount"
-                                           readonly="is_locked"/>
+                                           readonly="parent.state != 'submitted' or is_locked or not x_is_ceo"/>
                                     <field name="approved_pct" optional="show" readonly="1"/>
                                     <field name="remarks" optional="show"/>
                                     <field name="paid_amount" readonly="1" optional="show"/>

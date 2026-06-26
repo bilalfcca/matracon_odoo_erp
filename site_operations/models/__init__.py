@@ -7,6 +7,7 @@ from . import stock_return_picking
 from . import analytic_distribution_mixin
 from . import interproject_accounting
 from . import account_payment
+from . import payment_tax_line
 from . import payment_allocation
 from . import liability_sheet
 from . import project_project
