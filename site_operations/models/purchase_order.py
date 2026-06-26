@@ -10,7 +10,11 @@ class PurchaseOrderSiteOps(models.Model):
     @api.depends('name')
     def _compute_x_vendor_bill_count(self):
         Bill = self.env['account.move']
+        can_read = Bill.check_access_rights('read', raise_exception=False)
         for order in self:
+            if not can_read or not order.id:
+                order.x_vendor_bill_count = 0
+                continue
             order.x_vendor_bill_count = Bill.search_count([
                 ('move_type', '=', 'in_invoice'),
                 ('x_purchase_order_id', '=', order.id),
@@ -19,13 +23,18 @@ class PurchaseOrderSiteOps(models.Model):
     @api.depends('x_project_analytic_account_id')
     def _compute_x_liability_sheet_count(self):
         Sheet = self.env['x.liability.sheet']
+        can_read = Sheet.check_access_rights('read', raise_exception=False)
         for order in self:
-            if order.x_project_analytic_account_id:
-                order.x_liability_sheet_count = Sheet.search_count([
-                    ('project_analytic_account_id', '=', order.x_project_analytic_account_id.id),
-                ])
-            else:
+            if (
+                not can_read
+                or not order.x_project_analytic_account_id
+            ):
                 order.x_liability_sheet_count = 0
+                continue
+            order.x_liability_sheet_count = Sheet.search_count([
+                ('project_analytic_account_id', '=',
+                 order.x_project_analytic_account_id.id),
+            ])
 
     def action_view_vendor_bills(self):
         self.ensure_one()
@@ -44,6 +53,7 @@ class PurchaseOrderSiteOps(models.Model):
 
     def action_view_liability_sheets(self):
         self.ensure_one()
+        self.env['x.liability.sheet'].check_access_rights('read')
         domain = [('id', '=', 0)]
         if self.x_project_analytic_account_id:
             domain = [('project_analytic_account_id', '=', self.x_project_analytic_account_id.id)]

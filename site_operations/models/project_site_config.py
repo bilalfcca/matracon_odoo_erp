@@ -43,7 +43,10 @@ class ProjectSiteConfigProjectLink(models.Model):
     def create(self, vals_list):
         records = super().create(vals_list)
         records._ensure_project_record()
+        records.filtered(lambda c: not c.warehouse_id)._matracon_ensure_warehouse_for_config()
         for record in records:
+            if record.site_user_ids:
+                record._assign_users(record.site_user_ids)
             if record.x_site_accountant_ids:
                 record._assign_accountants(record.x_site_accountant_ids)
         return records
@@ -69,6 +72,8 @@ class ProjectSiteConfigProjectLink(models.Model):
             'name', 'analytic_account_id', 'site_user_ids', 'x_site_accountant_ids',
         )):
             self._ensure_project_record()
+        if 'warehouse_id' not in vals and any(k in vals for k in ('name', 'analytic_account_id')):
+            self.filtered(lambda c: not c.warehouse_id)._matracon_ensure_warehouse_for_config()
         if any(k in vals for k in (
             'warehouse_id', 'site_user_ids', 'x_site_accountant_ids',
         )):
@@ -238,44 +243,50 @@ class ProjectSiteConfigProjectLink(models.Model):
     @api.model
     def _matracon_ensure_site_warehouses(self):
         """Ensure each site project config has a warehouse (demo + production)."""
+        for config in self.search([]):
+            config._matracon_ensure_warehouse_for_config()
+
+    def _matracon_ensure_warehouse_for_config(self):
+        """Create/link a site warehouse for one project configuration."""
+        self.ensure_one()
+        if self.warehouse_id:
+            self._matracon_sync_user_operational_warehouse()
+            return self.warehouse_id
         Warehouse = self.env['stock.warehouse'].sudo()
         company = self.env.company
-        for config in self.search([]):
-            if config.warehouse_id:
-                config._matracon_sync_user_operational_warehouse()
-                continue
-            wh = False
-            defaults = _SITE_WAREHOUSE_DEFAULTS.get(config.name)
-            if defaults:
-                _code, _name, xml_suffix = defaults
-                wh = self.env.ref(
-                    f'site_operations.{xml_suffix}', raise_if_not_found=False)
-            if not wh and defaults:
-                code, name, _xml_suffix = defaults
-                wh = Warehouse.search([
-                    ('code', '=', code),
-                    ('company_id', '=', company.id),
-                ], limit=1)
-                if not wh:
-                    wh = Warehouse.create({
-                        'name': name,
-                        'code': code,
-                        'company_id': company.id,
-                    })
-            elif not wh:
-                code = ''.join(
-                    part[0] for part in config.name.split() if part
-                )[:5].upper() or 'SITE'
-                name = f'{config.name} Site Warehouse'
-                wh = Warehouse.search([
-                    ('code', '=', code),
-                    ('company_id', '=', company.id),
-                ], limit=1)
-                if not wh:
-                    wh = Warehouse.create({
-                        'name': name,
-                        'code': code,
-                        'company_id': company.id,
-                    })
-            config.sudo().write({'warehouse_id': wh.id})
-            config._matracon_sync_user_operational_warehouse()
+        wh = False
+        defaults = _SITE_WAREHOUSE_DEFAULTS.get(self.name)
+        if defaults:
+            _code, _name, xml_suffix = defaults
+            wh = self.env.ref(
+                f'site_operations.{xml_suffix}', raise_if_not_found=False)
+        if not wh and defaults:
+            code, name, _xml_suffix = defaults
+            wh = Warehouse.search([
+                ('code', '=', code),
+                ('company_id', '=', company.id),
+            ], limit=1)
+            if not wh:
+                wh = Warehouse.create({
+                    'name': name,
+                    'code': code,
+                    'company_id': company.id,
+                })
+        elif not wh:
+            code = ''.join(
+                part[0] for part in self.name.split() if part
+            )[:5].upper() or 'SITE'
+            name = f'{self.name} Site Warehouse'
+            wh = Warehouse.search([
+                ('code', '=', code),
+                ('company_id', '=', company.id),
+            ], limit=1)
+            if not wh:
+                wh = Warehouse.create({
+                    'name': name,
+                    'code': code,
+                    'company_id': company.id,
+                })
+        self.sudo().write({'warehouse_id': wh.id})
+        self._matracon_sync_user_operational_warehouse()
+        return wh

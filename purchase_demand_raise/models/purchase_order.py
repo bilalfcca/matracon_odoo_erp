@@ -114,6 +114,16 @@ class PurchaseOrder(models.Model):
             )
 
     # ── Override create: set initiator + PR flag + analytic for site users ──────
+    @api.model
+    def _matracon_pr_receipt_picking_type(self, user=None):
+        """Deliver To on PRs — always the site's configured warehouse, not main WH."""
+        user = user or self.env.user
+        config = user.x_site_config_id
+        warehouse = config.warehouse_id if config else user.x_default_warehouse_id
+        if warehouse and warehouse.in_type_id:
+            return warehouse.in_type_id
+        return self.env['stock.picking.type']
+
     @api.model_create_multi
     def create(self, vals_list):
         is_site_store = self.env.user.has_group('purchase_demand_raise.group_site_store')
@@ -126,6 +136,10 @@ class PurchaseOrder(models.Model):
                     analytic = self.env.user.x_default_analytic_account_id
                     if analytic:
                         vals['x_project_analytic_account_id'] = analytic.id
+                if not vals.get('picking_type_id'):
+                    pt = self._matracon_pr_receipt_picking_type()
+                    if pt:
+                        vals['picking_type_id'] = pt.id
         return super().create(vals_list)
 
     # ── Default picking_type_id to site user's warehouse ─────────────────────
@@ -135,9 +149,9 @@ class PurchaseOrder(models.Model):
         if 'picking_type_id' in fields_list:
             user = self.env.user
             if user.has_group('purchase_demand_raise.group_site_store'):
-                warehouse = user.x_default_warehouse_id
-                if warehouse and warehouse.in_type_id:
-                    defaults['picking_type_id'] = warehouse.in_type_id.id
+                pt = self._matracon_pr_receipt_picking_type(user)
+                if pt:
+                    defaults['picking_type_id'] = pt.id
         return defaults
 
     # ── When analytic account changes on PO → push to all lines ──────────────
@@ -147,6 +161,11 @@ class PurchaseOrder(models.Model):
             acc_id = str(self.x_project_analytic_account_id.id)
             for line in self.order_line:
                 line.analytic_distribution = {acc_id: 100.0}
+            config = self.env['x.project.site.config'].search([
+                ('analytic_account_id', '=', self.x_project_analytic_account_id.id),
+            ], limit=1)
+            if config and config.warehouse_id and config.warehouse_id.in_type_id:
+                self.picking_type_id = config.warehouse_id.in_type_id
 
     # ── Category change warning ───────────────────────────────────────────────
     @api.onchange('x_category_id')
