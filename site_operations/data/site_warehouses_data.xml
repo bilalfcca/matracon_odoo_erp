@@ -1,25 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- Site warehouses for MCH, RWASA, and STP (demo + production). -->
-    <data noupdate="1">
-        <record id="warehouse_site_mch" model="stock.warehouse">
-            <field name="name">MCH Site Warehouse</field>
-            <field name="code">MCH</field>
-            <field name="company_id" ref="base.main_company"/>
-        </record>
-        <record id="warehouse_site_rwasa" model="stock.warehouse">
-            <field name="name">RWASA Site Warehouse</field>
-            <field name="code">RWASA</field>
-            <field name="company_id" ref="base.main_company"/>
-        </record>
-        <record id="warehouse_site_stp" model="stock.warehouse">
-            <field name="name">STP Site Warehouse</field>
-            <field name="code">STP</field>
-            <field name="company_id" ref="base.main_company"/>
-        </record>
-    </data>
-
-    <!-- Link warehouses to site configs on install and every upgrade. -->
+    <!-- Warehouses are created/linked in Python (find-or-create by code/name).
+         XML records were removed — they caused duplicate-key crashes when a
+         warehouse already existed from a prior upgrade or post_init hook. -->
     <data>
         <function model="x.project.site.config" name="_matracon_ensure_site_warehouses"/>
     </data>
