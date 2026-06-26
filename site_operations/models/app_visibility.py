@@ -79,4 +79,4 @@ class MatraconAppVisibility(models.AbstractModel):
             menu = self.env.ref(menu_xml_id, raise_if_not_found=False)
             if not menu or not groups:
                 continue
-            menu.sudo().write({'groups_id': [(6, 0, groups.ids)]})
+            menu.sudo().write({'group_ids': [(6, 0, groups.ids)]})
