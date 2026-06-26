@@ -57,7 +57,7 @@ def schedule_activity(record, users, summary, note=None):
 def site_accountants_for_analytic(env, analytic_account):
     if not analytic_account:
         return env['res.users']
-    config = env['x.project.site.config'].search([
+    config = env['x.project.site.config'].sudo().search([
         ('analytic_account_id', '=', analytic_account.id),
     ], limit=1)
     return config.x_site_accountant_ids if config else env['res.users']

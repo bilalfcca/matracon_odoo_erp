@@ -260,7 +260,7 @@ class StockPickingSiteOps(models.Model):
     def _get_site_config_for_analytic(self, analytic_account):
         if not analytic_account:
             return self.env['x.project.site.config']
-        return self.env['x.project.site.config'].search(
+        return self.env['x.project.site.config'].sudo().search(
             [('analytic_account_id', '=', analytic_account.id)], limit=1)
 
     def _get_outstanding_qty(self, product, contact, project, exclude_picking=None):

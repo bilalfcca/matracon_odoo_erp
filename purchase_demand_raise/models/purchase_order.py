@@ -118,7 +118,7 @@ class PurchaseOrder(models.Model):
     def _matracon_pr_receipt_picking_type(self, user=None):
         """Deliver To on PRs — always the site's configured warehouse, not main WH."""
         user = user or self.env.user
-        config = user.x_site_config_id
+        config = user.sudo().x_site_config_id
         warehouse = config.warehouse_id if config else user.x_default_warehouse_id
         if warehouse and warehouse.in_type_id:
             return warehouse.in_type_id
@@ -161,7 +161,7 @@ class PurchaseOrder(models.Model):
             acc_id = str(self.x_project_analytic_account_id.id)
             for line in self.order_line:
                 line.analytic_distribution = {acc_id: 100.0}
-            config = self.env['x.project.site.config'].search([
+            config = self.env['x.project.site.config'].sudo().search([
                 ('analytic_account_id', '=', self.x_project_analytic_account_id.id),
             ], limit=1)
             if config and config.warehouse_id and config.warehouse_id.in_type_id:

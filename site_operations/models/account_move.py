@@ -365,6 +365,11 @@ class AccountMoveSiteOps(models.Model):
     @api.model
     def _matracon_create_draft_bill_from_po_receipt(self, picking):
         """Create draft vendor bill when Site Store validates PO receipt."""
+        # System automation — site store must not need accounting/config ACLs.
+        return self.sudo()._matracon_create_draft_bill_from_po_receipt_impl(picking)
+
+    def _matracon_create_draft_bill_from_po_receipt_impl(self, picking):
+        """Implementation (runs as sudo)."""
         po = picking.purchase_id
         if not po or not po.partner_id:
             return self.env['account.move']
