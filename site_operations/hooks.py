@@ -203,6 +203,12 @@ def post_init_hook(env):
         env['x.project.site.config']._matracon_ensure_site_warehouses()
         sync_alternative_prs(env)
         seed_demo_bank_balances(env)
+        env['x.matracon.app.visibility'].apply_menu_visibility()
+        payroll_user = env.ref('hr_payroll.group_hr_payroll_user', raise_if_not_found=False)
+        if payroll_user:
+            env.ref('site_operations.group_site_accountant').sudo().write({
+                'implied_ids': [(4, payroll_user.id)],
+            })
     except Exception as e:
         import logging
         logging.getLogger(__name__).warning(

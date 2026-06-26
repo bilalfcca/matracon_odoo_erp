@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="view_users_form_matracon_app_access" model="ir.ui.view">
+    <field name="name">res.users.form.matracon.app.access</field>
+    <field name="model">res.users</field>
+    <field name="inherit_id" ref="base.view_users_form"/>
+    <field name="arch" type="xml">
+      <xpath expr="//notebook" position="inside">
+        <page string="Matracon App Access"
+              name="matracon_app_access"
+              groups="site_operations.group_matracon_admin,base.group_system">
+          <group string="Home Screen Apps (override role defaults)">
+            <field name="group_ids"
+                   widget="many2many_checkboxes"
+                   domain="[('id', 'in', matracon_app_group_ids)]"
+                   options="{'no_create': True}"/>
+            <field name="matracon_app_group_ids" invisible="1"/>
+          </group>
+          <p class="text-muted">
+            Tick extra apps to show on this user's home screen.
+            Role groups already include default apps; use this to add or remove app visibility groups.
+          </p>
+        </page>
+      </xpath>
+    </field>
+  </record>
+</odoo>

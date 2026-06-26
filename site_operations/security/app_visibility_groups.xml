@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <!-- App switcher visibility — assign via role groups or per-user on Admin form -->
+        <record id="group_mtr_app_purchase" model="res.groups">
+            <field name="name">App: Purchase</field>
+            <field name="privilege_id" ref="purchase_demand_raise.res_groups_privilege_demand_raise"/>
+            <field name="comment">Show Purchase app in the home menu.</field>
+        </record>
+        <record id="group_mtr_app_inventory" model="res.groups">
+            <field name="name">App: Inventory</field>
+            <field name="privilege_id" ref="purchase_demand_raise.res_groups_privilege_demand_raise"/>
+            <field name="comment">Show Inventory app in the home menu.</field>
+        </record>
+        <record id="group_mtr_app_accounting" model="res.groups">
+            <field name="name">App: Accounting</field>
+            <field name="privilege_id" ref="purchase_demand_raise.res_groups_privilege_demand_raise"/>
+            <field name="comment">Show Accounting app in the home menu.</field>
+        </record>
+        <record id="group_mtr_app_project" model="res.groups">
+            <field name="name">App: Project</field>
+            <field name="privilege_id" ref="purchase_demand_raise.res_groups_privilege_demand_raise"/>
+            <field name="comment">Show Project app in the home menu.</field>
+        </record>
+        <record id="group_mtr_app_hr" model="res.groups">
+            <field name="name">App: Employees</field>
+            <field name="privilege_id" ref="purchase_demand_raise.res_groups_privilege_demand_raise"/>
+            <field name="comment">Show Employees (HR) app in the home menu.</field>
+        </record>
+        <record id="group_mtr_app_attendance" model="res.groups">
+            <field name="name">App: Attendance</field>
+            <field name="privilege_id" ref="purchase_demand_raise.res_groups_privilege_demand_raise"/>
+            <field name="comment">Show Attendance app in the home menu.</field>
+        </record>
+        <record id="group_mtr_app_payroll" model="res.groups">
+            <field name="name">App: Payroll</field>
+            <field name="privilege_id" ref="purchase_demand_raise.res_groups_privilege_demand_raise"/>
+            <field name="comment">Show Payroll app in the home menu.</field>
+        </record>
+        <record id="group_mtr_app_settings" model="res.groups">
+            <field name="name">App: Settings / Apps</field>
+            <field name="privilege_id" ref="purchase_demand_raise.res_groups_privilege_demand_raise"/>
+            <field name="comment">Show Odoo Settings and Apps menus (Matracon Admin only by default).</field>
+        </record>
+    </data>
+</odoo>

@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <!-- Site Store: Purchase + Inventory apps (user-level backend access) -->
+        <record id="purchase_demand_raise.group_site_store" model="res.groups">
+            <field name="implied_ids" eval="[
+                (4, ref('group_mtr_app_purchase')),
+                (4, ref('group_mtr_app_inventory')),
+            ]"/>
+        </record>
+
+        <!-- Procurement Officer: Purchase + Inventory admin -->
+        <record id="purchase_demand_raise.group_procurement_ho" model="res.groups">
+            <field name="implied_ids" eval="[
+                (4, ref('purchase.group_purchase_manager')),
+                (4, ref('stock.group_stock_manager')),
+                (4, ref('group_mtr_app_purchase')),
+                (4, ref('group_mtr_app_inventory')),
+            ]"/>
+        </record>
+
+        <!-- CEO: Purchase, Accounting, Project -->
+        <record id="purchase_demand_raise.group_ceo_approval" model="res.groups">
+            <field name="implied_ids" eval="[
+                (4, ref('account.group_account_readonly')),
+                (4, ref('group_mtr_app_purchase')),
+                (4, ref('group_mtr_app_accounting')),
+                (4, ref('group_mtr_app_project')),
+            ]"/>
+        </record>
+
+        <!-- Site Accountant: HR backend access when HR apps are installed -->
+        <record id="group_site_accountant" model="res.groups">
+            <field name="implied_ids" eval="[
+                (4, ref('hr.group_hr_user')),
+                (4, ref('hr_attendance.group_hr_attendance_officer')),
+            ]"/>
+        </record>
+    </data>
+</odoo>

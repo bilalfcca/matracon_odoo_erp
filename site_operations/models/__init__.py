@@ -1,4 +1,5 @@
 from . import matracon_notifications
+from . import app_visibility
 from . import stock_picking
 from . import purchase_order
 from . import stock_move
