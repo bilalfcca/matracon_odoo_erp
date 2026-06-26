@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <data>
-        <!-- Site Store: Purchase + Inventory apps (user-level backend access) -->
+        <!-- Site Store: Purchase + Inventory apps -->
         <record id="purchase_demand_raise.group_site_store" model="res.groups">
             <field name="implied_ids" eval="[
                 (4, ref('group_mtr_app_purchase')),
@@ -29,11 +29,37 @@
             ]"/>
         </record>
 
-        <!-- Site Accountant: HR backend access when HR apps are installed -->
+        <!-- Site Accountant: Accounting + HR apps -->
         <record id="group_site_accountant" model="res.groups">
             <field name="implied_ids" eval="[
+                (4, ref('group_mtr_app_accounting')),
+                (4, ref('group_mtr_app_hr')),
+                (4, ref('group_mtr_app_attendance')),
+                (4, ref('group_mtr_app_payroll')),
                 (4, ref('hr.group_hr_user')),
                 (4, ref('hr_attendance.group_hr_attendance_officer')),
+            ]"/>
+        </record>
+
+        <!-- Finance HO: Accounting + Project apps -->
+        <record id="group_finance_ho" model="res.groups">
+            <field name="implied_ids" eval="[
+                (4, ref('group_mtr_app_accounting')),
+                (4, ref('group_mtr_app_project')),
+            ]"/>
+        </record>
+
+        <!-- Matracon Admin: all apps + Settings -->
+        <record id="group_matracon_admin" model="res.groups">
+            <field name="implied_ids" eval="[
+                (4, ref('group_mtr_app_purchase')),
+                (4, ref('group_mtr_app_inventory')),
+                (4, ref('group_mtr_app_accounting')),
+                (4, ref('group_mtr_app_project')),
+                (4, ref('group_mtr_app_hr')),
+                (4, ref('group_mtr_app_attendance')),
+                (4, ref('group_mtr_app_payroll')),
+                (4, ref('group_mtr_app_settings')),
             ]"/>
         </record>
     </data>
