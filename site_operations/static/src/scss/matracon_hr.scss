@@ -1,14 +1,95 @@
 /* Attendance grid + salary sheet mockup styling */
 
+/* ── Legend (matches mockup) ───────────────────────────────────────────── */
+.matracon-attendance-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem 1.5rem;
+    margin: 0.5rem 0 1rem;
+    padding: 0.65rem 1rem;
+    border-radius: 8px;
+    border: 1px solid var(--o-border-color, rgba(0, 0, 0, 0.1));
+    background: var(--o-view-background-color, #fff);
+
+    .matracon-attendance-legend__item {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 0.85rem;
+        font-weight: 500;
+    }
+
+    .matracon-attendance-legend__swatch {
+        width: 0.75rem;
+        height: 0.75rem;
+        border-radius: 50%;
+        flex-shrink: 0;
+    }
+}
+
+.matracon-attendance-legend__swatch--p {
+    background-color: #22c55e;
+}
+.matracon-attendance-legend__swatch--a {
+    background-color: #ef4444;
+}
+.matracon-attendance-legend__swatch--l {
+    background-color: #f59e0b;
+}
+.matracon-attendance-legend__swatch--h {
+    background-color: #3b82f6;
+}
+
+/* ── Per-cell attendance codes (P / A / L / H) ─────────────────────────── */
+.o_list_view .o_data_cell.matracon-att-p,
+.o_form_view .matracon-attendance-grid .o_data_cell.matracon-att-p {
+    background-color: #dcfce7 !important;
+    color: #166534 !important;
+    font-weight: 600;
+    text-align: center;
+}
+
+.o_list_view .o_data_cell.matracon-att-a,
+.o_form_view .matracon-attendance-grid .o_data_cell.matracon-att-a {
+    background-color: #fee2e2 !important;
+    color: #991b1b !important;
+    font-weight: 600;
+    text-align: center;
+}
+
+.o_list_view .o_data_cell.matracon-att-l,
+.o_form_view .matracon-attendance-grid .o_data_cell.matracon-att-l {
+    background-color: #fef3c7 !important;
+    color: #92400e !important;
+    font-weight: 600;
+    text-align: center;
+}
+
+.o_list_view .o_data_cell.matracon-att-h,
+.o_form_view .matracon-attendance-grid .o_data_cell.matracon-att-h {
+    background-color: #dbeafe !important;
+    color: #1e40af !important;
+    font-weight: 600;
+    text-align: center;
+}
+
 .o_form_view .matracon-attendance-grid {
     .o_list_table {
         th, td {
             text-align: center;
-            min-width: 2rem;
+            min-width: 2.25rem;
+        }
+        th[data-name^="day_"] {
+            font-size: 0.75rem;
+            padding: 0.25rem;
         }
         td[name="employee_id"] {
             text-align: left;
             min-width: 10rem;
+            font-weight: 500;
+        }
+        td[name="total_display"] {
+            font-weight: 600;
         }
     }
 }

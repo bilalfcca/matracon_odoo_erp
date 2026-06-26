@@ -1,6 +1,6 @@
 {
     'name': 'Site Operations',
-    'version': '1.6.0',
+    'version': '1.6.1',
     'summary': 'Material Issuance, Returns, Site-to-Site Transfers, Liability Sheets, Finance HO Payments',
     'author': 'Matracon Pakistan',
     'depends': [
@@ -57,6 +57,7 @@
         'web.assets_backend': [
             'site_operations/static/src/scss/matracon_payment_form.scss',
             'site_operations/static/src/scss/matracon_hr.scss',
+            'site_operations/static/src/js/attendance_grid_colors.js',
         ],
     },
     'demo': [
