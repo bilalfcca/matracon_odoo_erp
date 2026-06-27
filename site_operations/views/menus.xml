@@ -64,6 +64,14 @@
               sequence="26"
               groups="site_operations.group_finance_ho,purchase_demand_raise.group_head_office,site_operations.group_matracon_admin,base.group_system"/>
 
+    <!-- Accounting → Dashboard (CEO, FO, Site Accountant) -->
+    <menuitem id="menu_management_dashboard"
+              name="Dashboard"
+              parent="account.menu_finance"
+              action="site_operations.action_management_dashboard"
+              sequence="1"
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,site_operations.group_site_accountant,site_operations.group_matracon_admin,base.group_system"/>
+
     <!-- Accounting → Reporting -->
     <menuitem id="menu_project_financial_overview"
               name="Project Financial Overview"
@@ -71,6 +79,14 @@
               action="site_operations.action_project_financial_overview"
               sequence="5"
               groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,site_operations.group_matracon_admin,base.group_system"/>
+
+    <!-- Project app — Management Dashboard -->
+    <menuitem id="menu_management_dashboard_project"
+              name="Management Dashboard"
+              parent="project.menu_main_pm"
+              action="site_operations.action_management_dashboard"
+              sequence="1"
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,site_operations.group_site_accountant,site_operations.group_matracon_admin,base.group_system"/>
 
     <!-- Project app -->
     <menuitem id="menu_project_financial_from_project"
@@ -109,5 +125,33 @@
               action="site_operations.action_petty_cash_expense"
               sequence="28"
               groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_head_office,site_operations.group_matracon_admin,base.group_system"/>
+
+    <!-- Accounting → Compliance (HO: CEO, FO, Admin only) -->
+    <menuitem id="menu_compliance_root"
+              name="Compliance"
+              parent="account.menu_finance"
+              sequence="15"
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,site_operations.group_matracon_admin,base.group_system"/>
+
+    <menuitem id="menu_bank_guarantees"
+              name="Bank Guarantees"
+              parent="site_operations.menu_compliance_root"
+              action="site_operations.action_bank_guarantee"
+              sequence="10"
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,site_operations.group_matracon_admin,base.group_system"/>
+
+    <menuitem id="menu_bank_guarantee_facility"
+              name="Bank Facility Limits"
+              parent="site_operations.menu_compliance_root"
+              action="site_operations.action_bank_guarantee_facility"
+              sequence="15"
+              groups="site_operations.group_finance_ho,site_operations.group_matracon_admin,base.group_system"/>
+
+    <menuitem id="menu_tax_notices_orders"
+              name="Tax Notices &amp; Orders"
+              parent="site_operations.menu_compliance_root"
+              action="site_operations.action_tax_notice_order"
+              sequence="20"
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,site_operations.group_matracon_admin,base.group_system"/>
 
 </odoo>

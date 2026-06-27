@@ -1,7 +1,7 @@
 {
     'name': 'Site Operations',
-    'version': '1.6.1',
-    'summary': 'Material Issuance, Returns, Site-to-Site Transfers, Liability Sheets, Finance HO Payments',
+    'version': '1.7.1',
+    'summary': 'Material Issuance, Finance HO, Compliance (BG & Tax Notices), Attendance & Petty Cash',
     'author': 'Matracon Pakistan',
     'depends': [
         'purchase_demand_raise',
@@ -28,11 +28,15 @@
         'data/site_config_data.xml',
         'data/site_warehouses_data.xml',
         'data/petty_cash_sequence.xml',
+        'data/compliance_sequences.xml',
         'data/app_visibility_data.xml',
         'views/hr_employee_views.xml',
         'views/attendance_views.xml',
         'views/salary_views.xml',
         'views/petty_cash_views.xml',
+        'views/bank_guarantee_views.xml',
+        'views/tax_notice_views.xml',
+        'views/management_dashboard_views.xml',
         'views/project_project_views.xml',
         'views/material_issuance_form_views.xml',
         'views/backcharge_views.xml',
@@ -57,6 +61,7 @@
         'web.assets_backend': [
             'site_operations/static/src/scss/matracon_payment_form.scss',
             'site_operations/static/src/scss/matracon_hr.scss',
+            'site_operations/static/src/scss/matracon_management_dashboard.scss',
             'site_operations/static/src/js/attendance_grid_colors.js',
         ],
     },

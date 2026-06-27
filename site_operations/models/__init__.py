@@ -2,6 +2,10 @@ from . import hr_employee_ext
 from . import attendance_sheet
 from . import salary_sheet
 from . import petty_cash
+from . import management_dashboard
+from . import management_dashboard_lines
+from . import bank_guarantee
+from . import tax_notice
 from . import matracon_notifications
 from . import app_visibility
 from . import stock_picking
