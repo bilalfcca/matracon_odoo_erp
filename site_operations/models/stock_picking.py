@@ -590,7 +590,7 @@ class StockPickingSiteOps(models.Model):
         approver_groups = (
             'purchase_demand_raise.group_procurement_ho',
             'purchase_demand_raise.group_ceo_approval',
-            'site_operations.group_matracon_admin',
+            'purchase_demand_raise.group_matracon_admin',
         )
         if not any(self.env.user.has_group(g) for g in approver_groups):
             raise UserError(_(

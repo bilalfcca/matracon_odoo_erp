@@ -16,7 +16,7 @@
               parent="purchase.menu_purchase_root"
               action="site_operations.action_site_store_dashboard"
               sequence="1"
-              groups="purchase_demand_raise.group_site_store,purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,site_operations.group_matracon_admin"/>
+              groups="purchase_demand_raise.group_site_store,purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin"/>
 
     <!-- ── Single "Dashboard" in Inventory (same routing logic) ──────────── -->
     <menuitem id="menu_site_store_dashboard"
@@ -24,7 +24,7 @@
               parent="stock.menu_stock_root"
               action="site_operations.action_site_store_dashboard"
               sequence="1"
-              groups="purchase_demand_raise.group_site_store,purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,site_operations.group_matracon_admin"/>
+              groups="purchase_demand_raise.group_site_store,purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin"/>
 
     <!-- Purchase → Configuration → Site Project Configurations (Matracon Admin) -->
     <menuitem id="menu_project_site_config_matracon_admin"
@@ -32,7 +32,7 @@
               parent="purchase.menu_purchase_config"
               action="purchase_demand_raise.action_project_site_config"
               sequence="49"
-              groups="site_operations.group_matracon_admin"/>
+              groups="purchase_demand_raise.group_matracon_admin"/>
 
     <!-- Inventory → Operations → Transfers -->
     <menuitem id="menu_material_issuance"
@@ -40,14 +40,14 @@
               parent="stock.menu_stock_transfers"
               action="site_operations.action_material_issuance_only"
               sequence="25"
-              groups="purchase_demand_raise.group_site_store,purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,site_operations.group_matracon_admin,base.group_system"/>
+              groups="purchase_demand_raise.group_site_store,purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
     <menuitem id="menu_site_to_site_transfers"
               name="Site-to-Site Transfers"
               parent="stock.menu_stock_transfers"
               action="site_operations.action_site_to_site_transfers"
               sequence="26"
-              groups="purchase_demand_raise.group_site_store,purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,site_operations.group_matracon_admin,base.group_system"/>
+              groups="purchase_demand_raise.group_site_store,purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
     <!-- Accounting → Vendors -->
     <menuitem id="menu_liability_sheets"
@@ -55,14 +55,14 @@
               parent="account.menu_finance_payables"
               action="site_operations.action_liability_sheet"
               sequence="25"
-              groups="site_operations.group_site_accountant,purchase_demand_raise.group_ceo_approval,site_operations.group_finance_ho,purchase_demand_raise.group_head_office,site_operations.group_matracon_admin,base.group_system"/>
+              groups="site_operations.group_site_accountant,purchase_demand_raise.group_ceo_approval,site_operations.group_finance_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
     <menuitem id="menu_finance_ho_payments"
               name="Finance Payments"
               parent="account.menu_finance_payables"
               action="site_operations.action_ho_vendor_payments"
               sequence="26"
-              groups="site_operations.group_finance_ho,purchase_demand_raise.group_head_office,site_operations.group_matracon_admin,base.group_system"/>
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
     <!-- Accounting → Dashboard (CEO, FO, Site Accountant) -->
     <menuitem id="menu_management_dashboard"
@@ -70,7 +70,7 @@
               parent="account.menu_finance"
               action="site_operations.action_management_dashboard"
               sequence="1"
-              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,site_operations.group_site_accountant,site_operations.group_matracon_admin,base.group_system"/>
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,site_operations.group_site_accountant,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
     <!-- Accounting → Reporting -->
     <menuitem id="menu_project_financial_overview"
@@ -78,7 +78,7 @@
               parent="account.menu_finance"
               action="site_operations.action_project_financial_overview"
               sequence="5"
-              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,site_operations.group_matracon_admin,base.group_system"/>
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
     <!-- Project app — Management Dashboard -->
     <menuitem id="menu_management_dashboard_project"
@@ -86,7 +86,7 @@
               parent="project.menu_main_pm"
               action="site_operations.action_management_dashboard"
               sequence="1"
-              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,site_operations.group_site_accountant,site_operations.group_matracon_admin,base.group_system"/>
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,site_operations.group_site_accountant,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
     <!-- Project app -->
     <menuitem id="menu_project_financial_from_project"
@@ -94,7 +94,7 @@
               parent="project.menu_main_pm"
               action="site_operations.action_project_financial_overview"
               sequence="5"
-              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,site_operations.group_matracon_admin,base.group_system"/>
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
     <!-- HR / Payroll menus -->
     <menuitem id="menu_attendance_registry"
@@ -102,14 +102,14 @@
               parent="hr_attendance.menu_hr_attendance_root"
               action="site_operations.action_attendance_sheet"
               sequence="5"
-              groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_head_office,site_operations.group_matracon_admin,base.group_system"/>
+              groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
     <menuitem id="menu_salary_sheets"
               name="Salary Sheets"
               parent="hr.menu_hr_root"
               action="site_operations.action_salary_sheet"
               sequence="25"
-              groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,site_operations.group_matracon_admin,base.group_system"/>
+              groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
     <!-- Petty Cash -->
     <menuitem id="menu_petty_cash_requests"
@@ -117,41 +117,41 @@
               parent="account.menu_finance_payables"
               action="site_operations.action_petty_cash_request"
               sequence="27"
-              groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_head_office,site_operations.group_matracon_admin,base.group_system"/>
+              groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
     <menuitem id="menu_petty_cash_expenses"
               name="Petty Cash Expenses"
               parent="account.menu_finance_payables"
               action="site_operations.action_petty_cash_expense"
               sequence="28"
-              groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_head_office,site_operations.group_matracon_admin,base.group_system"/>
+              groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
     <!-- Accounting → Compliance (HO: CEO, FO, Admin only) -->
     <menuitem id="menu_compliance_root"
               name="Compliance"
               parent="account.menu_finance"
               sequence="15"
-              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,site_operations.group_matracon_admin,base.group_system"/>
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
     <menuitem id="menu_bank_guarantees"
               name="Bank Guarantees"
               parent="site_operations.menu_compliance_root"
               action="site_operations.action_bank_guarantee"
               sequence="10"
-              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,site_operations.group_matracon_admin,base.group_system"/>
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
     <menuitem id="menu_bank_guarantee_facility"
               name="Bank Facility Limits"
               parent="site_operations.menu_compliance_root"
               action="site_operations.action_bank_guarantee_facility"
               sequence="15"
-              groups="site_operations.group_finance_ho,site_operations.group_matracon_admin,base.group_system"/>
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
     <menuitem id="menu_tax_notices_orders"
               name="Tax Notices &amp; Orders"
               parent="site_operations.menu_compliance_root"
               action="site_operations.action_tax_notice_order"
               sequence="20"
-              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,site_operations.group_matracon_admin,base.group_system"/>
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
 </odoo>

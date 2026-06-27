@@ -141,12 +141,9 @@
                 <separator/>
                 <filter string="JV Wise View" name="filter_jv_wise"
                         context="{'group_by': 'taxpayer_name'}"/>
-                <group expand="0" string="Group By">
-                    <filter string="Taxpayer / JV" name="group_taxpayer" context="{'group_by': 'taxpayer_name'}"/>
-                    <filter string="Tax Year" name="group_tax_year" context="{'group_by': 'tax_year'}"/>
-                    <filter string="Status" name="group_case_status" context="{'group_by': 'case_status'}"/>
-                    <filter string="Workflow" name="group_state" context="{'group_by': 'state'}"/>
-                </group>
+                <filter string="Group by Tax Year" name="group_tax_year" context="{'group_by': 'tax_year'}"/>
+                <filter string="Group by Status" name="group_case_status" context="{'group_by': 'case_status'}"/>
+                <filter string="Group by Workflow" name="group_state" context="{'group_by': 'state'}"/>
             </search>
         </field>
     </record>

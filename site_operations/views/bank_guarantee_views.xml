@@ -207,12 +207,11 @@
                 <separator/>
                 <filter string="Performance BG" name="filter_performance" domain="[('nature', '=', 'performance')]"/>
                 <filter string="Bid Bond" name="filter_bid" domain="[('nature', '=', 'bid_bond')]"/>
-                <group expand="0" string="Group By">
-                    <filter string="Bank" name="group_bank" context="{'group_by': 'bank_id'}"/>
-                    <filter string="Project" name="group_project" context="{'group_by': 'project_id'}"/>
-                    <filter string="Status" name="group_state" context="{'group_by': 'state'}"/>
-                    <filter string="Nature" name="group_nature" context="{'group_by': 'nature'}"/>
-                </group>
+                <separator/>
+                <filter string="Group by Bank" name="group_bank" context="{'group_by': 'bank_id'}"/>
+                <filter string="Group by Project" name="group_project" context="{'group_by': 'project_id'}"/>
+                <filter string="Group by Status" name="group_state" context="{'group_by': 'state'}"/>
+                <filter string="Group by Nature" name="group_nature" context="{'group_by': 'nature'}"/>
             </search>
         </field>
     </record>

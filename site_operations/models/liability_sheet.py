@@ -507,7 +507,7 @@ class LiabilitySheetLine(models.Model):
         user = self.env.user
         can_approve = (
             user.has_group('purchase_demand_raise.group_ceo_approval')
-            or user.has_group('site_operations.group_matracon_admin')
+            or user.has_group('purchase_demand_raise.group_matracon_admin')
             or user.has_group('base.group_system')
         )
         if not can_approve:

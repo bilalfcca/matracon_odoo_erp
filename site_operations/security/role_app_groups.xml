@@ -50,7 +50,7 @@
         </record>
 
         <!-- Matracon Admin: all apps + Settings -->
-        <record id="group_matracon_admin" model="res.groups">
+        <record id="purchase_demand_raise.group_matracon_admin" model="res.groups">
             <field name="implied_ids" eval="[
                 (4, ref('group_mtr_app_purchase')),
                 (4, ref('group_mtr_app_inventory')),

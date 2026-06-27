@@ -8,7 +8,7 @@
       <xpath expr="//notebook" position="inside">
         <page string="Matracon App Access"
               name="matracon_app_access"
-              groups="site_operations.group_matracon_admin,base.group_system">
+              groups="purchase_demand_raise.group_matracon_admin,base.group_system">
           <group string="Home Screen Apps (override role defaults)">
             <field name="group_ids"
                    widget="many2many_checkboxes"

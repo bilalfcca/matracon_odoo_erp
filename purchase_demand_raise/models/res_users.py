@@ -29,7 +29,7 @@ class ResUsers(models.Model):
     def _matracon_is_admin(self):
         self.ensure_one()
         return (
-            self.has_group('site_operations.group_matracon_admin')
+            self.has_group('purchase_demand_raise.group_matracon_admin')
             or self.has_group('base.group_system')
         )
 

@@ -55,7 +55,7 @@ def configure_production_users(env):
     g_ceo = env.ref('purchase_demand_raise.group_ceo_approval')
     g_proc_ho = env.ref('purchase_demand_raise.group_procurement_ho')
     g_finance_ho = env.ref('site_operations.group_finance_ho')
-    g_matracon_admin = env.ref('site_operations.group_matracon_admin', raise_if_not_found=False)
+    g_matracon_admin = env.ref('purchase_demand_raise.group_matracon_admin', raise_if_not_found=False)
     g_site_store = env.ref('purchase_demand_raise.group_site_store')
     g_stock_user = env.ref('stock.group_stock_user', raise_if_not_found=False)
     g_site_accountant = env.ref('site_operations.group_site_accountant')
@@ -197,8 +197,20 @@ def seed_demo_bank_balances(env):
         }).action_post()
 
 
+def migrate_matracon_admin_group(env):
+    """Move users from legacy site_operations admin group to purchase_demand_raise."""
+    old = env.ref('site_operations.group_matracon_admin', raise_if_not_found=False)
+    new = env.ref('purchase_demand_raise.group_matracon_admin', raise_if_not_found=False)
+    if not new or not old or old.id == new.id:
+        return
+    users = env['res.users'].sudo().search([('group_ids', 'in', old.id)])
+    for user in users:
+        user.write({'group_ids': [(3, old.id), (4, new.id)]})
+
+
 def post_init_hook(env):
     try:
+        migrate_matracon_admin_group(env)
         configure_production_users(env)
         env['x.project.site.config']._matracon_ensure_site_warehouses()
         sync_alternative_prs(env)

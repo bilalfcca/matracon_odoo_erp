@@ -77,7 +77,7 @@
                         type="object"
                         class="oe_stat_button"
                         icon="fa-pencil-square-o"
-                        groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,site_operations.group_matracon_admin"
+                        groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin"
                         invisible="x_vendor_bill_count == 0">
                     <field name="x_vendor_bill_count" widget="statinfo" string="Vendor Bills"/>
                 </button>
@@ -85,7 +85,7 @@
                         type="object"
                         class="oe_stat_button"
                         icon="fa-balance-scale"
-                        groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,site_operations.group_matracon_admin"
+                        groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin"
                         invisible="x_liability_sheet_count == 0">
                     <field name="x_liability_sheet_count" widget="statinfo" string="Liability Sheets"/>
                 </button>

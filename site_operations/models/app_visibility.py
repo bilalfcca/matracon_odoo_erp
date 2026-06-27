@@ -20,7 +20,7 @@ class MatraconAppVisibility(models.AbstractModel):
     def apply_menu_visibility(self):
         """Apply root-menu groups for the Matracon app switcher (idempotent)."""
         admin_only = self._matracon_group_refs([
-            'site_operations.group_matracon_admin',
+            'purchase_demand_raise.group_matracon_admin',
             'base.group_system',
         ])
 
@@ -34,43 +34,43 @@ class MatraconAppVisibility(models.AbstractModel):
             # Role-based apps
             ('purchase.menu_purchase_root', self._matracon_group_refs([
                 'site_operations.group_mtr_app_purchase',
-                'site_operations.group_matracon_admin',
+                'purchase_demand_raise.group_matracon_admin',
                 'base.group_system',
             ])),
             ('stock.menu_stock_root', self._matracon_group_refs([
                 'site_operations.group_mtr_app_inventory',
-                'site_operations.group_matracon_admin',
+                'purchase_demand_raise.group_matracon_admin',
                 'base.group_system',
             ])),
             ('account.menu_finance', self._matracon_group_refs([
                 'site_operations.group_mtr_app_accounting',
-                'site_operations.group_matracon_admin',
+                'purchase_demand_raise.group_matracon_admin',
                 'base.group_system',
             ])),
             ('project.menu_main_pm', self._matracon_group_refs([
                 'site_operations.group_mtr_app_project',
-                'site_operations.group_matracon_admin',
+                'purchase_demand_raise.group_matracon_admin',
                 'base.group_system',
             ])),
             ('hr.menu_hr_root', self._matracon_group_refs([
                 'site_operations.group_mtr_app_hr',
-                'site_operations.group_matracon_admin',
+                'purchase_demand_raise.group_matracon_admin',
                 'base.group_system',
             ])),
             ('hr_attendance.menu_hr_attendance_root', self._matracon_group_refs([
                 'site_operations.group_mtr_app_attendance',
-                'site_operations.group_matracon_admin',
+                'purchase_demand_raise.group_matracon_admin',
                 'base.group_system',
             ])),
             ('hr_payroll.menu_hr_payroll_menu_root', self._matracon_group_refs([
                 'site_operations.group_mtr_app_payroll',
-                'site_operations.group_matracon_admin',
+                'purchase_demand_raise.group_matracon_admin',
                 'base.group_system',
             ])),
             # Alternate payroll root id on some Odoo builds
             ('hr_payroll.menu_hr_payroll_root', self._matracon_group_refs([
                 'site_operations.group_mtr_app_payroll',
-                'site_operations.group_matracon_admin',
+                'purchase_demand_raise.group_matracon_admin',
                 'base.group_system',
             ])),
         ]

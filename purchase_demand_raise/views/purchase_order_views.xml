@@ -103,7 +103,7 @@
                         type="object"
                         class="btn-primary"
                         invisible="x_is_alternative_rfq or x_pr_state != 'po_locked' or (state in ('purchase', 'done') and incoming_picking_count != 0)"
-                        groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,site_operations.group_matracon_admin,base.group_system"/>
+                        groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
                 <!-- Single RFQ print (no prices) -->
                 <button name="action_print_rfq_no_price"
@@ -111,7 +111,7 @@
                         type="object"
                         class="btn-secondary"
                         invisible="x_is_site_store or state in ('purchase', 'done') or (x_is_pr_document and x_pr_state in ('rejected', 'cancelled'))"
-                        groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,site_operations.group_matracon_admin,base.group_system"/>
+                        groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
             </xpath>
 

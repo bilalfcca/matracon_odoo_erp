@@ -50,5 +50,20 @@
             ]"/>
             <field name="comment">Site Store Keepers — own project only. Assigned automatically from Site Project Configuration.</field>
         </record>
+        <!-- ── Matracon Admin — defined here so purchase views can reference it ── -->
+        <record id="group_matracon_admin" model="res.groups">
+            <field name="name">Matracon Admin</field>
+            <field name="privilege_id" ref="res_groups_privilege_demand_raise"/>
+            <field name="implied_ids" eval="[
+                (4, ref('group_head_office')),
+                (4, ref('group_procurement_ho')),
+                (4, ref('group_ceo_approval')),
+                (4, ref('purchase.group_purchase_manager')),
+                (4, ref('stock.group_stock_manager')),
+                (4, ref('account.group_account_manager')),
+                (4, ref('project.group_project_manager')),
+            ]"/>
+            <field name="comment">Matracon system admin — full access to all Matracon features and menus.</field>
+        </record>
     </data>
 </odoo>
