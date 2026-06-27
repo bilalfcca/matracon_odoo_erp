@@ -15,6 +15,91 @@ ATTENDANCE_CODE_SELECTION = [
     ('H', 'Public Holiday'),
 ]
 
+DAY_FIELD_NAMES = [f'day_{d:02d}' for d in range(1, 32)]
+
+
+def _attendance_day_field(day_num):
+    return fields.Selection(ATTENDANCE_CODE_SELECTION, string=str(day_num))
+
+
+class AttendanceLine(models.Model):
+    _name = 'x.attendance.line'
+    _description = 'Attendance Line'
+    _order = 'employee_id'
+
+    sheet_id = fields.Many2one(
+        'x.attendance.sheet', required=True, ondelete='cascade', index=True)
+    employee_id = fields.Many2one(
+        'hr.employee', string='Employee', required=True, index=True)
+
+    day_01 = _attendance_day_field(1)
+    day_02 = _attendance_day_field(2)
+    day_03 = _attendance_day_field(3)
+    day_04 = _attendance_day_field(4)
+    day_05 = _attendance_day_field(5)
+    day_06 = _attendance_day_field(6)
+    day_07 = _attendance_day_field(7)
+    day_08 = _attendance_day_field(8)
+    day_09 = _attendance_day_field(9)
+    day_10 = _attendance_day_field(10)
+    day_11 = _attendance_day_field(11)
+    day_12 = _attendance_day_field(12)
+    day_13 = _attendance_day_field(13)
+    day_14 = _attendance_day_field(14)
+    day_15 = _attendance_day_field(15)
+    day_16 = _attendance_day_field(16)
+    day_17 = _attendance_day_field(17)
+    day_18 = _attendance_day_field(18)
+    day_19 = _attendance_day_field(19)
+    day_20 = _attendance_day_field(20)
+    day_21 = _attendance_day_field(21)
+    day_22 = _attendance_day_field(22)
+    day_23 = _attendance_day_field(23)
+    day_24 = _attendance_day_field(24)
+    day_25 = _attendance_day_field(25)
+    day_26 = _attendance_day_field(26)
+    day_27 = _attendance_day_field(27)
+    day_28 = _attendance_day_field(28)
+    day_29 = _attendance_day_field(29)
+    day_30 = _attendance_day_field(30)
+    day_31 = _attendance_day_field(31)
+
+    present_days = fields.Integer(compute='_compute_day_counts', store=True)
+    absent_days = fields.Integer(compute='_compute_day_counts', store=True)
+    leave_days = fields.Integer(compute='_compute_day_counts', store=True)
+    holiday_days = fields.Integer(compute='_compute_day_counts', store=True)
+    paid_days = fields.Integer(compute='_compute_day_counts', store=True)
+    total_days = fields.Integer(compute='_compute_day_counts', store=True)
+    total_display = fields.Char(compute='_compute_day_counts', store=True)
+
+    @api.depends('sheet_id.date_from', 'sheet_id.date_to', *DAY_FIELD_NAMES)
+    def _compute_day_counts(self):
+        for line in self:
+            days_in_month = 0
+            if line.sheet_id.date_from:
+                days_in_month = calendar.monthrange(
+                    line.sheet_id.date_from.year,
+                    line.sheet_id.date_from.month,
+                )[1]
+            present = absent = leave = holiday = 0
+            for d in range(1, days_in_month + 1):
+                code = getattr(line, f'day_{d:02d}', False)
+                if code == 'P':
+                    present += 1
+                elif code == 'A':
+                    absent += 1
+                elif code == 'L':
+                    leave += 1
+                elif code == 'H':
+                    holiday += 1
+            line.present_days = present
+            line.absent_days = absent
+            line.leave_days = leave
+            line.holiday_days = holiday
+            line.paid_days = present + holiday
+            line.total_days = days_in_month
+            line.total_display = f'{line.paid_days}/{days_in_month}'
+
 
 class AttendanceSheet(models.Model):
     _name = 'x.attendance.sheet'
@@ -161,76 +246,3 @@ class AttendanceSheet(models.Model):
             'date_from': self.date_from,
             'date_to': self.date_to,
         })
-
-
-class AttendanceLine(models.Model):
-    _name = 'x.attendance.line'
-    _description = 'Attendance Line'
-    _order = 'employee_id'
-
-    sheet_id = fields.Many2one(
-        'x.attendance.sheet', required=True, ondelete='cascade', index=True)
-    employee_id = fields.Many2one(
-        'hr.employee', string='Employee', required=True, index=True)
-
-
-for _day in range(1, 32):
-    setattr(
-        AttendanceLine,
-        f'day_{_day:02d}',
-        fields.Selection(
-            ATTENDANCE_CODE_SELECTION,
-            string=str(_day),
-        ),
-    )
-
-
-AttendanceLine.present_days = fields.Integer(
-    compute='_compute_day_counts', store=True)
-AttendanceLine.absent_days = fields.Integer(
-    compute='_compute_day_counts', store=True)
-AttendanceLine.leave_days = fields.Integer(
-    compute='_compute_day_counts', store=True)
-AttendanceLine.holiday_days = fields.Integer(
-    compute='_compute_day_counts', store=True)
-AttendanceLine.paid_days = fields.Integer(
-    compute='_compute_day_counts', store=True)
-AttendanceLine.total_days = fields.Integer(
-    compute='_compute_day_counts', store=True)
-AttendanceLine.total_display = fields.Char(
-    compute='_compute_day_counts', store=True)
-
-
-@api.depends(
-    'sheet_id.date_from', 'sheet_id.date_to',
-    *[f'day_{d:02d}' for d in range(1, 32)],
-)
-def _attendance_line_compute_day_counts(self):
-    for line in self:
-        days_in_month = 0
-        if line.sheet_id.date_from:
-            days_in_month = calendar.monthrange(
-                line.sheet_id.date_from.year,
-                line.sheet_id.date_from.month,
-            )[1]
-        present = absent = leave = holiday = 0
-        for d in range(1, days_in_month + 1):
-            code = getattr(line, f'day_{d:02d}', False)
-            if code == 'P':
-                present += 1
-            elif code == 'A':
-                absent += 1
-            elif code == 'L':
-                leave += 1
-            elif code == 'H':
-                holiday += 1
-        line.present_days = present
-        line.absent_days = absent
-        line.leave_days = leave
-        line.holiday_days = holiday
-        line.paid_days = present + holiday
-        line.total_days = days_in_month
-        line.total_display = f'{line.paid_days}/{days_in_month}'
-
-
-AttendanceLine._compute_day_counts = _attendance_line_compute_day_counts
