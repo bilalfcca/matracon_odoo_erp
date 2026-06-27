@@ -152,7 +152,8 @@ class BankGuarantee(models.Model):
         related='facility_id.available_limit', readonly=True,
         currency_field='currency_id')
     days_to_expiry = fields.Integer(compute='_compute_days_to_expiry')
-    is_expiring_soon = fields.Boolean(compute='_compute_days_to_expiry')
+    is_expiring_soon = fields.Boolean(
+        compute='_compute_days_to_expiry', search='_search_is_expiring_soon')
     validated = fields.Boolean(default=False, tracking=True, copy=False)
     validated_by_id = fields.Many2one('res.users', readonly=True, copy=False)
     validated_date = fields.Datetime(readonly=True, copy=False)
@@ -181,6 +182,28 @@ class BankGuarantee(models.Model):
             else:
                 rec.days_to_expiry = 0
                 rec.is_expiring_soon = False
+
+    @api.model
+    def _search_is_expiring_soon(self, operator, value):
+        if operator not in ('=', '!='):
+            return []
+        today = fields.Date.context_today(self)
+        limit = today + timedelta(days=30)
+        active_states = ('active', 'locked', 'pending')
+        expiring_domain = [
+            ('state', 'in', active_states),
+            ('expiry_date', '>=', today),
+            ('expiry_date', '<=', limit),
+        ]
+        is_true = (operator == '=' and value) or (operator == '!=' and not value)
+        if is_true:
+            return expiring_domain
+        return [
+            '|', '|',
+            ('state', 'not in', active_states),
+            ('expiry_date', '<', today),
+            ('expiry_date', '>', limit),
+        ]
 
     @api.onchange('bank_id')
     def _onchange_bank_id(self):

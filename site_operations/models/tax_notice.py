@@ -78,8 +78,10 @@ class TaxNoticeOrder(models.Model):
         currency_field='currency_id',
     )
     days_to_due = fields.Integer(compute='_compute_due_alerts')
-    is_overdue = fields.Boolean(compute='_compute_due_alerts')
-    is_due_soon = fields.Boolean(compute='_compute_due_alerts')
+    is_overdue = fields.Boolean(
+        compute='_compute_due_alerts', search='_search_is_overdue')
+    is_due_soon = fields.Boolean(
+        compute='_compute_due_alerts', search='_search_is_due_soon')
     payment_line_ids = fields.One2many(
         'x.tax.notice.payment.line', 'notice_id', string='Payments & Costs')
     auditor_remarks = fields.Text(string='Auditor Remarks')
@@ -121,6 +123,47 @@ class TaxNoticeOrder(models.Model):
                 rec.days_to_due = 0
                 rec.is_overdue = False
                 rec.is_due_soon = False
+
+    @api.model
+    def _search_is_overdue(self, operator, value):
+        if operator not in ('=', '!='):
+            return []
+        today = fields.Date.context_today(self)
+        open_states = ('draft', 'open', 'reply_submitted', 'under_proceeding', 'order_filed')
+        overdue_domain = [
+            ('state', 'in', open_states),
+            ('due_date', '<', today),
+        ]
+        is_true = (operator == '=' and value) or (operator == '!=' and not value)
+        if is_true:
+            return overdue_domain
+        return [
+            '|',
+            ('state', 'not in', open_states),
+            ('due_date', '>=', today),
+        ]
+
+    @api.model
+    def _search_is_due_soon(self, operator, value):
+        if operator not in ('=', '!='):
+            return []
+        today = fields.Date.context_today(self)
+        limit = today + timedelta(days=14)
+        open_states = ('draft', 'open', 'reply_submitted', 'under_proceeding', 'order_filed')
+        due_soon_domain = [
+            ('state', 'in', open_states),
+            ('due_date', '>=', today),
+            ('due_date', '<=', limit),
+        ]
+        is_true = (operator == '=' and value) or (operator == '!=' and not value)
+        if is_true:
+            return due_soon_domain
+        return [
+            '|', '|',
+            ('state', 'not in', open_states),
+            ('due_date', '<', today),
+            ('due_date', '>', limit),
+        ]
 
     @api.onchange('partner_id')
     def _onchange_partner_id(self):
