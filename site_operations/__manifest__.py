@@ -1,6 +1,6 @@
 {
     'name': 'Site Operations',
-    'version': '1.7.1',
+    'version': '1.7.2',
     'summary': 'Material Issuance, Finance HO, Compliance (BG & Tax Notices), Attendance & Petty Cash',
     'author': 'Matracon Pakistan',
     'depends': [

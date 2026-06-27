@@ -38,9 +38,10 @@ class BankGuaranteeFacility(models.Model):
         'res.currency', default=lambda self: self.env.company.currency_id)
     active = fields.Boolean(default=True)
 
-    _sql_constraints = [
-        ('bank_unique', 'unique(bank_id)', 'Each bank can have only one facility limit record.'),
-    ]
+    _bank_unique = models.Constraint(
+        'unique(bank_id)',
+        'Each bank can have only one facility limit record.',
+    )
 
     @api.depends('bank_id')
     def _compute_name(self):

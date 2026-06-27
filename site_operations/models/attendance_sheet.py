@@ -173,45 +173,6 @@ class AttendanceLine(models.Model):
     employee_id = fields.Many2one(
         'hr.employee', string='Employee', required=True, index=True)
 
-    present_days = fields.Integer(compute='_compute_day_counts', store=True)
-    absent_days = fields.Integer(compute='_compute_day_counts', store=True)
-    leave_days = fields.Integer(compute='_compute_day_counts', store=True)
-    holiday_days = fields.Integer(compute='_compute_day_counts', store=True)
-    paid_days = fields.Integer(compute='_compute_day_counts', store=True)
-    total_days = fields.Integer(compute='_compute_day_counts', store=True)
-    total_display = fields.Char(compute='_compute_day_counts', store=True)
-
-    @api.depends(
-        'sheet_id.date_from', 'sheet_id.date_to',
-        *[f'day_{d:02d}' for d in range(1, 32)],
-    )
-    def _compute_day_counts(self):
-        for line in self:
-            days_in_month = 0
-            if line.sheet_id.date_from:
-                days_in_month = calendar.monthrange(
-                    line.sheet_id.date_from.year,
-                    line.sheet_id.date_from.month,
-                )[1]
-            present = absent = leave = holiday = 0
-            for d in range(1, days_in_month + 1):
-                code = getattr(line, f'day_{d:02d}', False)
-                if code == 'P':
-                    present += 1
-                elif code == 'A':
-                    absent += 1
-                elif code == 'L':
-                    leave += 1
-                elif code == 'H':
-                    holiday += 1
-            line.present_days = present
-            line.absent_days = absent
-            line.leave_days = leave
-            line.holiday_days = holiday
-            line.paid_days = present + holiday
-            line.total_days = days_in_month
-            line.total_display = f'{line.paid_days}/{days_in_month}'
-
 
 for _day in range(1, 32):
     setattr(
@@ -222,3 +183,54 @@ for _day in range(1, 32):
             string=str(_day),
         ),
     )
+
+
+AttendanceLine.present_days = fields.Integer(
+    compute='_compute_day_counts', store=True)
+AttendanceLine.absent_days = fields.Integer(
+    compute='_compute_day_counts', store=True)
+AttendanceLine.leave_days = fields.Integer(
+    compute='_compute_day_counts', store=True)
+AttendanceLine.holiday_days = fields.Integer(
+    compute='_compute_day_counts', store=True)
+AttendanceLine.paid_days = fields.Integer(
+    compute='_compute_day_counts', store=True)
+AttendanceLine.total_days = fields.Integer(
+    compute='_compute_day_counts', store=True)
+AttendanceLine.total_display = fields.Char(
+    compute='_compute_day_counts', store=True)
+
+
+@api.depends(
+    'sheet_id.date_from', 'sheet_id.date_to',
+    *[f'day_{d:02d}' for d in range(1, 32)],
+)
+def _attendance_line_compute_day_counts(self):
+    for line in self:
+        days_in_month = 0
+        if line.sheet_id.date_from:
+            days_in_month = calendar.monthrange(
+                line.sheet_id.date_from.year,
+                line.sheet_id.date_from.month,
+            )[1]
+        present = absent = leave = holiday = 0
+        for d in range(1, days_in_month + 1):
+            code = getattr(line, f'day_{d:02d}', False)
+            if code == 'P':
+                present += 1
+            elif code == 'A':
+                absent += 1
+            elif code == 'L':
+                leave += 1
+            elif code == 'H':
+                holiday += 1
+        line.present_days = present
+        line.absent_days = absent
+        line.leave_days = leave
+        line.holiday_days = holiday
+        line.paid_days = present + holiday
+        line.total_days = days_in_month
+        line.total_display = f'{line.paid_days}/{days_in_month}'
+
+
+AttendanceLine._compute_day_counts = _attendance_line_compute_day_counts
