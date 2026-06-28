@@ -69,6 +69,16 @@
 
             </xpath>
 
+            <!-- ── Hide standard state statusbar for site-to-site transfers ── -->
+            <!-- Standard stock.picking has two state statusbars; hide both   -->
+            <!-- when our custom x_site_transfer_state pipeline is active.    -->
+            <xpath expr="//field[@name='state'][@statusbar_visible='draft,assigned,done']" position="attributes">
+                <attribute name="invisible">picking_type_code != 'incoming' or x_transfer_purpose == 'site_to_site'</attribute>
+            </xpath>
+            <xpath expr="//field[@name='state'][@statusbar_visible='draft,confirmed,assigned,done']" position="attributes">
+                <attribute name="invisible">picking_type_code == 'incoming' or x_transfer_purpose == 'site_to_site'</attribute>
+            </xpath>
+
             <!-- ── Header action buttons ──────────────────────────────────── -->
             <xpath expr="//button[@name='button_validate']" position="before">
 
