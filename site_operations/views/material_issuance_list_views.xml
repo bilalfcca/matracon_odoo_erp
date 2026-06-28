@@ -143,7 +143,7 @@
         <field name="res_model">stock.picking</field>
         <field name="view_mode">list,form</field>
         <field name="domain">[('x_transfer_purpose', 'in', ['material_issuance', 'site_to_site'])]</field>
-        <field name="context">{'search_default_filter_in_progress': 1}</field>
+        <field name="context">{}</field>
         <field name="view_ids" eval="[
             (5, 0, 0),
             (0, 0, {'view_mode': 'list', 'view_id': ref('view_material_issuance_list')}),
@@ -158,7 +158,7 @@
         <field name="res_model">stock.picking</field>
         <field name="view_mode">list,form</field>
         <field name="domain">[('x_transfer_purpose', '=', 'material_issuance')]</field>
-        <field name="context">{'default_x_transfer_purpose': 'material_issuance', 'search_default_filter_in_progress': 1}</field>
+        <field name="context">{'default_x_transfer_purpose': 'material_issuance'}</field>
         <field name="view_ids" eval="[
             (5, 0, 0),
             (0, 0, {'view_mode': 'list', 'view_id': ref('view_material_issuance_list')}),
@@ -173,7 +173,7 @@
         <field name="res_model">stock.picking</field>
         <field name="view_mode">list,form</field>
         <field name="domain">[('x_transfer_purpose', '=', 'site_to_site')]</field>
-        <field name="context">{'default_x_transfer_purpose': 'site_to_site', 'search_default_filter_in_progress': 1}</field>
+        <field name="context">{'default_x_transfer_purpose': 'site_to_site'}</field>
         <field name="view_ids" eval="[
             (5, 0, 0),
             (0, 0, {'view_mode': 'list', 'view_id': ref('view_material_issuance_list')}),
