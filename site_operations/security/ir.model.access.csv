@@ -153,3 +153,6 @@ access_material_cost_report_head_office,material.cost.report.head.office,model_x
 access_employee_doc_ceo,employee.doc.ceo,model_x_employee_document,purchase_demand_raise.group_ceo_approval,1,0,0,0
 access_employee_doc_head_office,employee.doc.head.office,model_x_employee_document,purchase_demand_raise.group_head_office,1,1,1,1
 access_mgmt_dash_ipc_line_site,management.dashboard.ipc.line.site,model_x_management_dashboard_ipc_line,site_operations.group_site_accountant,1,1,1,1
+access_project_site_config_site_accountant,x.project.site.config site accountant,purchase_demand_raise.model_x_project_site_config,site_operations.group_site_accountant,1,0,0,0
+access_cs_finance_ho,x.comparative.statement finance ho,purchase_demand_raise.model_x_comparative_statement,site_operations.group_finance_ho,1,1,1,1
+access_project_site_config_finance_ho,x.project.site.config finance ho,purchase_demand_raise.model_x_project_site_config,site_operations.group_finance_ho,1,0,0,0
