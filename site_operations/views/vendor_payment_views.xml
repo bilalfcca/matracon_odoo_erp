@@ -192,10 +192,10 @@
                     </field>
                 </page>
 
-                <!-- Tax Compliance tab — second, full width, no squeeze on edit -->
+                <!-- Tax Compliance tab — visible for all outbound payments -->
                 <page name="tax_compliance_tab"
                       string="Tax Compliance"
-                      invisible="payment_type != 'outbound' or (not x_liability_sheet_id and not x_ceo_direct_payment) or (x_ceo_direct_payment and x_viewer_is_ceo_only)">
+                      invisible="payment_type != 'outbound'">
                     <field name="x_tax_line_ids" nolabel="1">
                         <list string="Tax Lines" editable="bottom">
                             <field name="sequence" widget="handle"/>
