@@ -27,33 +27,6 @@ class AccountAccountSiteOps(models.Model):
              'Head Office users always see all accounts regardless of this setting.',
     )
 
-    @api.model
-    def _search(self, domain, offset=0, limit=None, order=None, *, active_test=True, bypass_access=False):
-        """Restrict account searches for site accountants.
-
-        _search is called for dropdowns, list views and CoA browsing.
-        It is NOT called when Odoo reads an already-known record ID
-        (e.g. loading account_id on an existing bill line), so this
-        filter never causes an access error on saved documents.
-
-        Rule:
-          Site accountant → only accounts where x_site_ids contains
-          their project, OR accounts they personally created.
-          Everyone else → unrestricted.
-        """
-        if (not self.env.su
-                and self.env.user.has_group(
-                    'site_operations.group_site_accountant')):
-            analytic = self.env.user.sudo().x_default_analytic_account_id
-            if analytic:
-                domain = list(domain) + [
-                    '|',
-                    ('x_site_ids', 'in', [analytic.id]),
-                    ('create_uid', '=', self.env.uid),
-                ]
-        return super()._search(domain, offset=offset, limit=limit, order=order,
-                               active_test=active_test, bypass_access=bypass_access)
-
     @api.model_create_multi
     def create(self, vals_list):
         records = super().create(vals_list)

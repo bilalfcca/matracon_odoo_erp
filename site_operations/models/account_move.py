@@ -35,6 +35,21 @@ class AccountMoveSiteOps(models.Model):
         tracking=True,
         help='Project for liability sheet and fund tracking.',
     )
+
+    # Non-stored: exposes the current user's site analytic so the invoice-line
+    # account_id domain can filter the account picker for site accountants.
+    # Returns False for HO/admin users → no restriction applied in the view domain.
+    x_user_analytic_id = fields.Many2one(
+        'account.analytic.account',
+        compute='_compute_x_user_analytic_id',
+        store=False,
+        string='User Site Analytic',
+    )
+
+    def _compute_x_user_analytic_id(self):
+        analytic = self.env.user.sudo().x_default_analytic_account_id
+        for move in self:
+            move.x_user_analytic_id = analytic
     x_purchase_order_id = fields.Many2one(
         'purchase.order', string='Purchase Order', tracking=True, copy=False,
         domain=[('state', 'in', ('purchase', 'done'))],

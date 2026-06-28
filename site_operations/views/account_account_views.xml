@@ -13,8 +13,16 @@
         <field name="model">account.move</field>
         <field name="inherit_id" ref="account.view_move_form"/>
         <field name="arch" type="xml">
+            <!-- Expose user's analytic so the domain below can reference it -->
+            <xpath expr="//field[@name='invoice_line_ids']" position="before">
+                <field name="x_user_analytic_id" invisible="1"/>
+            </xpath>
             <xpath expr="//field[@name='account_id'][@widget='many2one_account_account']" position="attributes">
                 <attribute name="groups">account.group_account_readonly,site_operations.group_site_accountant</attribute>
+                <!-- When x_user_analytic_id is set (site accountant), filter accounts
+                     to only those tagged for their site. HO users get x_user_analytic_id=False
+                     so the ternary returns [] (no extra restriction). -->
+                <attribute name="domain">[('company_ids', 'parent_of', company_id), ('account_type', 'not in', ('asset_receivable', 'liability_payable', 'off_balance'))] + ([('x_site_ids', 'in', [parent.x_user_analytic_id])] if parent.x_user_analytic_id else [])</attribute>
             </xpath>
         </field>
     </record>
