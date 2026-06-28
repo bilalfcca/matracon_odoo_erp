@@ -19,7 +19,7 @@ class WHTCertificate(models.Model):
         related='payment_id.partner_id', store=True,
         readonly=True, string='Vendor')
     amount_paid = fields.Monetary(
-        related='payment_id.amount', store=True,
+        related='payment_id.x_gross_approved_amount', store=True,
         readonly=True, string='Gross Amount Paid')
     wht_amount = fields.Monetary(
         string='WHT Deducted', required=True, tracking=True)
