@@ -147,7 +147,7 @@ class SiteAccountantDashboard(models.TransientModel):
             for req in requests:
                 if req.payment_id:
                     desc = '%s (%s)' % (
-                        req.payment_id.ref or req.name,
+                        req.payment_id.name or req.name,
                         req.payment_id.journal_id.name or 'Bank',
                     )
                 else:
