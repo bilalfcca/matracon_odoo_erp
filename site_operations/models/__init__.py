@@ -32,3 +32,5 @@ from . import postdated_cheque
 from . import cheque_series
 from . import subcontractor_ipc
 from . import material_cost_consumption
+from . import account_journal
+from . import account_analytic_account

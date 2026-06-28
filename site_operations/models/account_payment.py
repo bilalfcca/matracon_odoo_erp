@@ -150,6 +150,25 @@ class AccountPaymentSiteOps(models.Model):
     x_wht_certificate_count = fields.Integer(
         compute='_compute_wht_certificate_count', store=False)
 
+    # WHT companion payment — created automatically when FO sets a
+    # liability payment in-process and it carries a WHT deduction line.
+    x_wht_payment_id = fields.Many2one(
+        'account.payment', string='WHT Payment (FBR)',
+        readonly=True, copy=False,
+        help='Companion draft payment to FBR for the WHT amount on this payment.')
+    x_origin_payment_id = fields.Many2one(
+        'account.payment', string='Original Vendor Payment',
+        readonly=True, copy=False,
+        help='The vendor payment from which this WHT payment was generated.')
+
+    # Journal entry created to debit vendor AP for WHT + Retention deductions.
+    # This reduces the vendor's balance in the partner ledger by the deducted amounts
+    # and creates a Retention Payable back to the same subcontractor.
+    x_tax_deduction_move_id = fields.Many2one(
+        'account.move', string='Tax Deduction Entry',
+        readonly=True, copy=False,
+        help='Journal entry that clears vendor AP for WHT/Retention deductions.')
+
     x_ipc_id = fields.Many2one(
         'x.subcontractor.ipc', string='IPC Reference', tracking=True,
         help='Interim Payment Certificate this payment is linked to.')
@@ -622,6 +641,155 @@ class AccountPaymentSiteOps(models.Model):
             if moves:
                 payment.x_interproject_move_ids = [(6, 0, moves.ids)]
 
+    def _get_deduction_account(self, xmlid):
+        """Safely resolve an account by xmlid, fall back to code search."""
+        account = self.env.ref(f'site_operations.{xmlid}', raise_if_not_found=False)
+        if account:
+            return account
+        # Fallback: search by code (handles installs where data wasn't reloaded)
+        code_map = {
+            'account_wht_payable': '252100',
+            'account_retention_payable': '211200',
+        }
+        code = code_map.get(xmlid)
+        if code:
+            return self.env['account.account'].search(
+                [('code', '=', code), ('company_id', '=', self.company_id.id)], limit=1
+            )
+        return self.env['account.account']
+
+    def _create_tax_deduction_entries(self):
+        """For each WHT / Retention deduction line, post a journal entry that:
+          - Debits the vendor's AP account (reduces their current payable balance)
+          - Credits WHT Payable (for WHT) or Retention Payable (for Retention),
+            tagging the vendor as partner on the Retention credit so it appears
+            in the partner ledger as a payable back to them.
+
+        This ensures the partner ledger balance reflects the gross settled amount,
+        and retention shows as a separate payable to the subcontractor.
+        """
+        self.ensure_one()
+        if self.x_tax_deduction_move_id:
+            return  # Already created — idempotent.
+
+        deduction_lines = self.x_tax_line_ids.filtered(
+            lambda l: l.effect == 'deduct' and l.amount > 0
+            and l.tax_type in ('wht', 'retention')
+        )
+        if not deduction_lines:
+            return
+
+        # Resolve accounts
+        wht_account = self._get_deduction_account('account_wht_payable')
+        retention_account = self._get_deduction_account('account_retention_payable')
+        if not wht_account and not retention_account:
+            return  # Nothing to post — accounts not set up
+
+        # Vendor AP account — read from the existing payment JE
+        ap_account = self.env['account.account']
+        if self.move_id:
+            ap_line = self.move_id.line_ids.filtered(
+                lambda l: l.account_id.account_type == 'liability_payable'
+            )[:1]
+            ap_account = ap_line.account_id
+
+        if not ap_account:
+            # Fallback to partner's default payable account
+            ap_account = self.partner_id.with_company(
+                self.company_id).property_account_payable_id
+
+        if not ap_account:
+            return
+
+        # Use a general journal for the deduction entry
+        journal = self.env['account.journal'].search([
+            ('type', '=', 'general'),
+            ('company_id', '=', self.company_id.id),
+        ], limit=1) or self.journal_id
+
+        line_vals = []
+        descriptions = []
+        for tl in deduction_lines:
+            if tl.tax_type == 'wht':
+                credit_account = wht_account
+                if not credit_account:
+                    continue
+                label = _('WHT — %s') % (tl.tax_id.name if tl.tax_id else 'WHT')
+                # Dr AP (vendor) — no credit-side partner; WHT is owed to FBR
+                line_vals += [
+                    {
+                        'name': label,
+                        'account_id': ap_account.id,
+                        'partner_id': self.partner_id.id,
+                        'debit': tl.amount,
+                        'credit': 0.0,
+                        'analytic_distribution': (
+                            self._analytic_distribution_for_account(
+                                self.x_destination_project_id)
+                            if self.x_destination_project_id else {}
+                        ),
+                    },
+                    {
+                        'name': label,
+                        'account_id': credit_account.id,
+                        'partner_id': False,
+                        'debit': 0.0,
+                        'credit': tl.amount,
+                    },
+                ]
+                descriptions.append(f'WHT {tl.amount:,.2f}')
+
+            elif tl.tax_type == 'retention':
+                credit_account = retention_account
+                if not credit_account:
+                    continue
+                label = _('Retention — %s') % self.partner_id.name
+                # Dr AP (vendor) — removes from current AP
+                # Cr Retention Payable (vendor) — creates new payable back to them
+                line_vals += [
+                    {
+                        'name': label,
+                        'account_id': ap_account.id,
+                        'partner_id': self.partner_id.id,
+                        'debit': tl.amount,
+                        'credit': 0.0,
+                        'analytic_distribution': (
+                            self._analytic_distribution_for_account(
+                                self.x_destination_project_id)
+                            if self.x_destination_project_id else {}
+                        ),
+                    },
+                    {
+                        'name': label,
+                        'account_id': credit_account.id,
+                        'partner_id': self.partner_id.id,  # tagged to vendor
+                        'debit': 0.0,
+                        'credit': tl.amount,
+                    },
+                ]
+                descriptions.append(f'Retention {tl.amount:,.2f}')
+
+        if not line_vals:
+            return
+
+        ref = _('Tax deductions for %s (%s)') % (
+            self.name or '', ', '.join(descriptions)
+        )
+        move = self.env['account.move'].create({
+            'move_type': 'entry',
+            'ref': ref,
+            'date': self.date or fields.Date.today(),
+            'journal_id': journal.id,
+            'company_id': self.company_id.id,
+            'line_ids': [(0, 0, v) for v in line_vals],
+            'origin_payment_id': self.id,
+        })
+        move.action_post()
+        self.x_tax_deduction_move_id = move.id
+        self.message_post(body=_(
+            'Tax deduction journal entry <b>%s</b> posted: %s.'
+        ) % (move.name, ', '.join(descriptions)))
+
     def _matracon_update_liability_on_post(self):
         for payment in self.filtered(
             lambda p: p.state in _POSTED_STATES and p.x_liability_sheet_line_id
@@ -676,7 +844,26 @@ class AccountPaymentSiteOps(models.Model):
             payment.amount = payment.x_net_payable or payment.amount
         self._validate_liability_payment()
         self._validate_fund_allocations()
+        # In Odoo 19 Enterprise (with 'accountant' module installed),
+        # outstanding_account_id is NOT automatically set from the payment method
+        # unless the payment method has a payment_account configured.
+        # Without it, _generate_journal_entry() silently skips creation and
+        # the payment never appears in the partner ledger or general ledger.
+        # We force-set it here so the state transition triggers journal entry creation.
+        for payment in self.filtered(lambda p: not p.outstanding_account_id):
+            try:
+                outstanding = payment._get_outstanding_account(payment.payment_type)
+                if outstanding:
+                    payment.outstanding_account_id = outstanding.id
+            except Exception:
+                pass  # If no outstanding account can be resolved, let super() handle it.
         res = super().action_post()
+        # Belt-and-suspenders: if any payment is now active but still has no journal
+        # entry, generate it now (covers edge cases where write() hook was bypassed).
+        no_move = self.filtered(lambda p: p.state in _POSTED_STATES and not p.move_id)
+        if no_move:
+            no_move._generate_journal_entry()
+            no_move.move_id.filtered(lambda m: m.state == 'draft').action_post()
         for payment in self.filtered(lambda p: p.state in _POSTED_STATES):
             payment._matracon_ensure_fund_allocations()
             payment._matracon_tag_payment_move_analytic()
@@ -685,6 +872,7 @@ class AccountPaymentSiteOps(models.Model):
             payment._matracon_update_petty_cash_on_post()
             payment._matracon_update_salary_on_post()
             payment._matracon_invalidate_project_funds()
+            payment._create_tax_deduction_entries()
         return res
 
     def _matracon_tag_payment_move_analytic(self):
@@ -735,6 +923,97 @@ class AccountPaymentSiteOps(models.Model):
             draft.action_post()
         self.filtered(lambda p: p.x_payment_status == 'draft').write({'x_payment_status': 'in_process'})
         self.message_post(body=_('Payment set to In Process.'))
+        # Auto-create companion WHT draft payment to FBR when WHT is present.
+        for payment in self.filtered(lambda p: p.payment_type == 'outbound'):
+            payment._create_wht_payment_if_needed()
+
+    def _create_wht_payment_if_needed(self):
+        """Create a draft WHT payment to FBR if this payment has a WHT deduction.
+
+        FO issues two cheques when WHT applies:
+          1. Net amount  → Original vendor
+          2. WHT amount  → FBR (Federal Board of Revenue)
+        This method creates #2 automatically so FO doesn't have to do it manually.
+        Idempotent: does nothing if a WHT payment already exists.
+        """
+        self.ensure_one()
+        if self.x_wht_payment_id:
+            return  # Already created — do not duplicate.
+
+        wht_amount = sum(
+            l.amount for l in self.x_tax_line_ids
+            if l.tax_type == 'wht' and l.effect == 'deduct' and l.amount > 0
+        )
+        if not wht_amount:
+            return  # No WHT on this payment.
+
+        # Locate the FBR partner — must exist as a contact in the system.
+        fbr_partner = self.env['res.partner'].search(
+            ['|', ('name', 'ilike', 'Federal Board of Revenue'),
+                  ('name', 'ilike', 'FBR')],
+            limit=1,
+        )
+        if not fbr_partner:
+            raise UserError(_(
+                'Cannot create WHT payment: no partner named "FBR" or '
+                '"Federal Board of Revenue" found.\n'
+                'Please create this contact first, then retry.'
+            ))
+
+        memo = _('WHT — %s | %s') % (
+            self.partner_id.name or '',
+            self.name or self.ref or '',
+        )
+        wht_payment = self.create({
+            'payment_type': 'outbound',
+            'partner_type': 'supplier',
+            'partner_id': fbr_partner.id,
+            'amount': wht_amount,
+            'currency_id': self.currency_id.id,
+            'journal_id': self.journal_id.id,
+            'ref': memo,
+            'x_payment_category': 'vendor',
+            'x_destination_project_id': self.x_destination_project_id.id or False,
+            'x_source_project_ids': [(6, 0, self.x_source_project_ids.ids)],
+            'x_origin_payment_id': self.id,
+        })
+        self.x_wht_payment_id = wht_payment.id
+        self.message_post(body=_(
+            'WHT payment draft <b>%s</b> created for FBR — amount: %s %s.'
+        ) % (wht_payment.name or '', self.currency_id.name, f'{wht_amount:,.2f}'))
+        wht_payment.message_post(body=_(
+            'Auto-generated WHT payment for vendor <b>%s</b> (payment %s).'
+        ) % (self.partner_id.name or '', self.name or ''))
+
+    def action_open_wht_payment(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('WHT Payment — FBR'),
+            'res_model': 'account.payment',
+            'view_mode': 'form',
+            'res_id': self.x_wht_payment_id.id,
+        }
+
+    def action_open_origin_payment(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Original Vendor Payment'),
+            'res_model': 'account.payment',
+            'view_mode': 'form',
+            'res_id': self.x_origin_payment_id.id,
+        }
+
+    def action_open_tax_deduction_move(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Tax Deduction Entry'),
+            'res_model': 'account.move',
+            'view_mode': 'form',
+            'res_id': self.x_tax_deduction_move_id.id,
+        }
 
     def action_mark_paid(self):
         self.write({'x_payment_status': 'paid'})

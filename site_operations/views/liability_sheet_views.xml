@@ -61,7 +61,7 @@
                             type="object"
                             string="Mark Paid (FO)"
                             class="btn-success"
-                            groups="site_operations.group_finance_ho,purchase_demand_raise.group_head_office"
+                            groups="site_operations.group_finance_ho"
                             invisible="state != 'approved'"
                             confirm="Confirm all vendor payments are posted and close this liability sheet?"/>
                 </header>

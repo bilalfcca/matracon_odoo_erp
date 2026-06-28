@@ -289,19 +289,22 @@ class LiabilitySheet(models.Model):
         for sheet in self:
             if sheet.state != 'approved':
                 raise UserError(_('Only approved liability sheets can be marked paid.'))
-            if not sheet.payment_ids:
-                raise UserError(_('No vendor payments linked to this liability sheet.'))
-            unposted = sheet.payment_ids.filtered(lambda p: p.state != 'posted')
-            if unposted:
-                raise UserError(_(
-                    'Post all vendor payments before closing the sheet: %s'
-                ) % ', '.join(unposted.mapped('name')))
+            # Sync paid amounts from any posted payments first.
             sheet._sync_paid_amounts_from_payments()
+            # Check whether all approved lines are fully settled.
             unpaid = sheet.line_ids.filtered(
                 lambda l: l.approved_amount > 0
                 and l.paid_amount < l.approved_amount - 0.01
             )
             if unpaid:
+                # Lines still outstanding — require all non-zero payments to be posted.
+                unposted = sheet.payment_ids.filtered(
+                    lambda p: p.state != 'posted' and (p.amount or 0) > 0.01
+                )
+                if unposted:
+                    raise UserError(_(
+                        'Post all vendor payments before closing the sheet: %s'
+                    ) % ', '.join(unposted.mapped('name')))
                 raise UserError(_(
                     'Some approved lines are not fully paid yet: %s'
                 ) % ', '.join(unpaid.mapped('partner_id.display_name')))

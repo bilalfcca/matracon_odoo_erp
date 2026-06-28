@@ -18,7 +18,7 @@
                 <attribute name="invisible">x_ceo_direct_payment and x_viewer_is_ceo_only</attribute>
             </xpath>
 
-            <!-- WHT Certificate stat button -->
+            <!-- Stat buttons -->
             <xpath expr="//sheet" position="before">
                 <div class="oe_button_box" name="button_box">
                     <button name="action_view_wht_certificates"
@@ -30,7 +30,43 @@
                                widget="statinfo"
                                string="WHT Certs"/>
                     </button>
+                    <!-- WHT companion payment button (visible on original payment) -->
+                    <button type="object"
+                            name="action_open_wht_payment"
+                            class="oe_stat_button"
+                            icon="fa-university"
+                            invisible="not x_wht_payment_id">
+                        <div class="o_stat_info">
+                            <span class="o_stat_text">WHT Payment</span>
+                            <span class="o_stat_text">FBR</span>
+                        </div>
+                    </button>
+                    <!-- Back-link on the WHT payment itself -->
+                    <button type="object"
+                            name="action_open_origin_payment"
+                            class="oe_stat_button"
+                            icon="fa-arrow-left"
+                            invisible="not x_origin_payment_id">
+                        <div class="o_stat_info">
+                            <span class="o_stat_text">Origin</span>
+                            <span class="o_stat_text">Payment</span>
+                        </div>
+                    </button>
+                    <!-- Tax deduction journal entry -->
+                    <button type="object"
+                            name="action_open_tax_deduction_move"
+                            class="oe_stat_button"
+                            icon="fa-scissors"
+                            invisible="not x_tax_deduction_move_id">
+                        <div class="o_stat_info">
+                            <span class="o_stat_text">Deduction</span>
+                            <span class="o_stat_text">Entry</span>
+                        </div>
+                    </button>
                 </div>
+                <field name="x_wht_payment_id" invisible="1"/>
+                <field name="x_origin_payment_id" invisible="1"/>
+                <field name="x_tax_deduction_move_id" invisible="1"/>
             </xpath>
 
             <xpath expr="//header" position="inside">
@@ -163,7 +199,7 @@
                     <field name="x_tax_line_ids" nolabel="1">
                         <list string="Tax Lines" editable="bottom">
                             <field name="sequence" widget="handle"/>
-                            <field name="tax_type" string="Tax Type"/>
+                            <field name="tax_type" string="Deduction Type"/>
                             <field name="tax_id" string="Tax Name"/>
                             <field name="effect" string="Effect"/>
                             <field name="amount" string="Deducted Amount" readonly="1"/>
