@@ -7,6 +7,7 @@
         'purchase_demand_raise',
         'project',
         'account',
+        'account_fiscal_categories',
         'stock',
         'mail',
         'analytic',
