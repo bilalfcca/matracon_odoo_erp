@@ -860,8 +860,10 @@ class StockPickingSiteOps(models.Model):
             return
         self.x_backcharge_refund_entry_id = entry
         self.message_post(
-            body=Markup(_('Backcharge entry <b>%s</b> (%.2f) posted to partner ledger.'))
-            % (entry.name, amount)
+            body=Markup(_(
+                'Vendor Credit Note <b>%s</b> (%.2f) created — '
+                'backcharge deducted from subcontractor payable.'
+            )) % (entry.name, amount)
         )
         self._auto_update_liability_sheet(amount)
 
@@ -896,7 +898,8 @@ class StockPickingSiteOps(models.Model):
                     self.x_return_backcharge_entry_id = entry
                     self.message_post(
                         body=Markup(_(
-                            'Backcharge reversal <b>%s</b> (%.2f) posted to partner ledger.'
+                            'Vendor Bill <b>%s</b> (%.2f) created — '
+                            'returned materials added back to subcontractor payable.'
                         )) % (entry.name, adj_amount)
                     )
                     self._auto_adjust_liability_sheet_on_return(adj_amount, orig)
@@ -912,7 +915,8 @@ class StockPickingSiteOps(models.Model):
                 self.x_return_backcharge_entry_id = entry
                 self.message_post(
                     body=Markup(_(
-                        'Asset return backcharge <b>%s</b> (%.2f) posted to partner ledger.'
+                        'Vendor Credit Note <b>%s</b> (%.2f) created — '
+                        'asset return backcharge deducted from subcontractor payable.'
                     )) % (entry.name, self.x_return_backcharge_amount)
                 )
                 self._auto_update_liability_sheet(self.x_return_backcharge_amount)
@@ -939,8 +943,10 @@ class StockPickingSiteOps(models.Model):
         if entry:
             self.x_damage_backcharge_entry_id = entry
             self.message_post(
-                body=Markup(_('Damage backcharge <b>%s</b> (%.2f) posted.')) % (
-                    entry.name, amount)
+                body=Markup(_(
+                    'Vendor Credit Note <b>%s</b> (%.2f) created — '
+                    'damage backcharge deducted from subcontractor payable.'
+                )) % (entry.name, amount)
             )
             self._auto_update_liability_sheet(amount)
 
@@ -1076,133 +1082,103 @@ class StockPickingSiteOps(models.Model):
     # ─────────────────────────────────────────────────────────────────────────
 
     def _create_issuance_journal_entry(self, amount, is_return=False, original=None):
-        """Post a plain journal entry for material issuance / return.
+        """Create a proper vendor accounting document for backcharge / return.
 
-        Issuance:
-          DR  Material Issuance Expense  (analytic: project)
-          CR  Accounts Payable           (partner → partner ledger)
+        Backcharge on issuance → Vendor Credit Note (in_refund)
+          We issued material to the subcontractor → we deduct from what we owe them.
+          e.g. Contract $100k, backcharge $50k → we owe $50k.
 
-        Return (reversal):
-          DR  Accounts Payable           (partner → partner ledger)
-          CR  Material Issuance Expense  (analytic: project)
-
-        Using move_type='entry' avoids the invoice/bill complexity and
-        guarantees correct partner-ledger visibility regardless of whether
-        the contact has been invoiced before.
+        Return of materials → Vendor Bill (in_invoice)
+          Subcontractor returned material → we owe them more again.
+          e.g. They return $25k worth → we owe $75k.
         """
         self.ensure_one()
         journal = self._get_or_create_backcharge_journal()
         partner = self.x_contact_id
-        analytic_id = self.x_issuance_project_id.id
+        analytic_id = self.x_issuance_project_id.id if self.x_issuance_project_id else False
+
+        if not partner:
+            self.message_post(body=_(
+                'Warning: no subcontractor set on this transfer — '
+                'backcharge document skipped.'))
+            return None
 
         Account = self.env['account.account'].sudo()
-        # Expense/cost side
         expense_account = Account.search(
             [('account_type', 'in', ['expense', 'expense_direct_cost'])], limit=1)
-        # Payable side — prefer partner's own payable account
-        payable_account = (
-            partner.sudo().property_account_payable_id
-            if partner and partner.property_account_payable_id
-            else Account.search([('account_type', '=', 'liability_payable')], limit=1)
-        )
 
-        if not expense_account or not payable_account:
+        if not expense_account:
             self.message_post(body=_(
-                'Warning: expense or payable account not found. '
-                'Journal entry skipped — configure Chart of Accounts.'))
+                'Warning: expense account not found. '
+                'Configure Chart of Accounts and retry.'))
             return None
 
         label = (self.x_backcharge_description
-                 or (_('Return: %s') % (original.name if original else self.name)
+                 or (_('Material Return: %s') % (original.name if original else self.name)
                      if is_return
-                     else _('Material Issuance: %s') % self.name))
+                     else _('Backcharge: %s') % self.name))
         analytic = {str(analytic_id): 100} if analytic_id else {}
 
-        if is_return:
-            dr_account, cr_account = payable_account, expense_account
-            dr_partner = partner.id if partner else False
-            cr_partner = False
-        else:
-            dr_account, cr_account = expense_account, payable_account
-            dr_partner = False
-            cr_partner = partner.id if partner else False
+        # Backcharge on issuance → Vendor Credit Note (reduces AP / what we owe)
+        # Return of materials   → Vendor Bill       (increases AP / what we owe)
+        move_type = 'in_invoice' if is_return else 'in_refund'
 
         move = self.env['account.move'].sudo().create({
-            'move_type': 'entry',
+            'move_type': move_type,
             'journal_id': journal.id,
+            'partner_id': partner.id,
             'ref': label,
             'invoice_date': fields.Date.today(),
             'narration': self.x_backcharge_description or False,
             'x_source_picking_id': self.id,
-            'line_ids': [
-                (0, 0, {
-                    'account_id': dr_account.id,
-                    'partner_id': dr_partner,
-                    'name': label,
-                    'debit': amount,
-                    'credit': 0.0,
-                    'analytic_distribution': analytic,
-                }),
-                (0, 0, {
-                    'account_id': cr_account.id,
-                    'partner_id': cr_partner,
-                    'name': label,
-                    'debit': 0.0,
-                    'credit': amount,
-                    'analytic_distribution': analytic,
-                }),
-            ],
+            'invoice_line_ids': [(0, 0, {
+                'name': label,
+                'quantity': 1.0,
+                'price_unit': amount,
+                'account_id': expense_account.id,
+                'analytic_distribution': analytic,
+            })],
         })
         move.action_post()
         return move
 
     def _create_damage_journal_entry(self, amount, original):
-        """Post damage backcharge: Dr Subcontractor Payable, Cr Damage Recovery."""
+        """Damage backcharge → Vendor Credit Note (reduces what we owe the subcontractor)."""
         self.ensure_one()
         journal = self._get_or_create_backcharge_journal()
         partner = self.x_contact_id or original.x_contact_id
-        analytic_id = original.x_issuance_project_id.id
-        Account = self.env['account.account'].sudo()
-        recovery_account = Account.search(
-            [('name', 'ilike', 'Damage Recovery')], limit=1)
-        if not recovery_account:
-            recovery_account = Account.search(
-                [('account_type', 'in', ['income', 'income_other'])], limit=1)
-        payable_account = (
-            partner.sudo().property_account_payable_id
-            if partner and partner.property_account_payable_id
-            else Account.search([('account_type', '=', 'liability_payable')], limit=1)
-        )
-        if not recovery_account or not payable_account:
-            self.message_post(body=_(
-                'Warning: damage recovery or payable account not found — '
-                'damage entry skipped.'))
+        analytic_id = original.x_issuance_project_id.id if original.x_issuance_project_id else False
+
+        if not partner:
+            self.message_post(body=_('Warning: no partner — damage entry skipped.'))
             return None
-        label = _('Damage backcharge — Return %s') % self.name
+
+        Account = self.env['account.account'].sudo()
+        expense_account = Account.search(
+            [('account_type', 'in', ['expense', 'expense_direct_cost'])], limit=1)
+
+        if not expense_account:
+            self.message_post(body=_(
+                'Warning: expense account not found — damage entry skipped.'))
+            return None
+
+        label = _('Damage Backcharge — Return %s') % self.name
         analytic = {str(analytic_id): 100} if analytic_id else {}
+
         move = self.env['account.move'].sudo().create({
-            'move_type': 'entry',
+            'move_type': 'in_refund',
             'journal_id': journal.id,
+            'partner_id': partner.id,
             'ref': label,
             'invoice_date': fields.Date.today(),
             'x_source_picking_id': self.id,
-            'line_ids': [
-                (0, 0, {
-                    'account_id': payable_account.id,
-                    'partner_id': partner.id if partner else False,
-                    'name': label,
-                    'debit': amount,
-                    'credit': 0.0,
-                    'analytic_distribution': analytic,
-                }),
-                (0, 0, {
-                    'account_id': recovery_account.id,
-                    'name': label,
-                    'debit': 0.0,
-                    'credit': amount,
-                    'analytic_distribution': analytic,
-                }),
-            ],
+            'invoice_line_ids': [(0, 0, {
+                'name': label,
+                'quantity': 1.0,
+                'price_unit': amount,
+                'account_id': expense_account.id,
+                'analytic_distribution': analytic,
+            })],
         })
         move.action_post()
         return move
@@ -1445,7 +1421,7 @@ class StockPickingSiteOps(models.Model):
         if not entry_ids:
             entry_ids = Move.search([
                 ('x_source_picking_id', '=', self.id),
-                ('move_type', '=', 'entry'),
+                ('move_type', 'in', ['entry', 'in_invoice', 'in_refund']),
             ]).ids
         if not entry_ids:
             raise UserError(_('No backcharge journal entry found for this transfer.'))

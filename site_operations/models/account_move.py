@@ -137,15 +137,19 @@ class AccountMoveSiteOps(models.Model):
 
     def action_post(self):
         for move in self.filtered(
-            lambda m: m.move_type == 'in_invoice' and m.state != 'posted'
+            lambda m: m.move_type == 'in_invoice'
+            and m.state != 'posted'
+            and not m.x_source_picking_id
         ):
             move._matracon_apply_bill_analytic()
         res = super().action_post()
         for move in self.filtered(
             lambda m: m.move_type == 'in_invoice' and m.state == 'posted'
         ):
-            move._ensure_liability_sheet_for_bill(notify=True)
-            move._update_project_balance_from_bill()
+            # Backcharge-generated bills skip liability/balance — picking handles it
+            if not move.x_source_picking_id:
+                move._ensure_liability_sheet_for_bill(notify=True)
+                move._update_project_balance_from_bill()
             if move.x_wht_tax_id:
                 move._create_fbr_wht_payment_draft()
         return res
@@ -158,8 +162,15 @@ class AccountMoveSiteOps(models.Model):
         return super().button_draft()
 
     def _ensure_liability_sheet_for_bill(self, notify=True):
-        """Create/update liability sheet for this vendor bill."""
+        """Create/update liability sheet for this vendor bill.
+
+        Skipped for backcharge-generated vendor bills/credit notes (x_source_picking_id set):
+        the stock.picking already manages the liability sheet on validation.
+        """
         self.ensure_one()
+        # Backcharge-generated docs are handled by stock_picking._auto_*_liability_sheet
+        if self.x_source_picking_id:
+            return
         if self.move_type != 'in_invoice' or not self.partner_id:
             return
         if not self.x_project_analytic_account_id:
