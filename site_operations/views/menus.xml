@@ -231,7 +231,7 @@
     <menuitem id="menu_chart_of_accounts_site_accountant"
               name="Chart of Accounts"
               parent="account.menu_finance"
-              action="account.action_account_form"
+              action="site_operations.action_coa_site_accountant"
               sequence="34"
               groups="site_operations.group_site_accountant"/>
 

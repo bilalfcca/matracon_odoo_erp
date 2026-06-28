@@ -114,20 +114,10 @@
             <field name="perm_unlink" eval="False"/>
         </record>
 
-        <!-- ── Chart of Accounts: Site Accountant sees only their site accounts ── -->
-        <record id="rule_account_account_site_accountant" model="ir.rule">
-            <field name="name">Chart of Accounts: Site Accountant sees own site accounts</field>
-            <field name="model_id" ref="account.model_account_account"/>
-            <field name="groups" eval="[(4, ref('site_operations.group_site_accountant'))]"/>
-            <field name="domain_force">
-                ['|',
-                 ('x_site_ids', 'in', [user.x_default_analytic_account_id.id]),
-                 ('create_uid', '=', user.id)]
-            </field>
-            <field name="perm_read" eval="True"/>
-            <field name="perm_write" eval="True"/>
-            <field name="perm_create" eval="True"/>
-            <field name="perm_unlink" eval="False"/>
-        </record>
+        <!-- Chart of Accounts visibility for site accountants is controlled via a
+             dedicated filtered window action (action_coa_site_accountant) rather
+             than an ir.rule, so that reading accounts on bills/payments does not
+             raise access errors while the CoA browse view still shows only the
+             site's own accounts. -->
     </data>
 </odoo>

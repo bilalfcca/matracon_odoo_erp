@@ -68,7 +68,28 @@
     </record>
 
     <!-- ══════════════════════════════════════════════════════════════════════
-         3.  Chart of Accounts list: show x_site_ids as optional column
+         3.  Dedicated Chart of Accounts action for site accountants.
+             Uses a dynamic domain so only accounts tagged with the user's
+             analytic account (project) are shown.  Bill lines / payments
+             can still read any account without an access error because no
+             global ir.rule restricts account.account reads.
+    ══════════════════════════════════════════════════════════════════════════ -->
+    <record id="action_coa_site_accountant" model="ir.actions.act_window">
+        <field name="name">Chart of Accounts</field>
+        <field name="res_model">account.account</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('x_site_ids', 'in', [user.x_default_analytic_account_id.id])]</field>
+        <field name="context">{'default_x_site_ids': []}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No accounts assigned to your site yet.
+            </p>
+            <p>Ask Head Office to assign accounts to your project in Configuration → Chart of Accounts.</p>
+        </field>
+    </record>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         4.  Chart of Accounts list: show x_site_ids as optional column
              (HO can see / edit which sites each account is assigned to).
              Column is hidden by default to keep the list clean.
     ══════════════════════════════════════════════════════════════════════════ -->
