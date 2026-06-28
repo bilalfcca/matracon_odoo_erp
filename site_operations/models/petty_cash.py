@@ -218,6 +218,10 @@ class PettyCashExpense(models.Model):
     expense_date = fields.Date(
         default=fields.Date.context_today, required=True)
     amount = fields.Monetary(required=True, currency_field='currency_id')
+    available_balance = fields.Monetary(
+        related='fund_id.balance', string='Available Balance',
+        currency_field='currency_id', readonly=True,
+    )
     category = fields.Selection([
         ('travel', 'Travel'),
         ('supplies', 'Supplies'),
@@ -234,17 +238,66 @@ class PettyCashExpense(models.Model):
     currency_id = fields.Many2one(
         'res.currency', default=lambda self: self.env.company.currency_id)
 
+    @api.model
+    def default_get(self, fields_list):
+        res = super().default_get(fields_list)
+        if 'fund_id' in fields_list and not res.get('fund_id'):
+            analytic = self.env.user.sudo().x_default_analytic_account_id
+            if analytic:
+                fund = self.env['x.petty.cash.fund'].sudo().search([
+                    ('project_analytic_account_id', '=', analytic.id)
+                ], limit=1)
+                if fund:
+                    res['fund_id'] = fund.id
+        return res
+
     def action_post(self):
         for expense in self:
             if expense.amount <= 0:
                 raise UserError(_('Expense amount must be positive.'))
-            if expense.fund_id.balance < expense.amount - 0.01:
+            balance_before = expense.fund_id.balance
+            if balance_before < expense.amount - 0.01:
                 raise UserError(_(
-                    'Insufficient petty cash balance (available: %.2f).'
-                ) % expense.fund_id.balance)
+                    'Insufficient petty cash balance (available: %s %.2f).'
+                ) % (expense.currency_id.symbol, balance_before))
             expense.state = 'posted'
             expense._create_journal_entry()
-            expense.message_post(body=_('Expense posted against petty cash fund.'))
+            balance_after = balance_before - expense.amount
+
+            # Human-readable chatter with category label and balances
+            category_label = dict(
+                expense._fields['category'].selection
+            ).get(expense.category, expense.category)
+            sym = expense.currency_id.symbol
+            body = Markup(
+                '<b>Expense Posted</b><br/>'
+                '<b>Description:</b> {name}<br/>'
+                '<b>Category:</b> {cat}<br/>'
+                '<b>Amount:</b> {sym} {amount}<br/>'
+                '<b>Balance Before:</b> {sym} {before}<br/>'
+                '<b>Balance After:</b> {sym} {after}'
+            ).format(
+                name=expense.name,
+                cat=category_label,
+                sym=sym,
+                amount=f'{expense.amount:,.2f}',
+                before=f'{balance_before:,.2f}',
+                after=f'{balance_after:,.2f}',
+            )
+
+            # Attach receipt to the chatter message if present
+            attachment_ids = []
+            if expense.receipt:
+                attachment = self.env['ir.attachment'].sudo().create({
+                    'name': expense.receipt_filename or 'receipt',
+                    'datas': expense.receipt,
+                    'res_model': 'x.petty.cash.expense',
+                    'res_id': expense.id,
+                    'mimetype': 'application/octet-stream',
+                })
+                attachment_ids = [attachment.id]
+
+            expense.message_post(body=body, attachment_ids=attachment_ids)
 
     def _create_journal_entry(self):
         """Create debit Expense / credit Petty Cash journal entry."""

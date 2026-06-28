@@ -104,22 +104,36 @@
                 <header>
                     <button name="action_post" type="object" string="Post Expense"
                             class="btn-primary" invisible="state != 'draft'"
-                            groups="site_operations.group_site_accountant"/>
+                            groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_head_office"/>
                     <field name="state" widget="statusbar"/>
                 </header>
                 <sheet>
                     <group>
-                        <field name="fund_id"/>
-                        <field name="project_analytic_account_id" readonly="1"/>
-                        <field name="expense_date"/>
-                        <field name="category"/>
-                        <field name="name"/>
-                        <field name="amount"/>
-                        <field name="receipt" filename="receipt_filename"/>
+                        <group string="Fund">
+                            <field name="fund_id" readonly="state == 'posted'"/>
+                            <field name="project_analytic_account_id" readonly="1"/>
+                            <field name="available_balance" readonly="1"
+                                   widget="monetary"
+                                   options="{'currency_field': 'currency_id'}"
+                                   force_save="1"/>
+                        </group>
+                        <group string="Expense Details">
+                            <field name="expense_date" readonly="state == 'posted'"/>
+                            <field name="category" readonly="state == 'posted'"/>
+                            <field name="name" string="Description" readonly="state == 'posted'"/>
+                            <field name="amount" readonly="state == 'posted'"/>
+                            <field name="currency_id" invisible="1"/>
+                        </group>
+                    </group>
+                    <group string="Receipt / Voucher">
+                        <field name="receipt" widget="binary"
+                               filename="receipt_filename"
+                               string="Upload Receipt"
+                               readonly="state == 'posted'"/>
                         <field name="receipt_filename" invisible="1"/>
-                        <field name="currency_id" invisible="1"/>
                     </group>
                 </sheet>
+                <chatter/>
             </form>
         </field>
     </record>
