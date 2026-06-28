@@ -2,6 +2,24 @@
 <odoo>
 
     <!-- ══════════════════════════════════════════════════════════════════════
+         0.  Invoice Lines → Account column visible to site accountants
+             Standard Odoo gates account_id in invoice lines on
+             account.group_account_readonly. Site accountants have only
+             group_account_invoice, so the column is hidden for them.
+             We extend the groups to include group_site_accountant.
+    ══════════════════════════════════════════════════════════════════════════ -->
+    <record id="view_move_form_invoice_line_account_site_accountant" model="ir.ui.view">
+        <field name="name">account.move.form.invoice.line.account.site.accountant</field>
+        <field name="model">account.move</field>
+        <field name="inherit_id" ref="account.view_move_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='account_id'][@widget='many2one_account_account']" position="attributes">
+                <attribute name="groups">account.group_account_readonly,site_operations.group_site_accountant</attribute>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
          1.  Journal Items tab on vendor bill / account.move
              Add site_operations.group_site_accountant alongside the standard
              account.group_account_readonly so site accountants can see the
