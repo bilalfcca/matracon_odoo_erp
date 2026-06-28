@@ -227,6 +227,14 @@
               sequence="30"
               groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
+    <!-- Accounting → Chart of Accounts (Site Accountant — sees only their site accounts) -->
+    <menuitem id="menu_chart_of_accounts_site_accountant"
+              name="Chart of Accounts"
+              parent="account.menu_finance"
+              action="account.action_account_form"
+              sequence="34"
+              groups="site_operations.group_site_accountant"/>
+
     <!-- Accounting → Reporting → Material Cost Consumption -->
     <menuitem id="menu_material_cost_report"
               name="Material Cost Consumption"

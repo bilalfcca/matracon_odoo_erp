@@ -47,6 +47,7 @@
         'views/liability_sheet_views.xml',
         'views/vendor_bill_views.xml',
         'views/vendor_payment_views.xml',
+        'views/account_account_views.xml',
         'views/interproject_transfer_views.xml',
         'views/site_config_views.xml',
         'views/return_picking_views.xml',

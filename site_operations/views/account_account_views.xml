@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         1.  Journal Items tab on vendor bill / account.move
+             Add site_operations.group_site_accountant alongside the standard
+             account.group_account_readonly so site accountants can see the
+             GL breakdown of their bills.
+    ══════════════════════════════════════════════════════════════════════════ -->
+    <record id="view_move_form_journal_items_site_accountant" model="ir.ui.view">
+        <field name="name">account.move.form.journal.items.site.accountant</field>
+        <field name="model">account.move</field>
+        <field name="inherit_id" ref="account.view_move_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//page[@name='aml_tab']" position="attributes">
+                <attribute name="groups">account.group_account_readonly,site_operations.group_site_accountant</attribute>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         2.  account.account form: x_site_ids field + hide Balance for sites
+             - Balance stat button is hidden from site accountants (no balance
+               figures should be visible to sites — they are confidential).
+             - x_site_ids Many2many is shown to HO/admin so they can control
+               which sites can see each account when creating/editing accounts.
+    ══════════════════════════════════════════════════════════════════════════ -->
+    <record id="view_account_form_site_ops" model="ir.ui.view">
+        <field name="name">account.account.form.site.ops</field>
+        <field name="model">account.account</field>
+        <field name="inherit_id" ref="account.view_account_form"/>
+        <field name="arch" type="xml">
+
+            <!-- Hide the Balance stat button from site accountants -->
+            <xpath expr="//button[@name='account.action_move_line_select']" position="attributes">
+                <attribute name="groups">account.group_account_readonly</attribute>
+            </xpath>
+
+            <!-- Add Visible to Sites field inside the Accounting tab, below the existing groups -->
+            <xpath expr="//page[@name='accounting']//group[last()]" position="after">
+                <group string="Site Visibility" groups="account.group_account_manager">
+                    <field name="x_site_ids"
+                           widget="many2many_tags"
+                           string="Visible to Sites"
+                           options="{'no_create': True}"
+                           placeholder="Leave empty = Head Office only"/>
+                </group>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         3.  Chart of Accounts list: show x_site_ids as optional column
+             (HO can see / edit which sites each account is assigned to).
+             Column is hidden by default to keep the list clean.
+    ══════════════════════════════════════════════════════════════════════════ -->
+    <record id="view_account_list_site_ops" model="ir.ui.view">
+        <field name="name">account.account.list.site.ops</field>
+        <field name="model">account.account</field>
+        <field name="inherit_id" ref="account.view_account_list"/>
+        <field name="arch" type="xml">
+            <xpath expr="//list" position="inside">
+                <field name="x_site_ids"
+                       widget="many2many_tags"
+                       string="Visible to Sites"
+                       optional="hide"
+                       groups="account.group_account_manager"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

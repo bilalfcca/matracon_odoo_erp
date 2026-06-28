@@ -34,3 +34,4 @@ from . import subcontractor_ipc
 from . import material_cost_consumption
 from . import account_journal
 from . import account_analytic_account
+from . import account_account  # project-scoped chart of accounts visibility
