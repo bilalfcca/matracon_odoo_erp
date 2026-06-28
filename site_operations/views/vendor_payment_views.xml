@@ -10,10 +10,37 @@
 
             <!-- Hide Odoo default payment state bar when using Matracon liability workflow -->
             <xpath expr="//field[@name='state'][@widget='statusbar']" position="attributes">
-                <attribute name="invisible">payment_type == 'outbound' and x_liability_sheet_id</attribute>
+                <attribute name="invisible">payment_type == 'outbound' and (x_liability_sheet_id or x_ceo_direct_payment)</attribute>
+            </xpath>
+
+            <!-- Hide standard Confirm/Cancel from CEO on direct payments -->
+            <xpath expr="//button[@name='action_post']" position="attributes">
+                <attribute name="invisible">x_ceo_direct_payment and x_viewer_is_ceo_only</attribute>
+            </xpath>
+
+            <!-- WHT Certificate stat button -->
+            <xpath expr="//sheet" position="before">
+                <div class="oe_button_box" name="button_box">
+                    <button name="action_view_wht_certificates"
+                            type="object"
+                            class="oe_stat_button"
+                            icon="fa-certificate"
+                            invisible="x_wht_certificate_count == 0">
+                        <field name="x_wht_certificate_count"
+                               widget="statinfo"
+                               string="WHT Certs"/>
+                    </button>
+                </div>
             </xpath>
 
             <xpath expr="//header" position="inside">
+                <!-- Role + direct-payment flags (invisible helpers) -->
+                <field name="x_ceo_direct_payment" invisible="1"/>
+                <field name="x_ceo_submitted" invisible="1"/>
+                <field name="x_viewer_is_fo" invisible="1"/>
+                <field name="x_viewer_is_ceo_only" invisible="1"/>
+
+                <!-- CEO: approve salary/petty cash payments -->
                 <button name="action_ceo_approve_payment"
                         type="object"
                         string="Approve (CEO)"
@@ -26,11 +53,26 @@
                        invisible="x_payment_category not in ('salary', 'petty_cash')"
                        readonly="1"/>
 
+                <!-- CEO Direct Payment: statusbar + Submit button -->
                 <field name="x_payment_status"
                        widget="statusbar"
                        statusbar_visible="draft,in_process,paid"
-                       invisible="payment_type != 'outbound' or not x_liability_sheet_id"/>
+                       invisible="payment_type != 'outbound' or (not x_liability_sheet_id and not x_ceo_direct_payment)"/>
 
+                <!-- CEO submits their direct payment to FO -->
+                <button name="action_ceo_submit_to_fo"
+                        type="object"
+                        string="Submit to Finance HO"
+                        class="btn-primary"
+                        groups="purchase_demand_raise.group_ceo_approval"
+                        invisible="not x_ceo_direct_payment or x_viewer_is_fo or state != 'draft' or x_ceo_submitted"/>
+
+                <!-- Print Cheque button -->
+                <button name="action_print_cheque" type="object"
+                        string="Print Cheque" class="btn-secondary" icon="fa-print"
+                        invisible="not x_is_cheque_payment or state == 'draft'"/>
+
+                <!-- FO buttons (hidden from CEO-only viewers on their own direct payments) -->
                 <button name="action_set_in_process"
                         type="object"
                         string="Set In Process"
@@ -40,10 +82,10 @@
 
                 <button name="action_mark_paid"
                         type="object"
-                        string="Mark Paid"
+                        string="Mark Paid (FO)"
                         class="btn-success"
                         groups="site_operations.group_finance_ho,purchase_demand_raise.group_head_office"
-                        invisible="x_payment_status == 'paid' or payment_type != 'outbound' or state != 'posted'"/>
+                        invisible="x_payment_status != 'in_process' or payment_type != 'outbound'"/>
             </xpath>
 
             <xpath expr="//field[@name='amount']" position="before">
@@ -67,7 +109,7 @@
                        required="payment_type == 'inbound'"/>
 
                 <field name="x_vendor_bank_account_id"
-                       invisible="payment_type != 'outbound'"/>
+                       invisible="payment_type != 'outbound' or (x_ceo_direct_payment and x_viewer_is_ceo_only)"/>
 
                 <field name="x_liability_sheet_id"
                        readonly="1"
@@ -80,47 +122,68 @@
 
                 <field name="x_source_project_ids"
                        widget="many2many_tags"
-                       invisible="payment_type != 'outbound'"
+                       invisible="payment_type != 'outbound' or (x_ceo_direct_payment and x_viewer_is_ceo_only)"
                        required="payment_type == 'outbound' and x_liability_sheet_id"/>
 
                 <field name="x_cheque_number"
-                       invisible="payment_type != 'outbound' or not x_is_cheque_payment"
+                       invisible="payment_type != 'outbound' or not x_is_cheque_payment or (x_ceo_direct_payment and x_viewer_is_ceo_only)"
                        required="payment_type == 'outbound' and x_is_cheque_payment and x_liability_sheet_id"/>
+                <button name="action_assign_cheque_number" type="object"
+                        string="Auto Assign Cheque No"
+                        class="btn-secondary"
+                        invisible="not x_is_cheque_payment or x_cheque_number or (x_ceo_direct_payment and x_viewer_is_ceo_only)"/>
             </xpath>
 
-            <!-- Bank balance directly under journal selection -->
+            <!-- Bank balance — hidden from CEO on direct payments -->
             <xpath expr="//field[@name='journal_id']" position="after">
                 <field name="x_available_bank_balance"
                        string="Bank Balance"
                        readonly="1"
-                       invisible="not journal_id"/>
+                       invisible="not journal_id or (x_ceo_direct_payment and x_viewer_is_ceo_only)"/>
             </xpath>
 
-            <!-- Tax section — multi-line with add-more -->
+            <!-- Tax section — full-width with summary row (FO only) -->
             <xpath expr="//notebook" position="before">
-                <group string="Tax Compliance"
-                     class="matracon-tax-compliance"
-                     invisible="payment_type != 'outbound' or not x_liability_sheet_id">
-                    <field name="x_tax_line_ids" nolabel="1" colspan="2">
-                        <list string="Taxes" editable="bottom">
+                <div invisible="payment_type != 'outbound' or (not x_liability_sheet_id and not x_ceo_direct_payment) or (x_ceo_direct_payment and x_viewer_is_ceo_only)">
+                    <separator string="Tax Compliance"/>
+                    <field name="x_tax_line_ids" nolabel="1">
+                        <list string="Tax Lines" editable="bottom">
                             <field name="sequence" widget="handle"/>
-                            <field name="tax_type" string="Type"/>
-                            <field name="tax_id" string="Tax"/>
+                            <field name="tax_type" string="Tax Type" optional="show"/>
+                            <field name="tax_id" string="Tax Name"/>
                             <field name="effect" string="Effect"/>
-                            <field name="amount" string="Amount" readonly="1"/>
+                            <field name="amount" string="Deducted Amount" readonly="1"/>
                         </list>
                     </field>
-                    <group>
-                        <field name="x_total_tax_amount" string="Total Deducted" readonly="1"/>
-                        <field name="x_net_payable" string="Net Payable to Vendor" readonly="1"/>
-                    </group>
-                </group>
+                    <div class="d-flex justify-content-end gap-5 py-2 pe-2 border-top">
+                        <div class="text-end">
+                            <div class="text-muted small fw-bold text-uppercase" style="font-size:0.75em;">Total Deducted</div>
+                            <field name="x_total_tax_amount" nolabel="1" readonly="1" class="fw-bold"/>
+                        </div>
+                        <div class="text-end">
+                            <div class="text-muted small fw-bold text-uppercase" style="font-size:0.75em;">Net Payable to Vendor</div>
+                            <field name="x_net_payable" nolabel="1" readonly="1" class="fw-bold text-success fs-5"/>
+                        </div>
+                    </div>
+                </div>
+            </xpath>
+
+            <!-- Generate WHT Certificate button (below tax section, above notebook) -->
+            <xpath expr="//notebook" position="before">
+                <div invisible="state not in ('in_process', 'paid', 'partial') or not x_wht_amount"
+                     class="mb-2">
+                    <button name="action_generate_wht_certificate"
+                            type="object"
+                            string="Generate WHT Certificate"
+                            class="btn-warning"
+                            groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"/>
+                </div>
             </xpath>
 
             <xpath expr="//notebook" position="inside">
                 <page name="fund_allocation_tab"
                       string="Fund Allocation &amp; Tracking"
-                      invisible="payment_type != 'outbound'">
+                      invisible="payment_type != 'outbound' or (x_ceo_direct_payment and x_viewer_is_ceo_only)">
                     <field name="x_allocation_ids" widget="one2many">
                         <list string="Fund Allocation" editable="bottom">
                             <field name="project_analytic_account_id" string="Source Project"/>

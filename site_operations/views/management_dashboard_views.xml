@@ -17,6 +17,7 @@
                 <sheet>
                     <field name="currency_id" invisible="1"/>
                     <field name="available_project_ids" invisible="1"/>
+                    <field name="x_is_site_accountant" invisible="1"/>
 
                     <div class="oe_title mb-3">
                         <h1><field name="name" readonly="1" class="oe_inline"/></h1>
@@ -165,6 +166,56 @@
 
                     </div>
 
+                    <!-- ══ ATTENDANCE KPI CARDS ══ -->
+                    <div class="row g-3 mb-4">
+
+                        <div class="col-12 col-md-4">
+                            <div class="card matracon-mgmt-kpi h-100" style="border-left: 3px solid #28a745;">
+                                <div class="card-body py-3">
+                                    <small class="matracon-mgmt-kpi__label">Monthly Presents</small>
+                                    <div class="matracon-mgmt-kpi__value">
+                                        <field name="kpi_monthly_present_days" nolabel="1" readonly="1" class="oe_inline"/>
+                                        <span class="small ms-1">Man-Days</span>
+                                    </div>
+                                    <small class="text-muted">
+                                        <field name="kpi_capacity_utilization_pct" nolabel="1" readonly="1" class="oe_inline" widget="float" options='{"digits": [5, 1]}'/>% Capacity Utilization
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-md-4">
+                            <div class="card matracon-mgmt-kpi h-100" style="border-left: 3px solid #17a2b8;">
+                                <div class="card-body py-3">
+                                    <small class="matracon-mgmt-kpi__label">6-Month Avg Presents</small>
+                                    <div class="matracon-mgmt-kpi__value">
+                                        <field name="kpi_6m_avg_present" nolabel="1" readonly="1" class="oe_inline" widget="float" options='{"digits": [16, 0]}'/>
+                                        <span class="small ms-1">Man-Days</span>
+                                    </div>
+                                    <small class="text-muted">
+                                        <field name="kpi_monthly_attendance_pct" nolabel="1" readonly="1" class="oe_inline" widget="float" options='{"digits": [5, 1]}'/>% Avg Attendance
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-md-4">
+                            <div class="card matracon-mgmt-kpi h-100" style="border-left: 3px solid #6f42c1;">
+                                <div class="card-body py-3">
+                                    <small class="matracon-mgmt-kpi__label">6-Month Avg Staff</small>
+                                    <div class="matracon-mgmt-kpi__value">
+                                        <field name="kpi_6m_avg_staff" nolabel="1" readonly="1" class="oe_inline" widget="float" options='{"digits": [16, 0]}'/>
+                                        <span class="small ms-1">Staff</span>
+                                    </div>
+                                    <small class="text-muted">
+                                        Current Workforce: <field name="kpi_total_employees" nolabel="1" readonly="1" class="oe_inline"/>
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
                     <!-- ══ TAB: Management Overview ══ -->
                     <div invisible="filter_dashboard_tab != 'overview'">
 
@@ -266,6 +317,45 @@
                         </div>
 
                         <div class="card border-0 matracon-dash-card mb-3">
+                            <div class="card-header py-2 px-3">
+                                <strong>Attendance &amp; Petty Cash by Project</strong>
+                            </div>
+                            <div class="card-body p-0 matracon-dash-table-wrap">
+                                <field name="attendance_line_ids" nolabel="1" readonly="1">
+                                    <list create="false" delete="false" edit="false">
+                                        <field name="project_name" string="Project"/>
+                                        <field name="employee_count" string="Employees"/>
+                                        <field name="monthly_present_days" string="Monthly Present (Man-Days)"/>
+                                        <field name="attendance_pct" string="Attendance %" digits="[5, 1]"/>
+                                        <field name="petty_cash_balance" widget="monetary" string="Available Petty Cash"/>
+                                    </list>
+                                </field>
+                            </div>
+                        </div>
+
+                        <div class="card border-0 matracon-dash-card mb-3">
+                            <div class="card-header py-2 px-3">
+                                <strong>Subcontractor IPCs</strong>
+                            </div>
+                            <div class="card-body p-0 matracon-dash-table-wrap">
+                                <field name="ipc_line_ids" nolabel="1" readonly="1">
+                                    <list string="Subcontractor IPCs" create="0" edit="0" delete="0">
+                                        <field name="ipc_name"/>
+                                        <field name="subcontractor_name"/>
+                                        <field name="project_name"/>
+                                        <field name="period"/>
+                                        <field name="ipc_date"/>
+                                        <field name="gross_work_done" widget="monetary" options="{'currency_field': 'currency_id'}"/>
+                                        <field name="total_deductions" widget="monetary" options="{'currency_field': 'currency_id'}"/>
+                                        <field name="net_payable" widget="monetary" options="{'currency_field': 'currency_id'}"/>
+                                        <field name="state"/>
+                                        <field name="currency_id" column_invisible="1"/>
+                                    </list>
+                                </field>
+                            </div>
+                        </div>
+
+                        <div class="card border-0 matracon-dash-card mb-3">
                             <div class="card-header py-2 px-3 d-flex justify-content-between">
                                 <strong>All Projects — Financial Summary</strong>
                                 <button name="action_open_project_financial_overview" type="object"
@@ -288,6 +378,11 @@
                                                decoration-danger="bg_status == 'expired'"/>
                                         <field name="bg_amount" widget="monetary" optional="show"/>
                                         <field name="petty_cash_balance" widget="monetary" optional="hide"/>
+                                        <field name="contract_value" widget="monetary" options="{'currency_field': 'currency_id'}" optional="show"/>
+                                        <field name="billed_to_client" widget="monetary" options="{'currency_field': 'currency_id'}" optional="show"/>
+                                        <field name="work_completion_pct" string="Work %" optional="show"/>
+                                        <field name="financial_completion_pct" string="Financial %" optional="show"/>
+                                        <field name="remaining_work_value" widget="monetary" options="{'currency_field': 'currency_id'}" optional="show"/>
                                     </list>
                                 </field>
                             </div>

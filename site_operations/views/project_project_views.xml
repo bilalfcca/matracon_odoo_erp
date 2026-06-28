@@ -46,6 +46,13 @@
                     <field name="x_site_store_user_ids" widget="many2many_tags"/>
                     <field name="x_site_accountant_user_ids" widget="many2many_tags"/>
                 </group>
+                <group string="Contract &amp; Progress" name="matracon_contract_progress">
+                    <field name="x_contract_value"/>
+                    <field name="x_billed_to_client"/>
+                    <field name="x_work_completion_pct" widget="percentage"/>
+                    <field name="x_financial_completion_pct" readonly="1" widget="percentage"/>
+                    <field name="x_remaining_work_value" readonly="1"/>
+                </group>
             </xpath>
         </field>
     </record>

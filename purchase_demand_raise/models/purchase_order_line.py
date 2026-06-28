@@ -34,10 +34,12 @@ class PurchaseOrderLine(models.Model):
     )
     x_recommended_qty = fields.Float(
         string='Recommended Qty', digits='Product Unit of Measure', default=0.0,
+        copy=False,
         help='Quantity recommended by Procurement HO.'
     )
     x_qty_adjustment_reason = fields.Text(
         string='Adjustment Reason',
+        copy=False,
         help='Mandatory when recommended qty differs from requested qty. '
              'Logged to the PR chatter when saved.',
     )
@@ -53,7 +55,7 @@ class PurchaseOrderLine(models.Model):
     x_approved_qty = fields.Float(
         string='Approved Qty', digits='Product Unit of Measure',
         compute='_compute_approved_qty',
-        store=True, readonly=False,
+        store=True, readonly=False, copy=False,
         help='Final quantity approved by CEO. Feeds the locked PO.'
     )
 
@@ -64,7 +66,7 @@ class PurchaseOrderLine(models.Model):
         ('25', '25%'),
         ('50', '50%'),
         ('75', '75%'),
-    ], string='Decision', default='manual',
+    ], string='Decision', default='manual', copy=False,
         help='CEO approval tier. Auto-computes Approved Qty (except Manual).'
     )
 
@@ -90,6 +92,8 @@ class PurchaseOrderLine(models.Model):
 
     def _check_ho_qty_adjustment_reason(self, vals):
         """Block HO from saving a qty change without a reason during PR review."""
+        if self.env.context.get('matracon_skip_alt_sync'):
+            return
         if not self.env.user.has_group('purchase_demand_raise.group_procurement_ho'):
             return
         for line in self:

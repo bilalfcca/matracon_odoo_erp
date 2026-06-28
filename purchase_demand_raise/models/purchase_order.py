@@ -42,6 +42,15 @@ class PurchaseOrder(models.Model):
     x_pm_signed_pr = fields.Binary(string='PM Signed PR', attachment=True)
     x_pm_signed_pr_filename = fields.Char(string='PM Signed PR Filename')
 
+    # ── Project Site Config (PO selects when raising a PR directly) ──────────
+    x_project_site_config_id = fields.Many2one(
+        'x.project.site.config',
+        string='Site Project',
+        tracking=True,
+        help='Select the project for which this procurement is being raised. '
+             'Auto-fills the analytic account and delivery warehouse.',
+    )
+
     # ── Project Analytic Account ──────────────────────────────────────────────
     x_project_analytic_account_id = fields.Many2one(
         'account.analytic.account', string='Project Analytic Account', tracking=True,
@@ -75,16 +84,17 @@ class PurchaseOrder(models.Model):
              'False for Odoo native alternative RFQs.',
     )
 
-    @api.depends('x_pr_state', 'x_pm_signed_pr', 'x_category_id', 'x_is_alternative_rfq')
+    @api.depends('x_pr_state', 'x_pm_signed_pr', 'x_category_id', 'x_is_alternative_rfq', 'x_pr_origin')
     def _compute_is_pr_document(self):
         for order in self:
             if order.x_is_alternative_rfq:
                 order.x_is_pr_document = False
                 continue
             order.x_is_pr_document = bool(
-                order.x_pr_state != 'draft'   # Already progressed in workflow
-                or order.x_pm_signed_pr        # PM doc attached → it's a PR
-                or order.x_category_id         # Category selected → our PR form
+                order.x_pr_state != 'draft'              # Already progressed in workflow
+                or order.x_pm_signed_pr                   # PM doc attached → it's a PR
+                or order.x_category_id                    # Category selected → our PR form
+                or order.x_pr_origin == 'procurement_ho'  # PO-raised PR (always PR workflow)
             )
 
     # ── Role flags (used in view expressions — Odoo 19 forbids groups() in attrs) ──
@@ -161,17 +171,53 @@ class PurchaseOrder(models.Model):
                         vals['picking_type_id'] = pt.id
         return super().create(vals_list)
 
+    def copy(self, default=None):
+        """Duplicate resets the full PR workflow — only products are carried over.
+        Category, project, and analytic account are kept as useful defaults.
+        """
+        default = dict(default or {})
+        default.update({
+            # Reset all workflow state
+            'x_pr_state': 'draft',
+            'x_ho_status': 'pending',
+            'x_ceo_status': 'pending',
+            'x_ceo_bypass_ho': False,
+            # Clear PM-signed document
+            'x_pm_signed_pr': False,
+            'x_pm_signed_pr_filename': False,
+            # Clear vendor — selected by HO during approval
+            'partner_id': False,
+        })
+        return super().copy(default)
+
     # ── Default picking_type_id to site user's warehouse ─────────────────────
     @api.model
     def default_get(self, fields_list):
         defaults = super().default_get(fields_list)
+        user = self.env.user
+        is_ho = user.has_group('purchase_demand_raise.group_procurement_ho')
+        is_site_store = user.has_group('purchase_demand_raise.group_site_store')
+        # PO creating a new RFQ → mark as procurement_ho PR so PR workflow shows immediately
+        if is_ho and not is_site_store:
+            defaults['x_pr_origin'] = 'procurement_ho'
         if 'picking_type_id' in fields_list:
-            user = self.env.user
-            if user.has_group('purchase_demand_raise.group_site_store'):
+            if is_site_store:
                 pt = self._matracon_pr_receipt_picking_type(user)
                 if pt:
                     defaults['picking_type_id'] = pt.id
         return defaults
+
+    # ── When PO selects a project → auto-fill analytic + warehouse ───────────
+    @api.onchange('x_project_site_config_id')
+    def _onchange_project_site_config_id(self):
+        config = self.x_project_site_config_id
+        if config:
+            if config.analytic_account_id:
+                self.x_project_analytic_account_id = config.analytic_account_id
+            if config.warehouse_id and config.warehouse_id.in_type_id:
+                self.picking_type_id = config.warehouse_id.in_type_id
+        else:
+            self.x_project_analytic_account_id = False
 
     # ── When analytic account changes on PO → push to all lines ──────────────
     @api.onchange('x_project_analytic_account_id')
@@ -259,44 +305,124 @@ class PurchaseOrder(models.Model):
     #  WORKFLOW ACTIONS
     # ════════════════════════════════════════════════════════
 
+    def _get_project_site_store_partners(self):
+        """Return partner IDs of site store users assigned to the order's project."""
+        self.ensure_one()
+        config = self.x_project_site_config_id
+        if not config:
+            return []
+        return config.site_user_ids.mapped('partner_id').ids
+
     def action_submit_pr(self):
-        """Submit PR — Site Store (with PM doc) or Procurement Officer (direct)."""
+        """Submit PR — Site Store (with PM doc) or Procurement Officer (direct to CEO)."""
         for order in self:
             is_ho = self.env.user.has_group('purchase_demand_raise.group_procurement_ho')
             if not is_ho and not order.x_pm_signed_pr:
                 raise UserError(_('Please attach the PM Signed PR before submitting.'))
             if not order.order_line:
                 raise UserError(_('Please add at least one product line before submitting.'))
-            if is_ho and order.x_pr_origin != 'site_store':
+
+            ho_raised = is_ho and order.x_pr_origin != 'site_store'
+            if ho_raised:
                 order.x_pr_origin = 'procurement_ho'
+                if not order.x_project_site_config_id:
+                    raise UserError(_('Please select the Project before submitting.'))
+                # Auto-set recommended = requested for lines where HO hasn't changed qty
                 for line in order.order_line:
                     if not line.x_recommended_qty and line.x_requested_qty:
                         line.x_recommended_qty = line.x_requested_qty
 
-            order.write({
-                'x_pr_state': 'submitted',
-                'x_ho_status': 'pending',
-                'x_ceo_status': 'pending',
-            })
-            order._ensure_followers()
-            order._schedule_approval_activities()
+            if ho_raised:
+                # ── PO-raised PR: skip HO review → route directly to CEO ──────
+                order.write({
+                    'x_pr_state': 'ceo_final',
+                    'x_ho_status': 'approved',  # Auto-approved (PO is HO)
+                    'x_ceo_status': 'pending',
+                })
+                order._ensure_followers()
 
-            # Internal log
-            order.message_post(
-                body=Markup('PR <b>%s</b> submitted by <b>%s</b>. Awaiting Procurement HO review and vendor recommendation.') % (order.name, self.env.user.name),
-                subtype_xmlid='mail.mt_log_note',
-            )
+                order.message_post(
+                    body=Markup(
+                        '📋 PR <b>%(pr)s</b> submitted by Procurement Officer <b>%(user)s</b> '
+                        'for project <b>%(project)s</b>. Routed directly to CEO for final approval.'
+                    ) % {
+                        'pr': order.name,
+                        'user': self.env.user.name,
+                        'project': order.x_project_site_config_id.name,
+                    },
+                    subtype_xmlid='mail.mt_log_note',
+                )
 
-            # Notify Procurement HO
-            ho_partners = order._get_group_partners('purchase_demand_raise.group_procurement_ho')
-            order._notify_partners(
-                ho_partners,
-                Markup('📋 <b>Action Required — Purchase Requisition Submitted</b><br/>'
-                       'PR <b>%(pr)s</b> has been raised by <b>%(user)s</b>. '
-                       'Please review, select a vendor, and approve to route to CEO.') % {
-                    'pr': order.name, 'user': self.env.user.name,
-                }
-            )
+                # Schedule CEO activities
+                ceo_users = order._get_group_users('purchase_demand_raise.group_ceo_approval')
+                for user in ceo_users:
+                    order.activity_schedule(
+                        'mail.mail_activity_data_todo',
+                        summary=_('CEO Approval Required: %s') % order.name,
+                        note=_('Procurement Officer %(po)s has raised PR %(pr)s for project %(project)s. Please review and give final approval.') % {
+                            'po': self.env.user.name,
+                            'pr': order.name,
+                            'project': order.x_project_site_config_id.name,
+                        },
+                        user_id=user.id,
+                    )
+
+                # Notify CEO
+                ceo_partners = order._get_group_partners('purchase_demand_raise.group_ceo_approval')
+                order._notify_partners(
+                    ceo_partners,
+                    Markup(
+                        '📋 <b>Action Required — CEO Approval: %(pr)s</b><br/>'
+                        'Procurement Officer <b>%(po)s</b> has submitted a PR for project <b>%(project)s</b>.<br/>'
+                        'Please review and give final approval.'
+                    ) % {
+                        'pr': order.name,
+                        'po': self.env.user.name,
+                        'project': order.x_project_site_config_id.name,
+                    }
+                )
+
+                # Notify project's site store users
+                site_store_partners = order._get_project_site_store_partners()
+                if site_store_partners:
+                    order._notify_partners(
+                        site_store_partners,
+                        Markup(
+                            '📦 <b>Purchase Requisition Raised for Your Project</b><br/>'
+                            'Procurement Officer <b>%(po)s</b> has submitted PR <b>%(pr)s</b> '
+                            'for project <b>%(project)s</b>. It is now awaiting CEO approval.'
+                        ) % {
+                            'pr': order.name,
+                            'po': self.env.user.name,
+                            'project': order.x_project_site_config_id.name,
+                        }
+                    )
+
+            else:
+                # ── Site Store PR: standard flow → HO review ─────────────────
+                order.write({
+                    'x_pr_state': 'submitted',
+                    'x_ho_status': 'pending',
+                    'x_ceo_status': 'pending',
+                })
+                order._ensure_followers()
+                order._schedule_approval_activities()
+
+                order.message_post(
+                    body=Markup('PR <b>%s</b> submitted by <b>%s</b>. Awaiting Procurement HO review and vendor recommendation.') % (order.name, self.env.user.name),
+                    subtype_xmlid='mail.mt_log_note',
+                )
+
+                # Notify Procurement HO
+                ho_partners = order._get_group_partners('purchase_demand_raise.group_procurement_ho')
+                order._notify_partners(
+                    ho_partners,
+                    Markup('📋 <b>Action Required — Purchase Requisition Submitted</b><br/>'
+                           'PR <b>%(pr)s</b> has been raised by <b>%(user)s</b>. '
+                           'Please review, select a vendor, and approve to route to CEO.') % {
+                        'pr': order.name, 'user': self.env.user.name,
+                    }
+                )
 
     def action_ho_approve(self):
         """HO approves PR, sets vendor, pulls prices from pricelist → routes to CEO for final approval.

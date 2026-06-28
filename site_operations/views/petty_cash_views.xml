@@ -8,7 +8,10 @@
             <form string="Petty Cash Fund">
                 <sheet>
                     <group>
-                        <field name="project_analytic_account_id" readonly="1"/>
+                        <field name="is_ho_fund"/>
+                        <field name="project_analytic_account_id"
+                               readonly="1"
+                               invisible="is_ho_fund"/>
                         <field name="balance" readonly="1"/>
                         <field name="total_released" readonly="1"/>
                         <field name="total_expensed" readonly="1"/>

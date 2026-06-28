@@ -24,12 +24,23 @@
         gap: 0.35rem 0.5rem;
         row-gap: 0.5rem;
         max-width: 100%;
-        overflow-x: hidden;
+        height: auto !important;
+        min-height: unset !important;
+        overflow: visible !important;
+
+        /* Odoo 19: buttons live inside .o_statusbar_buttons */
+        .o_statusbar_buttons {
+            display: flex !important;
+            flex-wrap: wrap !important;
+            gap: 0.35rem 0.5rem;
+            overflow: visible !important;
+            height: auto !important;
+        }
 
         .btn,
         button {
-            white-space: normal;
-            text-align: center;
+            white-space: nowrap;
+            flex-shrink: 0;
         }
     }
 
@@ -43,8 +54,8 @@
         max-width: 100%;
         margin-bottom: 1rem;
         padding: 0.75rem 1rem;
-        background: var(--o-view-background-color, #fff);
-        border: 1px solid var(--o-border-color, rgba(0, 0, 0, 0.08));
+        background: rgba(220, 53, 69, 0.08);
+        border: 1px solid rgba(220, 53, 69, 0.25);
         border-radius: 8px;
 
         .matracon-dash-filters__label {
@@ -53,7 +64,7 @@
             font-weight: 700;
             letter-spacing: 0.06em;
             text-transform: uppercase;
-            color: var(--o-text-muted, #6c757d);
+            color: var(--bs-secondary-color, var(--o-text-muted, #6c757d));
             margin-bottom: 0.15rem;
         }
 
@@ -198,12 +209,36 @@
 
 .o_dark .o_matracon_dashboard,
 [data-color-scheme="dark"] .o_matracon_dashboard {
-    /* Filter bar: readable label + visible border in dark */
+    /* Filter bar: red-tinted background in dark mode */
     .matracon-dash-filters {
-        border-color: rgba(255, 255, 255, 0.12);
+        background: rgba(220, 53, 69, 0.15);
+        border-color: rgba(220, 53, 69, 0.35);
 
         .matracon-dash-filters__label {
             color: var(--o-text-muted, rgba(255, 255, 255, 0.55));
+        }
+
+        /* Inputs / selects inside the filter box */
+        .o_field_widget,
+        .o_input,
+        .o_select,
+        select,
+        input[type="text"],
+        input[type="search"],
+        input {
+            background-color: rgba(255, 255, 255, 0.07) !important;
+            color: rgba(255, 255, 255, 0.85) !important;
+            border-color: rgba(255, 255, 255, 0.15) !important;
+
+            &::placeholder {
+                color: rgba(255, 255, 255, 0.35) !important;
+            }
+        }
+
+        /* Many2one / selection dropdown text */
+        .o_field_many2one_selection .o_input,
+        .o_field_selection select {
+            color: rgba(255, 255, 255, 0.85) !important;
         }
     }
 

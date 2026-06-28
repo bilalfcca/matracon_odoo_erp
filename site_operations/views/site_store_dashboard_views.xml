@@ -283,6 +283,14 @@
         <field name="model_id" ref="model_x_site_store_dashboard"/>
         <field name="state">code</field>
         <field name="code">action = model.action_open_dashboard()</field>
+        <field name="group_ids" eval="[
+            (4, ref('purchase_demand_raise.group_site_store')),
+            (4, ref('purchase_demand_raise.group_procurement_ho')),
+            (4, ref('purchase_demand_raise.group_head_office')),
+            (4, ref('purchase_demand_raise.group_ceo_approval')),
+            (4, ref('purchase_demand_raise.group_matracon_admin')),
+            (4, ref('base.group_system')),
+        ]"/>
     </record>
 
 </odoo>

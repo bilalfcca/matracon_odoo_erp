@@ -99,6 +99,11 @@
                         class="btn-secondary"
                         invisible="x_transfer_purpose not in ['material_issuance', 'site_to_site']"/>
 
+                <!-- Print MTN button -->
+                <button name="action_print_mtn" type="object"
+                        string="Print MTN" class="btn-secondary" icon="fa-print"
+                        invisible="x_transfer_purpose != 'site_to_site'"/>
+
                 <!-- Print Gate Pass button -->
                 <button name="action_print_gate_pass"
                         type="object"

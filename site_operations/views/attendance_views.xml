@@ -12,6 +12,10 @@
                     <button name="action_load_employees" type="object"
                             string="Load Employees" class="btn-secondary"
                             invisible="state != 'draft'"/>
+                    <button name="action_import_attendance" type="object"
+                            string="Import from File" class="btn-primary"
+                            invisible="state != 'draft'"
+                            groups="site_operations.group_site_accountant"/>
                     <button name="action_verify" type="object"
                             string="Verify" class="btn-primary"
                             invisible="state != 'draft'"
@@ -45,26 +49,27 @@
                             <field name="salary_sheet_id" invisible="1"/>
                         </group>
                     </group>
-                    <group string="Upload Monthly Attendance" invisible="state != 'draft'">
-                        <field name="uploaded_file" filename="uploaded_filename"/>
+                    <group string="Upload Monthly Attendance (CSV or Excel)" invisible="state != 'draft'">
+                        <field name="uploaded_file" filename="uploaded_filename"
+                               help="Upload CSV or Excel. Header: Employee Name | 1 | 2 | … | 31. Codes: P A L H"/>
                         <field name="uploaded_filename" invisible="1"/>
                     </group>
                     <div class="matracon-attendance-legend" invisible="state == 'posted'">
                         <span class="matracon-attendance-legend__item">
                             <span class="matracon-attendance-legend__swatch matracon-attendance-legend__swatch--p"/>
-                            Present (P)
+                            P
                         </span>
                         <span class="matracon-attendance-legend__item">
                             <span class="matracon-attendance-legend__swatch matracon-attendance-legend__swatch--a"/>
-                            Absent (A)
+                            A
                         </span>
                         <span class="matracon-attendance-legend__item">
                             <span class="matracon-attendance-legend__swatch matracon-attendance-legend__swatch--l"/>
-                            Paid Leave (L)
+                            L
                         </span>
                         <span class="matracon-attendance-legend__item">
                             <span class="matracon-attendance-legend__swatch matracon-attendance-legend__swatch--h"/>
-                            Public Holiday (H)
+                            H
                         </span>
                     </div>
                     <notebook>
@@ -104,6 +109,7 @@
                                     <field name="day_30" optional="hide"/>
                                     <field name="day_31" optional="hide"/>
                                     <field name="total_display" string="Total" readonly="1"/>
+                                    <field name="x_advance_amount" string="Advance Recovery" optional="show"/>
                                 </list>
                             </field>
                         </page>

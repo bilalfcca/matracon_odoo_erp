@@ -5,6 +5,18 @@ from odoo.exceptions import UserError
 class StockPickingPR(models.Model):
     _inherit = 'stock.picking'
 
+    # ── QC Approval ───────────────────────────────────────────────────────────
+    x_qc_state = fields.Selection([
+        ('pending', 'Pending QC'),
+        ('approved', 'QC Approved'),
+        ('rejected', 'QC Rejected'),
+    ], string='QC Status', default='pending', tracking=True, copy=False)
+    x_qc_remarks = fields.Text(string='QC Remarks', copy=False)
+    x_qc_approved_by = fields.Many2one(
+        'res.users', string='QC Approved By', readonly=True, copy=False)
+    x_qc_approved_date = fields.Datetime(
+        string='QC Approved On', readonly=True, copy=False)
+
     # ── Gate Pass Inward No ───────────────────────────────────────────────────
     x_gate_pass_no = fields.Char(
         string='Gate Pass Inward No',
@@ -42,6 +54,21 @@ class StockPickingPR(models.Model):
             else:
                 picking.x_project_analytic_account_id = False
 
+    def action_qc_approve(self):
+        for picking in self:
+            picking.x_qc_state = 'approved'
+            picking.x_qc_approved_by = self.env.user.id
+            picking.x_qc_approved_date = fields.Datetime.now()
+            picking.message_post(body=_('QC Approved by %s.') % self.env.user.name)
+
+    def action_qc_reject(self):
+        for picking in self:
+            if not picking.x_qc_remarks:
+                raise UserError(_('Please enter QC remarks before rejecting.'))
+            picking.x_qc_state = 'rejected'
+            picking.message_post(
+                body=_('QC Rejected. Remarks: %s') % picking.x_qc_remarks)
+
     # ── Validate gate: require Gate Pass + Weight Document for PR receipts ────
     def button_validate(self):
         """Block validation until Gate Pass Inward No and Weight Document are
@@ -59,6 +86,9 @@ class StockPickingPR(models.Model):
                     raise UserError(_(
                         'Please complete the following required field(s) before validating:\n\n• %s'
                     ) % '\n• '.join(missing))
+                if picking.x_qc_state != 'approved':
+                    raise UserError(_(
+                        'QC approval is required before validating this receipt.'))
         res = super().button_validate()
         self._matracon_after_receipt_validated()
         return res

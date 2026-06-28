@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_wht_certificate_list" model="ir.ui.view">
+        <field name="name">x.wht.certificate.list</field>
+        <field name="model">x.wht.certificate</field>
+        <field name="arch" type="xml">
+            <list string="WHT Certificates"
+                  decoration-muted="state == 'draft'"
+                  decoration-success="state == 'issued'">
+                <field name="name" string="Certificate No"/>
+                <field name="issue_date"/>
+                <field name="partner_id" string="Vendor"/>
+                <field name="payment_id" string="Payment"/>
+                <field name="tax_period"/>
+                <field name="amount_paid" string="Gross Amount"/>
+                <field name="wht_amount" string="WHT Deducted"/>
+                <field name="currency_id" column_invisible="1"/>
+                <field name="state" widget="badge"
+                       decoration-success="state == 'issued'"
+                       decoration-warning="state == 'draft'"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_wht_certificate_form" model="ir.ui.view">
+        <field name="name">x.wht.certificate.form</field>
+        <field name="model">x.wht.certificate</field>
+        <field name="arch" type="xml">
+            <form string="WHT Deduction Certificate">
+                <header>
+                    <button name="action_issue" type="object"
+                            string="Issue Certificate"
+                            class="btn-primary"
+                            invisible="state != 'draft'"/>
+                    <button name="action_print_certificate" type="object"
+                            string="Print Certificate"
+                            class="btn-secondary"
+                            invisible="state != 'issued'"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,issued"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name" readonly="1"/></h1>
+                    </div>
+                    <group>
+                        <group string="Certificate Details">
+                            <field name="payment_id" readonly="state != 'draft'"/>
+                            <field name="partner_id" readonly="1"/>
+                            <field name="issue_date" readonly="state != 'draft'"/>
+                            <field name="payment_date" readonly="1"/>
+                            <field name="tax_period" readonly="state != 'draft'"/>
+                        </group>
+                        <group string="Amounts">
+                            <field name="amount_paid" readonly="1"/>
+                            <field name="wht_amount" readonly="state != 'draft'"/>
+                            <field name="currency_id" invisible="1"/>
+                        </group>
+                    </group>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_wht_certificate_search" model="ir.ui.view">
+        <field name="name">x.wht.certificate.search</field>
+        <field name="model">x.wht.certificate</field>
+        <field name="arch" type="xml">
+            <search string="Search WHT Certificates">
+                <field name="name"/>
+                <field name="partner_id"/>
+                <field name="payment_id"/>
+                <field name="tax_period"/>
+                <filter name="filter_draft" string="Draft"
+                        domain="[('state', '=', 'draft')]"/>
+                <filter name="filter_issued" string="Issued"
+                        domain="[('state', '=', 'issued')]"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_wht_certificate" model="ir.actions.act_window">
+        <field name="name">WHT Certificates</field>
+        <field name="res_model">x.wht.certificate</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_wht_certificate_search"/>
+    </record>
+
+</odoo>

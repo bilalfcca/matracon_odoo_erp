@@ -1380,6 +1380,9 @@ class StockPickingSiteOps(models.Model):
     def action_print_mif(self):
         return self.env.ref('site_operations.action_report_mif').report_action(self)
 
+    def action_print_mtn(self):
+        return self.env.ref('site_operations.action_report_mtn').report_action(self)
+
     def action_print_gate_pass(self):
         return self.env.ref(
             'site_operations.action_report_gate_pass').report_action(self)

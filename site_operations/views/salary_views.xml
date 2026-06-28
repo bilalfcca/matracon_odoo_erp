@@ -14,12 +14,16 @@
                             invisible="state != 'draft'"
                             groups="site_operations.group_site_accountant"/>
                     <button name="action_submit" type="object"
-                            string="Post to Head Office" class="btn-primary"
+                            string="Submit for CEO Approval" class="btn-primary"
                             invisible="state != 'draft'"
                             groups="site_operations.group_site_accountant"/>
+                    <button name="action_ceo_approve" type="object"
+                            string="Approve" class="btn-success"
+                            invisible="state != 'submitted'"
+                            groups="purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin"/>
                     <button name="action_create_payment" type="object"
                             string="Create Payment" class="btn-primary"
-                            invisible="state not in ('submitted', 'approved')"
+                            invisible="state != 'approved'"
                             groups="site_operations.group_finance_ho,purchase_demand_raise.group_head_office"/>
                 </header>
                 <sheet>

@@ -208,6 +208,62 @@ def migrate_matracon_admin_group(env):
         user.write({'group_ids': [(3, old.id), (4, new.id)]})
 
 
+def reprocess_existing_payments(env):
+    """
+    Backfill side-effects for payments that were posted before the Odoo 19
+    state-fix (state='posted' → 'in_process'/'paid').
+
+    Re-runs on every module upgrade so it is always idempotent:
+      - Tags payment move lines with analytic distribution
+      - Updates liability sheet line paid_amount / marks x_payment_status='paid'
+      - Invalidates project fund caches so financial overview is accurate
+    """
+    import logging
+    _logger = logging.getLogger(__name__)
+
+    POSTED = ('in_process', 'paid', 'partial', 'posted')
+
+    Payment = env['account.payment'].sudo()
+    posted = Payment.search([('state', 'in', list(POSTED))])
+    if not posted:
+        return
+
+    _logger.info('reprocess_existing_payments: processing %d payments', len(posted))
+
+    # 1. Analytic tagging on existing move lines
+    for payment in posted:
+        try:
+            payment._matracon_tag_payment_move_analytic()
+        except Exception:
+            pass
+
+    # 2. Liability paid_amount update
+    liability_payments = posted.filtered(lambda p: p.x_liability_sheet_line_id)
+    for payment in liability_payments:
+        try:
+            line = payment.x_liability_sheet_line_id
+            sibling_payments = payment.x_liability_sheet_id.payment_ids.filtered(
+                lambda p: p.state in POSTED and p.x_liability_sheet_line_id == line
+            )
+            line.paid_amount = sum(
+                p.x_gross_approved_amount or p.amount for p in sibling_payments
+            )
+            if payment.x_payment_status != 'paid':
+                payment.x_payment_status = 'paid'
+            if payment.x_liability_sheet_id:
+                payment.x_liability_sheet_id.action_finalize_if_fully_paid()
+        except Exception:
+            pass
+
+    # 3. Invalidate project fund caches so overview recomputes correctly
+    try:
+        posted._matracon_invalidate_project_funds()
+    except Exception:
+        pass
+
+    _logger.info('reprocess_existing_payments: done')
+
+
 def post_init_hook(env):
     try:
         migrate_matracon_admin_group(env)
@@ -216,9 +272,10 @@ def post_init_hook(env):
         sync_alternative_prs(env)
         seed_demo_bank_balances(env)
         env['x.matracon.app.visibility'].apply_menu_visibility()
+        # Finance HO needs payroll functional access if hr_payroll is installed
         payroll_user = env.ref('hr_payroll.group_hr_payroll_user', raise_if_not_found=False)
         if payroll_user:
-            env.ref('site_operations.group_site_accountant').sudo().write({
+            env.ref('site_operations.group_finance_ho').sudo().write({
                 'implied_ids': [(4, payroll_user.id)],
             })
     except Exception as e:
@@ -227,3 +284,17 @@ def post_init_hook(env):
             'site_operations post_init_hook: skipped user configuration '
             '(not a production DB or users not yet created): %s', e
         )
+    reprocess_existing_payments(env)
+
+
+def post_migrate_hook(env):
+    reprocess_existing_payments(env)
+    # Re-apply payroll functional group to Finance HO if hr_payroll is installed
+    try:
+        payroll_user = env.ref('hr_payroll.group_hr_payroll_user', raise_if_not_found=False)
+        if payroll_user:
+            env.ref('site_operations.group_finance_ho').sudo().write({
+                'implied_ids': [(4, payroll_user.id)],
+            })
+    except Exception:
+        pass

@@ -37,6 +37,7 @@ class HrEmployeeMatracon(models.Model):
         string='EOBI Deduction',
         currency_field='currency_id',
     )
+    x_document_ids = fields.One2many('x.employee.document', 'employee_id', string='Documents')
     currency_id = fields.Many2one(
         related='company_id.currency_id',
         depends=['company_id'],
@@ -51,3 +52,8 @@ class HrEmployeeMatracon(models.Model):
                 if analytic:
                     vals['x_project_analytic_account_id'] = analytic.id
         return super().create(vals_list)
+
+    def action_print_employee_card(self):
+        return self.env.ref(
+            'site_operations.action_report_employee_card'
+        ).report_action(self)

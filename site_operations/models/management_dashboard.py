@@ -2,6 +2,8 @@
 
 from datetime import timedelta
 
+from dateutil.relativedelta import relativedelta
+
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
 
@@ -69,6 +71,21 @@ class ManagementDashboard(models.TransientModel):
     currency_id = fields.Many2one(
         'res.currency', default=lambda self: self.env.company.currency_id)
 
+    # ── Role flag (written during refresh) ──────────────────────────────────
+    x_is_site_accountant = fields.Boolean(readonly=True)
+
+    # ── Attendance KPIs ──────────────────────────────────────────────────────
+    kpi_total_employees = fields.Integer(string='Total Employees', readonly=True)
+    kpi_monthly_present_days = fields.Integer(string='Monthly Present (Man-Days)', readonly=True)
+    kpi_monthly_attendance_pct = fields.Float(
+        string='Monthly Attendance %', readonly=True, digits=(5, 1))
+    kpi_6m_avg_present = fields.Float(
+        string='6-Month Avg Present (Man-Days)', readonly=True, digits=(16, 1))
+    kpi_6m_avg_staff = fields.Float(
+        string='6-Month Avg Staff', readonly=True, digits=(16, 1))
+    kpi_capacity_utilization_pct = fields.Float(
+        string='Capacity Utilization %', readonly=True, digits=(5, 1))
+
     # ── Embedded tables ──────────────────────────────────────────────────────
     project_line_ids = fields.One2many(
         'x.management.dashboard.project.line', 'dashboard_id',
@@ -93,6 +110,12 @@ class ManagementDashboard(models.TransientModel):
     expiring_bg_ids = fields.Many2many(
         'x.bank.guarantee', 'mgmt_dash_expiring_bg_rel', 'dash_id', 'bg_id',
         string='Expiring BGs', readonly=True)
+    attendance_line_ids = fields.One2many(
+        'x.management.dashboard.attendance.line', 'dashboard_id',
+        string='Attendance by Project', readonly=True)
+    ipc_line_ids = fields.One2many(
+        'x.management.dashboard.ipc.line', 'dashboard_id',
+        string='Subcontractor IPCs', readonly=True)
 
     _FILTER_FIELDS = frozenset({
         'filter_dashboard_tab', 'filter_scope', 'filter_project_id',
@@ -101,6 +124,17 @@ class ManagementDashboard(models.TransientModel):
 
     # ── Access & defaults ────────────────────────────────────────────────────
 
+    def _is_site_store_only(self, user=None):
+        """True when the user is Site Store but not any elevated role."""
+        user = user or self.env.user
+        return (
+            user.has_group('purchase_demand_raise.group_site_store')
+            and not user.has_group('site_operations.group_site_accountant')
+            and not user.has_group('site_operations.group_finance_ho')
+            and not user.has_group('purchase_demand_raise.group_ceo_approval')
+            and not user._matracon_is_admin()
+        )
+
     @api.model
     def _can_open_dashboard(self, user=None):
         user = user or self.env.user
@@ -108,16 +142,20 @@ class ManagementDashboard(models.TransientModel):
             user._matracon_is_admin()
             or user.has_group('site_operations.group_finance_ho')
             or user.has_group('purchase_demand_raise.group_ceo_approval')
-            or user.has_group('site_operations.group_site_accountant')
+            or user.has_group('purchase_demand_raise.group_site_store')
         )
 
     @api.model
     def _default_scope_and_project(self):
         user = self.env.user
         analytic = user.x_default_analytic_account_id
+        # Site Accountant: locked to their project
         if user.has_group('site_operations.group_site_accountant') and analytic:
             if not user.has_group('site_operations.group_finance_ho') and not user._matracon_is_admin() and not user.has_group('purchase_demand_raise.group_ceo_approval'):
                 return 'single', analytic.id
+        # Site Store: locked to their project
+        if self._is_site_store_only(user) and analytic:
+            return 'single', analytic.id
         return 'all', False
 
     @api.model
@@ -315,7 +353,7 @@ class ManagementDashboard(models.TransientModel):
         return vendor_lines, sub_lines
 
     def _bg_status_for_project(self, project):
-        BG = self.env['x.bank.guarantee']
+        BG = self.env['x.bank.guarantee'].sudo()
         active = BG.search([
             ('project_id', '=', project.id),
             ('state', 'in', ('pending', 'active', 'locked')),
@@ -335,6 +373,113 @@ class ManagementDashboard(models.TransientModel):
         if released:
             return 'released', released.bg_amount
         return 'none', 0.0
+
+    def _attendance_kpis(self, analytics):
+        """Compute attendance KPIs from x.attendance.sheet for the given analytic accounts."""
+        import calendar
+        import datetime as dt
+
+        today = fields.Date.context_today(self)
+        month_start = today.replace(day=1)
+        six_months_ago = month_start - relativedelta(months=6)
+        currency = self.env.company.currency_id
+
+        AttSheet = self.env['x.attendance.sheet'].sudo()
+
+        # Sheets in the last 6 months
+        six_month_sheets = AttSheet.search([
+            ('project_analytic_account_id', 'in', analytics.ids),
+            ('state', 'in', ('verified', 'posted')),
+            ('date_from', '>=', six_months_ago),
+        ])
+
+        # Current-month sheets (overlapping with this month)
+        current_month_sheets = six_month_sheets.filtered(
+            lambda s: s.date_from >= month_start
+            or (s.date_from < month_start and s.date_to >= month_start)
+        )
+        if not current_month_sheets:
+            # Fallback: latest verified/posted sheet per analytic
+            all_sheets = AttSheet.search([
+                ('project_analytic_account_id', 'in', analytics.ids),
+                ('state', 'in', ('verified', 'posted')),
+            ], order='date_to desc')
+            seen = set()
+            latest = AttSheet.browse()
+            for s in all_sheets:
+                aid = s.project_analytic_account_id.id
+                if aid not in seen:
+                    seen.add(aid)
+                    latest |= s
+            current_month_sheets = latest
+
+        total_employees = sum(current_month_sheets.mapped('employee_count'))
+        monthly_present = sum(current_month_sheets.mapped('total_present_days'))
+        monthly_att_pct = (
+            sum(s.avg_present_pct for s in current_month_sheets) / len(current_month_sheets)
+            if current_month_sheets else 0.0
+        )
+
+        # 6-month averages grouped by year-month
+        monthly_groups = {}
+        for s in six_month_sheets:
+            key = (s.date_from.year, s.date_from.month)
+            if key not in monthly_groups:
+                monthly_groups[key] = {'employees': 0, 'present': 0}
+            monthly_groups[key]['employees'] += s.employee_count
+            monthly_groups[key]['present'] += s.total_present_days
+
+        months_count = len(monthly_groups)
+        if months_count > 0:
+            avg_present = sum(g['present'] for g in monthly_groups.values()) / months_count
+            avg_staff = sum(g['employees'] for g in monthly_groups.values()) / months_count
+        else:
+            avg_present = float(monthly_present)
+            avg_staff = float(total_employees)
+
+        # Capacity utilization (monthly present vs available man-days this month)
+        working_days = sum(
+            1 for d in range(1, calendar.monthrange(today.year, today.month)[1] + 1)
+            if dt.date(today.year, today.month, d).weekday() < 5
+        )
+        capacity_pct = (
+            (monthly_present / (total_employees * working_days) * 100.0)
+            if total_employees and working_days else 0.0
+        )
+
+        # Per-project attendance breakdown
+        attendance_lines = []
+        for analytic in analytics:
+            proj_sheets = current_month_sheets.filtered(
+                lambda s, aid=analytic.id: s.project_analytic_account_id.id == aid
+            )
+            emp_count = sum(proj_sheets.mapped('employee_count'))
+            present = sum(proj_sheets.mapped('total_present_days'))
+            att_pct = (
+                sum(s.avg_present_pct for s in proj_sheets) / len(proj_sheets)
+                if proj_sheets else 0.0
+            )
+            fund = self.env['x.petty.cash.fund'].search([
+                ('project_analytic_account_id', '=', analytic.id),
+            ], limit=1)
+            attendance_lines.append({
+                'project_name': analytic.name,
+                'employee_count': emp_count,
+                'monthly_present_days': present,
+                'attendance_pct': att_pct,
+                'petty_cash_balance': fund.balance if fund else 0.0,
+                'currency_id': currency.id,
+            })
+
+        return {
+            'kpi_total_employees': total_employees,
+            'kpi_monthly_present_days': monthly_present,
+            'kpi_monthly_attendance_pct': monthly_att_pct,
+            'kpi_6m_avg_present': avg_present,
+            'kpi_6m_avg_staff': avg_staff,
+            'kpi_capacity_utilization_pct': capacity_pct,
+            'attendance_line_ids': attendance_lines,
+        }
 
     def _compute_kpi_data(self):
         self.ensure_one()
@@ -388,6 +533,11 @@ class ManagementDashboard(models.TransientModel):
                 'bg_status': bg_status,
                 'bg_amount': bg_amount,
                 'petty_cash_balance': pc_balance,
+                'contract_value': project.x_contract_value,
+                'billed_to_client': project.x_billed_to_client,
+                'work_completion_pct': project.x_work_completion_pct,
+                'financial_completion_pct': project.x_financial_completion_pct,
+                'remaining_work_value': project.x_remaining_work_value,
                 'currency_id': currency.id,
             })
 
@@ -401,7 +551,7 @@ class ManagementDashboard(models.TransientModel):
         bank_total, bank_line_vals = self._bank_balances()
         vendor_lines, sub_lines = self._liability_lines_for_analytics(analytics)
 
-        facilities = self.env['x.bank.guarantee.facility'].search([])
+        facilities = self.env['x.bank.guarantee.facility'].sudo().search([])
         bg_total_facility = sum(facilities.mapped('total_limit'))
         bg_utilized = sum(facilities.mapped('utilized_amount'))
         bg_available = sum(facilities.mapped('available_limit'))
@@ -410,7 +560,7 @@ class ManagementDashboard(models.TransientModel):
         if self.filter_scope == 'single' and self.filter_project_id:
             project_ids = projects.ids
             bg_domain.append(('project_id', 'in', project_ids))
-        active_bgs = self.env['x.bank.guarantee'].search(bg_domain)
+        active_bgs = self.env['x.bank.guarantee'].sudo().search(bg_domain)
         bg_margin = sum(active_bgs.mapped('margin_amount'))
         expiring_domain = [
             ('is_expiring_soon', '=', True),
@@ -418,9 +568,9 @@ class ManagementDashboard(models.TransientModel):
         ]
         if self.filter_scope == 'single' and projects:
             expiring_domain.append(('project_id', 'in', projects.ids))
-        expiring_bgs = self.env['x.bank.guarantee'].search(expiring_domain)
+        expiring_bgs = self.env['x.bank.guarantee'].sudo().search(expiring_domain)
 
-        released_count = self.env['x.bank.guarantee'].search_count([
+        released_count = self.env['x.bank.guarantee'].sudo().search_count([
             ('state', '=', 'released'),
         ])
 
@@ -447,11 +597,11 @@ class ManagementDashboard(models.TransientModel):
             })
 
         bg_project_line_vals = []
-        project_bgs = self.env['x.bank.guarantee'].search([
+        project_bgs = self.env['x.bank.guarantee'].sudo().search([
             ('project_id', 'in', projects.ids),
             ('state', 'in', ('pending', 'active', 'locked', 'expired')),
         ])
-        nature_labels = dict(self.env['x.bank.guarantee']._fields['nature'].selection)
+        nature_labels = dict(self.env['x.bank.guarantee'].sudo()._fields['nature'].selection)
         for bg in project_bgs:
             bg_project_line_vals.append({
                 'guarantee_id': bg.id,
@@ -462,6 +612,42 @@ class ManagementDashboard(models.TransientModel):
                 'expiry_date': bg.expiry_date,
                 'state': bg.state,
                 'currency_id': currency.id,
+            })
+
+        # ── Attendance KPIs ──────────────────────────────────────────────────
+        is_site_accountant = (
+            (
+                user.has_group('site_operations.group_site_accountant')
+                or self._is_site_store_only(user)
+            )
+            and not user.has_group('site_operations.group_finance_ho')
+            and not user._matracon_is_admin()
+            and not user.has_group('purchase_demand_raise.group_ceo_approval')
+        )
+        attendance_data = self._attendance_kpis(analytics)
+
+        # ── IPC Summary Lines ────────────────────────────────────────────────
+        IPC = self.env['x.subcontractor.ipc'].sudo()
+        ipc_domain = [('state', 'in', ('submitted', 'approved', 'paid'))]
+        if self.filter_scope == 'single' and self.filter_project_id:
+            ipc_domain.append(
+                ('project_analytic_account_id', 'in', analytics.ids))
+        ipc_records = IPC.search(ipc_domain, order='ipc_date desc', limit=50)
+        ipc_state_labels = dict(
+            IPC._fields['state'].selection)
+        ipc_lines = []
+        for ipc in ipc_records:
+            ipc_lines.append({
+                'ipc_name': ipc.name,
+                'subcontractor_name': ipc.subcontractor_id.name or '',
+                'project_name': ipc.project_analytic_account_id.name or '',
+                'period': ipc.period,
+                'ipc_date': ipc.ipc_date,
+                'gross_work_done': ipc.gross_work_done,
+                'total_deductions': ipc.total_deductions,
+                'net_payable': ipc.net_payable,
+                'state': ipc_state_labels.get(ipc.state, ''),
+                'currency_id': ipc.currency_id.id,
             })
 
         tab_titles = {
@@ -503,6 +689,15 @@ class ManagementDashboard(models.TransientModel):
             'bg_facility_line_ids': bg_facility_line_vals,
             'bg_project_line_ids': bg_project_line_vals,
             'expiring_bg_ids': expiring_bgs,
+            'x_is_site_accountant': is_site_accountant,
+            'kpi_total_employees': attendance_data['kpi_total_employees'],
+            'kpi_monthly_present_days': attendance_data['kpi_monthly_present_days'],
+            'kpi_monthly_attendance_pct': attendance_data['kpi_monthly_attendance_pct'],
+            'kpi_6m_avg_present': attendance_data['kpi_6m_avg_present'],
+            'kpi_6m_avg_staff': attendance_data['kpi_6m_avg_staff'],
+            'kpi_capacity_utilization_pct': attendance_data['kpi_capacity_utilization_pct'],
+            'attendance_line_ids': attendance_data['attendance_line_ids'],
+            'ipc_line_ids': ipc_lines,
         }
 
     @api.model
@@ -511,6 +706,7 @@ class ManagementDashboard(models.TransientModel):
         line_fields = {
             'project_line_ids', 'vendor_liability_line_ids', 'sub_liability_line_ids',
             'bank_line_ids', 'bg_facility_line_ids', 'bg_project_line_ids',
+            'attendance_line_ids', 'ipc_line_ids',
         }
         write_vals = {}
         for fname, val in data.items():
@@ -544,6 +740,7 @@ class ManagementDashboard(models.TransientModel):
         line_fields = {
             'project_line_ids', 'vendor_liability_line_ids', 'sub_liability_line_ids',
             'bank_line_ids', 'bg_facility_line_ids', 'bg_project_line_ids',
+            'attendance_line_ids', 'ipc_line_ids',
         }
         for fname, val in data.items():
             if fname in line_fields:

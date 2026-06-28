@@ -8,8 +8,8 @@
     margin: 0.5rem 0 1rem;
     padding: 0.65rem 1rem;
     border-radius: 8px;
-    border: 1px solid var(--o-border-color, rgba(0, 0, 0, 0.1));
-    background: var(--o-view-background-color, #fff);
+    border: 1px solid var(--o-color-primary, #714B67);
+    background: color-mix(in srgb, var(--o-color-primary, #714B67) 10%, transparent);
 
     .matracon-attendance-legend__item {
         display: inline-flex;

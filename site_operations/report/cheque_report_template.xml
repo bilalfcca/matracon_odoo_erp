@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="report_cheque_document">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="o">
+                <div class="page" style="font-family: Arial, sans-serif; font-size: 11pt; border: 2px solid #333; padding: 10px; min-height: 80px;">
+                    <!-- Header Row: Bank name + Cheque No + Date -->
+                    <div class="row mb-2">
+                        <div class="col-6">
+                            <strong><t t-esc="o.journal_id.bank_id.name or o.journal_id.name"/></strong>
+                        </div>
+                        <div class="col-6 text-end">
+                            <span class="me-4">
+                                <strong>Cheque No:</strong>
+                                <t t-esc="o.x_cheque_number or ''"/>
+                            </span>
+                            <span>
+                                <strong>Date:</strong>
+                                <t t-esc="o.date" t-options='{"widget": "date"}'/>
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Pay to -->
+                    <div class="row mb-3">
+                        <div class="col-12">
+                            <strong>Pay to:</strong>
+                            <span style="border-bottom: 1px solid #333; min-width: 400px; display: inline-block; margin-left: 8px; padding-bottom: 2px;">
+                                <t t-esc="o.partner_id.name or ''"/>
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Amount in words -->
+                    <div class="row mb-2">
+                        <div class="col-10">
+                            <strong>Amount:</strong>
+                            <span style="border-bottom: 1px solid #333; min-width: 300px; display: inline-block; margin-left: 8px; padding-bottom: 2px;">
+                                <t t-esc="o.currency_id.amount_to_text(o.amount)"/>
+                            </span>
+                        </div>
+                        <div class="col-2 text-end">
+                            <strong><t t-esc="o.currency_id.name"/></strong>
+                        </div>
+                    </div>
+
+                    <!-- Amount in figures + Signature -->
+                    <div class="row mt-3">
+                        <div class="col-6">
+                            <strong><t t-esc="o.currency_id.name"/>:</strong>
+                            <t t-esc="o.amount" t-options='{"widget": "monetary", "display_currency": o.currency_id}'/>
+                        </div>
+                        <div class="col-6 text-end">
+                            <div style="border-top: 1px solid #333; margin-top: 20px; padding-top: 4px;">
+                                <strong>Authorised Signatory</strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </t>
+        </t>
+    </template>
+</odoo>

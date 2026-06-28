@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_subcontractor_ipc_list" model="ir.ui.view">
+        <field name="name">x.subcontractor.ipc.list</field>
+        <field name="model">x.subcontractor.ipc</field>
+        <field name="arch" type="xml">
+            <list string="Subcontractor IPCs"
+                  decoration-muted="state == 'draft'"
+                  decoration-info="state == 'submitted'"
+                  decoration-warning="state == 'approved'"
+                  decoration-success="state == 'paid'">
+                <field name="name" string="IPC No"/>
+                <field name="subcontractor_id" string="Subcontractor"/>
+                <field name="project_analytic_account_id" string="Project"/>
+                <field name="period" string="Period"/>
+                <field name="ipc_date" string="IPC Date"/>
+                <field name="gross_work_done" string="Gross Work Done"/>
+                <field name="total_deductions" string="Total Deductions"/>
+                <field name="net_payable" string="Net Payable"/>
+                <field name="currency_id" column_invisible="1"/>
+                <field name="state" widget="badge"
+                       decoration-muted="state == 'draft'"
+                       decoration-info="state == 'submitted'"
+                       decoration-warning="state == 'approved'"
+                       decoration-success="state == 'paid'"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_subcontractor_ipc_form" model="ir.ui.view">
+        <field name="name">x.subcontractor.ipc.form</field>
+        <field name="model">x.subcontractor.ipc</field>
+        <field name="arch" type="xml">
+            <form string="Subcontractor IPC">
+                <header>
+                    <button name="action_submit" type="object"
+                            string="Submit for Approval"
+                            class="btn-primary"
+                            invisible="state != 'draft'"/>
+                    <button name="action_approve" type="object"
+                            string="Approve"
+                            class="btn-success"
+                            invisible="state != 'submitted'"
+                            groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"/>
+                    <button name="action_print_ipc" type="object" string="Print IPC" class="btn-secondary" icon="fa-print"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,submitted,approved,paid"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_payments" type="object"
+                                class="oe_stat_button" icon="fa-money"
+                                invisible="payment_count == 0">
+                            <field name="payment_count"
+                                   widget="statinfo" string="Payments"/>
+                        </button>
+                    </div>
+                    <div class="oe_title">
+                        <h1><field name="name" readonly="1"/></h1>
+                    </div>
+                    <group>
+                        <group string="IPC Details">
+                            <field name="subcontractor_id"
+                                   readonly="state != 'draft'"/>
+                            <field name="project_analytic_account_id"
+                                   readonly="state != 'draft'"/>
+                            <field name="ipc_date"
+                                   readonly="state != 'draft'"/>
+                            <field name="period"
+                                   readonly="state != 'draft'"/>
+                            <field name="liability_sheet_id"
+                                   readonly="state not in ('draft', 'submitted')"/>
+                            <field name="currency_id" invisible="1"/>
+                        </group>
+                        <group string="Work &amp; Amounts">
+                            <field name="gross_work_done"
+                                   readonly="state != 'draft'"/>
+                            <field name="retention_pct"
+                                   readonly="state != 'draft'"/>
+                            <field name="retention_amount" readonly="1"/>
+                            <field name="advance_recovery"
+                                   readonly="state != 'draft'"/>
+                            <field name="security_withheld"
+                                   readonly="state != 'draft'"/>
+                            <field name="backcharge_amount"
+                                   readonly="state != 'draft'"/>
+                            <field name="other_deductions"
+                                   readonly="state != 'draft'"/>
+                            <field name="total_deductions" readonly="1"/>
+                            <field name="net_payable" readonly="1"
+                                   class="fw-bold text-success"/>
+                        </group>
+                    </group>
+                    <group>
+                        <field name="notes" readonly="state != 'draft'"/>
+                    </group>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_subcontractor_ipc_search" model="ir.ui.view">
+        <field name="name">x.subcontractor.ipc.search</field>
+        <field name="model">x.subcontractor.ipc</field>
+        <field name="arch" type="xml">
+            <search string="Search IPCs">
+                <field name="name"/>
+                <field name="subcontractor_id"/>
+                <field name="project_analytic_account_id"/>
+                <field name="period"/>
+                <filter name="filter_draft" string="Draft"
+                        domain="[('state', '=', 'draft')]"/>
+                <filter name="filter_submitted" string="Submitted"
+                        domain="[('state', '=', 'submitted')]"/>
+                <filter name="filter_approved" string="Approved"
+                        domain="[('state', '=', 'approved')]"/>
+                <filter name="filter_paid" string="Paid"
+                        domain="[('state', '=', 'paid')]"/>
+                <separator/>
+                <filter name="group_subcontractor" string="Group by Subcontractor"
+                        context="{'group_by': 'subcontractor_id'}"/>
+                <filter name="group_project" string="Group by Project"
+                        context="{'group_by': 'project_analytic_account_id'}"/>
+                <filter name="group_state" string="Group by State"
+                        context="{'group_by': 'state'}"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_subcontractor_ipc" model="ir.actions.act_window">
+        <field name="name">Subcontractor IPCs</field>
+        <field name="res_model">x.subcontractor.ipc</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_subcontractor_ipc_search"/>
+    </record>
+
+</odoo>

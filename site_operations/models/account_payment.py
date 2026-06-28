@@ -1,7 +1,13 @@
+from markupsafe import Markup
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
 
 from . import matracon_notifications as matracon_notify
+
+# Odoo 19 removed the 'posted' state from account.payment.
+# Active (non-draft, non-cancelled) payments are now 'in_process', 'paid', or 'partial'.
+# Keep 'posted' here as a fallback for any future Odoo version that restores it.
+_POSTED_STATES = frozenset(('in_process', 'paid', 'partial', 'posted'))
 
 
 class AccountPaymentSiteOps(models.Model):
@@ -61,6 +67,18 @@ class AccountPaymentSiteOps(models.Model):
         ('pending', 'Pending CEO'),
         ('approved', 'CEO Approved'),
     ], string='CEO Approval', default='not_required', tracking=True)
+
+    # ── CEO Direct Payment ────────────────────────────────────────────────────
+    x_ceo_direct_payment = fields.Boolean(
+        string='CEO Direct Payment', default=False,
+        help='Direct vendor payment created by CEO — FO completes journal/tax/allocation.')
+    x_ceo_submitted = fields.Boolean(
+        string='Submitted to FO', default=False,
+        help='True once CEO has submitted this payment to Finance HO.')
+
+    # Role flags for view visibility (non-stored, depends on session user)
+    x_viewer_is_fo = fields.Boolean(compute='_compute_viewer_role', store=False)
+    x_viewer_is_ceo_only = fields.Boolean(compute='_compute_viewer_role', store=False)
 
     x_salary_sheet_id = fields.Many2one(
         'x.salary.sheet', string='Salary Sheet', readonly=True, copy=False)
@@ -127,6 +145,15 @@ class AccountPaymentSiteOps(models.Model):
         string='Net Payable', compute='_compute_tax_amounts', store=True,
         currency_field='currency_id')
 
+    x_wht_certificate_ids = fields.One2many(
+        'x.wht.certificate', 'payment_id', string='WHT Certificates')
+    x_wht_certificate_count = fields.Integer(
+        compute='_compute_wht_certificate_count', store=False)
+
+    x_ipc_id = fields.Many2one(
+        'x.subcontractor.ipc', string='IPC Reference', tracking=True,
+        help='Interim Payment Certificate this payment is linked to.')
+
     x_allocation_ids = fields.One2many(
         'x.payment.project.allocation', 'payment_id',
         string='Fund Allocation')
@@ -138,6 +165,46 @@ class AccountPaymentSiteOps(models.Model):
     # ─────────────────────────────────────────────────────────────────────────
     # COMPUTE
     # ─────────────────────────────────────────────────────────────────────────
+
+    def _compute_wht_certificate_count(self):
+        for p in self:
+            p.x_wht_certificate_count = len(p.x_wht_certificate_ids)
+
+    def action_generate_wht_certificate(self):
+        self.ensure_one()
+        cert = self.env['x.wht.certificate']._generate_from_payment(self)
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'x.wht.certificate',
+            'view_mode': 'form',
+            'res_id': cert.id,
+        }
+
+    def action_view_wht_certificates(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('WHT Certificates'),
+            'res_model': 'x.wht.certificate',
+            'view_mode': 'list,form',
+            'domain': [('payment_id', '=', self.id)],
+        }
+
+    def action_assign_cheque_number(self):
+        """Auto-assign next cheque number from the active series for this bank."""
+        self.ensure_one()
+        if not self.journal_id:
+            raise UserError(_('Select a payment journal first.'))
+        series = self.env['x.cheque.series'].search([
+            ('bank_journal_id', '=', self.journal_id.id),
+            ('state', '=', 'active'),
+        ], limit=1)
+        if not series:
+            raise UserError(_(
+                'No active cheque series found for bank "%s". '
+                'Please set one up.'
+            ) % self.journal_id.name)
+        self.x_cheque_number = series.get_next_cheque_number()
 
     @api.depends('x_fund_project_id')
     def _compute_fund_project_project_id(self):
@@ -153,17 +220,105 @@ class AccountPaymentSiteOps(models.Model):
 
     @api.depends('journal_id')
     def _compute_available_bank_balance(self):
+        AML = self.env['account.move.line']
         for payment in self:
-            if payment.journal_id and payment.journal_id.default_account_id:
-                domain = [
-                    ('account_id', '=', payment.journal_id.default_account_id.id),
-                    ('parent_state', '=', 'posted'),
-                ]
-                lines = self.env['account.move.line'].search(domain)
-                balance = sum(lines.mapped('debit')) - sum(lines.mapped('credit'))
-                payment.x_available_bank_balance = balance
-            else:
+            journal = payment.journal_id
+            if not journal:
                 payment.x_available_bank_balance = 0.0
+                continue
+            # Collect all accounts used by this journal for cash/bank flows:
+            # default (bank account) + outstanding receipts + outstanding payments
+            account_ids = set()
+            for acc in (
+                journal.default_account_id,
+                journal.payment_debit_account_id,
+                journal.payment_credit_account_id,
+            ):
+                if acc:
+                    account_ids.add(acc.id)
+            if not account_ids:
+                payment.x_available_bank_balance = 0.0
+                continue
+            lines = AML.search([
+                ('journal_id', '=', journal.id),
+                ('account_id', 'in', list(account_ids)),
+                ('parent_state', '=', 'posted'),
+            ])
+            payment.x_available_bank_balance = sum(lines.mapped('balance'))
+
+    @api.depends_context('uid')
+    def _compute_viewer_role(self):
+        user = self.env.user
+        is_fo = (
+            user.has_group('site_operations.group_finance_ho')
+            or user._matracon_is_admin()
+        )
+        is_ceo_only = (
+            user.has_group('purchase_demand_raise.group_ceo_approval')
+            and not is_fo
+        )
+        for payment in self:
+            payment.x_viewer_is_fo = is_fo
+            payment.x_viewer_is_ceo_only = is_ceo_only
+
+    @api.model
+    def default_get(self, fields_list):
+        vals = super().default_get(fields_list)
+        user = self.env.user
+        is_ceo_only = (
+            user.has_group('purchase_demand_raise.group_ceo_approval')
+            and not user.has_group('site_operations.group_finance_ho')
+            and not user._matracon_is_admin()
+        )
+        if is_ceo_only:
+            vals['x_ceo_direct_payment'] = True
+            vals['payment_type'] = 'outbound'
+        return vals
+
+    def action_ceo_submit_to_fo(self):
+        """CEO submits a direct payment request to Finance HO for processing."""
+        for payment in self:
+            if payment.x_ceo_submitted:
+                continue
+
+            fo_group = self.env.ref('site_operations.group_finance_ho')
+            fo_users = self.env['res.users'].sudo().search([('all_group_ids', 'in', fo_group.id)])
+
+            # Post human-readable HTML message and notify FO via chatter
+            body = Markup(
+                '<b>CEO Direct Payment Request</b><br/>'
+                'Vendor: <b>{vendor}</b><br/>'
+                'Amount: <b>{currency} {amount}</b><br/>'
+                'Project: <b>{project}</b><br/><br/>'
+                'Please complete journal, tax compliance, and fund allocation, then post.'
+            ).format(
+                vendor=payment.partner_id.name or '—',
+                amount='{:,.2f}'.format(payment.amount),
+                currency=payment.currency_id.name or '',
+                project=payment.x_destination_project_id.name or '—',
+            )
+            payment.message_post(
+                body=body,
+                partner_ids=fo_users.mapped('partner_id').ids,
+                subtype_xmlid='mail.mt_comment',
+            )
+
+            # Create an Odoo activity for each FO user
+            activity_type = self.env.ref('mail.mail_activity_data_todo', raise_if_not_found=False)
+            if activity_type and fo_users:
+                for user in fo_users:
+                    payment.activity_schedule(
+                        activity_type_id=activity_type.id,
+                        summary=_('Process CEO Direct Payment — %s') % (payment.partner_id.name or ''),
+                        note=Markup('<b>{currency} {amount}</b> to <b>{vendor}</b>').format(
+                            currency=payment.currency_id.name or '',
+                            amount='{:,.2f}'.format(payment.amount),
+                            vendor=payment.partner_id.name or '',
+                        ),
+                        user_id=user.id,
+                    )
+
+            payment.x_ceo_submitted = True
 
     @api.depends('payment_method_line_id', 'payment_method_line_id.code', 'payment_method_line_id.name')
     def _compute_x_is_cheque_payment(self):
@@ -348,7 +503,7 @@ class AccountPaymentSiteOps(models.Model):
         Allocation = self.env['x.payment.project.allocation']
         for payment in self.filtered(
             lambda p: p.payment_type == 'outbound'
-            and p.state == 'posted'
+            and p.state in _POSTED_STATES
             and p.x_source_project_ids
             and not p.x_allocation_ids
         ):
@@ -426,7 +581,7 @@ class AccountPaymentSiteOps(models.Model):
         return
 
     def _matracon_create_interproject_entries(self):
-        for payment in self.filtered(lambda p: p.state == 'posted'):
+        for payment in self.filtered(lambda p: p.state in _POSTED_STATES):
             dest = payment.x_destination_project_id
             if not dest or not payment.x_allocation_ids:
                 continue
@@ -445,12 +600,12 @@ class AccountPaymentSiteOps(models.Model):
 
     def _matracon_update_liability_on_post(self):
         for payment in self.filtered(
-            lambda p: p.state == 'posted' and p.x_liability_sheet_line_id
+            lambda p: p.state in _POSTED_STATES and p.x_liability_sheet_line_id
         ):
             line = payment.x_liability_sheet_line_id
             gross_paid = payment.x_gross_approved_amount or payment.amount
             payments = payment.x_liability_sheet_id.payment_ids.filtered(
-                lambda p: p.state == 'posted'
+                lambda p: p.state in _POSTED_STATES
                 and p.x_liability_sheet_line_id == line
             )
             line.paid_amount = sum(
@@ -471,18 +626,25 @@ class AccountPaymentSiteOps(models.Model):
 
     def _matracon_update_petty_cash_on_post(self):
         for payment in self.filtered(
-            lambda p: p.state == 'posted' and p.x_petty_cash_request_id
+            lambda p: p.state in _POSTED_STATES and p.x_petty_cash_request_id
         ):
             payment.x_petty_cash_request_id.action_mark_released(payment.amount)
 
     def _matracon_update_salary_on_post(self):
         for payment in self.filtered(
-            lambda p: p.state == 'posted' and p.x_salary_sheet_id
+            lambda p: p.state in _POSTED_STATES and p.x_salary_sheet_id
         ):
             sheet = payment.x_salary_sheet_id
             if sheet.state != 'paid':
                 sheet.state = 'paid'
                 sheet.message_post(body=_('Salary payment posted by Finance HO.'))
+                # Reduce each employee's advance balance by the amount recovered
+                for line in sheet.line_ids:
+                    if line.detail_advance > 0 and line.employee_id:
+                        emp = line.employee_id.sudo()
+                        new_balance = max(
+                            (emp.x_advance_balance or 0.0) - line.detail_advance, 0.0)
+                        emp.write({'x_advance_balance': new_balance})
 
     def action_post(self):
         self._validate_ceo_payment_approval()
@@ -491,7 +653,7 @@ class AccountPaymentSiteOps(models.Model):
         self._validate_liability_payment()
         self._validate_fund_allocations()
         res = super().action_post()
-        for payment in self.filtered(lambda p: p.state == 'posted'):
+        for payment in self.filtered(lambda p: p.state in _POSTED_STATES):
             payment._matracon_ensure_fund_allocations()
             payment._matracon_tag_payment_move_analytic()
             payment._matracon_create_interproject_entries()
@@ -538,13 +700,21 @@ class AccountPaymentSiteOps(models.Model):
                 vals['analytic_distribution'] = dist
         return line_vals_list
 
+    def action_print_cheque(self):
+        return self.env.ref(
+            'site_operations.action_report_cheque').report_action(self)
+
     def action_set_in_process(self):
-        self.write({'x_payment_status': 'in_process'})
+        # Post to accounting (creates journal entry, tags analytic, updates liability)
+        draft = self.filtered(lambda p: p.state == 'draft')
+        if draft:
+            draft.action_post()
+        self.filtered(lambda p: p.x_payment_status == 'draft').write({'x_payment_status': 'in_process'})
         self.message_post(body=_('Payment set to In Process.'))
 
     def action_mark_paid(self):
         self.write({'x_payment_status': 'paid'})
-        for payment in self.filtered(lambda p: p.state == 'posted'):
+        for payment in self.filtered(lambda p: p.state in _POSTED_STATES):
             payment._matracon_update_liability_on_post()
             payment._matracon_invalidate_project_funds()
         self.message_post(body=_('Payment marked as Paid.'))

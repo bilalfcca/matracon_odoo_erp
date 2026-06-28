@@ -15,7 +15,7 @@
               name="Dashboard"
               parent="purchase.menu_purchase_root"
               action="site_operations.action_site_store_dashboard"
-              sequence="1"
+              sequence="0"
               groups="purchase_demand_raise.group_site_store,purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin"/>
 
     <!-- ── Single "Dashboard" in Inventory (same routing logic) ──────────── -->
@@ -23,7 +23,7 @@
               name="Dashboard"
               parent="stock.menu_stock_root"
               action="site_operations.action_site_store_dashboard"
-              sequence="1"
+              sequence="0"
               groups="purchase_demand_raise.group_site_store,purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin"/>
 
     <!-- Purchase → Configuration → Site Project Configurations (Matracon Admin) -->
@@ -64,13 +64,21 @@
               sequence="26"
               groups="site_operations.group_finance_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
-    <!-- Accounting → Dashboard (CEO, FO, Site Accountant) -->
+    <!-- Accounting → Site Overview (Site Accountant only — NOT admin) -->
+    <menuitem id="menu_site_accountant_dashboard"
+              name="Site Overview"
+              parent="account.menu_finance"
+              action="site_operations.action_site_accountant_dashboard"
+              sequence="1"
+              groups="site_operations.group_site_accountant"/>
+
+    <!-- Accounting → Management Dashboard (Finance HO, CEO, Admin) -->
     <menuitem id="menu_management_dashboard"
-              name="Dashboard"
+              name="Management Dashboard"
               parent="account.menu_finance"
               action="site_operations.action_management_dashboard"
-              sequence="1"
-              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,site_operations.group_site_accountant,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+              sequence="2"
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
     <!-- Accounting → Reporting -->
     <menuitem id="menu_project_financial_overview"
@@ -80,21 +88,29 @@
               sequence="5"
               groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
-    <!-- Project app — Management Dashboard -->
+    <!-- Project app — Site Overview (Admin only — Project app is Admin-only) -->
+    <menuitem id="menu_site_accountant_dashboard_project"
+              name="Site Overview"
+              parent="project.menu_main_pm"
+              action="site_operations.action_site_accountant_dashboard"
+              sequence="1"
+              groups="purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
+    <!-- Project app — Management Dashboard (Admin only — Project app is Admin-only) -->
     <menuitem id="menu_management_dashboard_project"
               name="Management Dashboard"
               parent="project.menu_main_pm"
               action="site_operations.action_management_dashboard"
-              sequence="1"
-              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,site_operations.group_site_accountant,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+              sequence="2"
+              groups="purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
-    <!-- Project app -->
+    <!-- Project app — Financial Overview (Admin only — Project app is Admin-only) -->
     <menuitem id="menu_project_financial_from_project"
               name="Financial Overview"
               parent="project.menu_main_pm"
               action="site_operations.action_project_financial_overview"
               sequence="5"
-              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+              groups="purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
     <!-- HR / Payroll menus -->
     <menuitem id="menu_attendance_registry"
@@ -106,25 +122,38 @@
 
     <menuitem id="menu_salary_sheets"
               name="Salary Sheets"
-              parent="hr.menu_hr_root"
+              parent="hr_attendance.menu_hr_attendance_root"
               action="site_operations.action_salary_sheet"
               sequence="25"
               groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
-    <!-- Petty Cash -->
+    <!-- ── Petty Cash — separate top-level section under Accounting ──────── -->
+    <menuitem id="menu_petty_cash_root"
+              name="Petty Cash"
+              parent="account.menu_finance"
+              sequence="12"
+              groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
     <menuitem id="menu_petty_cash_requests"
-              name="Petty Cash Requests"
-              parent="account.menu_finance_payables"
+              name="Requests"
+              parent="site_operations.menu_petty_cash_root"
               action="site_operations.action_petty_cash_request"
-              sequence="27"
+              sequence="10"
               groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
     <menuitem id="menu_petty_cash_expenses"
-              name="Petty Cash Expenses"
-              parent="account.menu_finance_payables"
+              name="Expenses"
+              parent="site_operations.menu_petty_cash_root"
               action="site_operations.action_petty_cash_expense"
-              sequence="28"
+              sequence="20"
               groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
+    <menuitem id="menu_petty_cash_funds"
+              name="Cash Funds"
+              parent="site_operations.menu_petty_cash_root"
+              action="site_operations.action_petty_cash_fund"
+              sequence="30"
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
     <!-- Accounting → Compliance (HO: CEO, FO, Admin only) -->
     <menuitem id="menu_compliance_root"
@@ -151,6 +180,43 @@
               name="Tax Notices &amp; Orders"
               parent="site_operations.menu_compliance_root"
               action="site_operations.action_tax_notice_order"
+              sequence="20"
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
+    <menuitem id="menu_wht_certificates"
+              name="WHT Certificates"
+              parent="site_operations.menu_compliance_root"
+              action="site_operations.action_wht_certificate"
+              sequence="25"
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
+    <menuitem id="menu_postdated_cheques"
+              name="Post-Dated Cheques"
+              parent="site_operations.menu_compliance_root"
+              action="site_operations.action_postdated_cheque"
+              sequence="30"
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
+    <menuitem id="menu_cheque_series"
+              name="Cheque Series"
+              parent="site_operations.menu_compliance_root"
+              action="site_operations.action_cheque_series"
+              sequence="35"
+              groups="purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
+    <!-- Accounting → Vendors → Subcontractor IPCs -->
+    <menuitem id="menu_subcontractor_ipc"
+              name="Subcontractor IPCs"
+              parent="account.menu_finance_payables"
+              action="site_operations.action_subcontractor_ipc"
+              sequence="30"
+              groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
+    <!-- Accounting → Reporting → Material Cost Consumption -->
+    <menuitem id="menu_material_cost_report"
+              name="Material Cost Consumption"
+              parent="account.menu_finance"
+              action="site_operations.action_material_cost_report"
               sequence="20"
               groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 

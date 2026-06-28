@@ -1,4 +1,5 @@
 from . import hr_employee_ext
+from . import employee_document
 from . import attendance_sheet
 from . import salary_sheet
 from . import petty_cash
@@ -24,3 +25,9 @@ from . import account_move
 from . import res_partner
 from . import res_users
 from . import site_store_dashboard
+from . import site_accountant_dashboard
+from . import wht_certificate
+from . import postdated_cheque
+from . import cheque_series
+from . import subcontractor_ipc
+from . import material_cost_consumption

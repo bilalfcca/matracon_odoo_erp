@@ -13,9 +13,12 @@ class PettyCashFund(models.Model):
     _order = 'project_analytic_account_id'
 
     name = fields.Char(compute='_compute_name', store=True, readonly=True)
+    is_ho_fund = fields.Boolean(
+        string='Head Office Fund', default=False,
+        help='HO-level petty cash not tied to any specific project.')
     project_analytic_account_id = fields.Many2one(
         'account.analytic.account', string='Site Project',
-        required=True, tracking=True, index=True)
+        tracking=True, index=True)
     balance = fields.Monetary(
         compute='_compute_balance', store=True,
         currency_field='currency_id',
@@ -37,11 +40,14 @@ class PettyCashFund(models.Model):
     expense_ids = fields.One2many(
         'x.petty.cash.expense', 'fund_id', string='Expenses')
 
-    @api.depends('project_analytic_account_id')
+    @api.depends('project_analytic_account_id', 'is_ho_fund')
     def _compute_name(self):
         for fund in self:
-            proj = fund.project_analytic_account_id.display_name or _('Petty Cash')
-            fund.name = f'Petty Cash — {proj}'
+            if fund.is_ho_fund and not fund.project_analytic_account_id:
+                fund.name = 'Petty Cash — Head Office'
+            else:
+                proj = fund.project_analytic_account_id.display_name or _('Petty Cash')
+                fund.name = f'Petty Cash — {proj}'
 
     @api.depends(
         'request_ids.state', 'request_ids.released_amount',
@@ -66,6 +72,13 @@ class PettyCashFund(models.Model):
         ], limit=1)
         if not fund:
             fund = self.create({'project_analytic_account_id': analytic.id})
+        return fund
+
+    @api.model
+    def get_or_create_ho_fund(self):
+        fund = self.search([('is_ho_fund', '=', True)], limit=1)
+        if not fund:
+            fund = self.create({'is_ho_fund': True})
         return fund
 
 
@@ -226,4 +239,73 @@ class PettyCashExpense(models.Model):
                     'Insufficient petty cash balance (available: %.2f).'
                 ) % expense.fund_id.balance)
             expense.state = 'posted'
+            expense._create_journal_entry()
             expense.message_post(body=_('Expense posted against petty cash fund.'))
+
+    def _create_journal_entry(self):
+        """Create debit Expense / credit Petty Cash journal entry."""
+        self.ensure_one()
+        # Find or create a 'Petty Cash' cash journal
+        Journal = self.env['account.journal']
+        cash_journal = Journal.search([
+            ('type', '=', 'cash'),
+            ('company_id', '=', self.env.company.id),
+        ], limit=1)
+        if not cash_journal:
+            return  # No cash journal configured — skip silently
+
+        # Use the journal's default cash account as the credit (petty cash source)
+        credit_account = (
+            cash_journal.default_account_id
+            or cash_journal.payment_credit_account_id
+        )
+        if not credit_account:
+            return  # Cannot determine petty cash account
+
+        # Map expense category to an expense account code
+        CATEGORY_ACCOUNT_MAP = {
+            'travel': '6270',      # Travel expenses
+            'supplies': '6280',    # Office supplies
+            'utilities': '6300',   # Utilities
+            'meals': '6290',       # Meals & entertainment
+            'other': '6290',       # General admin expenses
+        }
+        AccountObj = self.env['account.account']
+        code = CATEGORY_ACCOUNT_MAP.get(self.category, '6290')
+        debit_account = AccountObj.search([
+            ('code', 'like', code),
+            ('company_id', '=', self.env.company.id),
+        ], limit=1)
+        if not debit_account:
+            # Fallback: use journal default account on debit side too
+            debit_account = credit_account
+
+        analytic_distribution = {}
+        if self.project_analytic_account_id:
+            analytic_distribution = {
+                str(self.project_analytic_account_id.id): 100
+            }
+
+        move_vals = {
+            'move_type': 'entry',
+            'journal_id': cash_journal.id,
+            'date': self.expense_date,
+            'ref': _('Petty Cash Expense: %s') % self.name,
+            'line_ids': [
+                (0, 0, {
+                    'name': self.name,
+                    'account_id': debit_account.id,
+                    'debit': self.amount,
+                    'credit': 0.0,
+                    'analytic_distribution': analytic_distribution or False,
+                }),
+                (0, 0, {
+                    'name': _('Petty Cash Fund'),
+                    'account_id': credit_account.id,
+                    'debit': 0.0,
+                    'credit': self.amount,
+                }),
+            ],
+        }
+        move = self.env['account.move'].create(move_vals)
+        move.action_post()

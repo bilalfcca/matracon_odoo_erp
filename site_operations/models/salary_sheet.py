@@ -86,7 +86,11 @@ class SalarySheet(models.Model):
                 gross = basic + allowances
                 wht = gross * (emp.x_wht_rate or 0.0) / 100.0
                 eobi = emp.x_eobi_amount or 0.0
-                advance = min(emp.x_advance_balance or 0.0, gross)
+                # Use per-line advance if set (from CSV import), else employee balance
+                if att_line.x_advance_amount:
+                    advance = min(att_line.x_advance_amount, gross)
+                else:
+                    advance = min(emp.x_advance_balance or 0.0, gross)
                 deductions = wht + eobi + advance
                 net = max(gross - deductions, 0.0)
                 self.env['x.salary.sheet.line'].create({
@@ -119,21 +123,50 @@ class SalarySheet(models.Model):
             sheet.state = 'submitted'
             sheet.message_post(
                 body=Markup(_('Salary sheet submitted by <b>%s</b>.')) % self.env.user.name)
+            # Notify CEO for approval
+            ceo_users = self.env['res.users'].search([
+                ('group_ids', 'in', self.env.ref(
+                    'purchase_demand_raise.group_ceo_approval').id),
+            ])
+            matracon_notify.notify_users(
+                sheet, ceo_users,
+                _('Salary sheet <b>%s</b> requires your approval.') % sheet.name,
+                summary=_('Salary Sheet Approval Required'),
+            )
+            matracon_notify.schedule_activity(
+                sheet, ceo_users,
+                _('Approve salary sheet %s') % sheet.name)
+
+    def action_ceo_approve(self):
+        """CEO approves the salary sheet — unlocks payment creation for FO."""
+        for sheet in self:
+            if sheet.state != 'submitted':
+                raise UserError(_('Only submitted salary sheets can be approved.'))
+            sheet.state = 'approved'
+            sheet.message_post(
+                body=Markup(
+                    _('Salary sheet approved by CEO <b>%s</b>.')
+                ) % self.env.user.name)
             fo_users = self.env['res.users'].search([
                 ('group_ids', 'in', self.env.ref(
                     'site_operations.group_finance_ho').id),
             ])
             matracon_notify.notify_users(
                 sheet, fo_users,
-                _('Salary sheet <b>%s</b> submitted for Finance HO.') % sheet.name,
-                summary=_('Salary Sheet Submitted'),
+                _('CEO approved salary sheet <b>%s</b> — create and post payment.') % sheet.name,
+                summary=_('Salary Sheet Approved by CEO'),
             )
+            matracon_notify.schedule_activity(
+                sheet, fo_users,
+                _('Create salary payment for %s') % sheet.name)
 
     def action_create_payment(self):
-        """Finance HO creates consolidated salary payment (CEO approval if FO)."""
+        """Finance HO creates consolidated salary payment after CEO approval."""
         self.ensure_one()
-        if self.state not in ('submitted', 'approved'):
-            raise UserError(_('Submit the salary sheet before creating payment.'))
+        if self.state != 'approved':
+            raise UserError(_(
+                'CEO must approve the salary sheet before a payment can be created.'))
+        analytic = self.project_analytic_account_id
         Payment = self.env['account.payment']
         payment = Payment.create({
             'payment_type': 'outbound',
@@ -142,7 +175,11 @@ class SalarySheet(models.Model):
             'x_gross_approved_amount': self.total_net,
             'x_salary_sheet_id': self.id,
             'x_payment_category': 'salary',
-            'x_destination_project_id': self.project_analytic_account_id.id,
+            'x_destination_project_id': analytic.id,
+            # Gap 3 fix: pre-fill source project so fund allocation works
+            'x_source_project_ids': [(4, analytic.id)] if analytic else [],
+            # CEO already approved at sheet level — skip payment-level approval
+            'x_ceo_approval_state': 'approved',
         })
         return {
             'type': 'ir.actions.act_window',

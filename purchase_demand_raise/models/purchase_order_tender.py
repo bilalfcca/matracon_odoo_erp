@@ -346,6 +346,7 @@ class PurchaseOrderTender(models.Model):
                 'product_qty': root_line.x_recommended_qty or qty,
                 'date_planned': root_line.date_planned,
                 'analytic_distribution': root_line.analytic_distribution,
+                'x_qty_adjustment_reason': root_line.x_qty_adjustment_reason,
             })
 
     def _copy_static_fields_from_root_pr(self, root):

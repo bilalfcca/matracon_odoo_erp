@@ -57,3 +57,9 @@ class PaymentProjectAllocation(models.Model):
         for alloc in self:
             alloc.available_balance = Project.get_available_balance_for_analytic(
                 alloc.project_analytic_account_id)
+
+    @api.onchange('project_analytic_account_id')
+    def _onchange_project_analytic_account_id(self):
+        """Immediately update available balance when project is selected in the list."""
+        self.available_balance = self.env['project.project'].get_available_balance_for_analytic(
+            self.project_analytic_account_id)

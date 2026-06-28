@@ -66,6 +66,39 @@ class ProjectProjectMatracon(models.Model):
         currency_field='currency_id',
         help='Outstanding subcontractor payables tagged to this project.',
     )
+    # ── Contract & Completion Tracking ────────────────────────────────────────
+    x_contract_value = fields.Monetary(
+        string='Contract Value',
+        currency_field='currency_id',
+        tracking=True,
+        help='Total value of the project contract with the client.',
+    )
+    x_billed_to_client = fields.Monetary(
+        string='Billed to Client',
+        currency_field='currency_id',
+        tracking=True,
+        help='Total amount invoiced to the client so far.',
+    )
+    x_work_completion_pct = fields.Float(
+        string='Work Completion %',
+        digits=(5, 1),
+        tracking=True,
+        help='Manual entry: percentage of physical work completed on site.',
+    )
+    x_financial_completion_pct = fields.Float(
+        string='Financial Completion %',
+        compute='_compute_financial_completion_pct',
+        digits=(5, 1),
+        store=True,
+        help='Auto: Billed to Client ÷ Contract Value × 100.',
+    )
+    x_remaining_work_value = fields.Monetary(
+        string='Remaining Work Value',
+        compute='_compute_financial_completion_pct',
+        currency_field='currency_id',
+        store=True,
+    )
+
     currency_id = fields.Many2one(
         'res.currency',
         compute='_compute_currency_id',
@@ -79,6 +112,20 @@ class ProjectProjectMatracon(models.Model):
                 project.company_id.currency_id
                 or self.env.company.currency_id
             )
+
+    @api.depends('x_contract_value', 'x_billed_to_client')
+    def _compute_financial_completion_pct(self):
+        for project in self:
+            if project.x_contract_value:
+                project.x_financial_completion_pct = (
+                    project.x_billed_to_client / project.x_contract_value * 100.0
+                )
+                project.x_remaining_work_value = max(
+                    project.x_contract_value - project.x_billed_to_client, 0.0
+                )
+            else:
+                project.x_financial_completion_pct = 0.0
+                project.x_remaining_work_value = 0.0
 
     @api.depends('x_analytic_account_id')
     def _compute_project_financials(self):
@@ -136,7 +183,7 @@ class ProjectProjectMatracon(models.Model):
         # ── Funds IN: posted inbound payments tagged to this project ────────
         inbound = Payment.search([
             ('payment_type', '=', 'inbound'),
-            ('state', '=', 'posted'),
+            ('state', 'in', ('in_process', 'paid', 'partial', 'posted')),
             ('x_fund_project_id', '=', analytic_id),
         ])
         funds_received = sum(inbound.mapped('amount'))
@@ -145,14 +192,14 @@ class ProjectProjectMatracon(models.Model):
         allocations = Allocation.search([
             ('project_analytic_account_id', '=', analytic_id),
             ('payment_id.payment_type', '=', 'outbound'),
-            ('payment_id.state', '=', 'posted'),
+            ('payment_id.state', 'in', ('in_process', 'paid', 'partial', 'posted')),
         ])
         total_spent = sum(allocations.mapped('allocation_amount'))
 
         # Outbound payments with no allocation lines but single fund project
         outbound_direct = Payment.search([
             ('payment_type', '=', 'outbound'),
-            ('state', '=', 'posted'),
+            ('state', 'in', ('in_process', 'paid', 'partial', 'posted')),
             ('x_fund_project_id', '=', analytic_id),
             ('x_allocation_ids', '=', False),
         ])
@@ -184,7 +231,7 @@ class ProjectProjectMatracon(models.Model):
         if not open_sheets:
             str_aid = str(analytic_id)
             payable_lines = AML.search([
-                ('parent_state', '=', 'posted'),
+                ('parent_state', 'in', ('in_process', 'paid', 'partial', 'posted')),
                 ('account_id.account_type', '=', 'liability_payable'),
                 ('reconciled', '=', False),
                 ('analytic_distribution', '!=', False),
@@ -230,17 +277,17 @@ class ProjectProjectMatracon(models.Model):
         aid = analytic_account.id
         funds_in = sum(Payment.search([
             ('payment_type', '=', 'inbound'),
-            ('state', '=', 'posted'),
+            ('state', 'in', ('in_process', 'paid', 'partial', 'posted')),
             ('x_fund_project_id', '=', aid),
         ]).mapped('amount'))
         spent = sum(Allocation.search([
             ('project_analytic_account_id', '=', aid),
             ('payment_id.payment_type', '=', 'outbound'),
-            ('payment_id.state', '=', 'posted'),
+            ('payment_id.state', 'in', ('in_process', 'paid', 'partial', 'posted')),
         ]).mapped('allocation_amount'))
         spent += sum(Payment.search([
             ('payment_type', '=', 'outbound'),
-            ('state', '=', 'posted'),
+            ('state', 'in', ('in_process', 'paid', 'partial', 'posted')),
             ('x_fund_project_id', '=', aid),
             ('x_allocation_ids', '=', False),
         ]).mapped('amount'))

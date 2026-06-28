@@ -69,3 +69,13 @@
         }
     }
 }
+
+
+/* ── Site Accountant Dashboard — purple list column headers ── */
+.o_site_accountant_dashboard {
+    .o_list_renderer thead tr th,
+    .o_list_table thead tr th {
+        background-color: #714B67 !important;
+        color: #fff !important;
+    }
+}

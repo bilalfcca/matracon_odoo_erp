@@ -5,21 +5,14 @@
         <record id="group_site_accountant" model="res.groups">
             <field name="name">Site Accountant</field>
             <field name="privilege_id" ref="purchase_demand_raise.res_groups_privilege_demand_raise"/>
-            <field name="implied_ids" eval="[(4, ref('account.group_account_invoice'))]"/>
-            <field name="comment">Site Accountants — vendor bills, liability sheets, petty cash.</field>
+            <field name="comment">Site Accountants — vendor bills, liability sheets, petty cash, attendance registry.</field>
         </record>
 
         <!-- ── Finance Officer (FO) ── -->
         <record id="group_finance_ho" model="res.groups">
             <field name="name">Finance Officer (FO)</field>
             <field name="privilege_id" ref="purchase_demand_raise.res_groups_privilege_demand_raise"/>
-            <field name="implied_ids" eval="[(4, ref('account.group_account_manager'))]"/>
-            <field name="comment">Finance Head Office — executes vendor payments against approved liability sheets.</field>
-        </record>
-
-        <!-- Finance HO implied for Matracon Admin (group defined in purchase_demand_raise) -->
-        <record id="purchase_demand_raise.group_matracon_admin" model="res.groups">
-            <field name="implied_ids" eval="[(4, ref('group_finance_ho'))]"/>
+            <field name="comment">Finance Head Office — vendor payments, payroll, HR, compliance.</field>
         </record>
     </data>
 </odoo>

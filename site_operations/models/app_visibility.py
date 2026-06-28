@@ -25,43 +25,56 @@ class MatraconAppVisibility(models.AbstractModel):
         ])
 
         menu_rules = [
-            # Hidden from all Matracon roles except Admin
+            # ── Hidden from all Matracon roles except Admin ───────────────────
             ('mail.menu_root_discuss', admin_only),
             ('project_todo.menu_todo_todos', admin_only),
-            ('contacts.menu_contacts', admin_only),
             ('base.menu_management', admin_only),
             ('base.menu_administration', admin_only),
-            # Role-based apps
+            # Calendar and Time Off — not needed by any site/FO/CEO role
+            ('calendar.calendar_menu', admin_only),
+            ('hr_holidays.menu_open_root', admin_only),
+            # Dashboards (spreadsheet) — admin only
+            ('spreadsheet_dashboard.menu_spreadsheet_dashboard', admin_only),
+            ('board.menu_board_note_global', admin_only),
+
+            # ── Role-based apps ───────────────────────────────────────────────
+            # Purchase — Site Store, Procurement, CEO, Admin
             ('purchase.menu_purchase_root', self._matracon_group_refs([
                 'site_operations.group_mtr_app_purchase',
                 'purchase_demand_raise.group_matracon_admin',
                 'base.group_system',
             ])),
+            # Inventory — Site Store, Procurement, Admin
             ('stock.menu_stock_root', self._matracon_group_refs([
                 'site_operations.group_mtr_app_inventory',
                 'purchase_demand_raise.group_matracon_admin',
                 'base.group_system',
             ])),
+            # Accounting — Site Accountant, FO, CEO, Admin
             ('account.menu_finance', self._matracon_group_refs([
                 'site_operations.group_mtr_app_accounting',
                 'purchase_demand_raise.group_matracon_admin',
                 'base.group_system',
             ])),
+            # Project — Admin only (no role needs Project app)
             ('project.menu_main_pm', self._matracon_group_refs([
                 'site_operations.group_mtr_app_project',
                 'purchase_demand_raise.group_matracon_admin',
                 'base.group_system',
             ])),
+            # Employees (HR) — FO, Admin
             ('hr.menu_hr_root', self._matracon_group_refs([
                 'site_operations.group_mtr_app_hr',
                 'purchase_demand_raise.group_matracon_admin',
                 'base.group_system',
             ])),
+            # Attendance — Site Accountant, FO, Admin
             ('hr_attendance.menu_hr_attendance_root', self._matracon_group_refs([
                 'site_operations.group_mtr_app_attendance',
                 'purchase_demand_raise.group_matracon_admin',
                 'base.group_system',
             ])),
+            # Payroll — FO, Admin
             ('hr_payroll.menu_hr_payroll_menu_root', self._matracon_group_refs([
                 'site_operations.group_mtr_app_payroll',
                 'purchase_demand_raise.group_matracon_admin',
@@ -70,6 +83,18 @@ class MatraconAppVisibility(models.AbstractModel):
             # Alternate payroll root id on some Odoo builds
             ('hr_payroll.menu_hr_payroll_root', self._matracon_group_refs([
                 'site_operations.group_mtr_app_payroll',
+                'purchase_demand_raise.group_matracon_admin',
+                'base.group_system',
+            ])),
+            # Contacts — Procurement + Admin (for vendor management)
+            ('contacts.menu_contacts', self._matracon_group_refs([
+                'site_operations.group_mtr_app_contacts',
+                'purchase_demand_raise.group_matracon_admin',
+                'base.group_system',
+            ])),
+            # Barcode — Inventory users only (Site Store + Procurement + Admin)
+            ('stock_barcode.menu_barcode_root', self._matracon_group_refs([
+                'site_operations.group_mtr_app_inventory',
                 'purchase_demand_raise.group_matracon_admin',
                 'base.group_system',
             ])),
