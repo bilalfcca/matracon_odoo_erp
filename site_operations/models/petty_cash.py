@@ -104,12 +104,22 @@ class PettyCashRequest(models.Model):
     state = fields.Selection([
         ('draft', 'Draft'),
         ('submitted', 'Submitted'),
+        ('ceo_approved', 'CEO Approved'),
         ('released', 'Released'),
         ('confirmed', 'Confirmed'),
         ('rejected', 'Rejected'),
     ], default='draft', tracking=True, required=True)
     released_amount = fields.Monetary(
         currency_field='currency_id', readonly=True, copy=False)
+    ceo_amount_type = fields.Selection([
+        ('full', 'Full Amount'),
+        ('pct_75', '75%'),
+        ('pct_50', '50%'),
+        ('pct_25', '25%'),
+        ('manual', 'Manual'),
+    ], string='Approve Amount As', default='full')
+    ceo_approved_amount = fields.Monetary(
+        string='CEO Approved Amount', currency_field='currency_id', copy=False)
     payment_id = fields.Many2one(
         'account.payment', string='Release Payment', readonly=True, copy=False)
     currency_id = fields.Many2one(
@@ -126,6 +136,10 @@ class PettyCashRequest(models.Model):
                 res['fund_id'] = fund.id
         return res
 
+    _CEO_AMOUNT_FACTORS = {
+        'full': 1.0, 'pct_75': 0.75, 'pct_50': 0.50, 'pct_25': 0.25,
+    }
+
     @api.model_create_multi
     def create(self, vals_list):
         for vals in vals_list:
@@ -137,7 +151,49 @@ class PettyCashRequest(models.Model):
                     self.env['account.analytic.account'].browse(
                         vals['project_analytic_account_id']))
                 vals['fund_id'] = fund.id
+            # Auto-fill CEO approved amount when type is not manual and amount not explicitly set
+            amount_type = vals.get('ceo_amount_type', 'full')
+            if amount_type != 'manual' and not vals.get('ceo_approved_amount'):
+                factor = self._CEO_AMOUNT_FACTORS.get(amount_type, 1.0)
+                vals['ceo_approved_amount'] = (vals.get('requested_amount') or 0.0) * factor
         return super().create(vals_list)
+
+    @api.onchange('ceo_amount_type', 'requested_amount')
+    def _onchange_ceo_amount_type(self):
+        mapping = {
+            'full': 1.0,
+            'pct_75': 0.75,
+            'pct_50': 0.50,
+            'pct_25': 0.25,
+        }
+        if self.ceo_amount_type and self.ceo_amount_type != 'manual':
+            self.ceo_approved_amount = (
+                self.requested_amount * mapping[self.ceo_amount_type]
+            )
+
+    def action_ceo_approve(self):
+        for req in self:
+            if req.state != 'submitted':
+                raise UserError(_('Only submitted requests can be CEO-approved.'))
+            if not req.ceo_approved_amount or req.ceo_approved_amount <= 0:
+                raise UserError(_('Set the CEO approved amount before approving.'))
+            req.state = 'ceo_approved'
+            req.message_post(
+                body=Markup(_(
+                    'CEO approved petty cash: <b>%s %.2f</b>'
+                )) % (req.currency_id.symbol, req.ceo_approved_amount)
+            )
+            # Notify finance HO
+            fo_users = self.env['res.users'].search([
+                ('group_ids', 'in', self.env.ref('site_operations.group_finance_ho').id),
+            ])
+            matracon_notify.notify_users(
+                req, fo_users,
+                _('Petty cash <b>%s</b> CEO-approved — release required.') % req.name,
+                summary=_('Petty Cash Approved'),
+            )
+            matracon_notify.schedule_activity(
+                req, fo_users, _('Release petty cash %s') % req.name)
 
     def action_submit(self):
         for req in self:
@@ -156,25 +212,33 @@ class PettyCashRequest(models.Model):
             )
             matracon_notify.schedule_activity(
                 req, fo_users, _('Release petty cash %s') % req.name)
+            ceo_users = self.env['res.users'].search([
+                ('group_ids', 'in', self.env.ref('purchase_demand_raise.group_ceo_approval').id),
+            ])
+            matracon_notify.notify_users(
+                req, ceo_users,
+                _('Petty cash request <b>%s</b> — CEO approval required.') % req.name,
+                summary=_('Petty Cash Request'),
+            )
+            matracon_notify.schedule_activity(
+                req, ceo_users, _('Approve petty cash %s') % req.name)
 
     def action_release(self):
         """Finance HO releases petty cash via payment workflow."""
         self.ensure_one()
-        if self.state != 'submitted':
-            raise UserError(_('Only submitted requests can be released.'))
+        if self.state != 'ceo_approved':
+            raise UserError(_('Only CEO-approved requests can be released.'))
         Payment = self.env['account.payment']
         analytic = self.project_analytic_account_id
         payment = Payment.create({
             'payment_type': 'outbound',
             'partner_type': 'supplier',
-            'amount': self.requested_amount,
-            'x_gross_approved_amount': self.requested_amount,
+            'amount': self.ceo_approved_amount or self.requested_amount,
+            'x_gross_approved_amount': self.ceo_approved_amount or self.requested_amount,
             'x_petty_cash_request_id': self.id,
             'x_payment_category': 'petty_cash',
+            'x_ceo_approval_state': 'approved',
             'x_destination_project_id': analytic.id if analytic else False,
-            # Pre-fill source project so the project fund pool is debited correctly
-            # and x_total_spent is incremented via _matracon_ensure_fund_allocations.
-            'x_source_project_ids': [(6, 0, [analytic.id])] if analytic else [],
         })
         self.payment_id = payment.id
         return {
@@ -183,6 +247,17 @@ class PettyCashRequest(models.Model):
             'view_mode': 'form',
             'res_id': payment.id,
             'context': {'default_x_petty_cash_request_id': self.id},
+        }
+
+    def action_view_fund(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Petty Cash Fund'),
+            'res_model': 'x.petty.cash.fund',
+            'view_mode': 'form',
+            'res_id': self.fund_id.id,
+            'target': 'new',
         }
 
     def action_confirm_receipt(self):
@@ -229,6 +304,12 @@ class PettyCashExpense(models.Model):
         ('meals', 'Meals'),
         ('other', 'Other'),
     ], default='other', required=True)
+    journal_id = fields.Many2one(
+        'account.journal',
+        string='GL Journal',
+        domain=[('type', 'in', ('cash', 'bank', 'general'))],
+        help='Journal used for the petty cash expense entry.',
+    )
     receipt = fields.Binary(string='Receipt / Voucher')
     receipt_filename = fields.Char()
     state = fields.Selection([
@@ -304,7 +385,7 @@ class PettyCashExpense(models.Model):
         self.ensure_one()
         # Find or create a 'Petty Cash' cash journal
         Journal = self.env['account.journal']
-        cash_journal = Journal.search([
+        cash_journal = self.journal_id or Journal.search([
             ('type', '=', 'cash'),
             ('company_id', '=', self.env.company.id),
         ], limit=1)

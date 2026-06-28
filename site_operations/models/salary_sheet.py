@@ -37,8 +37,10 @@ class SalarySheet(models.Model):
     total_allowances = fields.Monetary(compute='_compute_totals', store=True)
     total_deductions = fields.Monetary(compute='_compute_totals', store=True)
     total_net = fields.Monetary(compute='_compute_totals', store=True)
+    total_wht = fields.Monetary(compute='_compute_totals', store=False)
     currency_id = fields.Many2one(
         'res.currency', default=lambda self: self.env.company.currency_id)
+    wht_certificate_count = fields.Integer(compute='_compute_wht_certificate_count')
 
     @api.depends('project_analytic_account_id', 'date_from', 'date_to')
     def _compute_name(self):
@@ -61,6 +63,14 @@ class SalarySheet(models.Model):
             sheet.total_allowances = sum(sheet.line_ids.mapped('allowances'))
             sheet.total_deductions = sum(sheet.line_ids.mapped('deductions'))
             sheet.total_net = sum(sheet.line_ids.mapped('net_payable'))
+            sheet.total_wht = sum(sheet.line_ids.mapped('detail_wht'))
+
+    def _compute_wht_certificate_count(self):
+        WHTCert = self.env['x.wht.certificate']
+        for sheet in self:
+            sheet.wht_certificate_count = WHTCert.search_count([
+                ('x_salary_sheet_line_id.sheet_id', '=', sheet.id)
+            ])
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -78,7 +88,7 @@ class SalarySheet(models.Model):
             days_in_month = calendar.monthrange(
                 sheet.date_from.year, sheet.date_from.month)[1] if sheet.date_from else 30
             for att_line in sheet.attendance_sheet_id.line_ids:
-                emp = att_line.employee_id
+                emp = att_line.employee_id.sudo()
                 paid_days = att_line.paid_days
                 factor = paid_days / days_in_month if days_in_month else 0.0
                 basic = (emp.x_basic_salary or 0.0) * factor
@@ -113,7 +123,7 @@ class SalarySheet(models.Model):
         for sheet in self:
             if sheet.state != 'draft':
                 raise UserError(_('Only draft salary sheets can be refreshed.'))
-            sheet.line_ids.unlink()
+            sheet.line_ids.sudo().unlink()
             sheet._generate_lines_from_attendance()
 
     def action_submit(self):
@@ -168,18 +178,51 @@ class SalarySheet(models.Model):
                 'CEO must approve the salary sheet before a payment can be created.'))
         analytic = self.project_analytic_account_id
         Payment = self.env['account.payment']
+
+        # Gross = basic + all allowances; deductions shown in Tax Compliance tab
+        gross = self.total_basic + self.total_allowances
+
+        # Build tax compliance lines for the payment from salary sheet totals
+        total_wht = sum(self.line_ids.mapped('detail_wht'))
+        total_eobi = sum(self.line_ids.mapped('detail_eobi'))
+        total_advance = sum(self.line_ids.mapped('detail_advance'))
+        tax_lines = []
+        if total_wht:
+            tax_lines.append((0, 0, {
+                'name': _('Salary Tax WHT (Sec 149)'),
+                'tax_type': 'wht',
+                'effect': 'deduct',
+                'sequence': 10,
+                'x_fixed_amount': round(total_wht, 2),
+            }))
+        if total_eobi:
+            tax_lines.append((0, 0, {
+                'name': _('EOBI Contribution'),
+                'tax_type': 'other',
+                'effect': 'deduct',
+                'sequence': 20,
+                'x_fixed_amount': round(total_eobi, 2),
+            }))
+        if total_advance:
+            tax_lines.append((0, 0, {
+                'name': _('Advance Recovery'),
+                'tax_type': 'other',
+                'effect': 'deduct',
+                'sequence': 30,
+                'x_fixed_amount': round(total_advance, 2),
+            }))
+
         payment = Payment.create({
             'payment_type': 'outbound',
             'partner_type': 'supplier',
             'amount': self.total_net,
-            'x_gross_approved_amount': self.total_net,
+            'x_gross_approved_amount': round(gross, 2) if gross else self.total_net,
             'x_salary_sheet_id': self.id,
             'x_payment_category': 'salary',
-            'x_destination_project_id': analytic.id,
-            # Gap 3 fix: pre-fill source project so fund allocation works
-            'x_source_project_ids': [(4, analytic.id)] if analytic else [],
+            'x_destination_project_id': analytic.id if analytic else False,
             # CEO already approved at sheet level — skip payment-level approval
             'x_ceo_approval_state': 'approved',
+            'x_tax_line_ids': tax_lines,
         })
         return {
             'type': 'ir.actions.act_window',
@@ -198,6 +241,67 @@ class SalarySheet(models.Model):
             'domain': [('x_salary_sheet_id', '=', self.id)],
         }
 
+    def action_view_wht_certificates(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Salary WHT Certificates'),
+            'res_model': 'x.wht.certificate',
+            'view_mode': 'list,form',
+            'domain': [('x_salary_sheet_line_id.sheet_id', '=', self.id)],
+        }
+
+    def action_issue_wht_certificates(self):
+        """
+        Generate one WHT deduction certificate per employee who has WHT > 0.
+        Pakistan Income Tax Ordinance 2001 – Section 149 (Salary Tax).
+        Each employee is entitled to a certificate showing gross salary and
+        tax deducted at source for the tax year.
+        """
+        self.ensure_one()
+        if self.state not in ('approved', 'paid'):
+            raise UserError(_(
+                'WHT certificates can only be issued for Approved or Paid salary sheets.'))
+        if not self.total_wht:
+            raise UserError(_('No WHT was deducted on this salary sheet.'))
+
+        WHTCert = self.env['x.wht.certificate']
+        tax_period = self._salary_tax_year_label()
+
+        # Find lines that already have a certificate
+        existing_line_ids = WHTCert.search([
+            ('x_salary_sheet_line_id.sheet_id', '=', self.id)
+        ]).mapped('x_salary_sheet_line_id').ids
+
+        new_count = 0
+        for line in self.line_ids.filtered(
+                lambda l: l.detail_wht > 0 and l.id not in existing_line_ids):
+            WHTCert.create({
+                'x_salary_sheet_line_id': line.id,
+                'wht_amount': line.detail_wht,
+                'tax_period': tax_period,
+                'issue_date': fields.Date.today(),
+                'x_gross_salary': line.basic_salary + line.allowances,
+            })
+            new_count += 1
+
+        if not new_count:
+            raise UserError(_(
+                'All WHT certificates already exist for this salary sheet, '
+                'or no employees have WHT deducted.'))
+
+        return self.action_view_wht_certificates()
+
+    def _salary_tax_year_label(self):
+        """Pakistan tax year runs July – June."""
+        if not self.date_from:
+            return ''
+        y = self.date_from.year
+        m = self.date_from.month
+        if m >= 7:
+            return f'July {y} – June {y + 1}'
+        return f'July {y - 1} – June {y}'
+
 
 class SalarySheetLine(models.Model):
     _name = 'x.salary.sheet.line'
@@ -215,6 +319,10 @@ class SalarySheetLine(models.Model):
     deductions = fields.Monetary(currency_field='currency_id')
     net_payable = fields.Monetary(currency_field='currency_id')
 
+    detail_basic_full = fields.Monetary(
+        string='Monthly Basic', currency_field='currency_id',
+        compute='_compute_detail_basic_full', store=False,
+        help='Employee full-month contract basic salary (reads from employee record).')
     detail_hra = fields.Monetary(string='HRA', currency_field='currency_id')
     detail_site_allowance = fields.Monetary(
         string='Site Allowance', currency_field='currency_id')
@@ -224,6 +332,11 @@ class SalarySheetLine(models.Model):
 
     currency_id = fields.Many2one(
         related='sheet_id.currency_id', depends=['sheet_id'])
+
+    @api.depends('employee_id')
+    def _compute_detail_basic_full(self):
+        for line in self:
+            line.detail_basic_full = line.employee_id.sudo().x_basic_salary or 0.0
 
     def action_open_slip(self):
         self.ensure_one()

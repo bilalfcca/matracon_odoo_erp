@@ -168,8 +168,8 @@
                                         Petty Cash Hub
                                     </strong>
                                     <div class="text-end">
-                                        <div class="small" style="color:#714B67;">Available Balance</div>
-                                        <field name="kpi_petty_cash_balance" widget="monetary" nolabel="1" readonly="1" class="fw-bold text-success"/>
+                                        <div class="small text-uppercase fw-bold" style="color:#714B67;font-size:0.7em;letter-spacing:.05em;">Available Balance</div>
+                                        <field name="kpi_petty_cash_balance" widget="monetary" nolabel="1" readonly="1" class="fw-bold text-success fs-3"/>
                                     </div>
                                 </div>
                                 <div class="card-body pt-0 px-3">

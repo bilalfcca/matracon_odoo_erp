@@ -116,4 +116,27 @@
         </field>
     </record>
 
+    <!-- ══════════════════════════════════════════════════════════════════════
+         5.  Journal form: x_site_ids field so HO/admin can assign which
+             sites are allowed to select each journal in petty cash expenses.
+    ══════════════════════════════════════════════════════════════════════════ -->
+    <record id="view_account_journal_form_site_ops" model="ir.ui.view">
+        <field name="name">account.journal.form.site.ops</field>
+        <field name="model">account.journal</field>
+        <field name="inherit_id" ref="account.view_account_journal_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//page[@name='advanced_settings']" position="before">
+                <page string="Site Visibility" groups="account.group_account_manager,site_operations.group_finance_ho">
+                    <group>
+                        <field name="x_site_ids"
+                               widget="many2many_tags"
+                               string="Visible to Sites"
+                               options="{'no_create': True}"
+                               placeholder="Leave empty = Head Office only"/>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
 </odoo>

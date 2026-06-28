@@ -41,7 +41,9 @@
                     <group>
                         <group string="Series Configuration">
                             <field name="bank_journal_id"/>
-                            <field name="prefix"/>
+                            <field name="prefix" placeholder="e.g. HBL- or MCB-A-"/>
+                            <field name="pad_digits" string="Number Width (digits)"
+                                   help="Set to 0 for no zero-padding"/>
                             <field name="start_number"/>
                             <field name="end_number"/>
                             <field name="current_number" string="Next Number"/>

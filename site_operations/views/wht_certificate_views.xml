@@ -46,14 +46,32 @@
                     </div>
                     <group>
                         <group string="Certificate Details">
-                            <field name="payment_id" readonly="state != 'draft'"/>
-                            <field name="partner_id" readonly="1"/>
+                            <!-- Vendor WHT (Section 153) -->
+                            <field name="payment_id" readonly="state != 'draft'"
+                                   invisible="x_salary_sheet_line_id"/>
+                            <field name="partner_id" readonly="1"
+                                   string="Vendor"
+                                   invisible="x_salary_sheet_line_id"/>
+                            <!-- Salary WHT (Section 149) -->
+                            <field name="x_salary_sheet_line_id" readonly="1"
+                                   invisible="not x_salary_sheet_line_id"/>
+                            <field name="x_employee_id" readonly="1"
+                                   string="Employee"
+                                   invisible="not x_salary_sheet_line_id"/>
+                            <field name="x_salary_sheet_id" readonly="1"
+                                   string="Salary Sheet"
+                                   invisible="not x_salary_sheet_line_id"/>
+                            <!-- Common -->
                             <field name="issue_date" readonly="state != 'draft'"/>
-                            <field name="payment_date" readonly="1"/>
+                            <field name="payment_date" readonly="1"
+                                   string="Period Date"/>
                             <field name="tax_period" readonly="state != 'draft'"/>
                         </group>
                         <group string="Amounts">
-                            <field name="amount_paid" readonly="1"/>
+                            <field name="amount_paid" readonly="1"
+                                   string="Gross Salary / Amount Paid"/>
+                            <field name="x_gross_salary" readonly="state != 'draft'"
+                                   invisible="not x_salary_sheet_line_id"/>
                             <field name="wht_amount" readonly="state != 'draft'"/>
                             <field name="currency_id" invisible="1"/>
                         </group>

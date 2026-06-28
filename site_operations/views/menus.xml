@@ -217,7 +217,7 @@
               parent="site_operations.menu_compliance_root"
               action="site_operations.action_cheque_series"
               sequence="35"
-              groups="purchase_demand_raise.group_matracon_admin,base.group_system"/>
+              groups="purchase_demand_raise.group_matracon_admin,base.group_system,site_operations.group_finance_ho"/>
 
     <!-- Accounting → Vendors → Subcontractor IPCs -->
     <menuitem id="menu_subcontractor_ipc"

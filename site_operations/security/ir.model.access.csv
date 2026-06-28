@@ -113,7 +113,7 @@ access_wht_certificate_admin,wht.certificate.admin,model_x_wht_certificate,purch
 access_postdated_cheque_fo,postdated.cheque.fo,model_x_postdated_cheque,site_operations.group_finance_ho,1,1,1,1
 access_postdated_cheque_ceo,postdated.cheque.ceo,model_x_postdated_cheque,purchase_demand_raise.group_ceo_approval,1,0,0,0
 access_postdated_cheque_admin,postdated.cheque.admin,model_x_postdated_cheque,purchase_demand_raise.group_matracon_admin,1,1,1,1
-access_cheque_series_fo,cheque.series.fo,model_x_cheque_series,site_operations.group_finance_ho,1,1,0,0
+access_cheque_series_fo,cheque.series.fo,model_x_cheque_series,site_operations.group_finance_ho,1,1,1,0
 access_cheque_series_admin,cheque.series.admin,model_x_cheque_series,purchase_demand_raise.group_matracon_admin,1,1,1,1
 access_subcontractor_ipc_site_accountant,subcontractor.ipc.site.accountant,model_x_subcontractor_ipc,site_operations.group_site_accountant,1,1,1,0
 access_subcontractor_ipc_fo,subcontractor.ipc.fo,model_x_subcontractor_ipc,site_operations.group_finance_ho,1,1,1,1

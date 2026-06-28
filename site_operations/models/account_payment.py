@@ -442,12 +442,15 @@ class AccountPaymentSiteOps(models.Model):
                     'sequence': 10,
                 })]
             category = vals.get('x_payment_category', 'vendor')
-            if category in ('salary', 'petty_cash'):
+            # Only auto-set approval state if NOT explicitly provided by caller
+            # (e.g. salary sheet already sets 'approved' — don't overwrite it)
+            if category in ('salary', 'petty_cash') and 'x_ceo_approval_state' not in vals:
                 if self.env.user.has_group('purchase_demand_raise.group_ceo_approval'):
                     vals['x_ceo_approval_state'] = 'approved'
                 elif self.env.user.has_group('site_operations.group_finance_ho'):
                     vals['x_ceo_approval_state'] = 'pending'
         payments = super().create(vals_list)
+        payments._matracon_fix_salary_ceo_state()
         payments._matracon_notify_ceo_on_payment_create()
         return payments
 
@@ -660,6 +663,8 @@ class AccountPaymentSiteOps(models.Model):
 
     def _create_tax_deduction_entries(self):
         """For each WHT / Retention deduction line, post a journal entry that:
+        Salary payments are skipped — their WHT is tracked at salary-sheet level
+        and certificates are issued per-employee via the sheet's WHT flow.
           - Debits the vendor's AP account (reduces their current payable balance)
           - Credits WHT Payable (for WHT) or Retention Payable (for Retention),
             tagging the vendor as partner on the Retention credit so it appears
@@ -669,6 +674,8 @@ class AccountPaymentSiteOps(models.Model):
         and retention shows as a separate payable to the subcontractor.
         """
         self.ensure_one()
+        if self.x_payment_category == 'salary':
+            return  # Salary WHT tracked at sheet level; no vendor AP to reduce.
         if self.x_tax_deduction_move_id:
             return  # Already created — idempotent.
 
@@ -811,6 +818,12 @@ class AccountPaymentSiteOps(models.Model):
         for payment in self.filtered(
             lambda p: p.x_payment_category in ('salary', 'petty_cash')
         ):
+            # Petty cash: CEO approved at request level — skip payment-level check.
+            if payment.x_petty_cash_request_id:
+                continue
+            # Salary: CEO approved at salary sheet level — skip payment-level check.
+            if payment.x_salary_sheet_id:
+                continue
             if payment.x_ceo_approval_state == 'pending':
                 raise UserError(_(
                     'CEO approval is required before posting this %s payment.'
@@ -821,6 +834,16 @@ class AccountPaymentSiteOps(models.Model):
             lambda p: p.state in _POSTED_STATES and p.x_petty_cash_request_id
         ):
             payment.x_petty_cash_request_id.action_mark_released(payment.amount)
+
+    def _matracon_fix_salary_ceo_state(self):
+        """Ensure salary payments linked to approved/paid sheets are always CEO-approved.
+        Catches any edge-case where create() set state to pending despite explicit value."""
+        for payment in self.filtered(
+            lambda p: p.x_salary_sheet_id
+            and p.x_salary_sheet_id.state in ('approved', 'paid')
+            and p.x_ceo_approval_state == 'pending'
+        ):
+            payment.x_ceo_approval_state = 'approved'
 
     def _matracon_update_salary_on_post(self):
         for payment in self.filtered(
@@ -839,6 +862,22 @@ class AccountPaymentSiteOps(models.Model):
                         emp.write({'x_advance_balance': new_balance})
 
     def action_post(self):
+        """Auto-assign cheque number from series before posting if not already set."""
+        for payment in self:
+            if (payment.x_is_cheque_payment
+                    and payment.journal_id
+                    and not payment.x_cheque_number):
+                series = self.env['x.cheque.series'].sudo().search([
+                    ('bank_journal_id', '=', payment.journal_id.id),
+                    ('state', '=', 'active'),
+                ], limit=1)
+                if series:
+                    payment.x_cheque_number = series.get_next_cheque_number()
+                else:
+                    raise UserError(_(
+                        'No active cheque series found for bank "%s". '
+                        'Please set one up in Configuration → Cheque Series.'
+                    ) % payment.journal_id.name)
         self._validate_ceo_payment_approval()
         for payment in self.filtered(lambda p: p.x_liability_sheet_line_id):
             payment.amount = payment.x_net_payable or payment.amount
@@ -873,6 +912,10 @@ class AccountPaymentSiteOps(models.Model):
             payment._matracon_update_salary_on_post()
             payment._matracon_invalidate_project_funds()
             payment._create_tax_deduction_entries()
+            # Create companion WHT payment to FBR for ANY outbound payment that
+            # carries a WHT deduction line — vendor, salary, or any other category.
+            if payment.payment_type == 'outbound':
+                payment._create_wht_payment_if_needed()
         return res
 
     def _matracon_tag_payment_move_analytic(self):
@@ -917,15 +960,13 @@ class AccountPaymentSiteOps(models.Model):
             'site_operations.action_report_cheque').report_action(self)
 
     def action_set_in_process(self):
-        # Post to accounting (creates journal entry, tags analytic, updates liability)
+        # Post to accounting (creates journal entry, tags analytic, updates liability).
+        # WHT companion payment is created inside action_post() for all outbound payments.
         draft = self.filtered(lambda p: p.state == 'draft')
         if draft:
             draft.action_post()
         self.filtered(lambda p: p.x_payment_status == 'draft').write({'x_payment_status': 'in_process'})
         self.message_post(body=_('Payment set to In Process.'))
-        # Auto-create companion WHT draft payment to FBR when WHT is present.
-        for payment in self.filtered(lambda p: p.payment_type == 'outbound'):
-            payment._create_wht_payment_if_needed()
 
     def _create_wht_payment_if_needed(self):
         """Create a draft WHT payment to FBR if this payment has a WHT deduction.
@@ -947,34 +988,35 @@ class AccountPaymentSiteOps(models.Model):
         if not wht_amount:
             return  # No WHT on this payment.
 
-        # Locate the FBR partner — must exist as a contact in the system.
+        # For salary payments x_source_project_ids is hidden; derive from Fund Allocation.
+        # For vendor payments use the explicit source project list.
+        if self.x_payment_category == 'salary':
+            src_ids = self.x_allocation_ids.mapped('project_analytic_account_id').ids
+            origin_label = self.x_salary_sheet_id.name or 'Salary'
+        else:
+            src_ids = self.x_source_project_ids.ids
+            origin_label = self.partner_id.name or ''
+
+        # Optionally pre-fill FBR as vendor if they exist — FO can select/change later.
         fbr_partner = self.env['res.partner'].search(
             ['|', ('name', 'ilike', 'Federal Board of Revenue'),
                   ('name', 'ilike', 'FBR')],
             limit=1,
         )
-        if not fbr_partner:
-            raise UserError(_(
-                'Cannot create WHT payment: no partner named "FBR" or '
-                '"Federal Board of Revenue" found.\n'
-                'Please create this contact first, then retry.'
-            ))
 
-        memo = _('WHT — %s | %s') % (
-            self.partner_id.name or '',
-            self.name or self.ref or '',
-        )
+        memo = _('WHT — %s | %s') % (origin_label, self.name or '')
+
         wht_payment = self.create({
             'payment_type': 'outbound',
             'partner_type': 'supplier',
-            'partner_id': fbr_partner.id,
+            'partner_id': fbr_partner.id if fbr_partner else False,
             'amount': wht_amount,
             'currency_id': self.currency_id.id,
             'journal_id': self.journal_id.id,
-            'ref': memo,
+            'memo': memo,
             'x_payment_category': 'vendor',
             'x_destination_project_id': self.x_destination_project_id.id or False,
-            'x_source_project_ids': [(6, 0, self.x_source_project_ids.ids)],
+            'x_source_project_ids': [(6, 0, src_ids)],
             'x_origin_payment_id': self.id,
         })
         self.x_wht_payment_id = wht_payment.id
@@ -982,8 +1024,8 @@ class AccountPaymentSiteOps(models.Model):
             'WHT payment draft <b>%s</b> created for FBR — amount: %s %s.'
         ) % (wht_payment.name or '', self.currency_id.name, f'{wht_amount:,.2f}'))
         wht_payment.message_post(body=_(
-            'Auto-generated WHT payment for vendor <b>%s</b> (payment %s).'
-        ) % (self.partner_id.name or '', self.name or ''))
+            'Auto-generated WHT payment for <b>%s</b> (origin: %s).'
+        ) % (origin_label, self.name or ''))
 
     def action_open_wht_payment(self):
         self.ensure_one()
@@ -1032,4 +1074,7 @@ class AccountPaymentSiteOps(models.Model):
                     raise UserError(_(
                         'Cannot exceed CEO approved amount of %.2f.'
                     ) % payment.x_gross_approved_amount)
+        # Self-heal: if a salary sheet payment somehow ended up pending, fix it.
+        if 'x_salary_sheet_id' in vals or 'x_ceo_approval_state' in vals:
+            self._matracon_fix_salary_ceo_state()
         return res

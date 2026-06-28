@@ -15,7 +15,12 @@ class ChequeSeries(models.Model):
         required=True, domain=[('type', '=', 'bank')], tracking=True)
     prefix = fields.Char(
         string='Prefix',
-        help='e.g. HBL- or MCB-', default='')
+        help='Letters/digits before the number, e.g. HBL- or MCB-A-', default='')
+    pad_digits = fields.Integer(
+        string='Number Width',
+        default=6,
+        help='Zero-pad the number to this many digits (e.g. 6 → 000001). '
+             'Set to 0 for no padding (useful when number already contains letters).')
     start_number = fields.Integer(
         string='Start Number', required=True, tracking=True)
     end_number = fields.Integer(
@@ -59,7 +64,10 @@ class ChequeSeries(models.Model):
                 'Cheque series "%s" is exhausted. '
                 'Please create a new series.'
             ) % self.name)
-        cheque_no = f'{self.prefix}{self.current_number:06d}'
+        if self.pad_digits and self.pad_digits > 0:
+            cheque_no = f'{self.prefix}{self.current_number:0{self.pad_digits}d}'
+        else:
+            cheque_no = f'{self.prefix}{self.current_number}'
         self.current_number += 1
         if self.current_number > self.end_number:
             self.state = 'exhausted'

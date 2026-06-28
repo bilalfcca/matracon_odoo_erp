@@ -25,6 +25,11 @@
                             string="Create Payment" class="btn-primary"
                             invisible="state != 'approved'"
                             groups="site_operations.group_finance_ho,purchase_demand_raise.group_head_office"/>
+                    <button name="action_issue_wht_certificates" type="object"
+                            string="Issue WHT Certificates (Sec 149)"
+                            class="btn-secondary"
+                            invisible="state not in ('approved', 'paid') or total_wht == 0"
+                            groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"/>
                 </header>
                 <sheet>
                     <div class="oe_button_box" name="button_box">
@@ -45,7 +50,13 @@
                         <button type="button" class="oe_stat_button" icon="fa-check-circle">
                             <field name="total_net" widget="statinfo" string="Net Payable"/>
                         </button>
+                        <button name="action_view_wht_certificates" type="object"
+                                class="oe_stat_button" icon="fa-certificate"
+                                invisible="wht_certificate_count == 0">
+                            <field name="wht_certificate_count" widget="statinfo" string="WHT Certs"/>
+                        </button>
                     </div>
+                    <field name="wht_certificate_count" invisible="1"/>
                     <group>
                         <field name="project_analytic_account_id" readonly="1"/>
                         <field name="date_from" readonly="1"/>
@@ -59,7 +70,8 @@
                                 <list>
                                     <field name="employee_id"/>
                                     <field name="paid_days" optional="show"/>
-                                    <field name="basic_salary"/>
+                                    <field name="detail_basic_full" string="Monthly Basic" optional="show"/>
+                                    <field name="basic_salary" string="Basic (Paid Days)"/>
                                     <field name="allowances"/>
                                     <field name="deductions"/>
                                     <field name="net_payable"/>
@@ -87,7 +99,8 @@
                         <field name="paid_days" readonly="1"/>
                     </group>
                     <group string="Earnings">
-                        <field name="basic_salary" readonly="1"/>
+                        <field name="detail_basic_full" readonly="1" string="Monthly Basic (Full)"/>
+                        <field name="basic_salary" readonly="1" string="Basic (Paid Days)"/>
                         <field name="detail_hra" readonly="1"/>
                         <field name="detail_site_allowance" readonly="1"/>
                         <field name="allowances" readonly="1"/>
@@ -116,7 +129,12 @@
                 <field name="date_from"/>
                 <field name="workforce_count"/>
                 <field name="total_net"/>
-                <field name="state" widget="badge"/>
+                <field name="currency_id" column_invisible="1"/>
+                <field name="state" widget="badge"
+                       decoration-muted="state == 'draft'"
+                       decoration-warning="state == 'submitted'"
+                       decoration-success="state == 'approved'"
+                       decoration-info="state == 'paid'"/>
             </list>
         </field>
     </record>

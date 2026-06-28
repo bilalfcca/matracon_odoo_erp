@@ -43,33 +43,33 @@
 /* ── Per-cell attendance codes (P / A / L / H) ─────────────────────────── */
 .o_list_view .o_data_cell.matracon-att-p,
 .o_form_view .matracon-attendance-grid .o_data_cell.matracon-att-p {
-    background-color: #dcfce7 !important;
-    color: #166534 !important;
-    font-weight: 600;
+    color: #16a34a !important;
+    font-weight: 700;
+    font-size: 0.9rem;
     text-align: center;
 }
 
 .o_list_view .o_data_cell.matracon-att-a,
 .o_form_view .matracon-attendance-grid .o_data_cell.matracon-att-a {
-    background-color: #fee2e2 !important;
-    color: #991b1b !important;
-    font-weight: 600;
+    color: #dc2626 !important;
+    font-weight: 700;
+    font-size: 0.9rem;
     text-align: center;
 }
 
 .o_list_view .o_data_cell.matracon-att-l,
 .o_form_view .matracon-attendance-grid .o_data_cell.matracon-att-l {
-    background-color: #fef3c7 !important;
-    color: #92400e !important;
-    font-weight: 600;
+    color: #d97706 !important;
+    font-weight: 700;
+    font-size: 0.9rem;
     text-align: center;
 }
 
 .o_list_view .o_data_cell.matracon-att-h,
 .o_form_view .matracon-attendance-grid .o_data_cell.matracon-att-h {
-    background-color: #dbeafe !important;
-    color: #1e40af !important;
-    font-weight: 600;
+    color: #2563eb !important;
+    font-weight: 700;
+    font-size: 0.9rem;
     text-align: center;
 }
 

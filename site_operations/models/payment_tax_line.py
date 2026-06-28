@@ -10,6 +10,9 @@ class PaymentTaxLine(models.Model):
         'account.payment', string='Payment',
         required=True, ondelete='cascade', index=True)
     sequence = fields.Integer(default=10)
+    name = fields.Char(
+        string='Description',
+        help='Optional label (used for salary deductions where no tax record exists).')
     tax_type = fields.Selection([
         ('wht', 'Withholding Tax (WHT)'),
         ('retention', 'Retention Money'),
@@ -22,6 +25,11 @@ class PaymentTaxLine(models.Model):
         ('deduct', 'Deducted from gross'),
         ('add', 'Added to gross'),
     ], string='Effect on Payment', default='deduct', required=True)
+    x_fixed_amount = fields.Monetary(
+        string='Fixed Amount',
+        currency_field='currency_id',
+        help='When set, overrides the tax-rate computation (used for salary deductions '
+             'where the amount comes from the payroll sheet, not a tax rate).')
     amount = fields.Monetary(
         string='Amount',
         compute='_compute_amount',
@@ -32,11 +40,18 @@ class PaymentTaxLine(models.Model):
         related='payment_id.currency_id', depends=['payment_id'])
 
     @api.depends(
-        'tax_id', 'payment_id.x_gross_approved_amount', 'payment_id.amount',
+        'tax_id', 'x_fixed_amount',
+        'payment_id.x_gross_approved_amount', 'payment_id.amount',
         'effect',
     )
     def _compute_amount(self):
         for line in self:
-            payment = line.payment_id
-            base = payment.x_gross_approved_amount or payment.amount or 0.0
-            line.amount = payment._matracon_tax_amount(line.tax_id, base) if line.tax_id else 0.0
+            if line.x_fixed_amount:
+                line.amount = line.x_fixed_amount
+            else:
+                payment = line.payment_id
+                base = payment.x_gross_approved_amount or payment.amount or 0.0
+                line.amount = (
+                    payment._matracon_tax_amount(line.tax_id, base)
+                    if line.tax_id else 0.0
+                )

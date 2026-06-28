@@ -53,25 +53,45 @@
             <form string="Petty Cash Request">
                 <header>
                     <field name="state" widget="statusbar"
-                           statusbar_visible="draft,submitted,released,confirmed"/>
+                           statusbar_visible="draft,submitted,ceo_approved,released,confirmed"/>
                     <button name="action_submit" type="object" string="Submit to Finance HO"
                             class="btn-primary" invisible="state != 'draft'"
                             groups="site_operations.group_site_accountant"/>
+                    <button name="action_ceo_approve" type="object" string="Approve (CEO)"
+                            class="btn-success" invisible="state != 'submitted'"
+                            groups="purchase_demand_raise.group_ceo_approval"/>
                     <button name="action_release" type="object" string="Release Petty Cash"
-                            class="btn-primary" invisible="state != 'submitted'"
-                            groups="site_operations.group_finance_ho,purchase_demand_raise.group_head_office"/>
+                            class="btn-primary" invisible="state != 'ceo_approved'"
+                            groups="site_operations.group_finance_ho"/>
                     <button name="action_confirm_receipt" type="object" string="Confirm Receipt"
                             class="btn-success" invisible="state != 'released'"
                             groups="site_operations.group_site_accountant"/>
                 </header>
                 <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button type="object" name="action_view_fund"
+                                class="oe_stat_button" icon="fa-money">
+                            <div class="o_field_widget o_stat_info">
+                                <span class="o_stat_value">
+                                    <field name="current_balance" widget="monetary"
+                                           options="{'currency_field': 'currency_id'}"/>
+                                </span>
+                                <span class="o_stat_text">Site Cash Balance</span>
+                            </div>
+                        </button>
+                    </div>
                     <group>
                         <field name="name" readonly="1"/>
                         <field name="fund_id" readonly="state != 'draft'"/>
                         <field name="project_analytic_account_id" readonly="1"/>
-                        <field name="current_balance" readonly="1"/>
                         <field name="requested_amount" readonly="state != 'draft'"/>
                         <field name="reason" readonly="state != 'draft'"/>
+                        <field name="ceo_amount_type"
+                               invisible="state not in ('submitted', 'ceo_approved', 'released', 'confirmed')"
+                               readonly="state != 'submitted'"/>
+                        <field name="ceo_approved_amount"
+                               invisible="state not in ('submitted', 'ceo_approved', 'released', 'confirmed')"
+                               readonly="state != 'submitted'"/>
                         <field name="released_amount" readonly="1"/>
                         <field name="payment_id" readonly="1"/>
                         <field name="currency_id" invisible="1"/>
@@ -90,8 +110,16 @@
                 <field name="name"/>
                 <field name="project_analytic_account_id"/>
                 <field name="requested_amount"/>
+                <field name="ceo_approved_amount" optional="show"/>
                 <field name="released_amount"/>
-                <field name="state" widget="badge"/>
+                <field name="currency_id" invisible="1"/>
+                <field name="state" widget="badge"
+                       decoration-muted="state == 'draft'"
+                       decoration-warning="state == 'submitted'"
+                       decoration-info="state == 'ceo_approved'"
+                       decoration-primary="state == 'released'"
+                       decoration-success="state == 'confirmed'"
+                       decoration-danger="state == 'rejected'"/>
             </list>
         </field>
     </record>
@@ -120,6 +148,8 @@
                         <group string="Expense Details">
                             <field name="expense_date" readonly="state == 'posted'"/>
                             <field name="category" readonly="state == 'posted'"/>
+                            <field name="journal_id" readonly="state == 'posted'"
+                                   domain="[('type', 'in', ('cash', 'bank', 'general'))] + ([('x_site_ids', 'in', [project_analytic_account_id])] if project_analytic_account_id else [])"/>
                             <field name="name" string="Description" readonly="state == 'posted'"/>
                             <field name="amount" readonly="state == 'posted'"/>
                             <field name="currency_id" invisible="1"/>

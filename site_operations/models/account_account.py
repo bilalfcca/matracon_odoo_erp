@@ -14,6 +14,19 @@ Rules:
 from odoo import models, fields, api
 
 
+class AccountJournalSiteOps(models.Model):
+    _inherit = 'account.journal'
+
+    x_site_ids = fields.Many2many(
+        'account.analytic.account',
+        'x_account_journal_site_rel',
+        'journal_id', 'analytic_id',
+        string='Visible to Sites',
+        help='Sites whose accountants can select this journal (e.g. for petty cash expenses).\n'
+             'Leave empty to restrict to Head Office only.',
+    )
+
+
 class AccountAccountSiteOps(models.Model):
     _inherit = 'account.account'
 

@@ -12,10 +12,10 @@ from odoo.exceptions import UserError
 from . import matracon_notifications as matracon_notify
 
 ATTENDANCE_CODE_SELECTION = [
-    ('P', 'Present'),
-    ('A', 'Absent'),
-    ('L', 'Paid Leave'),
-    ('H', 'Public Holiday'),
+    ('P', 'P'),
+    ('A', 'A'),
+    ('L', 'L'),
+    ('H', 'H'),
 ]
 
 DAY_FIELD_NAMES = [f'day_{d:02d}' for d in range(1, 32)]
@@ -342,7 +342,7 @@ class AttendanceSheet(models.Model):
                     'Day columns should be the numbers 1 to 28/29/30/31 depending on the month. '
                     'June = 1 to 30, July = 1 to 31, etc.'))
 
-            Employee = self.env['hr.employee']
+            Employee = self.env['hr.employee'].sudo()
             imported = 0
             skipped = []
 
@@ -419,7 +419,7 @@ class AttendanceSheet(models.Model):
         for sheet in self:
             if sheet.state != 'draft':
                 raise UserError(_('Only draft sheets can be refreshed.'))
-            employees = self.env['hr.employee'].search([
+            employees = self.env['hr.employee'].sudo().search([
                 ('x_project_analytic_account_id', '=',
                  sheet.project_analytic_account_id.id),
             ])
