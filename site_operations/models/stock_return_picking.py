@@ -1,3 +1,5 @@
+from markupsafe import Markup
+
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
 
@@ -34,6 +36,19 @@ class StockReturnPickingSiteOps(models.TransientModel):
                     if vals:
                         move.write(vals)
 
+            # For asset issuances: auto-fill picking-level backcharge from wizard damage amounts
+            # so the return form opens pre-filled and the user isn't asked twice.
+            if orig.x_inventory_type == 'asset':
+                total_damage = sum(
+                    l.x_damage_amount for l in self.product_return_moves
+                    if l.x_damage_amount
+                )
+                if total_damage > 0:
+                    new_picking.write({
+                        'x_return_backcharge_applicable': True,
+                        'x_return_backcharge_amount': total_damage,
+                    })
+
             # Replace the generic Odoo "created from" note with a readable message
             new_picking.message_ids.sudo().filtered(
                 lambda m: 'has been created from' in (m.body or '')
@@ -42,18 +57,20 @@ class StockReturnPickingSiteOps(models.TransientModel):
             label = 'Material Return' if orig.x_transfer_purpose == 'material_issuance' \
                 else 'Site-to-Site Return'
             parts = [
-                f'<b>{label}</b> initiated.',
-                f'Original Issuance: <b>{orig._get_html_link()}</b>',
+                Markup('<b>%s</b> initiated.') % label,
+                Markup('Original Issuance: <b>%s</b>') % orig._get_html_link(),
             ]
             if orig.x_contact_id:
-                parts.append(f'Issued to: <b>{orig.x_contact_id.name}</b>')
+                parts.append(Markup('Issued to: <b>%s</b>') % orig.x_contact_id.name)
             if orig.x_issuance_project_id:
-                parts.append(f'Project: <b>{orig.x_issuance_project_id.name}</b>')
+                parts.append(Markup('Project: <b>%s</b>') % orig.x_issuance_project_id.name)
             if orig.x_inventory_type:
-                parts.append(
-                    f'Type: <b>{dict(orig._fields["x_inventory_type"].selection).get(orig.x_inventory_type, orig.x_inventory_type)}</b>')
+                inv_type_label = dict(
+                    orig._fields['x_inventory_type'].selection
+                ).get(orig.x_inventory_type, orig.x_inventory_type)
+                parts.append(Markup('Type: <b>%s</b>') % inv_type_label)
             new_picking.message_post(
-                body=' | '.join(parts),
+                body=Markup(' | ').join(parts),
                 subtype_xmlid='mail.mt_note',
             )
         return new_picking

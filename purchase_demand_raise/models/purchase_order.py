@@ -7,7 +7,14 @@ class PurchaseOrder(models.Model):
     _inherit = 'purchase.order'
 
     # ── Fix: Make vendor NOT required (Site Store raises PR without vendor) ──
-    partner_id = fields.Many2one('res.partner', string='Vendor', required=False, tracking=True)
+    # Domain restricts the vendor dropdown to contacts tagged as "Vendor" in the Contacts app.
+    partner_id = fields.Many2one(
+        'res.partner',
+        string='Vendor',
+        required=False,
+        tracking=True,
+        domain="[('category_id.name', '=', 'Vendor')]",
+    )
 
     # ── Custom PR State ──────────────────────────────────────────────────────
     x_pr_state = fields.Selection([
@@ -101,6 +108,35 @@ class PurchaseOrder(models.Model):
     x_is_site_store = fields.Boolean(compute='_compute_role_flags')
     x_is_ho = fields.Boolean(compute='_compute_role_flags')
     x_is_ceo = fields.Boolean(compute='_compute_role_flags')
+
+    # ── Site warehouse restriction for "Deliver To" (picking_type_id) ────────
+    # Incoming picking types for every site project the current user belongs to.
+    # Used to restrict the Deliver To dropdown to site-store-specific warehouses.
+    x_site_incoming_type_ids = fields.Many2many(
+        'stock.picking.type',
+        compute='_compute_site_warehouse_fields',
+        string='Site Incoming Types',
+    )
+    # True when the user belongs to more than one site — unlocks the dropdown.
+    x_site_has_multi_warehouse = fields.Boolean(
+        compute='_compute_site_warehouse_fields',
+    )
+
+    def _compute_site_warehouse_fields(self):
+        """Resolve incoming picking types for the current user's site(s)."""
+        user = self.env.user
+        if user.has_group('purchase_demand_raise.group_site_store'):
+            configs = self.env['x.project.site.config'].sudo().search([
+                ('site_user_ids', 'in', user.id),
+            ])
+            pt_ids = configs.mapped('warehouse_id.in_type_id').filtered(bool).ids
+            has_multi = len(pt_ids) > 1
+        else:
+            pt_ids = []
+            has_multi = False
+        for order in self:
+            order.x_site_incoming_type_ids = [(6, 0, pt_ids)]
+            order.x_site_has_multi_warehouse = has_multi
 
     def _compute_role_flags(self):
         is_ss = self.env.user.has_group('purchase_demand_raise.group_site_store')

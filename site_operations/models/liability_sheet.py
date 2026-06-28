@@ -229,7 +229,7 @@ class LiabilitySheet(models.Model):
         return created
 
     def action_finalize_if_fully_paid(self):
-        """Mark sheet paid and roll forward when every line is settled."""
+        """Notify when every approved line is settled — FO closes the sheet manually."""
         for sheet in self:
             if sheet.state != 'approved':
                 continue
@@ -241,14 +241,10 @@ class LiabilitySheet(models.Model):
             )
             if unpaid:
                 continue
-            sheet.state = 'paid'
-            sheet.message_post(body=_('All approved payments completed — sheet closed.'))
-            next_sheet = sheet._create_next_period_sheet()
-            if next_sheet:
-                sheet.message_post(body=Markup(_(
-                    'Next period liability sheet <b>%s</b> created with '
-                    'opening balances carried forward.'
-                )) % next_sheet.name)
+            # All lines settled — notify FO to close manually via "Mark Paid" button.
+            sheet.message_post(body=_(
+                'All approved payments recorded — Finance HO can now close this sheet.'
+            ))
 
     def _create_next_period_sheet(self):
         """Copy all partners; opening balance = remaining liability after payments."""
@@ -309,7 +305,14 @@ class LiabilitySheet(models.Model):
                 raise UserError(_(
                     'Some approved lines are not fully paid yet: %s'
                 ) % ', '.join(unpaid.mapped('partner_id.display_name')))
-            sheet.action_finalize_if_fully_paid()
+            sheet.state = 'paid'
+            sheet.message_post(body=_('All approved payments completed — sheet closed by Finance HO.'))
+            next_sheet = sheet._create_next_period_sheet()
+            if next_sheet:
+                sheet.message_post(body=Markup(_(
+                    'Next period liability sheet <b>%s</b> created with '
+                    'opening balances carried forward.'
+                )) % next_sheet.name)
 
     def _sync_paid_amounts_from_payments(self):
         """Refresh line paid amounts from posted vendor payments."""
@@ -367,15 +370,18 @@ class LiabilitySheet(models.Model):
                     ('account_id.account_type', '=', 'liability_payable'),
                 ]
 
+                # Use move_id.date (always set on every journal entry and vendor bill)
+                # instead of invoice_date which is NULL on plain journal entries
+                # such as backcharge entries, causing those amounts to be missed.
                 opening_lines = AML.search(base_domain + [
-                    ('move_id.invoice_date', '<', sheet.date_from),
+                    ('move_id.date', '<', sheet.date_from),
                     ('reconciled', '=', False),
                 ])
-                opening = sum(l.credit - l.debit for l in opening_lines)
+                opening = max(0.0, sum(l.credit - l.debit for l in opening_lines))
 
                 period_lines = AML.search(base_domain + [
-                    ('move_id.invoice_date', '>=', sheet.date_from),
-                    ('move_id.invoice_date', '<=', sheet.date_to),
+                    ('move_id.date', '>=', sheet.date_from),
+                    ('move_id.date', '<=', sheet.date_to),
                 ])
                 new_liab = sum(l.credit - l.debit for l in period_lines)
 
@@ -403,7 +409,9 @@ class LiabilitySheetLine(models.Model):
 
     description = fields.Char(string='Description')
     partner_id = fields.Many2one(
-        'res.partner', string='Vendor/Partner', required=True)
+        'res.partner', string='Vendor/Partner', required=True,
+        domain="[('category_id.name', 'in', ['Vendor', 'Subcontractor'])]",
+    )
 
     opening_balance = fields.Float(string='Opening Balance')
     new_liability = fields.Float(string='New Liability (Bills)')

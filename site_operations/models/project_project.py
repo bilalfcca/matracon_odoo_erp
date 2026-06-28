@@ -207,9 +207,12 @@ class ProjectProjectMatracon(models.Model):
 
         available = funds_received - total_spent
 
-        # ── Liabilities: open liability sheet balances (primary) ───────────
+        # ── Liabilities: open liability sheet balances (primary source) ──────
+        # These are the authoritative liability records approved by CEO/PM.
         vendor_liability = 0.0
         sub_liability = 0.0
+        # Track which partners are already counted so AML fallback doesn't double-count
+        sheet_partner_ids = set()
         open_sheets = self.env['x.liability.sheet'].search([
             ('project_analytic_account_id', '=', analytic_id),
             ('state', 'in', ('draft', 'submitted', 'approved')),
@@ -220,6 +223,8 @@ class ProjectProjectMatracon(models.Model):
                 if remaining <= 0:
                     continue
                 partner = line.partner_id
+                if partner:
+                    sheet_partner_ids.add(partner.id)
                 if partner and partner.category_id.filtered(
                     lambda c: 'subcontractor' in (c.name or '').lower()
                 ):
@@ -227,30 +232,36 @@ class ProjectProjectMatracon(models.Model):
                 else:
                     vendor_liability += remaining
 
-        # Fallback: unreconciled payable AML with analytic tag
-        if not open_sheets:
-            str_aid = str(analytic_id)
-            payable_lines = AML.search([
-                ('parent_state', 'in', ('in_process', 'paid', 'partial', 'posted')),
-                ('account_id.account_type', '=', 'liability_payable'),
-                ('reconciled', '=', False),
-                ('analytic_distribution', '!=', False),
-            ])
-            for line in payable_lines:
-                dist = line.analytic_distribution or {}
-                if str_aid not in dist:
-                    continue
-                pct = dist[str_aid] / 100.0
-                balance = (line.credit - line.debit) * pct
-                if balance <= 0:
-                    continue
-                partner = line.partner_id
-                if partner and partner.category_id.filtered(
-                    lambda c: 'subcontractor' in (c.name or '').lower()
-                ):
-                    sub_liability += balance
-                else:
-                    vendor_liability += balance
+        # ── Liabilities: AML fallback for backcharges and bills outside sheets ─
+        # Always run this (not just when no sheets exist) to catch:
+        #   • Backcharge journal entries (never on a liability sheet)
+        #   • Vendor bills whose partner is not yet on any liability sheet
+        # Skip partners already counted from sheets to avoid double-counting.
+        str_aid = str(analytic_id)
+        payable_lines = AML.search([
+            ('parent_state', 'in', ('posted',)),
+            ('account_id.account_type', '=', 'liability_payable'),
+            ('reconciled', '=', False),
+            ('analytic_distribution', '!=', False),
+        ])
+        for line in payable_lines:
+            dist = line.analytic_distribution or {}
+            if str_aid not in dist:
+                continue
+            partner = line.partner_id
+            # Skip partners already captured from open sheets (avoid double-count)
+            if partner and partner.id in sheet_partner_ids:
+                continue
+            pct = dist[str_aid] / 100.0
+            balance = (line.credit - line.debit) * pct
+            if balance <= 0:
+                continue
+            if partner and partner.category_id.filtered(
+                lambda c: 'subcontractor' in (c.name or '').lower()
+            ):
+                sub_liability += balance
+            else:
+                vendor_liability += balance
 
         return {
             'x_funds_received': funds_received,

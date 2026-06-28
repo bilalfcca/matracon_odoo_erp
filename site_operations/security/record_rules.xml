@@ -19,7 +19,9 @@
             <field name="model_id" ref="stock.model_stock_picking"/>
             <field name="domain_force">['|',
                 ('x_transfer_purpose', 'not in', ['material_issuance', 'site_to_site']),
-                ('x_issuance_project_id', '=', user.x_default_analytic_account_id.id)
+                '|',
+                ('x_issuance_project_id', '=', user.x_default_analytic_account_id.id),
+                ('x_dest_project_id', '=', user.x_default_analytic_account_id.id)
             ]</field>
             <field name="groups" eval="[(4, ref('purchase_demand_raise.group_site_store'))]"/>
             <field name="perm_read" eval="True"/>

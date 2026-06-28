@@ -18,7 +18,7 @@ class ProcurementHoDashboard(models.TransientModel):
         'account.analytic.account', string='Project')
     filter_contact_id = fields.Many2one(
         'res.partner', string='Vendor / Subcontractor',
-        domain="[('is_company', '=', True), '|', ('supplier_rank', '>', 0), ('category_id.name', 'ilike', 'sub')]",
+        domain="[('category_id.name', 'in', ['Vendor', 'Subcontractor'])]",
     )
     filter_category_id = fields.Many2one('product.category', string='Category')
 

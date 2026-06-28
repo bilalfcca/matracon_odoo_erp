@@ -289,6 +289,15 @@ def post_init_hook(env):
 
 def post_migrate_hook(env):
     reprocess_existing_payments(env)
+    # Re-apply production user config (groups + default analytic/warehouse) on every update
+    # so that a module upgrade or re-install never silently resets site user settings.
+    try:
+        configure_production_users(env)
+        env['x.project.site.config']._matracon_ensure_site_warehouses()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(
+            'post_migrate_hook: configure_production_users skipped: %s', e)
     # Re-apply payroll functional group to Finance HO if hr_payroll is installed
     try:
         payroll_user = env.ref('hr_payroll.group_hr_payroll_user', raise_if_not_found=False)
@@ -298,3 +307,9 @@ def post_migrate_hook(env):
             })
     except Exception:
         pass
+    # Always re-apply menu visibility on update so group changes take effect.
+    try:
+        env['x.matracon.app.visibility'].apply_menu_visibility()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning('post_migrate_hook: apply_menu_visibility failed: %s', e)

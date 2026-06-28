@@ -15,6 +15,7 @@ from . import stock_move
 from . import stock_return_picking
 from . import analytic_distribution_mixin
 from . import interproject_accounting
+from . import interproject_transfer
 from . import account_payment
 from . import payment_tax_line
 from . import payment_allocation

@@ -24,7 +24,8 @@ class AccountMoveSiteOps(models.Model):
                 ADD COLUMN IF NOT EXISTS x_liability_sheet_id            INTEGER,
                 ADD COLUMN IF NOT EXISTS x_wht_tax_id                    INTEGER,
                 ADD COLUMN IF NOT EXISTS x_fbr_payment_id                INTEGER,
-                ADD COLUMN IF NOT EXISTS x_source_picking_id             INTEGER
+                ADD COLUMN IF NOT EXISTS x_source_picking_id             INTEGER,
+                ADD COLUMN IF NOT EXISTS x_bill_copy_filename            VARCHAR
         """)
         return super()._register_hook()
 
@@ -49,6 +50,13 @@ class AccountMoveSiteOps(models.Model):
         readonly=True, copy=False, index=True,
         help='Material issuance that generated this backcharge journal entry.',
     )
+    x_bill_copy = fields.Binary(
+        string='Bill Copy',
+        attachment=True,
+        copy=False,
+        help='Attach a scanned / digital copy of the physical vendor bill.',
+    )
+    x_bill_copy_filename = fields.Char(string='Bill Copy Filename')
     x_wht_tax_id = fields.Many2one(
         'account.tax', string='Withholding Tax (WHT)',
         domain="[('type_tax_use', '=', 'purchase'), ('active', '=', True)]",
@@ -269,15 +277,27 @@ class AccountMoveSiteOps(models.Model):
         })
 
     def _matracon_apply_bill_analytic(self):
-        """Tag vendor bill lines with project analytic for liability / balance tracking."""
+        """Tag ALL vendor bill move lines (expense + payable) with project analytic.
+
+        Tagging the payable line is critical: without it the standard Odoo aged
+        payables report cannot filter / group by project, and project_project's
+        AML fallback query for x_total_vendor_liability won't match either.
+        """
         self.ensure_one()
         analytic = self.x_project_analytic_account_id
         if not analytic:
             return
         dist = {str(analytic.id): 100.0}
-        lines = self.invoice_line_ids.filtered(lambda l: not l.display_type)
-        if lines:
-            lines.write({'analytic_distribution': dist})
+        # Tag expense/product lines
+        expense_lines = self.invoice_line_ids.filtered(lambda l: not l.display_type)
+        if expense_lines:
+            expense_lines.write({'analytic_distribution': dist})
+        # Also tag the auto-generated payable line so it appears in aged AP by project
+        payable_lines = self.line_ids.filtered(
+            lambda l: l.account_id.account_type == 'liability_payable'
+        )
+        if payable_lines:
+            payable_lines.write({'analytic_distribution': dist})
 
     def _update_project_balance_from_bill(self):
         """Posted vendor bills increase project obligation (vendor liability metric)."""

@@ -49,6 +49,14 @@
               sequence="26"
               groups="purchase_demand_raise.group_site_store,purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
+    <!-- Inventory → Reporting → S2S Material Transfer Register -->
+    <menuitem id="menu_s2s_inventory_report"
+              name="S2S Transfer Register"
+              parent="stock.menu_stock_transfers"
+              action="site_operations.action_s2s_inventory_report"
+              sequence="27"
+              groups="purchase_demand_raise.group_site_store,purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
     <!-- Accounting → Vendors -->
     <menuitem id="menu_liability_sheets"
               name="Liability Sheets"
@@ -63,6 +71,13 @@
               action="site_operations.action_ho_vendor_payments"
               sequence="26"
               groups="site_operations.group_finance_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
+    <menuitem id="menu_interproject_transfers"
+              name="Inter-Project Transfers"
+              parent="account.menu_finance_payables"
+              action="site_operations.action_interproject_transfer"
+              sequence="27"
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
     <!-- Accounting → Site Overview (Site Accountant only — NOT admin) -->
     <menuitem id="menu_site_accountant_dashboard"

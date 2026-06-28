@@ -15,7 +15,9 @@ class PostdatedCheque(models.Model):
         'account.journal', string='Bank', required=True,
         domain=[('type', '=', 'bank')], tracking=True)
     partner_id = fields.Many2one(
-        'res.partner', string='Payee', required=True, tracking=True)
+        'res.partner', string='Payee', required=True, tracking=True,
+        domain="[('category_id.name', 'in', ['Vendor', 'Subcontractor'])]",
+    )
     amount = fields.Monetary(
         string='Amount', required=True,
         currency_field='currency_id', tracking=True)

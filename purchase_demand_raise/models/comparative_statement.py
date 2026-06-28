@@ -22,6 +22,7 @@ class ComparativeStatement(models.Model):
     )
     x_recommended_vendor_id = fields.Many2one(
         'res.partner', string='Recommended Vendor', tracking=True,
+        domain="[('category_id.name', '=', 'Vendor')]",
         help='Only one vendor can be marked as recommended. Set this after reviewing all quotes.'
     )
     x_negotiation_notes = fields.Text(string='Negotiation Notes / Audit Trail')
@@ -52,7 +53,10 @@ class CSVendor(models.Model):
     _order = 'x_total_price asc'
 
     x_cs_id = fields.Many2one('x.comparative.statement', string='CS', ondelete='cascade')
-    x_partner_id = fields.Many2one('res.partner', string='Vendor', required=True)
+    x_partner_id = fields.Many2one(
+        'res.partner', string='Vendor', required=True,
+        domain="[('category_id.name', '=', 'Vendor')]",
+    )
     x_rfq_reference = fields.Char(string='Quotation Reference')
     x_quote_validity = fields.Date(string='Quote Validity')
     x_delivery_basis = fields.Selection([

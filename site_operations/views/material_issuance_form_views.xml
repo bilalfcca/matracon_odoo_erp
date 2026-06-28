@@ -156,11 +156,16 @@
                 <field name="x_dest_picking_id" invisible="1"/>
                 <field name="x_source_transfer_id" invisible="1"/>
                 <field name="x_product_ids_at_location" invisible="1"/>
+                <!-- Site project context fields -->
+                <field name="x_user_site_analytic_ids" invisible="1"/>
+                <field name="x_user_has_multi_site" invisible="1"/>
+                <field name="x_site_wh_view_location_id" invisible="1"/>
 
-                <!-- ─ Project (readonly, auto-filled, hidden when empty) ─ -->
+                <!-- ─ Project: auto-filled from user default; editable when user has multiple sites ─ -->
                 <field name="x_issuance_project_id"
-                       readonly="1"
-                       invisible="not x_issuance_project_id or x_transfer_purpose not in ['material_issuance', 'site_to_site']"/>
+                       readonly="not x_user_has_multi_site or state == 'done'"
+                       domain="[('id', 'in', x_user_site_analytic_ids)]"
+                       invisible="x_transfer_purpose not in ['material_issuance', 'site_to_site']"/>
 
                 <!-- ─ Destination Project (site-to-site only) ─ -->
                 <field name="x_dest_project_id"
@@ -235,6 +240,9 @@
                         <group col="2"
                                invisible="x_inventory_type != 'asset'">
                             <field name="x_return_backcharge_applicable"/>
+                            <field name="x_return_backcharge_amount"
+                                   invisible="not x_return_backcharge_applicable or x_return_backcharge_entry_id"
+                                   placeholder="e.g. 15000"/>
                             <field name="x_return_backcharge_entry_id"
                                    readonly="1"
                                    invisible="not x_return_backcharge_entry_id"/>
@@ -262,6 +270,13 @@
             <!-- Lock source location to site warehouse for material issuance -->
             <xpath expr="//field[@name='location_id'][not(@column_invisible)]" position="attributes">
                 <attribute name="readonly">x_transfer_purpose == 'material_issuance'</attribute>
+            </xpath>
+
+            <!-- Destination Location: restrict to project warehouse for site store receiving -->
+            <xpath expr="//field[@name='location_dest_id'][not(@column_invisible)]" position="attributes">
+                <attribute name="domain">
+                    [('id', 'child_of', x_site_wh_view_location_id), ('usage', 'in', ['internal', 'transit'])] if (x_is_site_store and picking_type_code == 'incoming' and x_site_wh_view_location_id) else []
+                </attribute>
             </xpath>
 
             <!-- ── On Hand qty column (screen only, not in reports) ────────── -->

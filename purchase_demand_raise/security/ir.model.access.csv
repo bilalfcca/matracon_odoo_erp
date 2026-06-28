@@ -24,6 +24,6 @@ access_stock_move_line_site_store,stock.move.line site store,stock.model_stock_m
 
 access_cs_matracon_admin,x.comparative.statement matracon admin,model_x_comparative_statement,purchase_demand_raise.group_matracon_admin,1,1,1,1
 access_cs_vendor_matracon_admin,x.cs.vendor matracon admin,model_x_cs_vendor,purchase_demand_raise.group_matracon_admin,1,1,1,1
-access_procurement_ho_dashboard_ceo,x.procurement.ho.dashboard ceo,model_x_procurement_ho_dashboard,purchase_demand_raise.group_ceo_approval,1,1,0,0
+access_procurement_ho_dashboard_ceo,x.procurement.ho.dashboard ceo,model_x_procurement_ho_dashboard,purchase_demand_raise.group_ceo_approval,1,1,1,1
 
 access_project_site_config_site_store,x.project.site.config site store,model_x_project_site_config,purchase_demand_raise.group_site_store,1,0,0,0

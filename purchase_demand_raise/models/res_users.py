@@ -69,9 +69,9 @@ class ResUsers(models.Model):
         )
 
     def _matracon_can_open_procurement_dashboard(self):
-        """Procurement HO, admin, or any user who has raised at least one PR."""
+        """Procurement HO, CEO, admin, or any user who has raised at least one PR."""
         self.ensure_one()
-        if self._matracon_is_procurement_officer():
+        if self._matracon_is_procurement_officer() or self._matracon_is_ceo():
             return True
         return bool(self.env['purchase.order'].sudo().search_count([
             ('x_is_pr_document', '=', True),

@@ -39,14 +39,20 @@ class MatraconAppVisibility(models.AbstractModel):
 
             # ── Role-based apps ───────────────────────────────────────────────
             # Purchase — Site Store, Procurement, CEO, Admin
+            # Include role groups directly (menu check uses direct membership, not implied).
             ('purchase.menu_purchase_root', self._matracon_group_refs([
                 'site_operations.group_mtr_app_purchase',
+                'purchase_demand_raise.group_site_store',
+                'purchase_demand_raise.group_procurement_ho',
+                'purchase_demand_raise.group_ceo_approval',
                 'purchase_demand_raise.group_matracon_admin',
                 'base.group_system',
             ])),
             # Inventory — Site Store, Procurement, Admin
             ('stock.menu_stock_root', self._matracon_group_refs([
                 'site_operations.group_mtr_app_inventory',
+                'purchase_demand_raise.group_site_store',
+                'purchase_demand_raise.group_procurement_ho',
                 'purchase_demand_raise.group_matracon_admin',
                 'base.group_system',
             ])),

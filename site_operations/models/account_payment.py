@@ -220,29 +220,25 @@ class AccountPaymentSiteOps(models.Model):
 
     @api.depends('journal_id')
     def _compute_available_bank_balance(self):
-        AML = self.env['account.move.line']
+        AML = self.env['account.move.line'].sudo()
         for payment in self:
             journal = payment.journal_id
-            if not journal:
+            if not journal or journal.type not in ('bank', 'cash'):
                 payment.x_available_bank_balance = 0.0
                 continue
-            # Collect all accounts used by this journal for cash/bank flows:
-            # default (bank account) + outstanding receipts + outstanding payments
-            account_ids = set()
-            for acc in (
-                journal.default_account_id,
-                journal.payment_debit_account_id,
-                journal.payment_credit_account_id,
-            ):
-                if acc:
-                    account_ids.add(acc.id)
-            if not account_ids:
-                payment.x_available_bank_balance = 0.0
-                continue
+            # Sum all posted move lines in this journal that are NOT on
+            # AR/AP/off-balance accounts — this gives the true cash/bank balance
+            # regardless of which specific GL account the journal is configured with.
+            # (In Odoo 19, payment_debit_account_id / payment_credit_account_id
+            # were removed; default_account_id may or may not be set.)
             lines = AML.search([
                 ('journal_id', '=', journal.id),
-                ('account_id', 'in', list(account_ids)),
                 ('parent_state', '=', 'posted'),
+                ('account_id.account_type', 'not in', [
+                    'asset_receivable',
+                    'liability_payable',
+                    'off_balance',
+                ]),
             ])
             payment.x_available_bank_balance = sum(lines.mapped('balance'))
 
@@ -499,32 +495,58 @@ class AccountPaymentSiteOps(models.Model):
                 payment, fo_users, _('Process payment %s') % payment.name)
 
     def _matracon_ensure_fund_allocations(self):
-        """Auto-fill fund allocation from source projects when FO posts payment."""
+        """Auto-fill fund allocation from source projects when FO posts payment.
+
+        Handles two cases:
+        1. No allocation records at all → create them.
+        2. All existing allocations have amount=0 → update them proportionally.
+           (This happens when FO adds a source project but leaves amount blank.)
+        """
         Allocation = self.env['x.payment.project.allocation']
         for payment in self.filtered(
             lambda p: p.payment_type == 'outbound'
             and p.state in _POSTED_STATES
             and p.x_source_project_ids
-            and not p.x_allocation_ids
         ):
             amount = payment.amount
             projects = payment.x_source_project_ids
             if not projects or amount <= 0:
                 continue
+
+            existing = payment.x_allocation_ids
+            all_zero = existing and all(
+                a.allocation_amount == 0.0 for a in existing
+            )
+
+            if existing and not all_zero:
+                # Allocations already filled in by FO — respect them.
+                continue
+
             share = round(amount / len(projects), 2)
-            lines = []
             allocated = 0.0
-            for idx, analytic in enumerate(projects):
-                alloc_amount = share
-                if idx == len(projects) - 1:
-                    alloc_amount = round(amount - allocated, 2)
-                allocated += alloc_amount
-                lines.append({
-                    'payment_id': payment.id,
-                    'project_analytic_account_id': analytic.id,
-                    'allocation_amount': alloc_amount,
-                })
-            Allocation.create(lines)
+
+            if existing and all_zero:
+                # Update the existing zero-amount records in place.
+                for idx, alloc in enumerate(existing):
+                    alloc_amount = share
+                    if idx == len(existing) - 1:
+                        alloc_amount = round(amount - allocated, 2)
+                    allocated += alloc_amount
+                    alloc.allocation_amount = alloc_amount
+            else:
+                # No records yet — create them.
+                lines = []
+                for idx, analytic in enumerate(projects):
+                    alloc_amount = share
+                    if idx == len(projects) - 1:
+                        alloc_amount = round(amount - allocated, 2)
+                    allocated += alloc_amount
+                    lines.append({
+                        'payment_id': payment.id,
+                        'project_analytic_account_id': analytic.id,
+                        'allocation_amount': alloc_amount,
+                    })
+                Allocation.create(lines)
 
     def _matracon_invalidate_project_funds(self):
         Project = self.env['project.project']
@@ -570,7 +592,9 @@ class AccountPaymentSiteOps(models.Model):
                 raise UserError(_('Cheque / Reference Number is required for cheque payments.'))
             if payment.x_allocation_ids:
                 total_alloc = sum(payment.x_allocation_ids.mapped('allocation_amount'))
-                if abs(total_alloc - payment.amount) > 0.02:
+                # Skip check when all allocations are zero — they will be auto-filled
+                # by _matracon_ensure_fund_allocations() after super().action_post().
+                if total_alloc > 0.0 and abs(total_alloc - payment.amount) > 0.02:
                     raise UserError(_(
                         'Fund allocation total (%(alloc).2f) must equal net payment '
                         'amount (%(pay).2f).'

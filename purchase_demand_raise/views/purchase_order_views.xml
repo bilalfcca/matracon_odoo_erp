@@ -169,6 +169,9 @@
                 <field name="x_can_submit" invisible="1"/>
                 <field name="x_has_tender_alternatives" invisible="1"/>
                 <field name="x_project_site_config_id" invisible="1"/>
+                <!-- Site warehouse restriction fields -->
+                <field name="x_site_incoming_type_ids" invisible="1"/>
+                <field name="x_site_has_multi_warehouse" invisible="1"/>
             </field>
 
             <!-- ── 5b. INJECT custom header fields after partner_id ── -->
@@ -447,6 +450,19 @@
         <field name="inherit_id" ref="purchase.purchase_order_form"/>
         <field name="priority">20</field>
         <field name="arch" type="xml">
+
+            <!-- Deliver To (picking_type_id):
+                 - Site Store, 1 site  → auto-filled, readonly
+                 - Site Store, 2+ sites → dropdown restricted to their warehouses
+                 - Everyone else → standard behaviour (incoming types only) -->
+            <xpath expr="//field[@name='picking_type_id']" position="attributes">
+                <attribute name="domain">
+                    [('id', 'in', x_site_incoming_type_ids)] if x_is_site_store else [('code', '=', 'incoming')]
+                </attribute>
+                <attribute name="readonly">
+                    x_is_site_store and not x_site_has_multi_warehouse
+                </attribute>
+            </xpath>
 
             <!-- Vendor field: hidden for Site Store using groups (server-side, reliable
                  even after purchase_requisition replaces this node).

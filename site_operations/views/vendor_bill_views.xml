@@ -52,7 +52,15 @@
                        options="{'no_create': True}"/>
             </xpath>
 
+            <!-- Bill copy attachment (optional) -->
             <xpath expr="//field[@name='narration']" position="before">
+                <group invisible="move_type != 'in_invoice'">
+                    <field name="x_bill_copy"
+                           widget="binary"
+                           filename="x_bill_copy_filename"
+                           string="Bill Copy (optional)"/>
+                    <field name="x_bill_copy_filename" invisible="1"/>
+                </group>
                 <div class="alert alert-info mb-2 py-1"
                      role="status"
                      invisible="not x_liability_registered">

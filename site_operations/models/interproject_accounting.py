@@ -26,6 +26,14 @@ class AccountPaymentInterproject(models.Model):
         return journal
 
     def _get_or_create_interproject_account(self, account_type):
+        """Inter-project accounts use current-asset / current-liability types.
+
+        We intentionally avoid asset_receivable / liability_payable so these
+        internal funding transfers do NOT pollute the aged AR/AP reports.
+        Real vendor payables and client receivables should not be mixed with
+        inter-project balances. Analytic distribution per project tracks the
+        individual balances on each project's dashboard.
+        """
         Account = self.env['account.account'].sudo()
         if account_type == 'receivable':
             account = Account.search(
@@ -34,9 +42,12 @@ class AccountPaymentInterproject(models.Model):
                 account = Account.create({
                     'name': 'Inter-Project Receivables',
                     'code': '13100',
-                    'account_type': 'asset_receivable',
-                    'reconcile': True,
+                    'account_type': 'asset_current',
+                    'reconcile': False,
                 })
+            elif account.account_type != 'asset_current':
+                # Migrate existing account — was wrongly set as asset_receivable
+                account.write({'account_type': 'asset_current', 'reconcile': False})
         else:
             account = Account.search(
                 [('name', 'ilike', 'Inter-Project Payable')], limit=1)
@@ -44,9 +55,12 @@ class AccountPaymentInterproject(models.Model):
                 account = Account.create({
                     'name': 'Inter-Project Payables',
                     'code': '21100',
-                    'account_type': 'liability_payable',
-                    'reconcile': True,
+                    'account_type': 'liability_current',
+                    'reconcile': False,
                 })
+            elif account.account_type != 'liability_current':
+                # Migrate existing account — was wrongly set as liability_payable
+                account.write({'account_type': 'liability_current', 'reconcile': False})
         return account
 
     def _create_interproject_entry(self, source_analytic, dest_analytic, amount, ref):
@@ -86,4 +100,16 @@ class AccountPaymentInterproject(models.Model):
             'line_ids': [(0, 0, v) for v in aml_vals],
         })
         move.action_post()
+
+        # Record in the inter-project transfer register so FO can track
+        # who owes whom and mark balances as settled when reimbursed.
+        self.env['x.interproject.transfer'].sudo().create({
+            'date': fields.Date.context_today(self),
+            'payment_id': self.id,
+            'move_id': move.id,
+            'source_analytic_id': source_analytic.id,
+            'dest_analytic_id': dest_analytic.id,
+            'amount': amount,
+        })
+
         return move

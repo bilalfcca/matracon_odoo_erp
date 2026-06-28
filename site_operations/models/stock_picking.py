@@ -6,6 +6,8 @@ from markupsafe import Markup
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
 
+from . import matracon_notifications as matracon_notify
+
 
 class StockPickingSiteOps(models.Model):
     _inherit = 'stock.picking'
@@ -72,6 +74,9 @@ class StockPickingSiteOps(models.Model):
     x_return_condition = fields.Char(string='Return Condition')
     x_return_remarks = fields.Text(string='Return Remarks')
     x_return_backcharge_applicable = fields.Boolean(string='Backcharge on Return')
+    x_return_backcharge_amount = fields.Float(
+        string='Return Backcharge Amount', default=0.0,
+        help='Manual amount to charge back to the subcontractor when returning an asset.')
     x_return_backcharge_entry_id = fields.Many2one(
         'account.move', string='Return Adjustment Entry', readonly=True)
 
@@ -118,6 +123,25 @@ class StockPickingSiteOps(models.Model):
         store=False,
     )
 
+    # ── Site project fields — used for issuance project dropdown + location domain ──
+    # Analytic accounts for every site config the current user belongs to.
+    x_user_site_analytic_ids = fields.Many2many(
+        'account.analytic.account',
+        compute='_compute_user_site_fields',
+        string='User Site Analytics',
+    )
+    # True when user belongs to more than one site — unlocks the project dropdown.
+    x_user_has_multi_site = fields.Boolean(
+        compute='_compute_user_site_fields',
+    )
+    # Parent view-location of this picking's warehouse — used to restrict
+    # the Destination Location dropdown on incoming receipts for site store users.
+    x_site_wh_view_location_id = fields.Many2one(
+        'stock.location',
+        compute='_compute_site_wh_view_location',
+        string='Site WH View Location',
+    )
+
     # ── Smart button counts ───────────────────────────────────────────────────
     x_return_count = fields.Integer(
         string='Return Transfers', compute='_compute_x_return_count', store=False)
@@ -134,6 +158,35 @@ class StockPickingSiteOps(models.Model):
         is_store = self.env.user.has_group('purchase_demand_raise.group_site_store')
         for pick in self:
             pick.x_is_site_store = is_store
+
+    def _compute_user_site_fields(self):
+        """Analytic accounts for the current user's site projects (for dropdown/domain)."""
+        user = self.env.user
+        if user.has_group('purchase_demand_raise.group_site_store'):
+            configs = self.env['x.project.site.config'].sudo().search([
+                ('site_user_ids', 'in', user.id),
+            ])
+            analytic_ids = configs.mapped('analytic_account_id').filtered(bool).ids
+            has_multi = len(analytic_ids) > 1
+        else:
+            analytic_ids = []
+            has_multi = False
+        for pick in self:
+            pick.x_user_site_analytic_ids = [(6, 0, analytic_ids)]
+            pick.x_user_has_multi_site = has_multi
+
+    @api.depends('picking_type_id')
+    def _compute_site_wh_view_location(self):
+        """View-level parent location of this picking's warehouse.
+        Used to restrict location_dest_id on incoming receipts to the project warehouse.
+        """
+        is_site_store = self.env.user.has_group('purchase_demand_raise.group_site_store')
+        for pick in self:
+            wh = pick.picking_type_id.warehouse_id if pick.picking_type_id else False
+            if is_site_store and wh and wh.view_location_id:
+                pick.x_site_wh_view_location_id = wh.view_location_id
+            else:
+                pick.x_site_wh_view_location_id = False
 
     # ─────────────────────────────────────────────────────────────────────────
     # SITE WAREHOUSE / PRODUCT FILTERING
@@ -218,8 +271,12 @@ class StockPickingSiteOps(models.Model):
                 res['picking_type_id'] = pt.id
                 if pt.default_location_dest_id:
                     res.setdefault('location_dest_id', pt.default_location_dest_id.id)
-            # Material issuance always issues from site warehouse stock location
+            # Material issuance: auto-fill project + source location
             if res.get('x_transfer_purpose') == 'material_issuance':
+                # Auto-fill project from user's default analytic account
+                if not res.get('x_issuance_project_id'):
+                    if hasattr(user, 'x_default_analytic_account_id') and user.x_default_analytic_account_id:
+                        res['x_issuance_project_id'] = user.x_default_analytic_account_id.id
                 site_loc_id = self._matracon_site_stock_location_id(res)
                 if site_loc_id:
                     res['location_id'] = site_loc_id
@@ -245,7 +302,9 @@ class StockPickingSiteOps(models.Model):
                 if customer_loc:
                     res['location_dest_id'] = customer_loc.id
             res.setdefault('x_generate_gate_pass', True)
-            if res.get('x_issue_type') == 'subcontractor':
+            # Assets never get auto-backcharge on issuance; only consumables do
+            if (res.get('x_issue_type') == 'subcontractor'
+                    and res.get('x_inventory_type') != 'asset'):
                 res.setdefault('x_backcharge_applicable', True)
         return res
 
@@ -260,13 +319,14 @@ class StockPickingSiteOps(models.Model):
             self.x_gate_pass_outward_no = self.env['ir.sequence'].next_by_code(
                 'x.gate.pass.outward') or '/'
 
-    @api.onchange('x_issue_type')
+    @api.onchange('x_issue_type', 'x_inventory_type')
     def _onchange_issue_type_backcharge(self):
         if self.x_transfer_purpose != 'material_issuance':
             return
-        if self.x_issue_type == 'subcontractor':
+        # Assets never carry backcharge on issuance — it is handled at return time
+        if self.x_issue_type == 'subcontractor' and self.x_inventory_type != 'asset':
             self.x_backcharge_applicable = True
-        elif self.x_issue_type == 'normal':
+        else:
             self.x_backcharge_applicable = False
 
     @api.onchange('x_contact_id', 'x_issuance_project_id', 'move_ids', 'move_ids.product_id')
@@ -772,9 +832,12 @@ class StockPickingSiteOps(models.Model):
                 })
 
     def _post_validate_material_issuance(self):
-        """Post backcharge journal + liability sheet only for subcontractor + backcharge."""
+        """Post backcharge journal + liability sheet only for subcontractor + consumable + backcharge."""
         self.ensure_one()
         if self.x_is_return_transfer:
+            return
+        # Assets never generate backcharge at issuance time (handled on return)
+        if self.x_inventory_type == 'asset':
             return
         if self.x_issue_type != 'subcontractor' or not self.x_backcharge_applicable:
             return
@@ -809,8 +872,10 @@ class StockPickingSiteOps(models.Model):
         if not orig:
             return
 
+        # ── Consumable return: reverse the original backcharge pro-rata ───────
         if (orig.x_issue_type == 'subcontractor'
                 and orig.x_backcharge_applicable
+                and orig.x_inventory_type != 'asset'
                 and not self.x_return_backcharge_entry_id):
             orig_amount = sum(
                 m.quantity * m.x_unit_cost
@@ -836,7 +901,27 @@ class StockPickingSiteOps(models.Model):
                     )
                     self._auto_adjust_liability_sheet_on_return(adj_amount, orig)
 
-        if self.x_return_type == 'damaged' and not self.x_damage_backcharge_entry_id:
+        # ── Asset return: manual backcharge amount entered by user ────────────
+        if (orig.x_inventory_type == 'asset'
+                and self.x_return_backcharge_applicable
+                and self.x_return_backcharge_amount > 0
+                and not self.x_return_backcharge_entry_id):
+            entry = self._create_damage_journal_entry(
+                self.x_return_backcharge_amount, orig)
+            if entry:
+                self.x_return_backcharge_entry_id = entry
+                self.message_post(
+                    body=Markup(_(
+                        'Asset return backcharge <b>%s</b> (%.2f) posted to partner ledger.'
+                    )) % (entry.name, self.x_return_backcharge_amount)
+                )
+                self._auto_update_liability_sheet(self.x_return_backcharge_amount)
+
+        # Damage backcharge only for consumables — assets use the picking-level
+        # x_return_backcharge_applicable / x_return_backcharge_amount flow above.
+        if (self.x_return_type == 'damaged'
+                and not self.x_damage_backcharge_entry_id
+                and orig.x_inventory_type != 'asset'):
             self._post_validate_damage_backcharge(orig)
 
     def _post_validate_damage_backcharge(self, original):
@@ -905,6 +990,19 @@ class StockPickingSiteOps(models.Model):
         })
         move.action_post()
         self.x_interproject_entry_id = move
+
+        # Register in the inter-project transfer ledger so FO can track
+        # material-based balances alongside cash-based ones.
+        self.env['x.interproject.transfer'].sudo().create({
+            'date': fields.Date.context_today(self),
+            'transfer_type': 'inventory',
+            'picking_id': self.id,
+            'move_id': move.id,
+            'source_analytic_id': src_project.id,
+            'dest_analytic_id': dst_project.id,
+            'amount': total_value,
+        })
+
         self.message_post(
             body=Markup(_(
                 'Inter-project entry <b>%s</b> created — Receivable on <b>%s</b>, '
@@ -962,6 +1060,16 @@ class StockPickingSiteOps(models.Model):
             body=Markup(_('Incoming site-to-site transfer from <b>%s</b> (%s).')) % (
                 self.x_issuance_project_id.name, self.name)
         )
+        # Notify destination site store users so they know materials are on the way
+        if dest_config and dest_config.site_user_ids:
+            matracon_notify.notify_users(
+                dest_picking,
+                dest_config.site_user_ids,
+                _('Site-to-site transfer <b>%s</b> is on the way from <b>%s</b>. '
+                  'Please validate receipt when materials arrive.')
+                % (self.name, self.x_issuance_project_id.name),
+                summary=_('Incoming Site Transfer'),
+            )
 
     # ─────────────────────────────────────────────────────────────────────────
     # ACCOUNTING HELPERS

@@ -14,7 +14,7 @@ class SubcontractorIPC(models.Model):
         default=lambda self: _('New'), copy=False)
     subcontractor_id = fields.Many2one(
         'res.partner', string='Subcontractor',
-        required=True, domain=[('is_company', '=', True)], tracking=True)
+        required=True, domain=[('category_id.name', '=', 'Subcontractor')], tracking=True)
     project_analytic_account_id = fields.Many2one(
         'account.analytic.account',
         string='Project', required=True, tracking=True)

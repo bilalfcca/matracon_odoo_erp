@@ -163,6 +163,7 @@ class PettyCashRequest(models.Model):
         if self.state != 'submitted':
             raise UserError(_('Only submitted requests can be released.'))
         Payment = self.env['account.payment']
+        analytic = self.project_analytic_account_id
         payment = Payment.create({
             'payment_type': 'outbound',
             'partner_type': 'supplier',
@@ -170,7 +171,10 @@ class PettyCashRequest(models.Model):
             'x_gross_approved_amount': self.requested_amount,
             'x_petty_cash_request_id': self.id,
             'x_payment_category': 'petty_cash',
-            'x_destination_project_id': self.project_analytic_account_id.id,
+            'x_destination_project_id': analytic.id if analytic else False,
+            # Pre-fill source project so the project fund pool is debited correctly
+            # and x_total_spent is incremented via _matracon_ensure_fund_allocations.
+            'x_source_project_ids': [(6, 0, [analytic.id])] if analytic else [],
         })
         self.payment_id = payment.id
         return {
@@ -254,11 +258,10 @@ class PettyCashExpense(models.Model):
         if not cash_journal:
             return  # No cash journal configured — skip silently
 
-        # Use the journal's default cash account as the credit (petty cash source)
-        credit_account = (
-            cash_journal.default_account_id
-            or cash_journal.payment_credit_account_id
-        )
+        # Use the journal's default cash account as the credit (petty cash source).
+        # Note: payment_credit_account_id was removed in Odoo 17; default_account_id
+        # is the correct field for cash/bank journals.
+        credit_account = cash_journal.default_account_id
         if not credit_account:
             return  # Cannot determine petty cash account
 

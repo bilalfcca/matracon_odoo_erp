@@ -43,7 +43,8 @@ class ProjectSiteConfigProjectLink(models.Model):
     def create(self, vals_list):
         records = super().create(vals_list)
         records._ensure_project_record()
-        records.filtered(lambda c: not c.warehouse_id)._matracon_ensure_warehouse_for_config()
+        for record in records.filtered(lambda c: not c.warehouse_id):
+            record._matracon_ensure_warehouse_for_config()
         for record in records:
             if record.site_user_ids:
                 record._assign_users(record.site_user_ids)
@@ -72,13 +73,33 @@ class ProjectSiteConfigProjectLink(models.Model):
             'name', 'analytic_account_id', 'site_user_ids', 'x_site_accountant_ids',
         )):
             self._ensure_project_record()
+        if 'name' in vals:
+            self._matracon_sync_name_to_linked_records()
         if 'warehouse_id' not in vals and any(k in vals for k in ('name', 'analytic_account_id')):
-            self.filtered(lambda c: not c.warehouse_id)._matracon_ensure_warehouse_for_config()
+            for config in self.filtered(lambda c: not c.warehouse_id):
+                config._matracon_ensure_warehouse_for_config()
         if any(k in vals for k in (
             'warehouse_id', 'site_user_ids', 'x_site_accountant_ids',
         )):
             self._matracon_sync_user_operational_warehouse()
         return res
+
+    def _matracon_sync_name_to_linked_records(self):
+        """Propagate a site config rename to all linked records:
+        analytic account, warehouse, and project.project (via _ensure_project_record).
+        """
+        for config in self:
+            new_name = config.name
+            if not new_name:
+                continue
+            # ── Analytic account ──────────────────────────────────────────────
+            if config.analytic_account_id:
+                config.analytic_account_id.sudo().write({'name': new_name})
+            # ── Warehouse name (keep existing code — changing code is disruptive) ──
+            if config.warehouse_id:
+                # Build the expected warehouse name suffix
+                new_wh_name = f'{new_name} Site Warehouse'
+                config.warehouse_id.sudo().write({'name': new_wh_name})
 
     def _ensure_project_record(self):
         """Create or link project.project for each site configuration."""
