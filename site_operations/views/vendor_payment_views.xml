@@ -211,7 +211,7 @@
                 <!-- Fund Allocation tab — first -->
                 <page name="fund_allocation_tab"
                       string="Fund Allocation &amp; Tracking"
-                      invisible="payment_type != 'outbound' or x_payment_category == 'petty_cash' or (x_ceo_direct_payment and x_viewer_is_ceo_only)">
+                      invisible="payment_type != 'outbound' or (x_ceo_direct_payment and x_viewer_is_ceo_only)">
                     <field name="x_allocation_ids" widget="one2many">
                         <list string="Fund Allocation" editable="bottom">
                             <field name="project_analytic_account_id" string="Source Project"/>
