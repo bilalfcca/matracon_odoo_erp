@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ── Subcontractor IPC Report Action ──────────────────────────────── -->
+    <record id="action_report_subcontractor_ipc" model="ir.actions.report">
+        <field name="name">Subcontractor IPC</field>
+        <field name="model">x.subcontractor.ipc</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">site_operations.report_subcontractor_ipc_document</field>
+        <field name="report_file">site_operations.report_subcontractor_ipc_document</field>
+        <field name="print_report_name">'IPC - ' + (object.name or '')</field>
+        <field name="binding_model_id" ref="model_x_subcontractor_ipc"/>
+        <field name="binding_type">report</field>
+    </record>
+
+    <template id="report_subcontractor_ipc_document">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="ipc">
+                <t t-call="web.external_layout">
+                    <div class="page">
+
+                        <!-- Title -->
+                        <div class="row mb-4">
+                            <div class="col-12 text-center">
+                                <h2 style="font-weight:bold; text-transform:uppercase; border-bottom:2px solid #000; padding-bottom:8px;">
+                                    INTERIM PAYMENT CERTIFICATE
+                                </h2>
+                                <p style="font-size:13px; color:#555;">Subcontractor Payment Certificate</p>
+                            </div>
+                        </div>
+
+                        <!-- Header Info -->
+                        <div class="row mb-4">
+                            <div class="col-6">
+                                <table class="table table-borderless table-sm" style="font-size:13px;">
+                                    <tr>
+                                        <td style="font-weight:bold; width:160px;">IPC No:</td>
+                                        <td><t t-esc="ipc.name"/></td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-weight:bold;">Date:</td>
+                                        <td>
+                                            <t t-esc="ipc.ipc_date" t-options="{'widget': 'date'}"/>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-weight:bold;">Project:</td>
+                                        <td>
+                                            <t t-esc="ipc.project_analytic_account_id.name or ''"/>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-weight:bold;">IPC Period:</td>
+                                        <td>
+                                            <t t-esc="ipc.period or ''"/>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+                            <div class="col-6">
+                                <table class="table table-borderless table-sm" style="font-size:13px;">
+                                    <tr>
+                                        <td style="font-weight:bold; width:160px;">Subcontractor:</td>
+                                        <td><t t-esc="ipc.subcontractor_id.name or ''"/></td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-weight:bold;">Liability Sheet:</td>
+                                        <td>
+                                            <t t-esc="ipc.liability_sheet_id.name or 'N/A'"/>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-weight:bold;">Status:</td>
+                                        <td>
+                                            <t t-esc="dict(ipc._fields['state'].selection).get(ipc.state, ipc.state)"/>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Payment Calculation Table -->
+                        <div class="row mb-4">
+                            <div class="col-12">
+                                <h5 style="font-weight:bold; border-bottom:1px solid #ccc; padding-bottom:4px;">Payment Calculation</h5>
+                                <table class="table table-bordered" style="font-size:13px;">
+                                    <thead style="background:#f8f9fa;">
+                                        <tr>
+                                            <th>Description</th>
+                                            <th class="text-end">Amount (PKR)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td>Gross Work Done</td>
+                                            <td class="text-end">
+                                                <t t-esc="ipc.gross_work_done" t-options="{'widget': 'monetary', 'display_currency': ipc.currency_id}"/>
+                                            </td>
+                                        </tr>
+                                        <tr style="color:#c00;">
+                                            <td>(-) Retention
+                                                <t t-if="ipc.retention_pct"> (<t t-esc="ipc.retention_pct"/>%)</t>
+                                            </td>
+                                            <td class="text-end">
+                                                (<t t-esc="ipc.retention_amount" t-options="{'widget': 'monetary', 'display_currency': ipc.currency_id}"/>)
+                                            </td>
+                                        </tr>
+                                        <tr style="color:#c00;">
+                                            <td>(-) Advance Recovery</td>
+                                            <td class="text-end">
+                                                (<t t-esc="ipc.advance_recovery" t-options="{'widget': 'monetary', 'display_currency': ipc.currency_id}"/>)
+                                            </td>
+                                        </tr>
+                                        <tr style="color:#c00;" t-if="ipc.security_withheld">
+                                            <td>(-) Security Withheld</td>
+                                            <td class="text-end">
+                                                (<t t-esc="ipc.security_withheld" t-options="{'widget': 'monetary', 'display_currency': ipc.currency_id}"/>)
+                                            </td>
+                                        </tr>
+                                        <tr style="color:#c00;" t-if="ipc.backcharge_amount">
+                                            <td>(-) Backcharge</td>
+                                            <td class="text-end">
+                                                (<t t-esc="ipc.backcharge_amount" t-options="{'widget': 'monetary', 'display_currency': ipc.currency_id}"/>)
+                                            </td>
+                                        </tr>
+                                        <tr style="color:#c00;" t-if="ipc.other_deductions">
+                                            <td>(-) Other Deductions</td>
+                                            <td class="text-end">
+                                                (<t t-esc="ipc.other_deductions" t-options="{'widget': 'monetary', 'display_currency': ipc.currency_id}"/>)
+                                            </td>
+                                        </tr>
+                                        <tr style="font-weight:bold; background:#f0f0f0; border-top:2px solid #000;">
+                                            <td>Total Deductions</td>
+                                            <td class="text-end">
+                                                (<t t-esc="ipc.total_deductions" t-options="{'widget': 'monetary', 'display_currency': ipc.currency_id}"/>)
+                                            </td>
+                                        </tr>
+                                        <tr style="font-weight:bold; font-size:15px; background:#e8f5e9;">
+                                            <td>NET PAYABLE</td>
+                                            <td class="text-end">
+                                                <t t-esc="ipc.net_payable" t-options="{'widget': 'monetary', 'display_currency': ipc.currency_id}"/>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Notes -->
+                        <div class="row mb-4" t-if="ipc.notes">
+                            <div class="col-12">
+                                <h5 style="font-weight:bold;">Notes</h5>
+                                <p style="font-size:12px;"><t t-esc="ipc.notes"/></p>
+                            </div>
+                        </div>
+
+                        <!-- Signatures -->
+                        <div class="row mt-5">
+                            <div class="col-4 text-center">
+                                <div style="border-top:1px solid #000; padding-top:6px; margin-top:40px;">
+                                    <p style="font-size:12px; font-weight:bold;">Prepared By</p>
+                                    <p style="font-size:11px;">Site Accountant</p>
+                                </div>
+                            </div>
+                            <div class="col-4 text-center">
+                                <div style="border-top:1px solid #000; padding-top:6px; margin-top:40px;">
+                                    <p style="font-size:12px; font-weight:bold;">Verified By</p>
+                                    <p style="font-size:11px;">Finance HO</p>
+                                </div>
+                            </div>
+                            <div class="col-4 text-center">
+                                <div style="border-top:1px solid #000; padding-top:6px; margin-top:40px;">
+                                    <p style="font-size:12px; font-weight:bold;">Approved By</p>
+                                    <p style="font-size:11px;">CEO</p>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+</odoo>

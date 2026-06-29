@@ -91,15 +91,21 @@ class ProjectSiteConfig(models.Model):
         site_store_group = self.env.ref(
             'purchase_demand_raise.group_site_store', raise_if_not_found=False
         )
+        stock_user_group = self.env.ref(
+            'stock.group_stock_user', raise_if_not_found=False
+        )
+        Users = self.env['res.users']
         for user in users:
             vals = {
                 'x_default_analytic_account_id': self.analytic_account_id.id,
                 'x_default_warehouse_id': self.warehouse_id.id if self.warehouse_id else False,
                 'x_site_config_id': self.id,
             }
+            user.sudo().write(vals)
             if site_store_group:
-                vals['group_ids'] = [(4, site_store_group.id)]
-            user.write(vals)
+                Users._matracon_add_group(user, site_store_group)
+            if stock_user_group:
+                Users._matracon_add_group(user, stock_user_group)
 
     def _unassign_users(self, users):
         """
@@ -111,6 +117,7 @@ class ProjectSiteConfig(models.Model):
         site_store_group = self.env.ref(
             'purchase_demand_raise.group_site_store', raise_if_not_found=False
         )
+        Users = self.env['res.users']
         for user in users:
             # Check if the user is assigned to another site config
             other_config = self.search([
@@ -131,9 +138,9 @@ class ProjectSiteConfig(models.Model):
                     'x_default_warehouse_id': False,
                     'x_site_config_id': False,
                 }
+                user.sudo().write(unwrite_vals)
                 if site_store_group:
-                    unwrite_vals['group_ids'] = [(3, site_store_group.id)]
-                user.write(unwrite_vals)
+                    Users._matracon_remove_group(user, site_store_group)
 
     def action_view_users(self):
         self.ensure_one()

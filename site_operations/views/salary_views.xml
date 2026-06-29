@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_salary_sheet_form" model="ir.ui.view">
+        <field name="name">x.salary.sheet.form</field>
+        <field name="model">x.salary.sheet</field>
+        <field name="arch" type="xml">
+            <form string="Salary Sheet" class="matracon-salary-sheet">
+                <header>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,submitted,approved,paid"/>
+                    <button name="action_refresh_from_attendance" type="object"
+                            string="Refresh from Attendance" class="btn-secondary"
+                            invisible="state != 'draft'"
+                            groups="site_operations.group_site_accountant"/>
+                    <button name="action_submit" type="object"
+                            string="Submit for CEO Approval" class="btn-primary"
+                            invisible="state != 'draft'"
+                            groups="site_operations.group_site_accountant"/>
+                    <button name="action_ceo_approve" type="object"
+                            string="Approve" class="btn-success"
+                            invisible="state != 'submitted'"
+                            groups="purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin"/>
+                    <button name="action_create_payment" type="object"
+                            string="Create Payment" class="btn-primary"
+                            invisible="state != 'approved'"
+                            groups="site_operations.group_finance_ho,purchase_demand_raise.group_head_office"/>
+                    <button name="action_issue_wht_certificates" type="object"
+                            string="Issue WHT Certificates (Sec 149)"
+                            class="btn-secondary"
+                            invisible="state not in ('approved', 'paid') or total_wht == 0"
+                            groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_payments" type="object"
+                                class="oe_stat_button" icon="fa-money"
+                                invisible="not payment_ids">
+                            <field name="payment_ids" widget="statinfo" string="Payments"/>
+                        </button>
+                        <button type="button" class="oe_stat_button" icon="fa-users">
+                            <field name="workforce_count" widget="statinfo" string="Workforce"/>
+                        </button>
+                        <button type="button" class="oe_stat_button" icon="fa-money">
+                            <field name="total_basic" widget="statinfo" string="Gross Basic"/>
+                        </button>
+                        <button type="button" class="oe_stat_button" icon="fa-minus-circle">
+                            <field name="total_deductions" widget="statinfo" string="Deductions"/>
+                        </button>
+                        <button type="button" class="oe_stat_button" icon="fa-check-circle">
+                            <field name="total_net" widget="statinfo" string="Net Payable"/>
+                        </button>
+                        <button name="action_view_wht_certificates" type="object"
+                                class="oe_stat_button" icon="fa-certificate"
+                                invisible="wht_certificate_count == 0">
+                            <field name="wht_certificate_count" widget="statinfo" string="WHT Certs"/>
+                        </button>
+                    </div>
+                    <field name="wht_certificate_count" invisible="1"/>
+                    <group>
+                        <field name="project_analytic_account_id" readonly="1"/>
+                        <field name="date_from" readonly="1"/>
+                        <field name="date_to" readonly="1"/>
+                        <field name="attendance_sheet_id" readonly="1"/>
+                        <field name="currency_id" invisible="1"/>
+                    </group>
+                    <notebook>
+                        <page string="Payroll Lines">
+                            <field name="line_ids" readonly="state != 'draft'">
+                                <list>
+                                    <field name="employee_id"/>
+                                    <field name="paid_days" optional="show"/>
+                                    <field name="detail_basic_full" string="Monthly Basic" optional="show"/>
+                                    <field name="basic_salary" string="Basic (Paid Days)"/>
+                                    <field name="allowances"/>
+                                    <field name="deductions"/>
+                                    <field name="net_payable"/>
+                                    <button name="action_open_slip" type="object"
+                                            string="Slip" icon="fa-file-text-o"
+                                            groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_salary_sheet_line_form_ho" model="ir.ui.view">
+        <field name="name">x.salary.sheet.line.form.ho</field>
+        <field name="model">x.salary.sheet.line</field>
+        <field name="arch" type="xml">
+            <form string="Salary Slip" class="matracon-salary-slip">
+                <sheet>
+                    <group>
+                        <field name="employee_id" readonly="1"/>
+                        <field name="paid_days" readonly="1"/>
+                    </group>
+                    <group string="Earnings">
+                        <field name="detail_basic_full" readonly="1" string="Monthly Basic (Full)"/>
+                        <field name="basic_salary" readonly="1" string="Basic (Paid Days)"/>
+                        <field name="detail_hra" readonly="1"/>
+                        <field name="detail_site_allowance" readonly="1"/>
+                        <field name="allowances" readonly="1"/>
+                    </group>
+                    <group string="Deductions">
+                        <field name="detail_wht" readonly="1"/>
+                        <field name="detail_eobi" readonly="1"/>
+                        <field name="detail_advance" readonly="1"/>
+                        <field name="deductions" readonly="1"/>
+                    </group>
+                    <group>
+                        <field name="net_payable" readonly="1"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_salary_sheet_list" model="ir.ui.view">
+        <field name="name">x.salary.sheet.list</field>
+        <field name="model">x.salary.sheet</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name"/>
+                <field name="project_analytic_account_id"/>
+                <field name="date_from"/>
+                <field name="workforce_count"/>
+                <field name="total_net"/>
+                <field name="currency_id" column_invisible="1"/>
+                <field name="state" widget="badge"
+                       decoration-muted="state == 'draft'"
+                       decoration-warning="state == 'submitted'"
+                       decoration-success="state == 'approved'"
+                       decoration-info="state == 'paid'"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_salary_sheet" model="ir.actions.act_window">
+        <field name="name">Salary Sheets</field>
+        <field name="res_model">x.salary.sheet</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+</odoo>

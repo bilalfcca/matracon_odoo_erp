@@ -2,15 +2,8 @@
 <odoo>
     <data noupdate="0">
 
-        <!-- Remove the old per-user rule that was replaced by the project-based rule -->
         <delete model="ir.rule" search="[('name', '=', 'Purchase Order: Site Store sees own PRs only')]"/>
 
-        <!-- ══════════════════════════════════════════════════════════
-             PURCHASE ORDER — SITE STORE
-             Sees records where x_project_analytic_account_id matches
-             their assigned project's analytic account.
-             Works automatically for any new project or new user.
-             ══════════════════════════════════════════════════════════ -->
         <record id="rule_po_site_store_project" model="ir.rule">
             <field name="name">Purchase Order: Site Store restricted to own project</field>
             <field name="model_id" ref="purchase.model_purchase_order"/>
@@ -22,7 +15,6 @@
             <field name="perm_unlink" eval="False"/>
         </record>
 
-        <!-- HO / CEO / Head Office: see ALL records — no restriction -->
         <record id="rule_po_ho_all" model="ir.rule">
             <field name="name">Purchase Order: HO users see all</field>
             <field name="model_id" ref="purchase.model_purchase_order"/>
@@ -31,6 +23,13 @@
                 (4, ref('purchase_demand_raise.group_ceo_approval')),
                 (4, ref('purchase_demand_raise.group_head_office')),
             ]"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+        </record>
+
+        <record id="rule_po_admin_all" model="ir.rule">
+            <field name="name">Purchase Order: Administrators see all</field>
+            <field name="model_id" ref="purchase.model_purchase_order"/>
+            <field name="groups" eval="[(4, ref('base.group_system'))]"/>
             <field name="domain_force">[(1, '=', 1)]</field>
         </record>
 

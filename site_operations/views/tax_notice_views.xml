@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_tax_notice_order_tree" model="ir.ui.view">
+        <field name="name">x.tax.notice.order.list</field>
+        <field name="model">x.tax.notice.order</field>
+        <field name="arch" type="xml">
+            <list string="Tax Notices &amp; Orders"
+                  decoration-danger="is_overdue"
+                  decoration-warning="is_due_soon"
+                  decoration-muted="state in ('closed', 'paid', 'annulled', 'vacated')">
+                <field name="name" string="Notice Ref"/>
+                <field name="taxpayer_name" string="Name of JV / Taxpayer"/>
+                <field name="ref_no"/>
+                <field name="notice_section" string="Notice U/S"/>
+                <field name="document_date"/>
+                <field name="due_date"/>
+                <field name="description"/>
+                <field name="tax_year"/>
+                <field name="case_status" string="Status" widget="badge"/>
+                <field name="state" column_invisible="True"/>
+                <field name="liability_notice_amount" string="Liability in Notice" sum="Total Liability"/>
+                <field name="tax_ordered_amount" string="Tax Ordered" sum="Total Ordered"/>
+                <field name="paid_officially" sum="Paid Officially"/>
+                <field name="paid_unofficially" sum="Paid Unofficially"/>
+                <field name="consultant_fee" sum="Consultant Fee"/>
+                <field name="total_payment" sum="Total Payment"/>
+                <field name="remaining_liability" string="Remaining" sum="Remaining"/>
+                <field name="is_overdue" column_invisible="True"/>
+                <field name="is_due_soon" column_invisible="True"/>
+                <field name="currency_id" column_invisible="True"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_tax_notice_order_form" model="ir.ui.view">
+        <field name="name">x.tax.notice.order.form</field>
+        <field name="model">x.tax.notice.order</field>
+        <field name="arch" type="xml">
+            <form string="Tax Notice &amp; Order">
+                <header>
+                    <button name="action_open" type="object" string="Open Notice"
+                            class="btn-primary" invisible="state != 'draft'"/>
+                    <button name="action_reply_submitted" type="object" string="Reply Submitted"
+                            invisible="state != 'open'"/>
+                    <button name="action_under_proceeding" type="object" string="Under Proceeding"
+                            invisible="state not in ('open', 'reply_submitted')"/>
+                    <button name="action_order_filed" type="object" string="Order Filed"
+                            invisible="state not in ('under_proceeding', 'reply_submitted', 'open')"/>
+                    <button name="action_mark_contested" type="object" string="Mark Contested"
+                            invisible="case_status == 'contested'"/>
+                    <button name="action_add_payment" type="object" string="Add Payment"
+                            invisible="state in ('paid', 'closed', 'annulled', 'vacated')"/>
+                    <button name="action_mark_paid" type="object" string="Mark Paid"
+                            class="btn-success" invisible="state in ('paid', 'closed', 'annulled', 'vacated', 'draft')"/>
+                    <button name="action_close" type="object" string="Close"
+                            invisible="state in ('closed', 'paid', 'annulled', 'vacated', 'draft')"/>
+                    <button name="action_annul" type="object" string="Annul"
+                            invisible="state in ('paid', 'closed', 'annulled', 'vacated')"/>
+                    <button name="action_vacate" type="object" string="Vacate"
+                            invisible="state in ('paid', 'closed', 'annulled', 'vacated')"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,open,reply_submitted,under_proceeding,order_filed,closed,paid"/>
+                </header>
+                <sheet>
+                    <widget name="web_ribbon" title="Overdue" bg_color="text-bg-danger"
+                            invisible="not is_overdue"/>
+                    <div class="oe_title">
+                        <label for="description"/>
+                        <h1><field name="description" placeholder="Add Description"/></h1>
+                    </div>
+                    <group>
+                        <group string="Notice Details">
+                            <field name="name" readonly="1"/>
+                            <field name="ref_no"/>
+                            <field name="taxpayer_name"/>
+                            <field name="partner_id"/>
+                            <field name="case_status"/>
+                            <field name="notice_section"/>
+                            <field name="tax_year"/>
+                        </group>
+                        <group string="Dates">
+                            <field name="document_date"/>
+                            <field name="due_date" decoration-danger="is_overdue"/>
+                            <field name="currency_id"/>
+                        </group>
+                    </group>
+                    <group string="Tax Liability">
+                        <group>
+                            <field name="liability_notice_amount"/>
+                            <field name="tax_ordered_amount"/>
+                        </group>
+                        <group>
+                            <field name="paid_officially" readonly="1"/>
+                            <field name="paid_unofficially" readonly="1"/>
+                            <field name="consultant_fee" readonly="1"/>
+                            <field name="total_payment" readonly="1"/>
+                            <field name="remaining_liability" readonly="1"
+                                   decoration-danger="remaining_liability &gt; 0"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Payments &amp; Costs" name="payments">
+                            <field name="payment_line_ids">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="category"/>
+                                    <field name="description"/>
+                                    <field name="reference"/>
+                                    <field name="payment_date"/>
+                                    <field name="amount" sum="Total"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Auditor Remarks" name="auditor">
+                            <field name="auditor_remarks" placeholder="Auditor remarks and compliance notes..."/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_tax_notice_order_search" model="ir.ui.view">
+        <field name="name">x.tax.notice.order.search</field>
+        <field name="model">x.tax.notice.order</field>
+        <field name="arch" type="xml">
+            <search string="Tax Notices">
+                <field name="name"/>
+                <field name="taxpayer_name"/>
+                <field name="ref_no"/>
+                <field name="notice_section"/>
+                <field name="tax_year"/>
+                <filter string="Open" name="filter_open" domain="[('state', '=', 'open')]"/>
+                <filter string="Contested" name="filter_contested" domain="[('case_status', '=', 'contested')]"/>
+                <filter string="Overdue" name="filter_overdue" domain="[('is_overdue', '=', True)]"/>
+                <filter string="Due Soon" name="filter_due_soon" domain="[('is_due_soon', '=', True)]"/>
+                <filter string="Closed / Paid" name="filter_closed"
+                        domain="[('state', 'in', ('closed', 'paid'))]"/>
+                <separator/>
+                <filter string="JV Wise View" name="filter_jv_wise"
+                        context="{'group_by': 'taxpayer_name'}"/>
+                <filter string="Group by Tax Year" name="group_tax_year" context="{'group_by': 'tax_year'}"/>
+                <filter string="Group by Status" name="group_case_status" context="{'group_by': 'case_status'}"/>
+                <filter string="Group by Workflow" name="group_state" context="{'group_by': 'state'}"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_tax_notice_order" model="ir.actions.act_window">
+        <field name="name">Tax Notices &amp; Orders</field>
+        <field name="res_model">x.tax.notice.order</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_tax_notice_order_search"/>
+        <field name="context">{'search_default_filter_jv_wise': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Register a tax notice or assessment order</p>
+            <p>Track FBR/SRB notices, legal proceedings, official and unofficial payments, and consultant fees.</p>
+        </field>
+    </record>
+
+    <record id="view_tax_notice_payment_line_form" model="ir.ui.view">
+        <field name="name">x.tax.notice.payment.line.form</field>
+        <field name="model">x.tax.notice.payment.line</field>
+        <field name="arch" type="xml">
+            <form string="Payment Line">
+                <group>
+                    <field name="notice_id" readonly="1"/>
+                    <field name="category"/>
+                    <field name="description"/>
+                    <field name="reference"/>
+                    <field name="payment_date"/>
+                    <field name="amount"/>
+                </group>
+                <footer>
+                    <button string="Save" special="save"/>
+                    <button string="Discard" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+</odoo>

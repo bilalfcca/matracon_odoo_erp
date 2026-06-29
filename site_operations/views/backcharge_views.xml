@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_backcharge_move_list" model="ir.ui.view">
+        <field name="name">account.move.backcharge.list</field>
+        <field name="model">account.move</field>
+        <field name="arch" type="xml">
+            <list string="Backcharge Entries" create="false" edit="false">
+                <field name="name" string="Reference"/>
+                <field name="ref" string="Description"/>
+                <field name="invoice_date" string="Date"/>
+                <field name="journal_id" string="Journal"/>
+                <field name="amount_total" string="Amount"/>
+                <field name="state" widget="badge"/>
+            </list>
+        </field>
+    </record>
+
+</odoo>

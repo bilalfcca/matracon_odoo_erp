@@ -1,0 +1,259 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_procurement_ho_dashboard_form" model="ir.ui.view">
+        <field name="name">x.procurement.ho.dashboard.form</field>
+        <field name="model">x.procurement.ho.dashboard</field>
+        <field name="arch" type="xml">
+            <form string="Procurement Operations Overview" class="o_matracon_dashboard" create="false" delete="false">
+                <header>
+                    <button name="action_refresh" type="object" string="Refresh"
+                            class="btn-secondary" icon="fa-refresh"/>
+                    <button name="action_clear_filters" type="object"
+                            string="Clear Filters" class="btn-secondary" icon="fa-times"/>
+                </header>
+                <sheet>
+
+                    <div class="oe_title mb-3">
+                        <h1><field name="name" readonly="1" class="oe_inline"/></h1>
+                        <p class="text-muted mb-0">
+                            <field name="user_name" readonly="1" class="oe_inline"/>
+                            — Procurement Officer
+                        </p>
+                    </div>
+
+                    <field name="available_project_ids" invisible="1"/>
+
+                    <div class="matracon-dash-filters">
+                        <span class="matracon-dash-filters__label">Filters</span>
+                        <div class="matracon-dash-filters__field">
+                            <field name="filter_project_id" nolabel="1"
+                                   placeholder="All Projects"
+                                   options="{'no_create': True, 'no_open': True}"
+                                   domain="[('id', 'in', available_project_ids)]"/>
+                        </div>
+                        <div class="matracon-dash-filters__field">
+                            <field name="filter_contact_id" nolabel="1"
+                                   placeholder="Vendor / Subcontractor"
+                                   options="{'no_create': True, 'no_open': True}"/>
+                        </div>
+                        <div class="matracon-dash-filters__field">
+                            <field name="filter_category_id" nolabel="1"
+                                   placeholder="Category"
+                                   options="{'no_create': True, 'no_open': True}"/>
+                        </div>
+                        <div class="matracon-dash-filters__field">
+                            <field name="filter_pr_state" nolabel="1" placeholder="PR Status"/>
+                        </div>
+                        <div class="matracon-dash-filters__field">
+                            <field name="filter_period_days" nolabel="1" placeholder="Date Range"/>
+                        </div>
+                        <div class="matracon-dash-filters__field">
+                            <field name="filter_section" nolabel="1" placeholder="Focus"/>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-4">
+
+                        <div class="col-12 col-md-4">
+                            <div class="card border-0 h-100" style="box-shadow:0 1px 6px rgba(0,0,0,.12); border-radius:8px;">
+                                <div class="card-body py-3 px-3 px-md-4">
+                                    <small class="text-muted text-uppercase fw-bold"
+                                           style="font-size:0.7rem; letter-spacing:0.06em;">Pending Site Demands</small>
+                                    <div class="fw-bold text-danger mt-2 mb-1"
+                                         style="font-size:2.6rem; line-height:1.1;">
+                                        <field name="pending_review_count" nolabel="1" readonly="1" class="oe_inline"/>
+                                    </div>
+                                    <div class="d-flex flex-column gap-2">
+                                        <small class="text-muted">Awaiting HO Review</small>
+                                        <button name="action_open_pending_review" type="object"
+                                                string="Review" class="btn btn-sm btn-outline-danger align-self-start"/>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-md-4">
+                            <div class="card border-0 h-100" style="box-shadow:0 1px 6px rgba(0,0,0,.12); border-radius:8px;">
+                                <div class="card-body py-3 px-3 px-md-4">
+                                    <small class="text-muted text-uppercase fw-bold"
+                                           style="font-size:0.7rem; letter-spacing:0.06em;">Active CS / RFQ</small>
+                                    <div class="fw-bold mt-2 mb-1"
+                                         style="font-size:2.6rem; line-height:1.1; color:#fd7e14;">
+                                        <field name="active_cs_count" nolabel="1" readonly="1" class="oe_inline"/>
+                                    </div>
+                                    <div class="d-flex flex-column gap-2">
+                                        <small class="text-muted">Comparative Statements</small>
+                                        <button name="action_open_active_cs" type="object"
+                                                string="View CS" class="btn btn-sm btn-outline-warning align-self-start"/>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-md-4">
+                            <div class="card border-0 h-100" style="box-shadow:0 1px 6px rgba(0,0,0,.12); border-radius:8px;">
+                                <div class="card-body py-3 px-3 px-md-4">
+                                    <small class="text-muted text-uppercase fw-bold"
+                                           style="font-size:0.7rem; letter-spacing:0.06em;">Confirmed Orders</small>
+                                    <div class="fw-bold text-info mt-2 mb-1"
+                                         style="font-size:2.6rem; line-height:1.1;">
+                                        <field name="confirmed_orders_count" nolabel="1" readonly="1" class="oe_inline"/>
+                                    </div>
+                                    <small class="text-muted">Active Purchase Orders</small>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <div class="row g-3 mb-3"
+                         invisible="filter_section not in ('all', 'ceo_approval')">
+                        <div class="col-12">
+                            <div class="card border-0 h-100" style="box-shadow:0 1px 6px rgba(0,0,0,.12); border-radius:8px;">
+                                <div class="card-header d-flex flex-wrap justify-content-between align-items-center py-2 px-3 px-md-4 gap-2"
+                                     style="background:transparent; border-bottom:1px solid rgba(0,0,0,.07);">
+                                    <strong style="font-size:0.9rem;">
+                                        <i class="fa fa-gavel me-2 text-warning" title="CEO"/>
+                                        Pending CEO Approvals
+                                        <span class="badge text-bg-warning ms-2">
+                                            <field name="ceo_pending_count" nolabel="1" readonly="1" class="oe_inline"/>
+                                        </span>
+                                    </strong>
+                                    <button name="action_open_ceo_pending" type="object"
+                                            string="View All" class="btn btn-sm btn-outline-warning"/>
+                                </div>
+                                <div class="card-body p-0 matracon-dash-table-wrap matracon-dash-table-wrap--compact">
+                                    <field name="ceo_pending_ids" nolabel="1" readonly="1">
+                                        <list create="false" delete="false" edit="false"
+                                              decoration-warning="x_pr_state == 'ceo_final'">
+                                            <field name="name" string="Requisition"/>
+                                            <field name="x_project_analytic_account_id" string="Project"/>
+                                            <field name="partner_id" string="Vendor"/>
+                                            <field name="amount_total" string="Value" widget="monetary"/>
+                                            <field name="x_pr_state" string="Status" widget="badge"/>
+                                            <field name="x_category_id" string="Category" optional="hide"/>
+                                            <field name="x_ho_status" string="HO Status" widget="badge" optional="hide"/>
+                                        </list>
+                                    </field>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-3"
+                         invisible="filter_section not in ('all', 'critical', 'pending_review')">
+
+                        <div class="col-12 col-lg-6"
+                             invisible="filter_section not in ('all', 'critical')">
+                            <div class="card border-0 h-100" style="box-shadow:0 1px 6px rgba(0,0,0,.12); border-radius:8px;">
+                                <div class="card-header py-2 px-3 px-md-4 d-flex flex-wrap justify-content-between gap-2"
+                                     style="background:transparent; border-bottom:1px solid rgba(0,0,0,.07);">
+                                    <strong style="font-size:0.9rem;">
+                                        <i class="fa fa-exclamation-triangle me-2 text-danger" title="Critical"/>
+                                        Critical Site Demands
+                                    </strong>
+                                    <button name="action_open_critical_demands" type="object"
+                                            string="View All" class="btn btn-sm btn-outline-danger"/>
+                                </div>
+                                <div class="card-body p-0 matracon-dash-table-wrap matracon-dash-table-wrap--compact">
+                                    <field name="critical_demand_ids" nolabel="1" readonly="1">
+                                        <list create="false" delete="false" edit="false"
+                                              decoration-danger="x_ho_status == 'pending'">
+                                            <field name="name" string="Requisition"/>
+                                            <field name="x_project_analytic_account_id" string="Site"/>
+                                            <field name="x_pr_state" string="Status" widget="badge"/>
+                                            <field name="x_category_id" string="Category" optional="hide"/>
+                                            <field name="date_order" string="Raised On" optional="hide"/>
+                                        </list>
+                                    </field>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-lg-6"
+                             invisible="filter_section not in ('all', 'pending_review')">
+                            <div class="card border-0 h-100" style="box-shadow:0 1px 6px rgba(0,0,0,.12); border-radius:8px;">
+                                <div class="card-header py-2 px-3 px-md-4"
+                                     style="background:transparent; border-bottom:1px solid rgba(0,0,0,.07);">
+                                    <strong style="font-size:0.9rem;">
+                                        <i class="fa fa-inbox me-2 text-primary" title="Pending Review"/>
+                                        Pending HO Review
+                                    </strong>
+                                </div>
+                                <div class="card-body p-0 matracon-dash-table-wrap matracon-dash-table-wrap--compact">
+                                    <field name="pending_review_ids" nolabel="1" readonly="1">
+                                        <list create="false" delete="false" edit="false"
+                                              decoration-warning="x_ho_status == 'pending'">
+                                            <field name="name" string="Reference"/>
+                                            <field name="x_project_analytic_account_id" string="Project"/>
+                                            <field name="x_pr_state" string="Status" widget="badge"/>
+                                            <field name="x_ho_status" string="HO Status" widget="badge" optional="hide"/>
+                                            <field name="x_category_id" string="Category" optional="hide"/>
+                                            <field name="x_initiator_id" string="Raised By" optional="hide"/>
+                                        </list>
+                                    </field>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <div class="row g-3 mb-3"
+                         invisible="filter_section not in ('all', 'active_cs')">
+                        <div class="col-12">
+                            <div class="card border-0" style="box-shadow:0 1px 6px rgba(0,0,0,.12); border-radius:8px;">
+                                <div class="card-header py-2 px-3 px-md-4 d-flex flex-wrap justify-content-between gap-2"
+                                     style="background:transparent; border-bottom:1px solid rgba(0,0,0,.07);">
+                                    <strong style="font-size:0.9rem;">Active CS / RFQ</strong>
+                                    <button name="action_open_active_cs" type="object"
+                                            string="View All" class="btn btn-sm btn-outline-warning"/>
+                                </div>
+                                <div class="card-body p-0 matracon-dash-table-wrap matracon-dash-table-wrap--compact">
+                                    <field name="active_cs_ids" nolabel="1" readonly="1">
+                                        <list create="false" delete="false" edit="false">
+                                            <field name="name" string="Reference"/>
+                                            <field name="x_project_analytic_account_id" string="Project"/>
+                                            <field name="partner_id" string="Vendor"/>
+                                            <field name="x_pr_state" string="Status" widget="badge"/>
+                                            <field name="x_has_tender_alternatives" string="Alternatives" optional="hide"/>
+                                        </list>
+                                    </field>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card border-0 mb-3" style="box-shadow:0 1px 6px rgba(0,0,0,.12); border-radius:8px;">
+                        <div class="card-header py-2 px-3 px-md-4"
+                             style="background:transparent; border-bottom:1px solid rgba(0,0,0,.07);">
+                            <strong style="font-size:0.9rem;">Recent Purchase Orders</strong>
+                        </div>
+                        <div class="card-body p-0 matracon-dash-table-wrap matracon-dash-table-wrap--compact">
+                            <field name="recent_po_ids" nolabel="1" readonly="1">
+                                <list create="false" delete="false" edit="false"
+                                      decoration-success="state in ('purchase', 'done')">
+                                    <field name="name" string="PO"/>
+                                    <field name="partner_id" string="Vendor"/>
+                                    <field name="amount_total" string="Value" widget="monetary"/>
+                                    <field name="x_pr_state" string="PR Status" widget="badge"/>
+                                    <field name="x_project_analytic_account_id" string="Project" optional="hide"/>
+                                    <field name="state" string="Odoo Status" widget="badge" optional="hide"/>
+                                </list>
+                            </field>
+                        </div>
+                    </div>
+
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_procurement_ho_dashboard" model="ir.actions.server">
+        <field name="name">Procurement HO Dashboard</field>
+        <field name="model_id" ref="model_x_procurement_ho_dashboard"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_open_dashboard()</field>
+    </record>
+
+</odoo>

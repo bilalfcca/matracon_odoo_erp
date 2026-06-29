@@ -91,7 +91,7 @@
         </field>
     </record>
 
-    <!-- Menu under Purchase > Configuration (visible to purchase managers and ERP managers) -->
+    <!-- Menu under Purchase > Configuration -->
     <menuitem id="menu_project_site_config"
               name="Site Project Configurations"
               parent="purchase.menu_purchase_config"
@@ -99,7 +99,7 @@
               sequence="50"
               groups="purchase.group_purchase_manager,base.group_erp_manager"/>
 
-    <!-- Also accessible from Settings > Technical for admin -->
+    <!-- Also accessible from Settings for Odoo ERP managers -->
     <menuitem id="menu_project_site_config_settings"
               name="Site Project Configurations"
               parent="base.menu_administration"

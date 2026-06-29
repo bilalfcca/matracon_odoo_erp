@@ -7,6 +7,20 @@
         models/stock_picking.py when the first relevant transfer is validated.
     -->
 
+    <!-- WHT Payable — tax withheld and remittable to FBR -->
+    <record id="account_wht_payable" model="account.account">
+        <field name="code">252100</field>
+        <field name="name">WHT Payable</field>
+        <field name="account_type">liability_current</field>
+    </record>
+
+    <!-- Retention Payable — retention held, payable back to subcontractor on release -->
+    <record id="account_retention_payable" model="account.account">
+        <field name="code">211200</field>
+        <field name="name">Retention Payable</field>
+        <field name="account_type">liability_payable</field>
+    </record>
+
     <!-- ── Gate Pass Outward Sequence ───────────────────────────────────── -->
     <record id="seq_gate_pass_outward" model="ir.sequence">
         <field name="name">Gate Pass Outward</field>

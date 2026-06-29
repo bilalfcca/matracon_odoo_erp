@@ -1,0 +1,225 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_site_accountant_dashboard_form" model="ir.ui.view">
+        <field name="name">x.site.accountant.dashboard.form</field>
+        <field name="model">x.site.accountant.dashboard</field>
+        <field name="arch" type="xml">
+            <form string="Site Overview" class="o_matracon_dashboard o_site_accountant_dashboard" create="false" delete="false">
+                <header>
+                    <button name="action_refresh" type="object" string="Refresh"
+                            class="btn-secondary" icon="fa-refresh"/>
+                </header>
+                <sheet>
+                    <field name="currency_id" invisible="1"/>
+                    <field name="project_analytic_id" invisible="1"/>
+
+                    <!-- Title bar -->
+                    <div class="oe_title mb-4">
+                        <div class="d-flex align-items-center gap-2 mb-1">
+                            <span class="text-muted small fw-bold">
+                                <field name="name" readonly="1" class="oe_inline"/> › Site Overview
+                            </span>
+                        </div>
+                        <h2 class="mb-0">
+                            <field name="user_name" readonly="1" class="oe_inline"/>
+                            <span class="badge rounded-pill ms-2 align-middle"
+                                  style="background:#17a2b8;font-size:0.45em;vertical-align:middle;">
+                                COMPREHENSIVE VIEW
+                            </span>
+                        </h2>
+                    </div>
+
+                    <!-- ══ ATTENDANCE KPI CARDS ══ -->
+                    <div class="row g-3 mb-4">
+
+                        <div class="col-12 col-md-4">
+                            <div class="card h-100 border-0 shadow-sm">
+                                <div class="card-body d-flex align-items-center justify-content-between">
+                                    <div>
+                                        <small class="text-uppercase fw-bold" style="font-size:0.7em;letter-spacing:.05em;color:#714B67;">Monthly Presents</small>
+                                        <div class="h3 fw-bold mt-1 mb-1">
+                                            <field name="kpi_monthly_present_days" nolabel="1" readonly="1" class="oe_inline"/>
+                                            <span class="small fw-normal ms-1">Man-Days</span>
+                                        </div>
+                                        <div class="text-success small">
+                                            ↗
+                                            <field name="kpi_capacity_utilization_pct" nolabel="1" readonly="1" class="oe_inline" widget="float" options='{"digits": [5, 1]}'/>%
+                                            Capacity Utilization
+                                        </div>
+                                    </div>
+                                    <div class="rounded-circle d-flex align-items-center justify-content-center"
+                                         style="width:52px;height:52px;background:#e8f5e9;">
+                                        <i class="fa fa-users fa-lg text-success" title="Monthly Presents"/>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-md-4">
+                            <div class="card h-100 border-0 shadow-sm">
+                                <div class="card-body d-flex align-items-center justify-content-between">
+                                    <div>
+                                        <small class="text-uppercase fw-bold" style="font-size:0.7em;letter-spacing:.05em;color:#714B67;">6-Month Avg Presents</small>
+                                        <div class="h3 fw-bold mt-1 mb-1">
+                                            <field name="kpi_6m_avg_present" nolabel="1" readonly="1" class="oe_inline" widget="float" options='{"digits": [16, 0]}'/>
+                                            <span class="small fw-normal ms-1">Man-Days</span>
+                                        </div>
+                                        <div class="text-success small">
+                                            ✓
+                                            <field name="kpi_monthly_attendance_pct" nolabel="1" readonly="1" class="oe_inline" widget="float" options='{"digits": [5, 1]}'/>%
+                                            Avg Efficiency
+                                        </div>
+                                    </div>
+                                    <div class="rounded-circle d-flex align-items-center justify-content-center"
+                                         style="width:52px;height:52px;background:#e3f2fd;">
+                                        <i class="fa fa-bar-chart fa-lg text-info" title="6-Month Average"/>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-md-4">
+                            <div class="card h-100 border-0 shadow-sm">
+                                <div class="card-body d-flex align-items-center justify-content-between">
+                                    <div>
+                                        <small class="text-uppercase fw-bold" style="font-size:0.7em;letter-spacing:.05em;color:#714B67;">6-Month Avg Staff</small>
+                                        <div class="h3 fw-bold mt-1 mb-1">
+                                            <field name="kpi_6m_avg_staff" nolabel="1" readonly="1" class="oe_inline" widget="float" options='{"digits": [16, 0]}'/>
+                                            <span class="small fw-normal ms-1">Staff</span>
+                                        </div>
+                                        <div class="text-info small">
+                                            +
+                                            <field name="kpi_total_employees" nolabel="1" readonly="1" class="oe_inline"/>
+                                            Current Workforce
+                                        </div>
+                                    </div>
+                                    <div class="rounded-circle d-flex align-items-center justify-content-center"
+                                         style="width:52px;height:52px;background:#f3e5f5;">
+                                        <i class="fa fa-user-plus fa-lg" style="color:#9c27b0;" title="Staff"/>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- ══ MAIN CONTENT ROW ══ -->
+                    <div class="row g-3">
+
+                        <!-- Left: Liabilities -->
+                        <div class="col-12 col-lg-7">
+
+                            <!-- Subcontractor Liabilities -->
+                            <div class="card border-0 mb-3">
+                                <div class="card-header border-0 py-2 px-3 d-flex justify-content-between align-items-center" style="background:transparent;">
+                                    <strong style="color:#714B67;">
+                                        <i class="fa fa-users me-1"/>
+                                        Subcontractor Liabilities
+                                    </strong>
+                                    <span class="small" style="color:#714B67;">
+                                        Total:
+                                        <field name="kpi_sub_liability" widget="monetary" nolabel="1" readonly="1" class="oe_inline fw-bold text-danger"/>
+                                    </span>
+                                </div>
+                                <div class="card-body p-0">
+                                    <field name="sub_liability_line_ids" nolabel="1" readonly="1">
+                                        <list create="false" delete="false" edit="false"
+                                              decoration-danger="liability_amount > 0">
+                                            <field name="partner_name" string="Subcontractor"/>
+                                            <field name="total_value" widget="monetary" string="Work Certified"/>
+                                            <field name="liability_amount" widget="monetary" string="Net Payable" sum="Total"/>
+                                        </list>
+                                    </field>
+                                </div>
+                            </div>
+
+                            <!-- Vendor Liabilities -->
+                            <div class="card border-0 mb-3">
+                                <div class="card-header border-0 py-2 px-3 d-flex justify-content-between align-items-center" style="background:transparent;">
+                                    <strong style="color:#714B67;">
+                                        <i class="fa fa-shopping-cart me-1" title="Vendors"/>
+                                        Vendor Liabilities
+                                    </strong>
+                                    <span class="small" style="color:#714B67;">
+                                        Lump Sum Rem. After Recommendation
+                                    </span>
+                                </div>
+                                <div class="card-body p-0">
+                                    <field name="vendor_liability_line_ids" nolabel="1" readonly="1">
+                                        <list create="false" delete="false" edit="false"
+                                              decoration-danger="liability_amount > 0">
+                                            <field name="partner_name" string="Vendor Name"/>
+                                            <field name="category_label" string="Category"/>
+                                            <field name="liability_amount" widget="monetary" string="PKR Remaining" sum="Total"/>
+                                        </list>
+                                    </field>
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <!-- Right: Petty Cash Hub -->
+                        <div class="col-12 col-lg-5">
+                            <div class="card border-0 h-100">
+                                <div class="card-header border-0 py-2 px-3 d-flex justify-content-between align-items-start" style="background:transparent;">
+                                    <strong style="color:#714B67;">
+                                        <i class="fa fa-list-alt me-1" title="Petty Cash Hub"/>
+                                        Petty Cash Hub
+                                    </strong>
+                                    <div class="text-end">
+                                        <div class="small text-uppercase fw-bold" style="color:#714B67;font-size:0.7em;letter-spacing:.05em;">Available Balance</div>
+                                        <field name="kpi_petty_cash_balance" widget="monetary" nolabel="1" readonly="1" class="fw-bold text-success fs-3"/>
+                                    </div>
+                                </div>
+                                <div class="card-body pt-0 px-3">
+
+                                    <small class="text-uppercase fw-bold d-block mt-2 mb-1" style="font-size:0.7em;letter-spacing:.05em;color:#714B67;">
+                                        Recent Replenishments
+                                    </small>
+                                    <field name="replenishment_line_ids" nolabel="1" readonly="1">
+                                        <list create="false" delete="false" edit="false">
+                                            <field name="description" string="Reference"/>
+                                            <field name="amount" widget="monetary" string="Amount"
+                                                   decoration-success="amount > 0"/>
+                                        </list>
+                                    </field>
+
+                                    <hr class="my-2"/>
+
+                                    <small class="text-uppercase fw-bold d-block mb-1" style="font-size:0.7em;letter-spacing:.05em;color:#714B67;">
+                                        Daily Ledger (Expenses)
+                                    </small>
+                                    <field name="expense_line_ids" nolabel="1" readonly="1">
+                                        <list create="false" delete="false" edit="false">
+                                            <field name="description" string="Description"/>
+                                            <field name="expense_date" string="Date"/>
+                                            <field name="amount" widget="monetary" string="Amount"
+                                                   decoration-danger="amount > 0"/>
+                                        </list>
+                                    </field>
+
+                                    <div class="text-center mt-3">
+                                        <button name="action_view_petty_cash" type="object"
+                                                string="View Full Ledger"
+                                                class="btn btn-sm btn-link text-muted"/>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_site_accountant_dashboard" model="ir.actions.server">
+        <field name="name">Site Overview</field>
+        <field name="model_id" ref="model_x_site_accountant_dashboard"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_open_site_dashboard()</field>
+    </record>
+
+</odoo>

@@ -59,4 +59,15 @@ class StockPickingPR(models.Model):
                     raise UserError(_(
                         'Please complete the following required field(s) before validating:\n\n• %s'
                     ) % '\n• '.join(missing))
-        return super().button_validate()
+        res = super().button_validate()
+        self._matracon_after_receipt_validated()
+        return res
+
+    def _matracon_after_receipt_validated(self):
+        """Hook: draft vendor bill + accountant notification after GRN."""
+        for picking in self.filtered(
+            lambda p: p.state == 'done'
+            and p.picking_type_code == 'incoming'
+            and p.purchase_id
+        ):
+            self.env['account.move']._matracon_create_draft_bill_from_po_receipt(picking)

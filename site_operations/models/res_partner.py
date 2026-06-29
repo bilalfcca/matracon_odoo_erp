@@ -5,6 +5,16 @@ from odoo.exceptions import ValidationError
 class ResPartnerSiteOps(models.Model):
     _inherit = 'res.partner'
 
+    x_cnic = fields.Char(string='CNIC', tracking=True)
+
+    x_is_project_entity = fields.Boolean(
+        string='Internal Project Entity',
+        default=False,
+        help='Set on auto-generated partners that represent a project '
+             'for inter-project accounting purposes. '
+             'Hides them from vendor/customer selection lists.'
+    )
+
     x_material_issuance_count = fields.Integer(
         string='Material Issuances',
         compute='_compute_x_material_issuance_count',

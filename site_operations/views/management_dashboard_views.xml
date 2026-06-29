@@ -1,0 +1,610 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_management_dashboard_form" model="ir.ui.view">
+        <field name="name">x.management.dashboard.form</field>
+        <field name="model">x.management.dashboard</field>
+        <field name="arch" type="xml">
+            <form string="Management Dashboard" class="o_matracon_dashboard o_matracon_mgmt_dashboard" create="false" delete="false">
+                <header>
+                    <button name="action_refresh" type="object" string="Refresh"
+                            class="btn-secondary" icon="fa-refresh"/>
+                    <button name="action_apply_filters" type="object"
+                            string="Apply Filters" class="btn-primary" icon="fa-filter"/>
+                    <button name="action_clear_filters" type="object"
+                            string="Clear Filters" class="btn-secondary" icon="fa-times"/>
+                </header>
+                <sheet>
+                    <field name="currency_id" invisible="1"/>
+                    <field name="available_project_ids" invisible="1"/>
+                    <field name="x_is_site_accountant" invisible="1"/>
+
+                    <div class="oe_title mb-3">
+                        <h1><field name="name" readonly="1" class="oe_inline"/></h1>
+                        <p class="text-muted mb-0">
+                            <field name="user_name" readonly="1" class="oe_inline"/>
+                            — Management Dashboard
+                        </p>
+                    </div>
+
+                    <!-- ── Global filters ── -->
+                    <div class="matracon-dash-filters">
+                        <span class="matracon-dash-filters__label">Dashboard &amp; Filters</span>
+                        <div class="matracon-dash-filters__field">
+                            <field name="filter_dashboard_tab" nolabel="1"/>
+                        </div>
+                        <div class="matracon-dash-filters__field">
+                            <field name="filter_scope" nolabel="1"/>
+                        </div>
+                        <div class="matracon-dash-filters__field"
+                             invisible="filter_scope != 'single'">
+                            <field name="filter_project_id" nolabel="1"
+                                   placeholder="Select Project"
+                                   options="{'no_create': True, 'no_open': True}"
+                                   domain="[('id', 'in', available_project_ids)]"
+                                   required="filter_scope == 'single'"/>
+                        </div>
+                        <div class="matracon-dash-filters__field">
+                            <field name="filter_period_preset" nolabel="1"/>
+                        </div>
+                        <div class="matracon-dash-filters__field"
+                             invisible="filter_period_preset != 'custom'">
+                            <field name="filter_date_from" nolabel="1" placeholder="From"/>
+                        </div>
+                        <div class="matracon-dash-filters__field"
+                             invisible="filter_period_preset != 'custom'">
+                            <field name="filter_date_to" nolabel="1" placeholder="To"/>
+                        </div>
+                    </div>
+
+                    <!-- ══ KPI CARDS (shared across tabs) ══ -->
+                    <div class="row g-3 mb-4 matracon-mgmt-kpi-row">
+
+                        <div class="col-6 col-md-4 col-xl-2">
+                            <div class="card matracon-mgmt-kpi h-100">
+                                <div class="card-body py-3">
+                                    <small class="matracon-mgmt-kpi__label">Total Liabilities</small>
+                                    <div class="matracon-mgmt-kpi__value text-danger">
+                                        <field name="kpi_total_liabilities" widget="monetary" nolabel="1" readonly="1"/>
+                                    </div>
+                                    <button name="action_open_liability_sheets" type="object"
+                                            string="View All" class="btn btn-sm btn-link p-0"/>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-6 col-md-4 col-xl-2">
+                            <div class="card matracon-mgmt-kpi h-100">
+                                <div class="card-body py-3">
+                                    <small class="matracon-mgmt-kpi__label">Payments Made</small>
+                                    <div class="matracon-mgmt-kpi__value">
+                                        <field name="kpi_payments_made" widget="monetary" nolabel="1" readonly="1"/>
+                                    </div>
+                                    <button name="action_open_payments_made" type="object"
+                                            string="View All" class="btn btn-sm btn-link p-0"/>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-6 col-md-4 col-xl-2">
+                            <div class="card matracon-mgmt-kpi h-100">
+                                <div class="card-body py-3">
+                                    <small class="matracon-mgmt-kpi__label">Payments Received</small>
+                                    <div class="matracon-mgmt-kpi__value">
+                                        <field name="kpi_payments_received" widget="monetary" nolabel="1" readonly="1"/>
+                                    </div>
+                                    <button name="action_open_payments_received" type="object"
+                                            string="View All" class="btn btn-sm btn-link p-0"/>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-6 col-md-4 col-xl-2">
+                            <div class="card matracon-mgmt-kpi matracon-mgmt-kpi--accent h-100">
+                                <div class="card-body py-3">
+                                    <small class="matracon-mgmt-kpi__label">Net Balance</small>
+                                    <div class="matracon-mgmt-kpi__value">
+                                        <field name="kpi_net_balance" widget="monetary" nolabel="1" readonly="1"/>
+                                    </div>
+                                    <button name="action_open_project_financial_overview" type="object"
+                                            string="Projects" class="btn btn-sm btn-link p-0 text-white"/>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-6 col-md-4 col-xl-2">
+                            <div class="card matracon-mgmt-kpi h-100">
+                                <div class="card-body py-3">
+                                    <small class="matracon-mgmt-kpi__label">Bank Balance</small>
+                                    <div class="matracon-mgmt-kpi__value">
+                                        <field name="kpi_bank_balance" widget="monetary" nolabel="1" readonly="1"/>
+                                    </div>
+                                    <button name="action_open_bank_journals" type="object"
+                                            string="View Banks" class="btn btn-sm btn-link p-0"/>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-6 col-md-4 col-xl-2">
+                            <div class="card matracon-mgmt-kpi h-100">
+                                <div class="card-body py-3">
+                                    <small class="matracon-mgmt-kpi__label">Project Available</small>
+                                    <div class="matracon-mgmt-kpi__value">
+                                        <field name="kpi_project_available" widget="monetary" nolabel="1" readonly="1"/>
+                                    </div>
+                                    <button name="action_open_project_financial_overview" type="object"
+                                            string="View All" class="btn btn-sm btn-link p-0"/>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-6 col-md-4 col-xl-2">
+                            <div class="card matracon-mgmt-kpi h-100">
+                                <div class="card-body py-3">
+                                    <small class="matracon-mgmt-kpi__label">Petty Cash</small>
+                                    <div class="matracon-mgmt-kpi__value">
+                                        <field name="kpi_petty_cash" widget="monetary" nolabel="1" readonly="1"/>
+                                    </div>
+                                    <button name="action_open_petty_cash" type="object"
+                                            string="View All" class="btn btn-sm btn-link p-0"/>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-6 col-md-4 col-xl-2">
+                            <div class="card matracon-mgmt-kpi matracon-mgmt-kpi--bg h-100">
+                                <div class="card-body py-3">
+                                    <small class="matracon-mgmt-kpi__label">BG Utilized</small>
+                                    <div class="matracon-mgmt-kpi__value">
+                                        <field name="kpi_bg_utilized" widget="monetary" nolabel="1" readonly="1"/>
+                                    </div>
+                                    <button name="action_open_bank_guarantees" type="object"
+                                            string="View BGs" class="btn btn-sm btn-link p-0"/>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- ══ ATTENDANCE KPI CARDS ══ -->
+                    <div class="row g-3 mb-4">
+
+                        <div class="col-12 col-md-4">
+                            <div class="card matracon-mgmt-kpi h-100" style="border-left: 3px solid #28a745;">
+                                <div class="card-body py-3">
+                                    <small class="matracon-mgmt-kpi__label">Monthly Presents</small>
+                                    <div class="matracon-mgmt-kpi__value">
+                                        <field name="kpi_monthly_present_days" nolabel="1" readonly="1" class="oe_inline"/>
+                                        <span class="small ms-1">Man-Days</span>
+                                    </div>
+                                    <small class="text-muted">
+                                        <field name="kpi_capacity_utilization_pct" nolabel="1" readonly="1" class="oe_inline" widget="float" options='{"digits": [5, 1]}'/>% Capacity Utilization
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-md-4">
+                            <div class="card matracon-mgmt-kpi h-100" style="border-left: 3px solid #17a2b8;">
+                                <div class="card-body py-3">
+                                    <small class="matracon-mgmt-kpi__label">6-Month Avg Presents</small>
+                                    <div class="matracon-mgmt-kpi__value">
+                                        <field name="kpi_6m_avg_present" nolabel="1" readonly="1" class="oe_inline" widget="float" options='{"digits": [16, 0]}'/>
+                                        <span class="small ms-1">Man-Days</span>
+                                    </div>
+                                    <small class="text-muted">
+                                        <field name="kpi_monthly_attendance_pct" nolabel="1" readonly="1" class="oe_inline" widget="float" options='{"digits": [5, 1]}'/>% Avg Attendance
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-md-4">
+                            <div class="card matracon-mgmt-kpi h-100" style="border-left: 3px solid #6f42c1;">
+                                <div class="card-body py-3">
+                                    <small class="matracon-mgmt-kpi__label">6-Month Avg Staff</small>
+                                    <div class="matracon-mgmt-kpi__value">
+                                        <field name="kpi_6m_avg_staff" nolabel="1" readonly="1" class="oe_inline" widget="float" options='{"digits": [16, 0]}'/>
+                                        <span class="small ms-1">Staff</span>
+                                    </div>
+                                    <small class="text-muted">
+                                        Current Workforce: <field name="kpi_total_employees" nolabel="1" readonly="1" class="oe_inline"/>
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- ══ TAB: Management Overview ══ -->
+                    <div invisible="filter_dashboard_tab != 'overview'">
+
+                        <div class="row g-3 mb-3">
+                            <div class="col-12 col-md-6">
+                                <div class="card border-0 matracon-dash-card">
+                                    <div class="card-header py-2 px-3">
+                                        <strong>Liability Split</strong>
+                                    </div>
+                                    <div class="card-body py-3">
+                                        <div class="d-flex justify-content-between mb-2">
+                                            <span>Vendor Liabilities</span>
+                                            <button name="action_open_vendor_liabilities" type="object"
+                                                    class="btn btn-sm btn-link p-0">
+                                                <field name="kpi_vendor_liability" widget="monetary" nolabel="1" readonly="1" class="text-danger"/>
+                                            </button>
+                                        </div>
+                                        <div class="d-flex justify-content-between">
+                                            <span>Subcontractor Liabilities</span>
+                                            <button name="action_open_sub_liabilities" type="object"
+                                                    class="btn btn-sm btn-link p-0">
+                                                <field name="kpi_sub_liability" widget="monetary" nolabel="1" readonly="1" class="text-danger"/>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <div class="card border-0 matracon-dash-card">
+                                    <div class="card-header py-2 px-3 d-flex justify-content-between">
+                                        <strong>Bank Guarantee Summary</strong>
+                                        <button name="action_open_bank_guarantees" type="object"
+                                                string="View All" class="btn btn-sm btn-outline-primary"/>
+                                    </div>
+                                    <div class="card-body py-3">
+                                        <div class="row g-2 small">
+                                            <div class="col-6">Total Facility</div>
+                                            <div class="col-6 text-end fw-bold">
+                                                <field name="kpi_bg_total_facility" widget="monetary" nolabel="1" readonly="1"/>
+                                            </div>
+                                            <div class="col-6">Available Limit</div>
+                                            <div class="col-6 text-end text-success fw-bold">
+                                                <field name="kpi_bg_available" widget="monetary" nolabel="1" readonly="1"/>
+                                            </div>
+                                            <div class="col-6">Cash Margin Locked</div>
+                                            <div class="col-6 text-end fw-bold">
+                                                <field name="kpi_bg_margin_locked" widget="monetary" nolabel="1" readonly="1"/>
+                                            </div>
+                                            <div class="col-6">Active / Expiring</div>
+                                            <div class="col-6 text-end">
+                                                <field name="kpi_bg_active_count" nolabel="1" readonly="1" class="oe_inline"/>
+                                                /
+                                                <button name="action_open_expiring_bgs" type="object" class="btn btn-sm btn-link p-0 text-warning">
+                                                    <field name="kpi_bg_expiring_count" nolabel="1" readonly="1" class="oe_inline"/>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row g-3 mb-3">
+                            <div class="col-12 col-lg-6">
+                                <div class="card border-0 matracon-dash-card h-100">
+                                    <div class="card-header py-2 px-3 d-flex justify-content-between">
+                                        <strong>Bank Balance Overview</strong>
+                                        <button name="action_open_bank_journals" type="object"
+                                                string="Reconcile" class="btn btn-sm btn-outline-secondary"/>
+                                    </div>
+                                    <div class="card-body p-0 matracon-dash-table-wrap">
+                                        <field name="bank_line_ids" nolabel="1" readonly="1">
+                                            <list create="false" delete="false" edit="false">
+                                                <field name="bank_name"/>
+                                                <field name="balance" widget="monetary" sum="Total"/>
+                                            </list>
+                                        </field>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-12 col-lg-6">
+                                <div class="card border-0 matracon-dash-card h-100">
+                                    <div class="card-header py-2 px-3">
+                                        <strong>Bank-wise Facility Utilization</strong>
+                                    </div>
+                                    <div class="card-body p-0 matracon-dash-table-wrap">
+                                        <field name="bg_facility_line_ids" nolabel="1" readonly="1">
+                                            <list create="false" delete="false" edit="false">
+                                                <field name="bank_name"/>
+                                                <field name="total_limit" widget="monetary"/>
+                                                <field name="utilized_amount" widget="monetary"/>
+                                                <field name="available_limit" widget="monetary"/>
+                                                <field name="utilization_pct" string="Util %"/>
+                                            </list>
+                                        </field>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card border-0 matracon-dash-card mb-3">
+                            <div class="card-header py-2 px-3">
+                                <strong>Attendance &amp; Petty Cash by Project</strong>
+                            </div>
+                            <div class="card-body p-0 matracon-dash-table-wrap">
+                                <field name="attendance_line_ids" nolabel="1" readonly="1">
+                                    <list create="false" delete="false" edit="false">
+                                        <field name="project_name" string="Project"/>
+                                        <field name="employee_count" string="Employees"/>
+                                        <field name="monthly_present_days" string="Monthly Present (Man-Days)"/>
+                                        <field name="attendance_pct" string="Attendance %" digits="[5, 1]"/>
+                                        <field name="petty_cash_balance" widget="monetary" string="Available Petty Cash"/>
+                                    </list>
+                                </field>
+                            </div>
+                        </div>
+
+                        <div class="card border-0 matracon-dash-card mb-3">
+                            <div class="card-header py-2 px-3">
+                                <strong>Subcontractor IPCs</strong>
+                            </div>
+                            <div class="card-body p-0 matracon-dash-table-wrap">
+                                <field name="ipc_line_ids" nolabel="1" readonly="1">
+                                    <list string="Subcontractor IPCs" create="0" edit="0" delete="0">
+                                        <field name="ipc_name"/>
+                                        <field name="subcontractor_name"/>
+                                        <field name="project_name"/>
+                                        <field name="period"/>
+                                        <field name="ipc_date"/>
+                                        <field name="gross_work_done" widget="monetary" options="{'currency_field': 'currency_id'}"/>
+                                        <field name="total_deductions" widget="monetary" options="{'currency_field': 'currency_id'}"/>
+                                        <field name="net_payable" widget="monetary" options="{'currency_field': 'currency_id'}"/>
+                                        <field name="state"/>
+                                        <field name="currency_id" column_invisible="1"/>
+                                    </list>
+                                </field>
+                            </div>
+                        </div>
+
+                        <div class="card border-0 matracon-dash-card mb-3">
+                            <div class="card-header py-2 px-3 d-flex justify-content-between">
+                                <strong>All Projects — Financial Summary</strong>
+                                <button name="action_open_project_financial_overview" type="object"
+                                        string="Open Full View" class="btn btn-sm btn-outline-primary"/>
+                            </div>
+                            <div class="card-body p-0 matracon-dash-table-wrap">
+                                <field name="project_line_ids" nolabel="1" readonly="1">
+                                    <list create="false" delete="false" edit="false"
+                                          decoration-danger="total_liability &gt; 0"
+                                          sum="Grand Total">
+                                        <field name="project_name"/>
+                                        <field name="total_value" widget="monetary" sum="Total"/>
+                                        <field name="work_done" widget="monetary" sum="Total"/>
+                                        <field name="funds_received" widget="monetary" sum="Total"/>
+                                        <field name="payments_made" widget="monetary" sum="Total"/>
+                                        <field name="total_liability" widget="monetary" sum="Total"/>
+                                        <field name="available_balance" widget="monetary" sum="Total"/>
+                                        <field name="bg_status" widget="badge"
+                                               decoration-success="bg_status == 'active'"
+                                               decoration-danger="bg_status == 'expired'"/>
+                                        <field name="bg_amount" widget="monetary" optional="show"/>
+                                        <field name="petty_cash_balance" widget="monetary" optional="hide"/>
+                                        <field name="contract_value" widget="monetary" options="{'currency_field': 'currency_id'}" optional="show"/>
+                                        <field name="billed_to_client" widget="monetary" options="{'currency_field': 'currency_id'}" optional="show"/>
+                                        <field name="work_completion_pct" string="Work %" optional="show"/>
+                                        <field name="financial_completion_pct" string="Financial %" optional="show"/>
+                                        <field name="remaining_work_value" widget="monetary" options="{'currency_field': 'currency_id'}" optional="show"/>
+                                    </list>
+                                </field>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ══ TAB: Project Dashboard ══ -->
+                    <div invisible="filter_dashboard_tab != 'project'">
+
+                        <div class="row g-3 mb-3">
+                            <div class="col-12 col-md-6">
+                                <div class="card matracon-mgmt-kpi matracon-mgmt-kpi--bg-soft h-100">
+                                    <div class="card-body py-3">
+                                        <small class="matracon-mgmt-kpi__label">Performance BG</small>
+                                        <div class="matracon-mgmt-kpi__value">
+                                            <field name="kpi_performance_bg" widget="monetary" nolabel="1" readonly="1"/>
+                                        </div>
+                                        <button name="action_open_bank_guarantees" type="object"
+                                                string="View Guarantees" class="btn btn-sm btn-link p-0"/>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <div class="card matracon-mgmt-kpi matracon-mgmt-kpi--bg-soft h-100">
+                                    <div class="card-body py-3">
+                                        <small class="matracon-mgmt-kpi__label">Mobilization / Bid BG</small>
+                                        <div class="matracon-mgmt-kpi__value">
+                                            <field name="kpi_mobilization_bg" widget="monetary" nolabel="1" readonly="1"/>
+                                        </div>
+                                        <button name="action_open_bank_guarantees" type="object"
+                                                string="View Guarantees" class="btn btn-sm btn-link p-0"/>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row g-3 mb-3">
+                            <div class="col-12 col-lg-6">
+                                <div class="card border-0 matracon-dash-card h-100">
+                                    <div class="card-header py-2 px-3 d-flex justify-content-between">
+                                        <strong>Subcontractor Wise Liability</strong>
+                                        <button name="action_open_sub_liabilities" type="object"
+                                                string="View All" class="btn btn-sm btn-outline-danger"/>
+                                    </div>
+                                    <div class="card-body p-0 matracon-dash-table-wrap">
+                                        <field name="sub_liability_line_ids" nolabel="1" readonly="1">
+                                            <list create="false" delete="false" edit="false">
+                                                <field name="partner_name" string="Subcontractor"/>
+                                                <field name="category_label" string="Work Type"/>
+                                                <field name="total_value" widget="monetary"/>
+                                                <field name="paid_amount" widget="monetary"/>
+                                                <field name="liability_amount" widget="monetary"
+                                                       decoration-danger="1" sum="Total"/>
+                                            </list>
+                                        </field>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-12 col-lg-6">
+                                <div class="card border-0 matracon-dash-card h-100">
+                                    <div class="card-header py-2 px-3 d-flex justify-content-between">
+                                        <strong>Vendor Wise Liability</strong>
+                                        <button name="action_open_vendor_liabilities" type="object"
+                                                string="View All" class="btn btn-sm btn-outline-danger"/>
+                                    </div>
+                                    <div class="card-body p-0 matracon-dash-table-wrap">
+                                        <field name="vendor_liability_line_ids" nolabel="1" readonly="1">
+                                            <list create="false" delete="false" edit="false">
+                                                <field name="partner_name" string="Vendor"/>
+                                                <field name="category_label" string="Material Type"/>
+                                                <field name="total_value" widget="monetary"/>
+                                                <field name="paid_amount" widget="monetary"/>
+                                                <field name="liability_amount" widget="monetary"
+                                                       decoration-danger="1" sum="Total"/>
+                                            </list>
+                                        </field>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card border-0 matracon-dash-card mb-3">
+                            <div class="card-header py-2 px-3">
+                                <strong>Project Bank Guarantees</strong>
+                            </div>
+                            <div class="card-body p-0 matracon-dash-table-wrap">
+                                <field name="bg_project_line_ids" nolabel="1" readonly="1">
+                                    <list create="false" delete="false" edit="false">
+                                        <field name="project_name"/>
+                                        <field name="nature_label" string="Nature"/>
+                                        <field name="guarantee_number"/>
+                                        <field name="bg_amount" widget="monetary" sum="Total"/>
+                                        <field name="expiry_date"/>
+                                        <field name="state" widget="badge"/>
+                                    </list>
+                                </field>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ══ TAB: Bank Guarantee Management ══ -->
+                    <div invisible="filter_dashboard_tab != 'bank_guarantee'">
+
+                        <div class="row g-3 mb-3">
+                            <div class="col-6 col-md-3">
+                                <div class="card matracon-mgmt-kpi h-100">
+                                    <div class="card-body py-3">
+                                        <small class="matracon-mgmt-kpi__label">Total Credit Facility</small>
+                                        <field name="kpi_bg_total_facility" widget="monetary" nolabel="1" readonly="1" class="matracon-mgmt-kpi__value"/>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <div class="card matracon-mgmt-kpi h-100">
+                                    <div class="card-body py-3">
+                                        <small class="matracon-mgmt-kpi__label">Total Utilized</small>
+                                        <field name="kpi_bg_utilized" widget="monetary" nolabel="1" readonly="1" class="matracon-mgmt-kpi__value"/>
+                                        <button name="action_open_bank_guarantees" type="object"
+                                                string="View All" class="btn btn-sm btn-link p-0"/>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <div class="card matracon-mgmt-kpi h-100">
+                                    <div class="card-body py-3">
+                                        <small class="matracon-mgmt-kpi__label">Available Limit</small>
+                                        <field name="kpi_bg_available" widget="monetary" nolabel="1" readonly="1" class="matracon-mgmt-kpi__value text-success"/>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <div class="card matracon-mgmt-kpi h-100">
+                                    <div class="card-body py-3">
+                                        <small class="matracon-mgmt-kpi__label">Cash Margin Locked</small>
+                                        <field name="kpi_bg_margin_locked" widget="monetary" nolabel="1" readonly="1" class="matracon-mgmt-kpi__value"/>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row g-3 mb-3">
+                            <div class="col-12 col-lg-8">
+                                <div class="card border-0 matracon-dash-card h-100">
+                                    <div class="card-header py-2 px-3 d-flex justify-content-between">
+                                        <strong>Bank-wise Facility Audit</strong>
+                                        <button name="action_open_bg_facilities" type="object"
+                                                string="Manage Limits" class="btn btn-sm btn-outline-primary"/>
+                                    </div>
+                                    <div class="card-body p-0 matracon-dash-table-wrap">
+                                        <field name="bg_facility_line_ids" nolabel="1" readonly="1">
+                                            <list create="false" delete="false" edit="false">
+                                                <field name="bank_name"/>
+                                                <field name="total_limit" widget="monetary" sum="Total"/>
+                                                <field name="utilized_amount" widget="monetary" sum="Total"/>
+                                                <field name="margin_amount" widget="monetary" sum="Total"/>
+                                                <field name="available_limit" widget="monetary" sum="Total"/>
+                                                <field name="utilization_pct" string="Util %"/>
+                                            </list>
+                                        </field>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-12 col-lg-4">
+                                <div class="card border-0 matracon-dash-card h-100">
+                                    <div class="card-header py-2 px-3">
+                                        <strong>Critical Alerts</strong>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="alert alert-danger py-2 mb-2">
+                                            <strong>Expiring BGs (30 days):</strong>
+                                            <button name="action_open_expiring_bgs" type="object" class="btn btn-sm btn-link p-0">
+                                                <field name="kpi_bg_expiring_count" nolabel="1" readonly="1" class="oe_inline"/>
+                                                instruments
+                                            </button>
+                                        </div>
+                                        <div class="alert alert-info py-2 mb-2">
+                                            <strong>Active BGs:</strong>
+                                            <field name="kpi_bg_active_count" nolabel="1" readonly="1" class="oe_inline"/>
+                                        </div>
+                                        <div class="alert alert-secondary py-2 mb-0">
+                                            <strong>Released:</strong>
+                                            <field name="kpi_bg_released_count" nolabel="1" readonly="1" class="oe_inline"/>
+                                        </div>
+                                        <button name="action_open_bank_guarantees" type="object"
+                                                string="Review All Guarantees"
+                                                class="btn btn-primary btn-sm mt-3 w-100"/>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card border-0 matracon-dash-card mb-3">
+                            <div class="card-header py-2 px-3">
+                                <strong>Expiring &amp; Active Guarantees</strong>
+                            </div>
+                            <div class="card-body p-0 matracon-dash-table-wrap">
+                                <field name="expiring_bg_ids" nolabel="1" readonly="1">
+                                    <list create="false" delete="false" edit="false"
+                                          decoration-warning="is_expiring_soon">
+                                        <field name="name"/>
+                                        <field name="bank_id"/>
+                                        <field name="guarantee_number"/>
+                                        <field name="project_id"/>
+                                        <field name="bg_amount" widget="monetary"/>
+                                        <field name="expiry_date"/>
+                                        <field name="state" widget="badge"/>
+                                    </list>
+                                </field>
+                            </div>
+                        </div>
+                    </div>
+
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_management_dashboard" model="ir.actions.server">
+        <field name="name">Management Dashboard</field>
+        <field name="model_id" ref="model_x_management_dashboard"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_open_dashboard()</field>
+    </record>
+
+</odoo>

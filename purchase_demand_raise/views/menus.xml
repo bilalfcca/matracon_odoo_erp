@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Menus that reference Matracon Admin live in site_operations (see views/menus.xml). -->
+</odoo>

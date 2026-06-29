@@ -3,7 +3,8 @@ access_cs_site_store,x.comparative.statement site store,model_x_comparative_stat
 access_cs_procurement_ho,x.comparative.statement procurement ho,model_x_comparative_statement,purchase_demand_raise.group_procurement_ho,1,1,1,0
 access_cs_ceo,x.comparative.statement ceo,model_x_comparative_statement,purchase_demand_raise.group_ceo_approval,1,1,0,0
 access_cs_ho,x.comparative.statement ho,model_x_comparative_statement,purchase_demand_raise.group_head_office,1,1,1,1
-access_cs_vendor_site_store,x.cs.vendor site store,model_x_cs_vendor,purchase_demand_raise.group_site_store,0,0,0,0
+access_cs_admin,x.comparative.statement admin,model_x_comparative_statement,base.group_system,1,1,1,1
+access_cs_vendor_site_store,x.cs.vendor site store,model_x_cs_vendor,purchase_demand_raise.group_site_store,1,0,0,0
 access_cs_vendor_procurement_ho,x.cs.vendor procurement ho,model_x_cs_vendor,purchase_demand_raise.group_procurement_ho,1,1,1,1
 access_cs_vendor_ceo,x.cs.vendor ceo,model_x_cs_vendor,purchase_demand_raise.group_ceo_approval,1,0,0,0
 access_cs_vendor_ho,x.cs.vendor ho,model_x_cs_vendor,purchase_demand_raise.group_head_office,1,1,1,1
@@ -14,3 +15,15 @@ access_project_site_config_admin,x.project.site.config admin,model_x_project_sit
 access_project_site_config_ho,x.project.site.config ho,model_x_project_site_config,purchase_demand_raise.group_head_office,1,0,0,0
 access_project_site_config_procurement,x.project.site.config procurement,model_x_project_site_config,purchase_demand_raise.group_procurement_ho,1,0,0,0
 access_project_site_config_ceo,x.project.site.config ceo,model_x_project_site_config,purchase_demand_raise.group_ceo_approval,1,0,0,0
+
+access_procurement_ho_dashboard,x.procurement.ho.dashboard procurement,model_x_procurement_ho_dashboard,purchase_demand_raise.group_procurement_ho,1,1,1,1
+access_procurement_ho_dashboard_admin,x.procurement.ho.dashboard admin,model_x_procurement_ho_dashboard,base.group_system,1,1,1,1
+access_stock_lot_site_store,stock.lot site store,stock.model_stock_lot,purchase_demand_raise.group_site_store,1,1,1,0
+access_stock_quant_site_store,stock.quant site store,stock.model_stock_quant,purchase_demand_raise.group_site_store,1,1,1,0
+access_stock_move_line_site_store,stock.move.line site store,stock.model_stock_move_line,purchase_demand_raise.group_site_store,1,1,1,0
+
+access_cs_matracon_admin,x.comparative.statement matracon admin,model_x_comparative_statement,purchase_demand_raise.group_matracon_admin,1,1,1,1
+access_cs_vendor_matracon_admin,x.cs.vendor matracon admin,model_x_cs_vendor,purchase_demand_raise.group_matracon_admin,1,1,1,1
+access_procurement_ho_dashboard_ceo,x.procurement.ho.dashboard ceo,model_x_procurement_ho_dashboard,purchase_demand_raise.group_ceo_approval,1,1,1,1
+
+access_project_site_config_site_store,x.project.site.config site store,model_x_project_site_config,purchase_demand_raise.group_site_store,1,0,0,0

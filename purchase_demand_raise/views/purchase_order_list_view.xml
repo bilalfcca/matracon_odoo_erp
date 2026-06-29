@@ -19,6 +19,11 @@
                 <attribute name="column_invisible">1</attribute>
             </field>
 
+            <!-- Hide monetary Total column from Site Store users -->
+            <field name="amount_total" position="attributes">
+                <attribute name="groups">!purchase_demand_raise.group_site_store</attribute>
+            </field>
+
             <!-- Inject custom columns after Reference (name) -->
             <field name="name" position="after">
                 <field name="x_initiator_id" string="Raised By" optional="show"/>
@@ -28,7 +33,7 @@
                        widget="badge"
                        decoration-info="x_pr_state == 'draft'"
                        decoration-warning="x_pr_state in ('submitted', 'rfq_phase', 'ceo_final')"
-                       decoration-success="x_pr_state in ('po_locked', 'dispatched')"
+                       decoration-success="x_pr_state == 'po_locked'"
                        decoration-danger="x_pr_state in ('rejected', 'cancelled')"
                        optional="show"/>
                 <field name="x_ho_status" string="HO Status"
@@ -61,6 +66,10 @@
             <field name="state" position="attributes">
                 <attribute name="column_invisible">1</attribute>
             </field>
+            <!-- Hide monetary Total from Site Store users -->
+            <field name="amount_total" position="attributes">
+                <attribute name="groups">!purchase_demand_raise.group_site_store</attribute>
+            </field>
 
             <field name="name" position="after">
                 <field name="x_initiator_id" string="Raised By" optional="show"/>
@@ -70,7 +79,7 @@
                        widget="badge"
                        decoration-info="x_pr_state == 'draft'"
                        decoration-warning="x_pr_state in ('submitted', 'rfq_phase', 'ceo_final')"
-                       decoration-success="x_pr_state in ('po_locked', 'dispatched')"
+                       decoration-success="x_pr_state == 'po_locked'"
                        decoration-danger="x_pr_state in ('rejected', 'cancelled')"
                        optional="show"/>
                 <field name="x_ho_status" string="HO Status"
@@ -133,10 +142,6 @@
                 <filter name="po_locked"
                         string="PO Locked — Ready to Dispatch"
                         domain="[('x_pr_state', '=', 'po_locked')]"/>
-
-                <filter name="dispatched"
-                        string="Dispatched"
-                        domain="[('x_pr_state', '=', 'dispatched')]"/>
 
                 <filter name="rejected"
                         string="Rejected"

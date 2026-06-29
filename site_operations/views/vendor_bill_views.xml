@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_vendor_bill_site_ops_form" model="ir.ui.view">
+        <field name="name">account.move.vendor.bill.site.ops.form</field>
+        <field name="model">account.move</field>
+        <field name="inherit_id" ref="account.view_move_form"/>
+        <field name="arch" type="xml">
+
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_view_liability_sheet"
+                        type="object"
+                        class="oe_stat_button"
+                        icon="fa-balance-scale"
+                        invisible="move_type != 'in_invoice' or not x_liability_sheet_id">
+                    <div class="o_stat_info">
+                        <span class="o_stat_text">Liability</span>
+                        <span class="o_stat_text">Sheet</span>
+                    </div>
+                </button>
+                <button name="action_view_purchase_order"
+                        type="object"
+                        class="oe_stat_button"
+                        icon="fa-shopping-cart"
+                        invisible="move_type != 'in_invoice' or not x_purchase_order_id">
+                    <div class="o_stat_info">
+                        <span class="o_stat_text">Purchase</span>
+                        <span class="o_stat_text">Order</span>
+                    </div>
+                </button>
+                <button name="action_view_pickings"
+                        type="object"
+                        class="oe_stat_button"
+                        icon="fa-truck"
+                        invisible="move_type != 'in_invoice' or not x_purchase_order_id">
+                    <field name="picking_count" widget="statinfo" string="Receipts"/>
+                </button>
+            </xpath>
+
+            <xpath expr="//field[@name='partner_id']" position="after">
+                <field name="x_purchase_order_id"
+                       invisible="move_type != 'in_invoice'"
+                       options="{'no_create': True}"
+                       placeholder="Link purchase order…"/>
+                <field name="x_liability_sheet_id" invisible="1"/>
+                <field name="x_project_analytic_account_id"
+                       invisible="move_type != 'in_invoice'"
+                       options="{'no_create': True}"
+                       placeholder="Select project…"/>
+                <field name="x_wht_tax_id"
+                       invisible="move_type != 'in_invoice'"
+                       options="{'no_create': True}"/>
+            </xpath>
+
+            <!-- Bill copy attachment (optional) -->
+            <xpath expr="//field[@name='narration']" position="before">
+                <group invisible="move_type != 'in_invoice'">
+                    <field name="x_bill_copy"
+                           widget="binary"
+                           filename="x_bill_copy_filename"
+                           string="Bill Copy (optional)"/>
+                    <field name="x_bill_copy_filename" invisible="1"/>
+                </group>
+                <div class="alert alert-info mb-2 py-1"
+                     role="status"
+                     invisible="not x_liability_registered">
+                    <i class="fa fa-check-circle me-1"/>
+                    Liability sheet updated —
+                    <field name="x_liability_amount_registered" readonly="1" class="oe_inline"/>
+                    registered.
+                </div>
+            </xpath>
+
+        </field>
+    </record>
+
+    <!-- PO smart buttons: vendor bills + liability sheets -->
+    <record id="view_purchase_order_site_ops_buttons" model="ir.ui.view">
+        <field name="name">purchase.order.site.ops.buttons</field>
+        <field name="model">purchase.order</field>
+        <field name="inherit_id" ref="purchase.purchase_order_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_view_vendor_bills"
+                        type="object"
+                        class="oe_stat_button"
+                        icon="fa-pencil-square-o"
+                        groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin"
+                        invisible="x_vendor_bill_count == 0">
+                    <field name="x_vendor_bill_count" widget="statinfo" string="Vendor Bills"/>
+                </button>
+                <button name="action_view_liability_sheets"
+                        type="object"
+                        class="oe_stat_button"
+                        icon="fa-balance-scale"
+                        groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin"
+                        invisible="x_liability_sheet_count == 0">
+                    <field name="x_liability_sheet_count" widget="statinfo" string="Liability Sheets"/>
+                </button>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

@@ -12,6 +12,10 @@
 
             <!-- Add columns after the quantity field -->
             <xpath expr="//field[@name='quantity']" position="after">
+                <field name="x_return_condition" string="Condition"/>
+                <field name="x_damage_amount"
+                       string="Damage Charge"
+                       optional="show"/>
                 <field name="x_issued_qty"
                        string="Issued"
                        readonly="1"

@@ -1,0 +1,253 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ════════════════════════════════════════════════════════════════════
+         Bank Guarantee Facility
+    ════════════════════════════════════════════════════════════════════════ -->
+
+    <record id="view_bank_guarantee_facility_tree" model="ir.ui.view">
+        <field name="name">x.bank.guarantee.facility.list</field>
+        <field name="model">x.bank.guarantee.facility</field>
+        <field name="arch" type="xml">
+            <list string="Bank Facility Limits">
+                <field name="bank_id"/>
+                <field name="total_limit" sum="Total Limit"/>
+                <field name="utilized_amount" sum="Utilized"/>
+                <field name="available_limit" sum="Available"/>
+                <field name="guarantee_count" string="BG Count"/>
+                <field name="currency_id" column_invisible="True"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_bank_guarantee_facility_form" model="ir.ui.view">
+        <field name="name">x.bank.guarantee.facility.form</field>
+        <field name="model">x.bank.guarantee.facility</field>
+        <field name="arch" type="xml">
+            <form string="Bank Facility Limit">
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_guarantees" type="object"
+                                class="oe_stat_button" icon="fa-university">
+                            <field name="guarantee_count" widget="statinfo" string="Guarantees"/>
+                        </button>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="bank_id"/>
+                            <field name="total_limit"/>
+                            <field name="currency_id" groups="base.group_multi_currency"/>
+                        </group>
+                        <group>
+                            <field name="utilized_amount"/>
+                            <field name="available_limit"/>
+                            <field name="active"/>
+                        </group>
+                    </group>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_bank_guarantee_facility" model="ir.actions.act_window">
+        <field name="name">Bank Facility Limits</field>
+        <field name="res_model">x.bank.guarantee.facility</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <!-- ════════════════════════════════════════════════════════════════════
+         Bank Guarantee Registry
+    ════════════════════════════════════════════════════════════════════════ -->
+
+    <record id="view_bank_guarantee_tree" model="ir.ui.view">
+        <field name="name">x.bank.guarantee.list</field>
+        <field name="model">x.bank.guarantee</field>
+        <field name="arch" type="xml">
+            <list string="Bank Guarantees Registry"
+                  decoration-danger="is_expiring_soon"
+                  decoration-muted="state in ('released', 'expired', 'cancelled')">
+                <field name="sr_no" string="Sr No"/>
+                <field name="bank_id"/>
+                <field name="state" widget="badge"
+                       decoration-success="state == 'active'"
+                       decoration-info="state == 'released'"
+                       decoration-warning="state == 'pending'"
+                       decoration-danger="state == 'expired'"/>
+                <field name="nature"/>
+                <field name="guarantee_number"/>
+                <field name="issue_date"/>
+                <field name="expiry_date"/>
+                <field name="bg_amount" sum="BG Amount"/>
+                <field name="utilized_amount" optional="hide"/>
+                <field name="available_limit" optional="show"/>
+                <field name="total_limit" optional="show"/>
+                <field name="jv_type" string="JV"/>
+                <field name="jv_name" optional="show"/>
+                <field name="project_id"/>
+                <field name="beneficiary_name"/>
+                <field name="cash_margin_percent" string="Cash Margin %"/>
+                <field name="is_expiring_soon" column_invisible="True"/>
+                <field name="currency_id" column_invisible="True"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_bank_guarantee_form" model="ir.ui.view">
+        <field name="name">x.bank.guarantee.form</field>
+        <field name="model">x.bank.guarantee</field>
+        <field name="arch" type="xml">
+            <form string="Bank Guarantee">
+                <header>
+                    <button name="action_submit" type="object" string="Submit"
+                            class="btn-primary" invisible="state != 'draft'"/>
+                    <button name="action_validate" type="object" string="Validate / Activate"
+                            class="btn-success" invisible="state != 'pending'"/>
+                    <button name="action_lock" type="object" string="Lock"
+                            class="btn-secondary" invisible="state != 'active'"/>
+                    <button name="action_request_release" type="object" string="Request Release"
+                            invisible="state not in ('active', 'locked')"/>
+                    <button name="action_release" type="object" string="Mark Released"
+                            class="btn-primary" invisible="state not in ('active', 'locked', 'expired')"/>
+                    <button name="action_amend" type="object" string="Amend"
+                            invisible="state not in ('active', 'locked')"/>
+                    <button name="action_reset_draft" type="object" string="Reset to Draft"
+                            invisible="state not in ('pending', 'cancelled')"/>
+                    <button name="action_cancel" type="object" string="Cancel"
+                            invisible="state not in ('draft', 'pending')"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,pending,active,locked,released"/>
+                </header>
+                <sheet>
+                    <widget name="web_ribbon" title="Validated" bg_color="text-bg-success"
+                            invisible="not validated"/>
+                    <widget name="web_ribbon" title="Expiring Soon" bg_color="text-bg-warning"
+                            invisible="not is_expiring_soon"/>
+                    <div class="oe_title">
+                        <label for="name"/>
+                        <h1><field name="name" readonly="1"/></h1>
+                    </div>
+                    <group>
+                        <group string="Guarantee Details">
+                            <field name="sr_no" readonly="1"/>
+                            <field name="bank_id"/>
+                            <field name="facility_id" readonly="1"/>
+                            <field name="nature"/>
+                            <field name="guarantee_number"/>
+                            <field name="jv_type"/>
+                            <field name="jv_name" invisible="jv_type != 'jv'" required="jv_type == 'jv'"/>
+                            <field name="project_id"/>
+                            <field name="beneficiary_id"/>
+                            <field name="beneficiary_name"/>
+                        </group>
+                        <group string="Dates &amp; Amount">
+                            <field name="issue_date"/>
+                            <field name="expiry_date" decoration-danger="is_expiring_soon"/>
+                            <field name="bg_amount"/>
+                            <field name="cash_margin_percent"/>
+                            <field name="pricing_percent"/>
+                            <field name="margin_amount"/>
+                            <field name="days_to_expiry" invisible="state not in ('active', 'locked', 'pending')"/>
+                            <field name="release_date" invisible="state != 'released'"/>
+                            <field name="currency_id" groups="base.group_multi_currency"/>
+                        </group>
+                    </group>
+                    <group string="Bank Facility Utilization">
+                        <group>
+                            <field name="total_limit"/>
+                            <field name="utilized_amount"/>
+                        </group>
+                        <group>
+                            <field name="available_limit"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Amendment History" name="amendments">
+                            <field name="amendment_ids">
+                                <list editable="bottom">
+                                    <field name="amendment_date"/>
+                                    <field name="amendment_type"/>
+                                    <field name="description"/>
+                                    <field name="amount_change" sum="Total Change"/>
+                                    <field name="new_expiry_date"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Notes" name="notes">
+                            <field name="notes" placeholder="Internal finance notes..."/>
+                            <group invisible="not validated">
+                                <field name="validated_by_id"/>
+                                <field name="validated_date"/>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_bank_guarantee_search" model="ir.ui.view">
+        <field name="name">x.bank.guarantee.search</field>
+        <field name="model">x.bank.guarantee</field>
+        <field name="arch" type="xml">
+            <search string="Bank Guarantees">
+                <field name="name"/>
+                <field name="guarantee_number"/>
+                <field name="bank_id"/>
+                <field name="project_id"/>
+                <field name="beneficiary_name"/>
+                <field name="jv_name"/>
+                <filter string="Active" name="filter_active" domain="[('state', '=', 'active')]"/>
+                <filter string="Pending" name="filter_pending" domain="[('state', '=', 'pending')]"/>
+                <filter string="Expiring Soon" name="filter_expiring"
+                        domain="[('is_expiring_soon', '=', True)]"/>
+                <filter string="Released" name="filter_released" domain="[('state', '=', 'released')]"/>
+                <filter string="Expired" name="filter_expired" domain="[('state', '=', 'expired')]"/>
+                <separator/>
+                <filter string="Performance BG" name="filter_performance" domain="[('nature', '=', 'performance')]"/>
+                <filter string="Bid Bond" name="filter_bid" domain="[('nature', '=', 'bid_bond')]"/>
+                <separator/>
+                <filter string="Group by Bank" name="group_bank" context="{'group_by': 'bank_id'}"/>
+                <filter string="Group by Project" name="group_project" context="{'group_by': 'project_id'}"/>
+                <filter string="Group by Status" name="group_state" context="{'group_by': 'state'}"/>
+                <filter string="Group by Nature" name="group_nature" context="{'group_by': 'nature'}"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_bank_guarantee" model="ir.actions.act_window">
+        <field name="name">Bank Guarantees</field>
+        <field name="res_model">x.bank.guarantee</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_bank_guarantee_search"/>
+        <field name="context">{'search_default_filter_active': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Register a new bank guarantee</p>
+            <p>Track performance bonds, bid bonds, and advance payment guarantees with bank facility limits.</p>
+        </field>
+    </record>
+
+    <record id="view_bank_guarantee_amendment_form" model="ir.ui.view">
+        <field name="name">x.bank.guarantee.amendment.form</field>
+        <field name="model">x.bank.guarantee.amendment</field>
+        <field name="arch" type="xml">
+            <form string="Amendment">
+                <group>
+                    <field name="guarantee_id" readonly="1"/>
+                    <field name="amendment_date"/>
+                    <field name="amendment_type"/>
+                    <field name="description"/>
+                    <field name="amount_change"/>
+                    <field name="new_expiry_date"/>
+                </group>
+                <footer>
+                    <button name="action_apply_extension" type="object" string="Apply Extension"
+                            class="btn-primary" invisible="not new_expiry_date"/>
+                    <button string="Close" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+</odoo>
