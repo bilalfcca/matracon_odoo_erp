@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="report_wht_certificate_document">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="o">
+                <t t-call="web.external_layout">
+                    <t t-set="company" t-value="o.company_id or env.company"/>
+                    <div class="page">
+
+                        <!-- Letterhead -->
+                        <div class="row mb-4">
+                            <div class="col-8">
+                                <h2 style="color: #2c3e50; margin: 0;">
+                                    <t t-esc="company.name"/>
+                                </h2>
+                                <div class="text-muted" style="font-size: 12px;">
+                                    <t t-if="company.street"><t t-esc="company.street"/><br/></t>
+                                    <t t-if="company.city"><t t-esc="company.city"/></t>
+                                    <t t-if="company.phone"> | Tel: <t t-esc="company.phone"/></t>
+                                    <t t-if="company.email"><br/><t t-esc="company.email"/></t>
+                                </div>
+                            </div>
+                            <div class="col-4 text-end">
+                                <t t-if="company.logo">
+                                    <img t-att-src="'data:image/png;base64,' + company.logo.decode('utf-8') if isinstance(company.logo, bytes) else 'data:image/png;base64,' + company.logo"
+                                         style="max-height: 64px; max-width: 160px;"
+                                         alt="Logo"/>
+                                </t>
+                            </div>
+                        </div>
+
+                        <hr style="border-top: 2px solid #2c3e50; margin-bottom: 20px;"/>
+
+                        <!-- Title -->
+                        <div class="text-center mb-4">
+                            <h3 style="text-transform: uppercase; letter-spacing: 2px; color: #2c3e50;">
+                                Withholding Tax Deduction Certificate
+                            </h3>
+                            <p class="text-muted" style="font-size: 12px;">
+                                Certificate No: <strong><t t-esc="o.name"/></strong>
+                                &amp;nbsp;&amp;nbsp;|&amp;nbsp;&amp;nbsp;
+                                Issued On: <strong><t t-esc="o.issue_date"/></strong>
+                            </p>
+                        </div>
+
+                        <!-- Vendor Details -->
+                        <div class="row mb-4">
+                            <div class="col-12">
+                                <table class="table table-bordered" style="font-size: 12px;">
+                                    <thead style="background: #ecf0f1;">
+                                        <tr>
+                                            <th colspan="2" style="text-align: center; color: #2c3e50;">
+                                                Vendor / Payee Information
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td style="width: 35%; font-weight: bold;">Vendor Name</td>
+                                            <td><t t-esc="o.partner_id.name or 'N/A'"/></td>
+                                        </tr>
+                                        <tr>
+                                            <td style="font-weight: bold;">CNIC / NTN</td>
+                                            <td>
+                                                <t t-esc="o.partner_id.x_cnic or o.partner_id.vat or 'N/A'"/>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td style="font-weight: bold;">Vendor Address</td>
+                                            <td>
+                                                <t t-esc="o.partner_id.street or ''"/>
+                                                <t t-if="o.partner_id.city">, <t t-esc="o.partner_id.city"/></t>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Payment &amp; WHT Details -->
+                        <div class="row mb-4">
+                            <div class="col-12">
+                                <table class="table table-bordered" style="font-size: 12px;">
+                                    <thead style="background: #ecf0f1;">
+                                        <tr>
+                                            <th colspan="2" style="text-align: center; color: #2c3e50;">
+                                                Payment &amp; Withholding Tax Details
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td style="width: 35%; font-weight: bold;">Payment Reference</td>
+                                            <td><t t-esc="o.payment_id.name or 'N/A'"/></td>
+                                        </tr>
+                                        <tr>
+                                            <td style="font-weight: bold;">Payment Date</td>
+                                            <td><t t-esc="o.payment_date or 'N/A'"/></td>
+                                        </tr>
+                                        <tr>
+                                            <td style="font-weight: bold;">Tax Period</td>
+                                            <td><strong><t t-esc="o.tax_period"/></strong></td>
+                                        </tr>
+                                        <tr>
+                                            <td style="font-weight: bold;">Gross Amount Paid</td>
+                                            <td>
+                                                <t t-esc="o.currency_id.symbol"/>
+                                                <t t-esc="'{:,.2f}'.format(o.amount_paid)"/>
+                                            </td>
+                                        </tr>
+                                        <tr style="background: #fff3cd;">
+                                            <td style="font-weight: bold;">WHT Amount Deducted</td>
+                                            <td>
+                                                <strong>
+                                                    <t t-esc="o.currency_id.symbol"/>
+                                                    <t t-esc="'{:,.2f}'.format(o.wht_amount)"/>
+                                                </strong>
+                                            </td>
+                                        </tr>
+                                        <tr style="background: #d4edda;">
+                                            <td style="font-weight: bold;">Net Amount Paid to Vendor</td>
+                                            <td>
+                                                <strong>
+                                                    <t t-esc="o.currency_id.symbol"/>
+                                                    <t t-esc="'{:,.2f}'.format(o.payment_id.amount)"/>
+                                                </strong>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Declaration -->
+                        <div class="mb-4" style="font-size: 11px; color: #555; border: 1px solid #ddd; padding: 12px; border-radius: 4px;">
+                            <p style="margin: 0;">
+                                This is to certify that the Withholding Tax amounting to
+                                <strong>
+                                    <t t-esc="o.currency_id.symbol"/>
+                                    <t t-esc="'{:,.2f}'.format(o.wht_amount)"/>
+                                </strong>
+                                has been deducted from the payment made to
+                                <strong><t t-esc="o.partner_id.name or 'the above vendor'"/></strong>
+                                on account of <strong><t t-esc="o.tax_period"/></strong>
+                                and shall be deposited to the Federal Board of Revenue (FBR) in
+                                accordance with the provisions of the Income Tax Ordinance, 2001.
+                            </p>
+                        </div>
+
+                        <!-- Signature Block -->
+                        <div class="row mt-5">
+                            <div class="col-6 text-center">
+                                <div style="border-top: 1px solid #333; margin: 0 30px; padding-top: 6px; font-size: 11px;">
+                                    <strong>Finance Officer</strong><br/>
+                                    <t t-esc="company.name"/>
+                                </div>
+                            </div>
+                            <div class="col-6 text-center">
+                                <div style="border-top: 1px solid #333; margin: 0 30px; padding-top: 6px; font-size: 11px;">
+                                    <strong>Authorized Signatory</strong><br/>
+                                    <t t-esc="company.name"/>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+</odoo>

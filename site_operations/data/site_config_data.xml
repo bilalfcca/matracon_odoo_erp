@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <!-- ── Partner Tags ──────────────────────────────────────────────── -->
+        <record id="partner_tag_subcontractor" model="res.partner.category">
+            <field name="name">Subcontractor</field>
+        </record>
+        <record id="partner_tag_vendor" model="res.partner.category">
+            <field name="name">Vendor</field>
+        </record>
+        <!-- MCH - BAHAWALNAGAR -->
+        <record id="site_config_mch" model="x.project.site.config">
+            <field name="name">MCH - BAHAWALNAGAR</field>
+            <field name="analytic_account_id" ref="purchase_demand_raise.analytic_account_mch_bahawalnagar"/>
+        </record>
+
+        <!-- RWASA -->
+        <record id="site_config_rwasa" model="x.project.site.config">
+            <field name="name">RWASA</field>
+            <field name="analytic_account_id" ref="purchase_demand_raise.analytic_account_rwasa"/>
+        </record>
+
+        <!-- STP - MARDAN -->
+        <record id="site_config_stp" model="x.project.site.config">
+            <field name="name">STP - MARDAN</field>
+            <field name="analytic_account_id" ref="purchase_demand_raise.analytic_account_stp_mardan"/>
+        </record>
+    </data>
+</odoo>

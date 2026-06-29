@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_project_site_config_form_site_ops" model="ir.ui.view">
+        <field name="name">x.project.site.config.form.site_ops</field>
+        <field name="model">x.project.site.config</field>
+        <field name="inherit_id" ref="purchase_demand_raise.view_project_site_config_form"/>
+        <field name="arch" type="xml">
+
+            <field name="analytic_account_id" position="after">
+                <field name="project_id" readonly="1"/>
+            </field>
+
+            <button name="action_view_users" position="after">
+                <button name="action_open_project"
+                        type="object"
+                        class="oe_stat_button"
+                        icon="fa-folder-open"
+                        invisible="not project_id">
+                    <span class="o_stat_text">Odoo Project</span>
+                </button>
+                <button name="action_view_accountants"
+                        type="object"
+                        class="oe_stat_button"
+                        icon="fa-calculator">
+                    <field name="x_accountant_count" widget="statinfo" string="Accountants"/>
+                </button>
+            </button>
+
+            <page name="site_users" position="after">
+                <page string="Site Accountants" name="site_accountants">
+                    <div class="alert alert-info" role="alert">
+                        <strong>How this works:</strong>
+                        Adding a user here automatically assigns them to the
+                        <strong>Site Accountant</strong> security group and sets their
+                        default analytic account and warehouse for this project.
+                        Removing a user reverses this automatically.
+                    </div>
+                    <field name="x_site_accountant_ids" widget="many2many">
+                        <list>
+                            <field name="name"/>
+                            <field name="login"/>
+                            <field name="x_default_analytic_account_id" readonly="1" string="Analytic Account"/>
+                            <field name="x_default_warehouse_id" readonly="1" string="Warehouse"/>
+                            <field name="x_site_config_id" readonly="1" string="Site Config"/>
+                        </list>
+                    </field>
+                </page>
+            </page>
+
+        </field>
+    </record>
+</odoo>

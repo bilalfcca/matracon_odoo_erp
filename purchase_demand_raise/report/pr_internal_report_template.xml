@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="report_pr_internal_template">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="o">
+                <t t-call="web.external_layout">
+                    <div class="page">
+
+                        <!-- ── TITLE ── -->
+                        <div class="row mb-4">
+                            <div class="col-12 text-center">
+                                <h2 class="fw-bold">PURCHASE REQUISITION</h2>
+                                <h5 class="text-muted">Internal Document — Requires PM Signature Before Submission</h5>
+                            </div>
+                        </div>
+
+                        <!-- ── HEADER INFO ── -->
+                        <div class="row mb-3">
+                            <div class="col-6">
+                                <table class="table table-sm table-borderless">
+                                    <tr>
+                                        <td class="fw-bold" style="width:40%">PR Reference:</td>
+                                        <td><t t-esc="o.name"/></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="fw-bold">Date:</td>
+                                        <td><t t-esc="o.date_order" t-options='{"widget": "date"}'/></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="fw-bold">Raised By:</td>
+                                        <td><t t-esc="o.x_initiator_id.name or ''"/></td>
+                                    </tr>
+                                    <tr t-if="o.x_category_id">
+                                        <td class="fw-bold">Category:</td>
+                                        <td><t t-esc="o.x_category_id.name"/></td>
+                                    </tr>
+                                </table>
+                            </div>
+                            <div class="col-6">
+                                <table class="table table-sm table-borderless">
+                                    <tr t-if="o.x_project_analytic_account_id">
+                                        <td class="fw-bold" style="width:40%">Project:</td>
+                                        <td><t t-esc="o.x_project_analytic_account_id.name"/></td>
+                                    </tr>
+                                    <tr t-if="o.picking_type_id">
+                                        <td class="fw-bold">Deliver To:</td>
+                                        <td><t t-esc="o.picking_type_id.warehouse_id.name or ''"/></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="fw-bold">PR Status:</td>
+                                        <td>
+                                            <t t-esc="dict(o._fields['x_pr_state'].selection).get(o.x_pr_state, o.x_pr_state)"/>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- ── PRODUCT LINES ── -->
+                        <div class="row mb-4">
+                            <div class="col-12">
+                                <h5 class="fw-bold border-bottom pb-1">Requested Items</h5>
+                                <table class="table table-sm table-bordered o_main_table">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th style="width:5%">#</th>
+                                            <th style="width:45%">Product / Description</th>
+                                            <th style="width:15%" class="text-center">UoM</th>
+                                            <th style="width:15%" class="text-center">On Hand</th>
+                                            <th style="width:20%" class="text-center">Requested Qty</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <t t-set="line_no" t-value="1"/>
+                                        <t t-foreach="o.order_line" t-as="line">
+                                            <tr>
+                                                <td><t t-esc="line_no"/><t t-set="line_no" t-value="line_no + 1"/></td>
+                                                <td>
+                                                    <span t-esc="line.product_id.display_name"/>
+                                                    <t t-if="line.name and line.name != line.product_id.display_name">
+                                                        <br/><small class="text-muted"><t t-esc="line.name"/></small>
+                                                    </t>
+                                                </td>
+                                                <td class="text-center"><t t-esc="line.product_uom_id.name"/></td>
+                                                <td class="text-center"><t t-esc="line.x_qty_on_hand"/></td>
+                                                <td class="text-center fw-bold"><t t-esc="line.x_requested_qty or line.product_qty"/></td>
+                                            </tr>
+                                        </t>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- ── SIGNATURE SECTION ── -->
+                        <div class="row mt-5">
+                            <div class="col-12">
+                                <h5 class="fw-bold border-bottom pb-1">Signatures</h5>
+                            </div>
+                        </div>
+
+                        <div class="row mt-3">
+
+                            <!-- Store Keeper Signature -->
+                            <div class="col-6 text-center">
+                                <div style="border: 1px solid #ccc; border-radius: 4px; padding: 10px; min-height: 100px; margin-bottom: 8px; background: #fafafa;">
+                                </div>
+                                <div class="fw-bold">Store Keeper</div>
+                                <div class="text-muted small"><t t-esc="o.x_initiator_id.name or 'Site Store Keeper'"/></div>
+                                <div class="text-muted small mt-1">Date: ______________________</div>
+                            </div>
+
+                            <!-- PM Signature -->
+                            <div class="col-6 text-center">
+                                <div style="border: 2px solid #000; border-radius: 4px; padding: 10px; min-height: 100px; margin-bottom: 8px; background: #fff9e6;">
+                                    <div class="text-muted small mt-4">PM Signature Required</div>
+                                </div>
+                                <div class="fw-bold">Project Manager</div>
+                                <div class="text-muted small">Name: ______________________</div>
+                                <div class="text-muted small">Date: ______________________</div>
+                                <div class="text-danger small fw-bold mt-1">⚠ Scan &amp; upload after PM signs, then click Submit PR</div>
+                            </div>
+
+                        </div>
+
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+</odoo>

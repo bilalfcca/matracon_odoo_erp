@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        No pre-created accounts required.
+        Journals and accounts for Backcharge and Inter-Project Transfers
+        are created on-demand by the _get_or_create_* methods in
+        models/stock_picking.py when the first relevant transfer is validated.
+    -->
+
+    <!-- WHT Payable — tax withheld and remittable to FBR -->
+    <record id="account_wht_payable" model="account.account">
+        <field name="code">252100</field>
+        <field name="name">WHT Payable</field>
+        <field name="account_type">liability_current</field>
+    </record>
+
+    <!-- Retention Payable — retention held, payable back to subcontractor on release -->
+    <record id="account_retention_payable" model="account.account">
+        <field name="code">211200</field>
+        <field name="name">Retention Payable</field>
+        <field name="account_type">liability_payable</field>
+    </record>
+
+    <!-- ── Gate Pass Outward Sequence ───────────────────────────────────── -->
+    <record id="seq_gate_pass_outward" model="ir.sequence">
+        <field name="name">Gate Pass Outward</field>
+        <field name="code">x.gate.pass.outward</field>
+        <field name="prefix">GP/OUT/%(year)s/</field>
+        <field name="padding">4</field>
+        <field name="number_next">1</field>
+        <field name="number_increment">1</field>
+        <field name="company_id" eval="False"/>
+    </record>
+</odoo>

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <data noupdate="1">
+    <!-- Demo bank journals for Finance HO payments -->
+    <record id="bank_journal_hbl" model="account.journal">
+      <field name="name">HBL - Habib Bank Limited</field>
+      <field name="code">HBL</field>
+      <field name="type">bank</field>
+      <field name="company_id" ref="base.main_company"/>
+    </record>
+    <record id="bank_journal_bok" model="account.journal">
+      <field name="name">BOK - Bank of Khyber</field>
+      <field name="code">BOK</field>
+      <field name="type">bank</field>
+      <field name="company_id" ref="base.main_company"/>
+    </record>
+  </data>
+</odoo>

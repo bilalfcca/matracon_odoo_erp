@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ════════════════════════════════════
+         COMPARATIVE STATEMENT — Form View
+         ════════════════════════════════════ -->
+    <record id="view_cs_form" model="ir.ui.view">
+        <field name="name">x.comparative.statement.form</field>
+        <field name="model">x.comparative.statement</field>
+        <field name="arch" type="xml">
+            <form string="Comparative Statement">
+                <header>
+                    <button name="action_confirm"
+                            string="Confirm Selection and Route to CEO"
+                            type="object"
+                            class="btn-primary"
+                            invisible="x_state != 'draft'"
+                            confirm="This will lock your recommendation and send the PR to CEO for final approval. Are you sure?"/>
+                    <field name="x_state" widget="statusbar" statusbar_visible="draft,confirmed"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name" readonly="x_state == 'confirmed'"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="x_purchase_order_id" readonly="x_state == 'confirmed'"/>
+                            <field name="x_recommended_vendor_id"
+                                   readonly="x_state == 'confirmed'"/>
+                        </group>
+                        <group>
+                            <field name="x_state" readonly="1"/>
+                        </group>
+                    </group>
+
+                    <!-- Vendor Comparisons -->
+                    <notebook>
+                        <page string="Vendor Comparison">
+                            <field name="x_vendor_line_ids"
+                                   readonly="x_state == 'confirmed'"
+                                   widget="one2many">
+                                <list editable="bottom">
+                                    <field name="x_partner_id" string="Vendor"/>
+                                    <field name="x_brand_origin" string="Brand/Origin"/>
+                                    <field name="x_delivery_basis" string="Delivery"/>
+                                    <field name="x_delivery_period" string="Delivery Period"/>
+                                    <field name="x_payment_terms" string="Payment Terms"/>
+                                    <field name="x_warranty" string="Warranty"/>
+                                    <field name="x_tax_treatment" string="Tax"/>
+                                    <field name="x_rfq_reference" string="Quote Ref"/>
+                                    <field name="x_quote_validity" string="Valid Until"/>
+                                    <field name="x_ancillary_included" string="Ancillaries?"/>
+                                    <field name="x_total_price" string="Total Price" readonly="1"/>
+                                    <field name="x_gst_amount" string="GST" readonly="1"/>
+                                    <field name="x_net_total" string="Net Total" readonly="1"
+                                           decoration-success="x_is_lowest"
+                                           decoration-danger="not x_is_lowest"/>
+                                    <field name="x_is_lowest" string="Best Value?" readonly="1"
+                                           widget="boolean"/>
+                                    <field name="x_savings_vs_highest" string="Saving vs Highest" readonly="1"/>
+                                    <field name="x_remarks" string="Remarks"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Vendor Line Items">
+                            <field name="x_vendor_line_ids" widget="one2many" readonly="x_state == 'confirmed'">
+                                <form string="Vendor Details">
+                                    <group>
+                                        <field name="x_partner_id"/>
+                                        <field name="x_rfq_reference"/>
+                                    </group>
+                                    <field name="x_line_ids" widget="one2many">
+                                        <list editable="bottom">
+                                            <field name="x_product_id"/>
+                                            <field name="x_uom_id" readonly="1"/>
+                                            <field name="x_qty"/>
+                                            <field name="x_unit_price"/>
+                                            <field name="x_total_price" readonly="1"/>
+                                            <field name="x_gst_rate" string="GST %"/>
+                                            <field name="x_gst_amount" readonly="1"/>
+                                            <field name="x_net_price" readonly="1"/>
+                                            <field name="x_remarks"/>
+                                        </list>
+                                    </field>
+                                    <field name="x_attachment_ids" widget="many2many_binary" string="Vendor Quotation PDFs"/>
+                                </form>
+                            </field>
+                        </page>
+                        <page string="Negotiation Notes">
+                            <field name="x_negotiation_notes" widget="html"/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- List View -->
+    <record id="view_cs_list" model="ir.ui.view">
+        <field name="name">x.comparative.statement.list</field>
+        <field name="model">x.comparative.statement</field>
+        <field name="arch" type="xml">
+            <list string="Comparative Statements">
+                <field name="name"/>
+                <field name="x_purchase_order_id"/>
+                <field name="x_recommended_vendor_id"/>
+                <field name="x_state" widget="badge"
+                       decoration-warning="x_state == 'draft'"
+                       decoration-success="x_state == 'confirmed'"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Action -->
+    <record id="action_comparative_statement" model="ir.actions.act_window">
+        <field name="name">Comparative Statements</field>
+        <field name="res_model">x.comparative.statement</field>
+        <field name="view_mode">list,form</field>
+    </record>
+</odoo>

@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="action_report_salary_slip" model="ir.actions.report">
+        <field name="name">Salary Slip</field>
+        <field name="model">x.salary.sheet.line</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">site_operations.report_salary_slip</field>
+        <field name="report_file">site_operations.report_salary_slip</field>
+        <field name="print_report_name">'Salary Slip - %s' % (object.employee_id.name)</field>
+    </record>
+
+    <template id="report_salary_slip">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="line">
+                <t t-call="web.external_layout">
+                    <div class="page matracon-salary-slip-pdf">
+                        <!-- Header -->
+                        <div class="row mb-3">
+                            <div class="col-12">
+                                <h2 class="mb-1">Salary Slip</h2>
+                                <table class="table table-sm table-borderless mb-0">
+                                    <tr>
+                                        <td style="width:35%"><strong>Employee</strong></td>
+                                        <td><span t-field="line.employee_id.name"/></td>
+                                        <td style="width:20%"><strong>Period</strong></td>
+                                        <td>
+                                            <span t-field="line.sheet_id.date_from"/> —
+                                            <span t-field="line.sheet_id.date_to"/>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Paid Days</strong></td>
+                                        <td><t t-esc="line.paid_days"/></td>
+                                        <td><strong>Project</strong></td>
+                                        <td><span t-field="line.sheet_id.project_analytic_account_id.name"/></td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Earnings -->
+                        <h5 class="bg-light p-1 mt-2">Earnings</h5>
+                        <table class="table table-sm table-bordered">
+                            <thead>
+                                <tr class="table-secondary">
+                                    <th>Description</th>
+                                    <th class="text-end">Monthly Rate</th>
+                                    <th class="text-end">Amount (Paid Days)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Basic Salary</td>
+                                    <td class="text-end"><span t-field="line.detail_basic_full"/></td>
+                                    <td class="text-end"><span t-field="line.basic_salary"/></td>
+                                </tr>
+                                <tr>
+                                    <td>House Rent Allowance (HRA)</td>
+                                    <td class="text-end">—</td>
+                                    <td class="text-end"><span t-field="line.detail_hra"/></td>
+                                </tr>
+                                <tr>
+                                    <td>Site Allowance</td>
+                                    <td class="text-end">—</td>
+                                    <td class="text-end"><span t-field="line.detail_site_allowance"/></td>
+                                </tr>
+                                <tr class="fw-bold">
+                                    <td>Gross Earnings</td>
+                                    <td></td>
+                                    <td class="text-end"><span t-field="line.allowances" t-options='{"widget": "monetary"}'/></td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <!-- Deductions -->
+                        <h5 class="bg-light p-1 mt-3">Deductions</h5>
+                        <table class="table table-sm table-bordered">
+                            <thead>
+                                <tr class="table-secondary">
+                                    <th>Description</th>
+                                    <th class="text-end">Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr t-if="line.detail_wht">
+                                    <td>Salary Tax / WHT (Sec 149)</td>
+                                    <td class="text-end"><span t-field="line.detail_wht"/></td>
+                                </tr>
+                                <tr t-if="line.detail_eobi">
+                                    <td>EOBI Contribution</td>
+                                    <td class="text-end"><span t-field="line.detail_eobi"/></td>
+                                </tr>
+                                <tr t-if="line.detail_advance">
+                                    <td>Advance Recovery</td>
+                                    <td class="text-end"><span t-field="line.detail_advance"/></td>
+                                </tr>
+                                <tr class="fw-bold">
+                                    <td>Total Deductions</td>
+                                    <td class="text-end"><span t-field="line.deductions"/></td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <!-- Net Payable -->
+                        <div class="d-flex justify-content-end mt-3">
+                            <div class="border rounded p-3 text-end" style="min-width:220px">
+                                <div class="text-muted small text-uppercase fw-bold">Net Payable</div>
+                                <div class="fs-4 fw-bold text-success">
+                                    <span t-field="line.net_payable"/>
+                                </div>
+                            </div>
+                        </div>
+
+                        <p class="text-muted small mt-4">
+                            This is a system-generated salary slip. — Matracon Pakistan Pvt. Ltd.
+                        </p>
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+
+</odoo>

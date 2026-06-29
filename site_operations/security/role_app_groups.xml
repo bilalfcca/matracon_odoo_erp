@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <!-- ──────────────────────────────────────────────────────────────────────
+             IMPORTANT: All implied_ids use (6, 0, [...]) to REPLACE (not just add)
+             so that removing a group on upgrade actually takes effect.
+             Each entry must list ALL groups the role needs — both Odoo functional
+             groups AND our custom group_mtr_app_* visibility gates.
+        ──────────────────────────────────────────────────────────────────────── -->
+
+        <!-- Site Store: Purchase + Inventory only -->
+        <record id="purchase_demand_raise.group_site_store" model="res.groups">
+            <field name="implied_ids" eval="[
+                (6, 0, [
+                    ref('purchase.group_purchase_user'),
+                    ref('stock.group_stock_user'),
+                    ref('group_mtr_app_purchase'),
+                    ref('group_mtr_app_inventory'),
+                ])
+            ]"/>
+        </record>
+
+        <!-- Procurement Officer: Purchase + Inventory (admin) + Contacts -->
+        <record id="purchase_demand_raise.group_procurement_ho" model="res.groups">
+            <field name="implied_ids" eval="[
+                (6, 0, [
+                    ref('purchase.group_purchase_user'),
+                    ref('purchase.group_purchase_manager'),
+                    ref('stock.group_stock_manager'),
+                    ref('base.group_partner_manager'),
+                    ref('group_mtr_app_purchase'),
+                    ref('group_mtr_app_inventory'),
+                    ref('group_mtr_app_contacts'),
+                ])
+            ]"/>
+        </record>
+
+        <!-- CEO: Purchase + Accounting only (NO Project) -->
+        <record id="purchase_demand_raise.group_ceo_approval" model="res.groups">
+            <field name="implied_ids" eval="[
+                (6, 0, [
+                    ref('purchase.group_purchase_manager'),
+                    ref('account.group_account_readonly'),
+                    ref('account.group_account_invoice'),
+                    ref('group_mtr_app_purchase'),
+                    ref('group_mtr_app_accounting'),
+                ])
+            ]"/>
+        </record>
+
+        <!-- Site Accountant: Accounting + Attendance only (NO Employees, NO Payroll) -->
+        <!-- hr_attendance.group_hr_attendance_officer transitively implies hr.group_hr_user -->
+        <!-- so employees are accessible in attendance lines without seeing the HR app -->
+        <record id="group_site_accountant" model="res.groups">
+            <field name="implied_ids" eval="[
+                (6, 0, [
+                    ref('account.group_account_invoice'),
+                    ref('hr_attendance.group_hr_attendance_officer'),
+                    ref('group_mtr_app_accounting'),
+                    ref('group_mtr_app_attendance'),
+                ])
+            ]"/>
+        </record>
+
+        <!-- Finance HO: Accounting + Employees + Payroll + Attendance (all admin) -->
+        <record id="group_finance_ho" model="res.groups">
+            <field name="implied_ids" eval="[
+                (6, 0, [
+                    ref('account.group_account_manager'),
+                    ref('hr.group_hr_manager'),
+                    ref('hr_attendance.group_hr_attendance_officer'),
+                    ref('group_mtr_app_accounting'),
+                    ref('group_mtr_app_hr'),
+                    ref('group_mtr_app_attendance'),
+                    ref('group_mtr_app_payroll'),
+                ])
+            ]"/>
+        </record>
+
+        <!-- Matracon Admin: all apps + Settings (replaces purchase_demand_raise base implied_ids) -->
+        <record id="purchase_demand_raise.group_matracon_admin" model="res.groups">
+            <field name="implied_ids" eval="[
+                (6, 0, [
+                    ref('purchase_demand_raise.group_head_office'),
+                    ref('purchase_demand_raise.group_procurement_ho'),
+                    ref('purchase_demand_raise.group_ceo_approval'),
+                    ref('site_operations.group_finance_ho'),
+                    ref('purchase.group_purchase_manager'),
+                    ref('stock.group_stock_manager'),
+                    ref('account.group_account_manager'),
+                    ref('project.group_project_manager'),
+                    ref('base.group_partner_manager'),
+                    ref('group_mtr_app_purchase'),
+                    ref('group_mtr_app_inventory'),
+                    ref('group_mtr_app_accounting'),
+                    ref('group_mtr_app_project'),
+                    ref('group_mtr_app_hr'),
+                    ref('group_mtr_app_attendance'),
+                    ref('group_mtr_app_payroll'),
+                    ref('group_mtr_app_settings'),
+                    ref('group_mtr_app_contacts'),
+                ])
+            ]"/>
+        </record>
+    </data>
+</odoo>

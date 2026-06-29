@@ -1,21 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- Partner Ledger: separate Tax and Withheld Tax columns (before Debit/Credit) -->
-    <record id="partner_ledger_tax_column" model="account.report.column">
-        <field name="name">Tax</field>
-        <field name="expression_label">tax_amount</field>
+    <!-- Partner Ledger: WHT deduction column -->
+    <record id="partner_ledger_wht_column" model="account.report.column">
+        <field name="name">WHT</field>
+        <field name="expression_label">wht_amount</field>
         <field name="figure_type">monetary</field>
         <field name="blank_if_zero" eval="True"/>
-        <field name="sequence">57</field>
+        <field name="sequence">55</field>
         <field name="report_id" ref="account_reports.partner_ledger_report"/>
     </record>
 
-    <record id="partner_ledger_withheld_tax_column" model="account.report.column">
-        <field name="name">Withheld Tax</field>
-        <field name="expression_label">withheld_tax_amount</field>
+    <!-- Partner Ledger: Retention Money column -->
+    <record id="partner_ledger_retention_column" model="account.report.column">
+        <field name="name">Retention</field>
+        <field name="expression_label">retention_amount</field>
         <field name="figure_type">monetary</field>
         <field name="blank_if_zero" eval="True"/>
-        <field name="sequence">58</field>
+        <field name="sequence">56</field>
+        <field name="report_id" ref="account_reports.partner_ledger_report"/>
+    </record>
+
+    <!-- Partner Ledger: combined total taxes / deductions column -->
+    <record id="partner_ledger_taxes_column" model="account.report.column">
+        <field name="name">Total Deductions</field>
+        <field name="expression_label">taxes_amount</field>
+        <field name="figure_type">monetary</field>
+        <field name="blank_if_zero" eval="True"/>
+        <field name="sequence">57</field>
         <field name="report_id" ref="account_reports.partner_ledger_report"/>
     </record>
 </odoo>

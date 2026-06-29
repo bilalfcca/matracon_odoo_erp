@@ -1,0 +1,570 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ════════════════════════════════════════════════════════════════════
+         QWeb Templates
+
+         1. report_mif_document       — Material Issuance Form (MIF)
+         2. report_gate_pass_document — Gate Pass (outward)
+         3. report_liability_sheet_document — Liability Sheet PDF
+    ════════════════════════════════════════════════════════════════════════ -->
+
+    <!-- ════════════════════════════════════════════════════════════════════
+         MATERIAL ISSUANCE FORM (MIF)
+    ════════════════════════════════════════════════════════════════════════ -->
+    <template id="report_mif_document">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="picking">
+                <t t-call="web.external_layout">
+                    <div class="page">
+
+                        <!-- ── Document Title ── -->
+                        <div class="row mb-4">
+                            <div class="col-12 text-center">
+                                <h2 style="font-weight: bold; text-transform: uppercase; border-bottom: 2px solid #000; padding-bottom: 8px;">
+                                    MATERIAL ISSUANCE FORM (MIF)
+                                </h2>
+                            </div>
+                        </div>
+
+                        <!-- ── Header Info ── -->
+                        <div class="row mb-3">
+                            <div class="col-6">
+                                <table class="table table-borderless table-sm" style="font-size:13px;">
+                                    <tr>
+                                        <td style="font-weight:bold; width:140px;">MIF Reference:</td>
+                                        <td><t t-esc="picking.name"/></td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-weight:bold;">Date:</td>
+                                        <td>
+                                            <t t-esc="picking.scheduled_date"
+                                               t-options="{'widget': 'date'}"/>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-weight:bold;">Project:</td>
+                                        <td>
+                                            <t t-esc="picking.x_issuance_project_id.name or ''"/>
+                                        </td>
+                                    </tr>
+                                    <tr t-if="picking.origin">
+                                        <td style="font-weight:bold;">Source Document:</td>
+                                        <td><t t-esc="picking.origin"/></td>
+                                    </tr>
+                                </table>
+                            </div>
+                            <div class="col-6">
+                                <table class="table table-borderless table-sm" style="font-size:13px;">
+                                    <tr>
+                                        <td style="font-weight:bold; width:140px;">Issue Type:</td>
+                                        <td>
+                                            <t t-esc="dict(picking._fields['x_issue_type'].selection).get(picking.x_issue_type, '')"/>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-weight:bold;">Inventory Type:</td>
+                                        <td>
+                                            <t t-esc="dict(picking._fields['x_inventory_type'].selection).get(picking.x_inventory_type, '')"/>
+                                        </td>
+                                    </tr>
+                                    <tr t-if="picking.x_is_return_transfer">
+                                        <td style="font-weight:bold;">Type:</td>
+                                        <td>RETURN</td>
+                                    </tr>
+                                    <tr t-if="picking.x_original_issuance_id">
+                                        <td style="font-weight:bold;">Original Issuance:</td>
+                                        <td><t t-esc="picking.x_original_issuance_id.name"/></td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-weight:bold;">Backcharge:</td>
+                                        <td>
+                                            <t t-if="picking.x_backcharge_applicable">
+                                                Yes — <t t-esc="'{:,.2f}'.format(picking.x_backcharge_amount)"/>
+                                            </t>
+                                            <t t-else="">No</t>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- ── Contact / Subcontractor ── -->
+                        <div class="row mb-3" t-if="picking.x_contact_id">
+                            <div class="col-12">
+                                <table class="table table-borderless table-sm" style="font-size:13px; border-top:1px solid #dee2e6; border-bottom:1px solid #dee2e6;">
+                                    <tr>
+                                        <td style="font-weight:bold; width:180px;">
+                                            <t t-if="picking.x_issue_type == 'subcontractor'">Subcontractor:</t>
+                                            <t t-else="">Received By (Employee):</t>
+                                        </td>
+                                        <td>
+                                            <t t-esc="picking.x_contact_id.name"/>
+                                            <t t-if="picking.x_contact_id.phone">
+                                                — <t t-esc="picking.x_contact_id.phone"/>
+                                            </t>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- ── From / To Locations ── -->
+                        <div class="row mb-3">
+                            <div class="col-6">
+                                <strong>From Location:</strong>
+                                <t t-esc="picking.location_id.complete_name"/>
+                            </div>
+                            <div class="col-6">
+                                <strong>To Location:</strong>
+                                <t t-esc="picking.location_dest_id.complete_name"/>
+                            </div>
+                        </div>
+
+                        <!-- ── Outstanding Materials Summary ── -->
+                        <div class="row mb-3"
+                             t-if="picking.x_contact_id and picking.x_outstanding_materials_html">
+                            <div class="col-12">
+                                <p style="font-weight:bold; margin-bottom:4px;">
+                                    Outstanding Materials for
+                                    <t t-esc="picking.x_contact_id.name"/>:
+                                </p>
+                                <div t-raw="picking.x_outstanding_materials_html"/>
+                            </div>
+                        </div>
+
+                        <!-- ── Products Table ── -->
+                        <div class="row mb-3">
+                            <div class="col-12">
+                                <table class="table table-bordered table-sm" style="font-size:13px;">
+                                    <thead style="background:#f8f9fa; font-weight:bold;">
+                                        <tr>
+                                            <th style="width:40px;">#</th>
+                                            <th>Product</th>
+                                            <th>Description</th>
+                                            <th style="text-align:center;">UoM</th>
+                                            <th style="text-align:right;">Demand Qty</th>
+                                            <th style="text-align:right;">Issued Qty</th>
+                                            <th t-if="picking.x_backcharge_applicable"
+                                                style="text-align:right;">Unit Cost</th>
+                                            <th t-if="picking.x_backcharge_applicable"
+                                                style="text-align:right;">Backcharge Amt</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <t t-foreach="picking.move_ids" t-as="move">
+                                            <tr>
+                                                <td><t t-esc="move_index + 1"/></td>
+                                                <td><t t-esc="move.product_id.display_name"/></td>
+                                                <td><t t-esc="move.description_picking or ''"/></td>
+                                                <td style="text-align:center;">
+                                                    <t t-esc="move.product_uom.name"/>
+                                                </td>
+                                                <td style="text-align:right;">
+                                                    <t t-esc="'{:,.2f}'.format(move.product_uom_qty)"/>
+                                                </td>
+                                                <td style="text-align:right;">
+                                                    <t t-esc="'{:,.2f}'.format(move.quantity)"/>
+                                                </td>
+                                                <td t-if="picking.x_backcharge_applicable"
+                                                    style="text-align:right;">
+                                                    <t t-esc="'{:,.2f}'.format(move.x_unit_cost)"/>
+                                                </td>
+                                                <td t-if="picking.x_backcharge_applicable"
+                                                    style="text-align:right;">
+                                                    <t t-esc="'{:,.2f}'.format(move.x_line_backcharge_amount)"/>
+                                                </td>
+                                            </tr>
+                                        </t>
+                                    </tbody>
+                                    <tfoot t-if="picking.x_backcharge_applicable">
+                                        <tr style="font-weight:bold;">
+                                            <td colspan="7" style="text-align:right;">Total Backcharge Amount:</td>
+                                            <td style="text-align:right;">
+                                                <t t-esc="'{:,.2f}'.format(picking.x_backcharge_amount)"/>
+                                            </td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- ── Backcharge Description ── -->
+                        <div class="row mb-3"
+                             t-if="picking.x_backcharge_applicable and picking.x_backcharge_description">
+                            <div class="col-12">
+                                <strong>Backcharge Description:</strong>
+                                <t t-esc="picking.x_backcharge_description"/>
+                            </div>
+                        </div>
+
+                        <!-- ── Return Fields ── -->
+                        <div class="row mb-3" t-if="picking.x_is_return_transfer">
+                            <div class="col-12">
+                                <table class="table table-borderless table-sm" style="font-size:13px;">
+                                    <tr t-if="picking.x_return_type">
+                                        <td style="font-weight:bold; width:180px;">Return Type:</td>
+                                        <td>
+                                            <t t-esc="dict(picking._fields['x_return_type'].selection).get(picking.x_return_type, '')"/>
+                                        </td>
+                                    </tr>
+                                    <tr t-if="picking.x_return_condition">
+                                        <td style="font-weight:bold;">Return Condition:</td>
+                                        <td><t t-esc="picking.x_return_condition"/></td>
+                                    </tr>
+                                    <tr t-if="picking.x_return_remarks">
+                                        <td style="font-weight:bold;">Return Remarks:</td>
+                                        <td><t t-esc="picking.x_return_remarks"/></td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- ── Signature Section ── -->
+                        <div class="row mt-5">
+                            <div class="col-4 text-center">
+                                <div style="border-top: 1px solid #000; margin-top: 40px; padding-top: 8px;">
+                                    <strong>Project Manager Signature</strong>
+                                </div>
+                            </div>
+                            <div class="col-4 text-center">
+                                <div style="border-top: 1px solid #000; margin-top: 40px; padding-top: 8px;">
+                                    <strong>Store Keeper Signature</strong>
+                                </div>
+                            </div>
+                            <div class="col-4 text-center">
+                                <div style="border-top: 1px solid #000; margin-top: 40px; padding-top: 8px;">
+                                    <t t-if="picking.x_issue_type == 'subcontractor'">
+                                        <strong>Subcontractor Signature</strong>
+                                    </t>
+                                    <t t-else="">
+                                        <strong>Receiver Signature</strong>
+                                    </t>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+
+    <!-- ════════════════════════════════════════════════════════════════════
+         GATE PASS (OUTWARD)
+    ════════════════════════════════════════════════════════════════════════ -->
+    <template id="report_gate_pass_document">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="picking">
+                <t t-call="web.external_layout">
+                    <div class="page">
+
+                        <!-- ── Title ── -->
+                        <div class="row mb-4">
+                            <div class="col-12 text-center">
+                                <h2 style="font-weight: bold; text-transform: uppercase; border-bottom: 2px solid #000; padding-bottom: 8px;">
+                                    GATE PASS (OUTWARD)
+                                </h2>
+                            </div>
+                        </div>
+
+                        <!-- ── Header ── -->
+                        <div class="row mb-3">
+                            <div class="col-6">
+                                <table class="table table-borderless table-sm" style="font-size:13px;">
+                                    <tr>
+                                        <td style="font-weight:bold; width:160px;">Gate Pass No:</td>
+                                        <td>
+                                            <t t-esc="picking.x_gate_pass_outward_no or 'PENDING'"/>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-weight:bold;">MIF Reference:</td>
+                                        <td><t t-esc="picking.name"/></td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-weight:bold;">Date:</td>
+                                        <td>
+                                            <t t-esc="picking.scheduled_date"
+                                               t-options="{'widget': 'date'}"/>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-weight:bold;">Project:</td>
+                                        <td>
+                                            <t t-esc="picking.x_issuance_project_id.name or ''"/>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+                            <div class="col-6">
+                                <table class="table table-borderless table-sm" style="font-size:13px;">
+                                    <tr>
+                                        <td style="font-weight:bold; width:160px;">Recipient:</td>
+                                        <td>
+                                            <t t-esc="picking.x_contact_id.name or ''"/>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-weight:bold;">From Location:</td>
+                                        <td><t t-esc="picking.location_id.complete_name"/></td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-weight:bold;">To Location:</td>
+                                        <td><t t-esc="picking.location_dest_id.complete_name"/></td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-weight:bold;">Vehicle/Purpose:</td>
+                                        <td></td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- ── Materials Table ── -->
+                        <div class="row mb-3">
+                            <div class="col-12">
+                                <table class="table table-bordered table-sm" style="font-size:13px;">
+                                    <thead style="background:#f8f9fa; font-weight:bold;">
+                                        <tr>
+                                            <th style="width:40px;">#</th>
+                                            <th>Product / Description</th>
+                                            <th style="text-align:center;">UoM</th>
+                                            <th style="text-align:right;">Quantity</th>
+                                            <th style="text-align:center; width:120px;">Condition</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <t t-foreach="picking.move_ids" t-as="move">
+                                            <tr>
+                                                <td><t t-esc="move_index + 1"/></td>
+                                                <td><t t-esc="move.product_id.display_name"/></td>
+                                                <td style="text-align:center;">
+                                                    <t t-esc="move.product_uom.name"/>
+                                                </td>
+                                                <td style="text-align:right;">
+                                                    <t t-esc="'{:,.2f}'.format(move.quantity or move.product_uom_qty)"/>
+                                                </td>
+                                                <td></td>
+                                            </tr>
+                                        </t>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- ── Gate Checkpoint ── -->
+                        <div class="row mb-3">
+                            <div class="col-12">
+                                <table class="table table-bordered table-sm" style="font-size:12px;">
+                                    <tr>
+                                        <th colspan="4" style="background:#f8f9fa;">
+                                            Gate Check — For Security Use
+                                        </th>
+                                    </tr>
+                                    <tr>
+                                        <td style="width:25%;">Time Out:</td>
+                                        <td style="width:25%;"></td>
+                                        <td style="width:25%;">Vehicle No:</td>
+                                        <td style="width:25%;"></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Driver Name:</td>
+                                        <td></td>
+                                        <td>Security Guard:</td>
+                                        <td></td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- ── Signatures ── -->
+                        <div class="row mt-4">
+                            <div class="col-4 text-center">
+                                <div style="border-top: 1px solid #000; margin-top: 40px; padding-top: 8px;">
+                                    <strong>Issued By (Store Keeper)</strong>
+                                </div>
+                            </div>
+                            <div class="col-4 text-center">
+                                <div style="border-top: 1px solid #000; margin-top: 40px; padding-top: 8px;">
+                                    <strong>Project Manager</strong>
+                                </div>
+                            </div>
+                            <div class="col-4 text-center">
+                                <div style="border-top: 1px solid #000; margin-top: 40px; padding-top: 8px;">
+                                    <strong>Security Guard</strong>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+
+    <!-- ════════════════════════════════════════════════════════════════════
+         LIABILITY SHEET PDF
+    ════════════════════════════════════════════════════════════════════════ -->
+    <template id="report_liability_sheet_document">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="sheet">
+                <t t-call="web.external_layout">
+                    <div class="page">
+
+                        <!-- ── Title ── -->
+                        <div class="row mb-4">
+                            <div class="col-12 text-center">
+                                <h2 style="font-weight: bold; text-transform: uppercase; border-bottom: 2px solid #000; padding-bottom: 8px;">
+                                    LIABILITY SHEET
+                                </h2>
+                                <p style="font-size:14px; margin-top:4px;">
+                                    <t t-esc="sheet.name"/>
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- ── Header Info ── -->
+                        <div class="row mb-3">
+                            <div class="col-6">
+                                <table class="table table-borderless table-sm" style="font-size:13px;">
+                                    <tr>
+                                        <td style="font-weight:bold; width:140px;">Project:</td>
+                                        <td>
+                                            <t t-esc="sheet.project_analytic_account_id.name"/>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-weight:bold;">Period:</td>
+                                        <td>
+                                            <t t-esc="sheet.date_from"/> to <t t-esc="sheet.date_to"/>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-weight:bold;">Status:</td>
+                                        <td>
+                                            <t t-esc="dict(sheet._fields['state'].selection).get(sheet.state, '')"/>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+                            <div class="col-6">
+                                <table class="table table-borderless table-sm" style="font-size:13px;">
+                                    <tr>
+                                        <td style="font-weight:bold; width:160px;">Total Liability:</td>
+                                        <td><t t-esc="'{:,.2f}'.format(sheet.total_liability)"/></td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-weight:bold;">Total Recommended:</td>
+                                        <td><t t-esc="'{:,.2f}'.format(sheet.total_recommended)"/></td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-weight:bold;">Total Approved:</td>
+                                        <td><t t-esc="'{:,.2f}'.format(sheet.total_approved)"/></td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-weight:bold;">Total Paid:</td>
+                                        <td><t t-esc="'{:,.2f}'.format(sheet.total_paid)"/></td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- ── Lines Table ── -->
+                        <div class="row mb-3">
+                            <div class="col-12">
+                                <table class="table table-bordered table-sm" style="font-size:12px;">
+                                    <thead style="background:#f8f9fa; font-weight:bold;">
+                                        <tr>
+                                            <th>#</th>
+                                            <th>Description</th>
+                                            <th>Vendor / Partner</th>
+                                            <th style="text-align:right;">Opening Balance</th>
+                                            <th style="text-align:right;">New Liability</th>
+                                            <th style="text-align:right;">Total Liability</th>
+                                            <th style="text-align:right;">Recommended</th>
+                                            <th style="text-align:right;">Approved</th>
+                                            <th>Remarks</th>
+                                            <th style="text-align:right;">Paid</th>
+                                            <th style="text-align:right;">Balance</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <t t-foreach="sheet.line_ids" t-as="line">
+                                            <tr>
+                                                <td><t t-esc="line_index + 1"/></td>
+                                                <td><t t-esc="line.description or ''"/></td>
+                                                <td><t t-esc="line.partner_id.name"/></td>
+                                                <td style="text-align:right;">
+                                                    <t t-esc="'{:,.2f}'.format(line.opening_balance)"/>
+                                                </td>
+                                                <td style="text-align:right;">
+                                                    <t t-esc="'{:,.2f}'.format(line.new_liability)"/>
+                                                </td>
+                                                <td style="text-align:right; font-weight:bold;">
+                                                    <t t-esc="'{:,.2f}'.format(line.liability_amount)"/>
+                                                </td>
+                                                <td style="text-align:right;">
+                                                    <t t-esc="'{:,.2f}'.format(line.recommended_amount)"/>
+                                                </td>
+                                                <td style="text-align:right; font-weight:bold;">
+                                                    <t t-esc="'{:,.2f}'.format(line.approved_amount)"/>
+                                                </td>
+                                                <td><t t-esc="line.remarks or ''"/></td>
+                                                <td style="text-align:right;">
+                                                    <t t-esc="'{:,.2f}'.format(line.paid_amount)"/>
+                                                </td>
+                                                <td style="text-align:right;">
+                                                    <t t-esc="'{:,.2f}'.format(line.balance)"/>
+                                                </td>
+                                            </tr>
+                                        </t>
+                                    </tbody>
+                                    <tfoot style="font-weight:bold; background:#f8f9fa;">
+                                        <tr>
+                                            <td colspan="5" style="text-align:right;">TOTALS:</td>
+                                            <td style="text-align:right;">
+                                                <t t-esc="'{:,.2f}'.format(sheet.total_liability)"/>
+                                            </td>
+                                            <td style="text-align:right;">
+                                                <t t-esc="'{:,.2f}'.format(sheet.total_recommended)"/>
+                                            </td>
+                                            <td style="text-align:right;">
+                                                <t t-esc="'{:,.2f}'.format(sheet.total_approved)"/>
+                                            </td>
+                                            <td></td>
+                                            <td style="text-align:right;">
+                                                <t t-esc="'{:,.2f}'.format(sheet.total_paid)"/>
+                                            </td>
+                                            <td></td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- ── Signatures ── -->
+                        <div class="row mt-5">
+                            <div class="col-4 text-center">
+                                <div style="border-top: 1px solid #000; margin-top: 60px; padding-top: 8px;">
+                                    <strong>Site Accountant</strong>
+                                </div>
+                            </div>
+                            <div class="col-4 text-center">
+                                <div style="border-top: 1px solid #000; margin-top: 60px; padding-top: 8px;">
+                                    <strong>Project Manager</strong>
+                                </div>
+                            </div>
+                            <div class="col-4 text-center">
+                                <div style="border-top: 1px solid #000; margin-top: 60px; padding-top: 8px;">
+                                    <strong>CEO / Approver</strong>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+
+</odoo>

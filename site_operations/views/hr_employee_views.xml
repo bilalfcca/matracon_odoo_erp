@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_hr_employee_form_matracon" model="ir.ui.view">
+        <field name="name">hr.employee.form.matracon</field>
+        <field name="model">hr.employee</field>
+        <field name="inherit_id" ref="hr.view_employee_form"/>
+        <field name="arch" type="xml">
+
+            <!-- Print Employee Card button in button_box -->
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_print_employee_card"
+                        type="object"
+                        string="Print Card"
+                        class="oe_stat_button"
+                        icon="fa-id-card"
+                        groups="purchase_demand_raise.group_matracon_admin,site_operations.group_finance_ho,purchase_demand_raise.group_head_office"/>
+            </xpath>
+
+            <xpath expr="//page[@name='personal_information']" position="after">
+                <page string="Matracon Payroll" name="matracon_payroll">
+                    <group>
+                        <field name="x_project_analytic_account_id"/>
+                        <field name="x_cnic"/>
+                        <field name="x_basic_salary"/>
+                        <field name="x_hra"/>
+                        <field name="x_site_allowance"/>
+                        <field name="x_advance_balance"/>
+                        <field name="x_wht_rate"/>
+                        <field name="x_eobi_amount"/>
+                    </group>
+                </page>
+                <page string="Documents" name="matracon_documents">
+                    <field name="x_document_ids">
+                        <list editable="bottom">
+                            <field name="document_type"/>
+                            <field name="name"/>
+                            <field name="file" filename="filename" widget="binary"/>
+                            <field name="filename" column_invisible="1"/>
+                            <field name="issue_date"/>
+                            <field name="expiry_date"/>
+                            <field name="notes"/>
+                        </list>
+                    </field>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

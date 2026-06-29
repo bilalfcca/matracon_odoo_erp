@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <!-- ── Site Accountant ── -->
+        <record id="group_site_accountant" model="res.groups">
+            <field name="name">Site Accountant</field>
+            <field name="privilege_id" ref="purchase_demand_raise.res_groups_privilege_demand_raise"/>
+            <field name="comment">Site Accountants — vendor bills, liability sheets, petty cash, attendance registry.</field>
+        </record>
+
+        <!-- ── Finance Officer (FO) ── -->
+        <record id="group_finance_ho" model="res.groups">
+            <field name="name">Finance Officer (FO)</field>
+            <field name="privilege_id" ref="purchase_demand_raise.res_groups_privilege_demand_raise"/>
+            <field name="comment">Finance Head Office — vendor payments, payroll, HR, compliance.</field>
+        </record>
+    </data>
+</odoo>

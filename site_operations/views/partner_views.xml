@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ════════════════════════════════════════════════════════════════════
+         res.partner — smart button for Material Issuances
+         Shows on both contact and employee forms.
+    ════════════════════════════════════════════════════════════════════════ -->
+    <record id="view_partner_form_site_ops" model="ir.ui.view">
+        <field name="name">res.partner.form.site.ops</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="arch" type="xml">
+
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_view_material_issuances"
+                        type="object"
+                        class="oe_stat_button"
+                        icon="fa-truck"
+                        invisible="x_material_issuance_count == 0">
+                    <field name="x_material_issuance_count"
+                           widget="statinfo"
+                           string="Issuances"/>
+                </button>
+            </xpath>
+
+        </field>
+    </record>
+</odoo>

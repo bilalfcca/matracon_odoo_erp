@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="seq_subcontractor_ipc" model="ir.sequence">
+        <field name="name">Subcontractor IPC</field>
+        <field name="code">x.subcontractor.ipc</field>
+        <field name="prefix">IPC/%(year)s/</field>
+        <field name="padding">4</field>
+        <field name="company_id" eval="False"/>
+    </record>
+
+    <record id="seq_wht_certificate" model="ir.sequence">
+        <field name="name">WHT Certificate</field>
+        <field name="code">x.wht.certificate</field>
+        <field name="prefix">WHT/%(year)s/</field>
+        <field name="padding">4</field>
+        <field name="company_id" eval="False"/>
+    </record>
+</odoo>

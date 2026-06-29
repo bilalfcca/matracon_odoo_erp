@@ -1,0 +1,262 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ── Sequence ──────────────────────────────────────────────────────── -->
+    <record id="seq_interproject_transfer" model="ir.sequence">
+        <field name="name">Inter-Project Transfer</field>
+        <field name="code">x.interproject.transfer</field>
+        <field name="prefix">IPTR/%(year)s/</field>
+        <field name="padding">4</field>
+        <field name="company_id" eval="False"/>
+    </record>
+
+    <!-- ── List View ─────────────────────────────────────────────────────── -->
+    <record id="view_interproject_transfer_list" model="ir.ui.view">
+        <field name="name">x.interproject.transfer.list</field>
+        <field name="model">x.interproject.transfer</field>
+        <field name="arch" type="xml">
+            <list string="Inter-Project Transfers"
+                  decoration-success="state == 'settled'"
+                  decoration-warning="state == 'open'"
+                  default_order="date desc">
+                <field name="name" string="Reference"/>
+                <field name="date" string="Date"/>
+                <field name="transfer_type" widget="badge"
+                       decoration-info="transfer_type == 'inventory'"
+                       decoration-primary="transfer_type == 'cash'"
+                       string="Type"/>
+                <field name="source_analytic_id" string="Sender / Lender"/>
+                <field name="dest_analytic_id" string="Receiver / Beneficiary"/>
+                <field name="vendor_id" string="Vendor Paid"
+                       invisible="transfer_type == 'inventory'"
+                       optional="show"/>
+                <field name="picking_id" string="S2S Transfer"
+                       invisible="transfer_type == 'cash'"
+                       optional="show"/>
+                <field name="amount" string="Amount" sum="Total"/>
+                <field name="currency_id" invisible="1"/>
+                <field name="state" widget="badge"
+                       decoration-success="state == 'settled'"
+                       decoration-warning="state == 'open'"
+                       string="Status"/>
+                <field name="settlement_date" string="Settled On" optional="hide"/>
+                <button name="action_mark_settled"
+                        type="object"
+                        string="Settle"
+                        icon="fa-check"
+                        class="btn-success btn-sm"
+                        invisible="state == 'settled'"
+                        groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ── Form View ─────────────────────────────────────────────────────── -->
+    <record id="view_interproject_transfer_form" model="ir.ui.view">
+        <field name="name">x.interproject.transfer.form</field>
+        <field name="model">x.interproject.transfer</field>
+        <field name="arch" type="xml">
+            <form string="Inter-Project Transfer">
+                <header>
+                    <button name="action_mark_settled"
+                            type="object"
+                            string="Mark as Settled"
+                            class="btn-success"
+                            invisible="state == 'settled'"
+                            groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"/>
+                    <button name="action_reopen"
+                            type="object"
+                            string="Re-open"
+                            class="btn-warning"
+                            invisible="state == 'open'"
+                            groups="purchase_demand_raise.group_matracon_admin"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="open,settled"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_payment"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-credit-card"
+                                invisible="not payment_id or transfer_type != 'cash'">
+                            <div class="o_stat_info">
+                                <span class="o_stat_text">Vendor</span>
+                                <span class="o_stat_text">Payment</span>
+                            </div>
+                        </button>
+                        <button name="action_view_picking"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-exchange"
+                                invisible="not picking_id or transfer_type != 'inventory'">
+                            <div class="o_stat_info">
+                                <span class="o_stat_text">S2S</span>
+                                <span class="o_stat_text">Transfer</span>
+                            </div>
+                        </button>
+                        <button name="action_view_journal_entry"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-book"
+                                invisible="not move_id">
+                            <div class="o_stat_info">
+                                <span class="o_stat_text">Journal</span>
+                                <span class="o_stat_text">Entry</span>
+                            </div>
+                        </button>
+                    </div>
+
+                    <div class="oe_title">
+                        <label for="name"/>
+                        <h1><field name="name" readonly="1"/></h1>
+                    </div>
+
+                    <group>
+                        <group string="Transfer Details">
+                            <field name="transfer_type" readonly="1"/>
+                            <field name="date" readonly="1"/>
+                            <field name="amount" readonly="1"/>
+                            <field name="currency_id" invisible="1"/>
+                            <!-- Cash only -->
+                            <field name="vendor_id" readonly="1"
+                                   invisible="transfer_type != 'cash'"/>
+                            <!-- Inventory only -->
+                            <field name="picking_id" readonly="1"
+                                   invisible="transfer_type != 'inventory'"/>
+                        </group>
+                        <group string="Projects">
+                            <field name="source_analytic_id"
+                                   string="Sending / Lending Project"
+                                   readonly="1"/>
+                            <field name="dest_analytic_id"
+                                   string="Receiving / Beneficiary Project"
+                                   readonly="1"/>
+                        </group>
+                    </group>
+
+                    <group string="Settlement" invisible="state == 'open'">
+                        <field name="settlement_date" readonly="1"/>
+                        <field name="settlement_note"/>
+                    </group>
+
+                    <group string="Notes" invisible="not notes">
+                        <field name="notes" nolabel="1"/>
+                    </group>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- ── Search View ───────────────────────────────────────────────────── -->
+    <record id="view_interproject_transfer_search" model="ir.ui.view">
+        <field name="name">x.interproject.transfer.search</field>
+        <field name="model">x.interproject.transfer</field>
+        <field name="arch" type="xml">
+            <search string="Search Inter-Project Transfers">
+                <field name="name" string="Reference"/>
+                <field name="source_analytic_id" string="Sender / Lender"/>
+                <field name="dest_analytic_id" string="Receiver / Beneficiary"/>
+                <field name="vendor_id" string="Vendor"/>
+                <field name="picking_id" string="S2S Transfer"/>
+
+                <filter name="filter_open"
+                        string="Outstanding"
+                        domain="[('state', '=', 'open')]"/>
+                <filter name="filter_settled"
+                        string="Settled"
+                        domain="[('state', '=', 'settled')]"/>
+                <separator/>
+                <filter name="filter_cash"
+                        string="Cash (Vendor Payments)"
+                        domain="[('transfer_type', '=', 'cash')]"/>
+                <filter name="filter_inventory"
+                        string="Inventory (S2S Materials)"
+                        domain="[('transfer_type', '=', 'inventory')]"/>
+                <separator/>
+                <filter name="group_type"
+                        string="Group by Type"
+                        context="{'group_by': 'transfer_type'}"/>
+                <filter name="group_lending"
+                        string="Group by Sender / Lender"
+                        context="{'group_by': 'source_analytic_id'}"/>
+                <filter name="group_beneficiary"
+                        string="Group by Receiver / Beneficiary"
+                        context="{'group_by': 'dest_analytic_id'}"/>
+                <filter name="group_state"
+                        string="Group by Status"
+                        context="{'group_by': 'state'}"/>
+                <filter name="group_month"
+                        string="Group by Month"
+                        context="{'group_by': 'date:month'}"/>
+            </search>
+        </field>
+    </record>
+
+    <!-- ── Window Action ─────────────────────────────────────────────────── -->
+    <record id="action_interproject_transfer" model="ir.actions.act_window">
+        <field name="name">Inter-Project Transfers</field>
+        <field name="res_model">x.interproject.transfer</field>
+        <field name="view_mode">list,form</field>
+        <field name="view_ids" eval="[
+            (5, 0, 0),
+            (0, 0, {'view_mode': 'list', 'view_id': ref('view_interproject_transfer_list')}),
+            (0, 0, {'view_mode': 'form', 'view_id': ref('view_interproject_transfer_form')}),
+        ]"/>
+        <field name="search_view_id" ref="view_interproject_transfer_search"/>
+        <field name="context">{'search_default_filter_open': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No inter-project transfers yet
+            </p>
+            <p>
+                This register tracks all balances between projects — both cash
+                (FO funded one project's vendor from another project's funds) and
+                inventory (a site sent materials to another site).
+                Mark entries as Settled when the receiving project has reimbursed
+                the sending project.
+            </p>
+        </field>
+    </record>
+
+    <!-- ── Inventory App: S2S Movement Report ────────────────────────────── -->
+    <record id="view_s2s_inventory_list" model="ir.ui.view">
+        <field name="name">x.interproject.transfer.s2s.list</field>
+        <field name="model">x.interproject.transfer</field>
+        <field name="arch" type="xml">
+            <list string="Site-to-Site Material Transfers"
+                  decoration-success="state == 'settled'"
+                  decoration-warning="state == 'open'"
+                  default_order="date desc"
+                  create="0" delete="0">
+                <field name="name" string="Transfer Ref"/>
+                <field name="date" string="Date"/>
+                <field name="source_analytic_id" string="From (Sending Site)"/>
+                <field name="dest_analytic_id" string="To (Receiving Site)"/>
+                <field name="picking_id" string="MTN / Transfer"/>
+                <field name="amount" string="Material Value" sum="Total Value"/>
+                <field name="currency_id" invisible="1"/>
+                <field name="state" widget="badge"
+                       decoration-success="state == 'settled'"
+                       decoration-warning="state == 'open'"
+                       string="Settlement"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_s2s_inventory_report" model="ir.actions.act_window">
+        <field name="name">S2S Material Transfer Register</field>
+        <field name="res_model">x.interproject.transfer</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('transfer_type', '=', 'inventory')]</field>
+        <field name="view_ids" eval="[
+            (5, 0, 0),
+            (0, 0, {'view_mode': 'list', 'view_id': ref('view_s2s_inventory_list')}),
+            (0, 0, {'view_mode': 'form', 'view_id': ref('view_interproject_transfer_form')}),
+        ]"/>
+        <field name="search_view_id" ref="view_interproject_transfer_search"/>
+        <field name="context">{'search_default_filter_open': 1}</field>
+    </record>
+
+</odoo>

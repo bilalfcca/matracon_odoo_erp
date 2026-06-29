@@ -1,0 +1,311 @@
+from odoo import models, fields, api, _
+
+# Demo / default site warehouses — one per Matracon project (code, display name).
+_SITE_WAREHOUSE_DEFAULTS = {
+    'MCH - BAHAWALNAGAR': ('MCH', 'MCH Site Warehouse'),
+    'RWASA': ('RWASA', 'RWASA Site Warehouse'),
+    'STP - MARDAN': ('STP', 'STP Site Warehouse'),
+}
+
+
+class ProjectSiteConfigProjectLink(models.Model):
+    _inherit = 'x.project.site.config'
+
+    project_id = fields.Many2one(
+        'project.project',
+        string='Odoo Project',
+        readonly=True,
+        copy=False,
+        help='Linked native project record — financial dashboard and fund balances.',
+    )
+
+    x_site_accountant_ids = fields.Many2many(
+        'res.users',
+        'x_project_site_accountant_rel',
+        'config_id', 'user_id',
+        string='Site Accountants',
+        help=(
+            'Site Accountants for this project. Adding a user here automatically assigns '
+            'the Site Accountant security group and sets their default analytic account.'
+        ),
+    )
+    x_accountant_count = fields.Integer(
+        compute='_compute_accountant_count',
+        string='Accountants',
+    )
+
+    @api.depends('x_site_accountant_ids')
+    def _compute_accountant_count(self):
+        for config in self:
+            config.x_accountant_count = len(config.x_site_accountant_ids)
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        records = super().create(vals_list)
+        records._ensure_project_record()
+        for record in records.filtered(lambda c: not c.warehouse_id):
+            record._matracon_ensure_warehouse_for_config()
+        for record in records:
+            if record.site_user_ids:
+                record._assign_users(record.site_user_ids)
+            if record.x_site_accountant_ids:
+                record._assign_accountants(record.x_site_accountant_ids)
+        return records
+
+    def write(self, vals):
+        old_accountant_sets = {
+            config.id: set(config.x_site_accountant_ids.ids) for config in self
+        }
+        res = super().write(vals)
+        if 'x_site_accountant_ids' in vals:
+            for config in self:
+                old_users = old_accountant_sets.get(config.id, set())
+                new_users = set(config.x_site_accountant_ids.ids)
+                added_ids = new_users - old_users
+                removed_ids = old_users - new_users
+                if added_ids:
+                    config._assign_accountants(
+                        self.env['res.users'].browse(list(added_ids)))
+                if removed_ids:
+                    config._unassign_accountants(
+                        self.env['res.users'].browse(list(removed_ids)))
+        if any(k in vals for k in (
+            'name', 'analytic_account_id', 'site_user_ids', 'x_site_accountant_ids',
+        )):
+            self._ensure_project_record()
+        if 'name' in vals:
+            self._matracon_sync_name_to_linked_records()
+        if 'warehouse_id' not in vals and any(k in vals for k in ('name', 'analytic_account_id')):
+            for config in self.filtered(lambda c: not c.warehouse_id):
+                config._matracon_ensure_warehouse_for_config()
+        if any(k in vals for k in (
+            'warehouse_id', 'site_user_ids', 'x_site_accountant_ids',
+        )):
+            self._matracon_sync_user_operational_warehouse()
+        return res
+
+    def _matracon_sync_name_to_linked_records(self):
+        """Propagate a site config rename to all linked records:
+        analytic account, warehouse, and project.project (via _ensure_project_record).
+        """
+        for config in self:
+            new_name = config.name
+            if not new_name:
+                continue
+            # ── Analytic account ──────────────────────────────────────────────
+            if config.analytic_account_id:
+                config.analytic_account_id.sudo().write({'name': new_name})
+            # ── Warehouse name (keep existing code — changing code is disruptive) ──
+            if config.warehouse_id:
+                # Build the expected warehouse name suffix
+                new_wh_name = f'{new_name} Site Warehouse'
+                config.warehouse_id.sudo().write({'name': new_wh_name})
+
+    def _ensure_project_record(self):
+        """Create or link project.project for each site configuration."""
+        Project = self.env['project.project']
+        for config in self:
+            if not config.analytic_account_id:
+                continue
+            project = config.project_id
+            if not project:
+                project = Project.search(
+                    [('x_analytic_account_id', '=', config.analytic_account_id.id)],
+                    limit=1,
+                )
+            if not project:
+                project = Project.create({
+                    'name': config.name,
+                    'x_analytic_account_id': config.analytic_account_id.id,
+                })
+            else:
+                project.write({
+                    'name': config.name,
+                    'x_analytic_account_id': config.analytic_account_id.id,
+                })
+            config.project_id = project.id
+            project.write({
+                'x_site_config_id': config.id,
+                'x_site_store_user_ids': [(6, 0, config.site_user_ids.ids)],
+                'x_site_accountant_user_ids': [
+                    (6, 0, config.x_site_accountant_ids.ids)
+                ],
+            })
+
+    def _assign_users(self, users):
+        super()._assign_users(users)
+        for user in users:
+            if self.project_id:
+                user.sudo().write({'x_default_project_id': self.project_id.id})
+        self._matracon_sync_user_operational_warehouse()
+
+    def _assign_accountants(self, users):
+        """Assign Site Accountant group and project defaults."""
+        accountant_group = self.env.ref(
+            'site_operations.group_site_accountant', raise_if_not_found=False)
+        Users = self.env['res.users']
+        for user in users:
+            vals = {
+                'x_default_analytic_account_id': self.analytic_account_id.id,
+                'x_default_warehouse_id': (
+                    self.warehouse_id.id if self.warehouse_id else False),
+                'x_site_config_id': self.id,
+            }
+            user.sudo().write(vals)
+            if accountant_group:
+                Users._matracon_add_group(user, accountant_group)
+            if self.project_id:
+                user.sudo().write({'x_default_project_id': self.project_id.id})
+        self._matracon_sync_user_operational_warehouse()
+
+    def _unassign_accountants(self, users):
+        """Reverse accountant assignment when removed from site config."""
+        accountant_group = self.env.ref(
+            'site_operations.group_site_accountant', raise_if_not_found=False)
+        Users = self.env['res.users']
+        for user in users:
+            other_config = self.search([
+                ('x_site_accountant_ids', 'in', user.id),
+                ('id', '!=', self.id),
+            ], limit=1)
+            if other_config:
+                user.sudo().write({
+                    'x_default_analytic_account_id': other_config.analytic_account_id.id,
+                    'x_default_warehouse_id': (
+                        other_config.warehouse_id.id
+                        if other_config.warehouse_id else False),
+                    'x_site_config_id': other_config.id,
+                    'x_default_project_id': (
+                        other_config.project_id.id
+                        if other_config.project_id else False),
+                })
+            else:
+                unwrite_vals = {
+                    'x_default_analytic_account_id': False,
+                    'x_default_warehouse_id': False,
+                    'x_site_config_id': False,
+                    'x_default_project_id': False,
+                }
+                user.sudo().write(unwrite_vals)
+                if accountant_group:
+                    Users._matracon_remove_group(user, accountant_group)
+
+    def action_open_project(self):
+        self.ensure_one()
+        self._ensure_project_record()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Project — %s') % self.name,
+            'res_model': 'project.project',
+            'view_mode': 'form',
+            'res_id': self.project_id.id,
+        }
+
+    def action_view_accountants(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Site Accountants — %s') % self.name,
+            'res_model': 'res.users',
+            'view_mode': 'list,form',
+            'domain': [('id', 'in', self.x_site_accountant_ids.ids)],
+            'context': {'default_x_site_config_id': self.id},
+        }
+
+    def action_view_project_dashboard(self):
+        """Open financial overview for this site."""
+        self.ensure_one()
+        self._ensure_project_record()
+        action = self.env.ref(
+            'site_operations.action_project_financial_overview').read()[0]
+        action['domain'] = [('id', '=', self.project_id.id)]
+        return action
+
+    def _matracon_main_operational_warehouse(self, company):
+        """Company main warehouse where stock is received and issued (usually code WH)."""
+        Warehouse = self.env['stock.warehouse'].sudo()
+        main = Warehouse.search([
+            ('company_id', '=', company.id),
+            ('code', '=', 'WH'),
+        ], limit=1)
+        if main:
+            return main
+        return Warehouse.search(
+            [('company_id', '=', company.id)], order='id asc', limit=1)
+
+    def _matracon_site_warehouse_has_stock(self, warehouse):
+        if not warehouse or not warehouse.lot_stock_id:
+            return False
+        return bool(self.env['stock.quant'].sudo().search_count([
+            ('location_id', 'child_of', warehouse.lot_stock_id.id),
+            ('quantity', '>', 0),
+        ]))
+
+    def _matracon_operational_warehouse_for_config(self, company):
+        """Site warehouse when it holds stock; otherwise company main WH (demo/migration)."""
+        self.ensure_one()
+        site_wh = self.warehouse_id
+        main_wh = self._matracon_main_operational_warehouse(company)
+        if site_wh and self._matracon_site_warehouse_has_stock(site_wh):
+            return site_wh
+        return main_wh or site_wh
+
+    def _matracon_sync_user_operational_warehouse(self):
+        """Keep receive/issue/on-hand on the warehouse that actually holds stock."""
+        company = self.env.company
+        for config in self:
+            op_wh = config._matracon_operational_warehouse_for_config(company)
+            if not op_wh:
+                continue
+            users = config.site_user_ids | config.x_site_accountant_ids
+            if users:
+                users.sudo().write({'x_default_warehouse_id': op_wh.id})
+
+    @api.model
+    def _matracon_find_site_warehouse(self, code, name, company=None):
+        """Find existing site warehouse by code or name (idempotent upgrades)."""
+        company = company or self.env.company
+        Warehouse = self.env['stock.warehouse'].sudo()
+        wh = Warehouse.search([
+            ('code', '=', code),
+            ('company_id', '=', company.id),
+        ], limit=1)
+        if wh:
+            return wh
+        return Warehouse.search([
+            ('name', '=', name),
+            ('company_id', '=', company.id),
+        ], limit=1)
+
+    @api.model
+    def _matracon_ensure_site_warehouses(self):
+        """Ensure each site project config has a warehouse (demo + production)."""
+        for config in self.search([]):
+            config._matracon_ensure_warehouse_for_config()
+
+    def _matracon_ensure_warehouse_for_config(self):
+        """Create/link a site warehouse for one project configuration."""
+        self.ensure_one()
+        if self.warehouse_id:
+            self._matracon_sync_user_operational_warehouse()
+            return self.warehouse_id
+        Warehouse = self.env['stock.warehouse'].sudo()
+        company = self.env.company
+        defaults = _SITE_WAREHOUSE_DEFAULTS.get(self.name)
+        if defaults:
+            code, name = defaults
+        else:
+            code = ''.join(
+                part[0] for part in self.name.split() if part
+            )[:5].upper() or 'SITE'
+            name = f'{self.name} Site Warehouse'
+        wh = self._matracon_find_site_warehouse(code, name, company)
+        if not wh:
+            wh = Warehouse.create({
+                'name': name,
+                'code': code,
+                'company_id': company.id,
+            })
+        self.sudo().write({'warehouse_id': wh.id})
+        self._matracon_sync_user_operational_warehouse()
+        return wh

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_picking_form_pr_receipt" model="ir.ui.view">
+        <field name="name">stock.picking.form.pr.receipt</field>
+        <field name="model">stock.picking</field>
+        <field name="inherit_id" ref="stock.view_picking_form"/>
+        <field name="arch" type="xml">
+
+            <!-- Inject PR Receipt Details group between the standard header
+                 fields and the Operations notebook.
+                 Only visible on incoming receipts linked to a Purchase Order. -->
+            <xpath expr="//sheet/notebook" position="before">
+                <group string="PR Receipt Details"
+                       invisible="picking_type_code != 'incoming' or not purchase_id">
+                    <group>
+                        <field name="x_project_analytic_account_id"
+                               string="Project"
+                               readonly="1"
+                               options="{'no_open': True}"/>
+                        <field name="x_gate_pass_no"
+                               placeholder="Enter gate pass number…"/>
+                    </group>
+                    <group>
+                        <field name="x_weight_document"
+                               widget="binary"
+                               filename="x_weight_document_filename"
+                               string="Weight Document (upload before validating)"/>
+                        <field name="x_weight_document_filename" invisible="1"/>
+                    </group>
+                </group>
+
+            </xpath>
+
+        </field>
+    </record>
+
+</odoo>
