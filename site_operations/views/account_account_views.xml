@@ -7,22 +7,36 @@
              account.group_account_readonly. Site accountants have only
              group_account_invoice, so the column is hidden for them.
              We extend the groups to include group_site_accountant.
+
+             UAT Point 5 — Head Office CoA unrestricted:
+             HO users (group_head_office / group_finance_ho) see the complete
+             Chart of Accounts in the account picker — no account_type domain
+             filter and no search_default_type_* context pre-filter.
+             Site accountants retain their existing site-scoped restrictions.
     ══════════════════════════════════════════════════════════════════════════ -->
     <record id="view_move_form_invoice_line_account_site_accountant" model="ir.ui.view">
         <field name="name">account.move.form.invoice.line.account.site.accountant</field>
         <field name="model">account.move</field>
         <field name="inherit_id" ref="account.view_move_form"/>
         <field name="arch" type="xml">
-            <!-- Expose user's analytic so the domain below can reference it -->
+            <!-- Expose user analytic + HO flag so domain/context below can reference them -->
             <xpath expr="//field[@name='invoice_line_ids']" position="before">
                 <field name="x_user_analytic_id" invisible="1"/>
+                <field name="x_user_is_ho" invisible="1"/>
             </xpath>
             <xpath expr="//field[@name='account_id'][@widget='many2one_account_account']" position="attributes">
                 <attribute name="groups">account.group_account_readonly,site_operations.group_site_accountant</attribute>
-                <!-- When x_user_analytic_id is set (site accountant), filter accounts
-                     to only those tagged for their site. HO users get x_user_analytic_id=False
-                     so the ternary returns [] (no extra restriction). -->
-                <attribute name="domain">[('company_ids', 'parent_of', company_id), ('account_type', 'not in', ('asset_receivable', 'liability_payable', 'off_balance'))] + ([('x_site_ids', 'in', [parent.x_user_analytic_id])] if parent.x_user_analytic_id else [])</attribute>
+                <!-- Domain:
+                     • HO users (x_user_is_ho=True):  no account_type restriction — full CoA.
+                     • Site accountants (x_user_analytic_id set): exclude receivable/payable/
+                       off_balance AND restrict to accounts tagged for their site. -->
+                <attribute name="domain">([('company_ids', 'parent_of', company_id)] if parent.x_user_is_ho else [('company_ids', 'parent_of', company_id), ('account_type', 'not in', ('asset_receivable', 'liability_payable', 'off_balance'))]) + ([('x_site_ids', 'in', [parent.x_user_analytic_id])] if parent.x_user_analytic_id else [])</attribute>
+                <!-- Context:
+                     • HO users: all search_default_type_* and preferred_account_type → False,
+                       so the picker opens with no type pre-filter.
+                     • Non-HO: standard Odoo behaviour (expense pre-filter for bills,
+                       income pre-filter for customer invoices). -->
+                <attribute name="context">{'partner_id': partner_id, 'move_type': parent.move_type, 'search_default_type_asset_fixed': not parent.x_user_is_ho and 'in_' in parent.move_type, 'search_default_type_expense': not parent.x_user_is_ho and 'in_' in parent.move_type, 'search_default_type_expense_direct_cost': not parent.x_user_is_ho and 'in_' in parent.move_type, 'search_default_account_type': not parent.x_user_is_ho and ('out_' in parent.move_type and 'income'), 'preferred_account_type': not parent.x_user_is_ho and ('out_' in parent.move_type and 'income' or 'in_' in parent.move_type and 'expense')}</attribute>
             </xpath>
         </field>
     </record>

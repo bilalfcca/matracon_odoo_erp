@@ -50,6 +50,25 @@ class AccountMoveSiteOps(models.Model):
         analytic = self.env.user.sudo().x_default_analytic_account_id
         for move in self:
             move.x_user_analytic_id = analytic
+
+    # Non-stored: True when the current user belongs to any HO/admin group.
+    # Used in the invoice-line account_id domain and context to remove type-based
+    # pre-filtering for HO users while keeping it for site accountants.
+    x_user_is_ho = fields.Boolean(
+        compute='_compute_x_user_is_ho',
+        store=False,
+        string='User is HO',
+    )
+
+    @api.depends_context('uid')
+    def _compute_x_user_is_ho(self):
+        is_ho = (
+            self.env.user.has_group('purchase_demand_raise.group_head_office')
+            or self.env.user.has_group('site_operations.group_finance_ho')
+        )
+        for move in self:
+            move.x_user_is_ho = is_ho
+
     x_purchase_order_id = fields.Many2one(
         'purchase.order', string='Purchase Order', tracking=True, copy=False,
         domain=[('state', 'in', ('purchase', 'done'))],
