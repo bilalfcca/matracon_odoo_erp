@@ -77,7 +77,7 @@
                                     <field name="net_payable"/>
                                     <button name="action_open_slip" type="object"
                                             string="Slip" icon="fa-file-text-o"
-                                            groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+                                            groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
                                 </list>
                             </field>
                         </page>
