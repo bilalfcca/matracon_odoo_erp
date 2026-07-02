@@ -87,3 +87,8 @@ class PostdatedCheque(models.Model):
         for cheque in self:
             cheque.state = 'cancelled'
             cheque.message_post(body=_('Cheque cancelled.'))
+
+    def action_print_postdated_cheque(self):
+        return self.env.ref(
+            'site_operations.action_report_postdated_cheque'
+        ).report_action(self)

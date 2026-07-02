@@ -278,6 +278,11 @@ class PettyCashRequest(models.Model):
                 body=Markup(_('Petty cash <b>%s</b> released by Finance HO.'))
                 % f'{req.released_amount:,.2f}')
 
+    def action_print_petty_cash_request(self):
+        return self.env.ref(
+            'site_operations.action_report_petty_cash_request'
+        ).report_action(self)
+
 
 class PettyCashExpense(models.Model):
     _name = 'x.petty.cash.expense'
@@ -446,3 +451,8 @@ class PettyCashExpense(models.Model):
         }
         move = self.env['account.move'].create(move_vals)
         move.action_post()
+
+    def action_print_expense_voucher(self):
+        return self.env.ref(
+            'site_operations.action_report_petty_cash_expense'
+        ).report_action(self)

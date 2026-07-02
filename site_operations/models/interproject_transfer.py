@@ -188,3 +188,8 @@ class InterprojectTransfer(models.Model):
             'view_mode': 'form',
             'res_id': self.move_id.id,
         }
+
+    def action_print_interproject_transfer(self):
+        return self.env.ref(
+            'site_operations.action_report_interproject_transfer'
+        ).report_action(self)

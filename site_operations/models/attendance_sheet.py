@@ -486,3 +486,8 @@ class AttendanceSheet(models.Model):
             'date_from': self.date_from,
             'date_to': self.date_to,
         })
+
+    def action_print_attendance_sheet(self):
+        return self.env.ref(
+            'site_operations.action_report_attendance_sheet'
+        ).report_action(self)

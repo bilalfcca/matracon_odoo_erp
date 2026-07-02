@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Petty Cash Request -->
+    <record id="action_report_petty_cash_request" model="ir.actions.report">
+        <field name="name">Petty Cash Request</field>
+        <field name="model">x.petty.cash.request</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">site_operations.report_petty_cash_request_document</field>
+        <field name="report_file">site_operations.report_petty_cash_request_document</field>
+        <field name="print_report_name">'PCR - ' + (object.name or '')</field>
+        <field name="binding_model_id" ref="model_x_petty_cash_request"/>
+        <field name="binding_type">report</field>
+    </record>
+
+    <!-- Petty Cash Expense Voucher -->
+    <record id="action_report_petty_cash_expense" model="ir.actions.report">
+        <field name="name">Petty Cash Expense Voucher</field>
+        <field name="model">x.petty.cash.expense</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">site_operations.report_petty_cash_expense_document</field>
+        <field name="report_file">site_operations.report_petty_cash_expense_document</field>
+        <field name="print_report_name">'Expense Voucher - ' + (object.name or '')</field>
+        <field name="binding_model_id" ref="model_x_petty_cash_expense"/>
+        <field name="binding_type">report</field>
+    </record>
+
+    <!-- ── Petty Cash Request Template ── -->
+    <template id="report_petty_cash_request_document">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="req">
+                <t t-call="web.external_layout">
+                    <div class="page">
+                        <div class="row mb-3 text-center">
+                            <div class="col-12">
+                                <h3 style="font-weight:700;">PETTY CASH REQUEST</h3>
+                                <h5 style="color:#555;"><t t-esc="req.name"/></h5>
+                            </div>
+                        </div>
+                        <table class="table table-sm table-borderless" style="font-size:13px;">
+                            <tr>
+                                <td style="width:30%;font-weight:600;">Project</td>
+                                <td><t t-esc="req.project_analytic_account_id.name or '-'"/></td>
+                                <td style="width:30%;font-weight:600;">Fund</td>
+                                <td><t t-esc="req.fund_id.name or '-'"/></td>
+                            </tr>
+                            <tr>
+                                <td style="font-weight:600;">Status</td>
+                                <td style="text-transform:capitalize;font-weight:600;">
+                                    <t t-esc="dict(req._fields['state'].selection).get(req.state, req.state)"/>
+                                </td>
+                                <td style="font-weight:600;">Date</td>
+                                <td><t t-esc="req.create_date.strftime('%d %b %Y') if req.create_date else '-'"/></td>
+                            </tr>
+                            <tr>
+                                <td style="font-weight:600;">Requested Amount</td>
+                                <td class="fw-bold">
+                                    <t t-esc="req.currency_id.symbol"/>
+                                    <t t-esc="'{:,.2f}'.format(req.requested_amount)"/>
+                                </td>
+                                <td style="font-weight:600;">CEO Approved Amount</td>
+                                <td class="fw-bold">
+                                    <t t-if="req.ceo_approved_amount">
+                                        <t t-esc="req.currency_id.symbol"/>
+                                        <t t-esc="'{:,.2f}'.format(req.ceo_approved_amount)"/>
+                                    </t>
+                                    <t t-else="">Pending</t>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="font-weight:600;">Released Amount</td>
+                                <td class="fw-bold text-success">
+                                    <t t-if="req.released_amount">
+                                        <t t-esc="req.currency_id.symbol"/>
+                                        <t t-esc="'{:,.2f}'.format(req.released_amount)"/>
+                                    </t>
+                                    <t t-else="">—</t>
+                                </td>
+                                <td style="font-weight:600;">Current Balance</td>
+                                <td>
+                                    <t t-esc="req.currency_id.symbol"/>
+                                    <t t-esc="'{:,.2f}'.format(req.current_balance)"/>
+                                </td>
+                            </tr>
+                        </table>
+                        <div class="mt-3 p-3 border rounded" style="font-size:13px;">
+                            <strong>Reason / Purpose:</strong><br/>
+                            <t t-esc="req.reason or '-'"/>
+                        </div>
+                        <div class="row mt-5">
+                            <div class="col-4 text-center">
+                                <div style="border-top:1px solid #000;padding-top:4px;margin-top:40px;">Requested By (Site Accountant)</div>
+                            </div>
+                            <div class="col-4 text-center">
+                                <div style="border-top:1px solid #000;padding-top:4px;margin-top:40px;">Approved By (CEO)</div>
+                            </div>
+                            <div class="col-4 text-center">
+                                <div style="border-top:1px solid #000;padding-top:4px;margin-top:40px;">Released By (Finance HO)</div>
+                            </div>
+                        </div>
+                        <p class="text-muted small mt-3">System-generated — Matracon Pakistan Pvt. Ltd.</p>
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+
+    <!-- ── Petty Cash Expense Voucher Template ── -->
+    <template id="report_petty_cash_expense_document">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="exp">
+                <t t-call="web.external_layout">
+                    <div class="page">
+                        <div class="row mb-3 text-center">
+                            <div class="col-12">
+                                <h3 style="font-weight:700;">PETTY CASH EXPENSE VOUCHER</h3>
+                            </div>
+                        </div>
+                        <table class="table table-sm table-borderless" style="font-size:13px;">
+                            <tr>
+                                <td style="width:30%;font-weight:600;">Description</td>
+                                <td><t t-esc="exp.name"/></td>
+                                <td style="width:25%;font-weight:600;">Date</td>
+                                <td><t t-esc="exp.expense_date.strftime('%d %b %Y') if exp.expense_date else '-'"/></td>
+                            </tr>
+                            <tr>
+                                <td style="font-weight:600;">Project</td>
+                                <td><t t-esc="exp.project_analytic_account_id.name or '-'"/></td>
+                                <td style="font-weight:600;">Fund</td>
+                                <td><t t-esc="exp.fund_id.name or '-'"/></td>
+                            </tr>
+                            <tr>
+                                <td style="font-weight:600;">Category</td>
+                                <td style="text-transform:capitalize;">
+                                    <t t-esc="dict(exp._fields['category'].selection).get(exp.category, exp.category)"/>
+                                </td>
+                                <td style="font-weight:600;">Status</td>
+                                <td style="text-transform:capitalize;font-weight:600;">
+                                    <t t-esc="dict(exp._fields['state'].selection).get(exp.state, exp.state)"/>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="font-weight:600;">Amount</td>
+                                <td class="fw-bold fs-5 text-success">
+                                    <t t-esc="exp.currency_id.symbol"/>
+                                    <t t-esc="'{:,.2f}'.format(exp.amount)"/>
+                                </td>
+                                <td style="font-weight:600;">Balance After</td>
+                                <td>
+                                    <t t-esc="exp.currency_id.symbol"/>
+                                    <t t-esc="'{:,.2f}'.format(exp.available_balance)"/>
+                                </td>
+                            </tr>
+                        </table>
+                        <div class="row mt-5">
+                            <div class="col-6 text-center">
+                                <div style="border-top:1px solid #000;padding-top:4px;margin-top:40px;">Prepared By</div>
+                            </div>
+                            <div class="col-6 text-center">
+                                <div style="border-top:1px solid #000;padding-top:4px;margin-top:40px;">Approved By</div>
+                            </div>
+                        </div>
+                        <p class="text-muted small mt-3">System-generated — Matracon Pakistan Pvt. Ltd.</p>
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+
+</odoo>

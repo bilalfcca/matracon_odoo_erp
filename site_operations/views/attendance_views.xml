@@ -24,6 +24,9 @@
                             string="Post" class="btn-success"
                             invisible="state != 'verified'"
                             groups="site_operations.group_site_accountant"/>
+                    <button name="action_print_attendance_sheet" type="object"
+                            string="Print Report" class="btn-secondary"
+                            icon="fa-print"/>
                 </header>
                 <sheet>
                     <div class="oe_button_box" name="button_box">

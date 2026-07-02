@@ -66,6 +66,9 @@
                     <button name="action_confirm_receipt" type="object" string="Confirm Receipt"
                             class="btn-success" invisible="state != 'released'"
                             groups="site_operations.group_site_accountant"/>
+                    <button name="action_print_petty_cash_request" type="object"
+                            string="Print Report" class="btn-secondary"
+                            icon="fa-print"/>
                 </header>
                 <sheet>
                     <div class="oe_button_box" name="button_box">
@@ -133,6 +136,9 @@
                     <button name="action_post" type="object" string="Post Expense"
                             class="btn-primary" invisible="state != 'draft'"
                             groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_head_office"/>
+                    <button name="action_print_expense_voucher" type="object"
+                            string="Print Voucher" class="btn-secondary"
+                            icon="fa-print"/>
                     <field name="state" widget="statusbar"/>
                 </header>
                 <sheet>

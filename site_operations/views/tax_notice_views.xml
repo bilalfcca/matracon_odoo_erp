@@ -59,6 +59,9 @@
                             invisible="state in ('paid', 'closed', 'annulled', 'vacated')"/>
                     <button name="action_vacate" type="object" string="Vacate"
                             invisible="state in ('paid', 'closed', 'annulled', 'vacated')"/>
+                    <button name="action_print_tax_notice" type="object"
+                            string="Print Report" class="btn-secondary"
+                            icon="fa-print"/>
                     <field name="state" widget="statusbar"
                            statusbar_visible="draft,open,reply_submitted,under_proceeding,order_filed,closed,paid"/>
                 </header>

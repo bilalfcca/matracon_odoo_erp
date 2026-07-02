@@ -313,6 +313,11 @@ class TaxNoticeOrder(models.Model):
                 summary=_('Tax Notice Due Soon'),
             )
 
+    def action_print_tax_notice(self):
+        return self.env.ref(
+            'site_operations.action_report_tax_notice'
+        ).report_action(self)
+
 
 class TaxNoticePaymentLine(models.Model):
     _name = 'x.tax.notice.payment.line'

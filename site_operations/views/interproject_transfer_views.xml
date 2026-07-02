@@ -70,6 +70,11 @@
                             class="btn-warning"
                             invisible="state == 'open'"
                             groups="purchase_demand_raise.group_matracon_admin"/>
+                    <button name="action_print_interproject_transfer"
+                            type="object"
+                            string="Print Report"
+                            class="btn-secondary"
+                            icon="fa-print"/>
                     <field name="state" widget="statusbar"
                            statusbar_visible="open,settled"/>
                 </header>

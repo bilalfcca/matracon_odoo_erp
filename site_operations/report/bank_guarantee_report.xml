@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="action_report_bank_guarantee" model="ir.actions.report">
+        <field name="name">Bank Guarantee</field>
+        <field name="model">x.bank.guarantee</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">site_operations.report_bank_guarantee_document</field>
+        <field name="report_file">site_operations.report_bank_guarantee_document</field>
+        <field name="print_report_name">'Bank Guarantee - ' + (object.name or '')</field>
+        <field name="binding_model_id" ref="model_x_bank_guarantee"/>
+        <field name="binding_type">report</field>
+    </record>
+
+    <template id="report_bank_guarantee_document">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="bg">
+                <t t-call="web.external_layout">
+                    <div class="page">
+                        <div class="row mb-3 text-center">
+                            <div class="col-12">
+                                <h3 style="font-weight:700;">BANK GUARANTEE</h3>
+                                <h5 style="color:#555;"><t t-esc="bg.name"/></h5>
+                            </div>
+                        </div>
+                        <table class="table table-sm table-borderless" style="font-size:13px;">
+                            <tr>
+                                <td style="width:28%;font-weight:600;">Serial No.</td>
+                                <td><t t-esc="bg.sr_no or '-'"/></td>
+                                <td style="width:28%;font-weight:600;">Guarantee No.</td>
+                                <td><t t-esc="bg.guarantee_number or '-'"/></td>
+                            </tr>
+                            <tr>
+                                <td style="font-weight:600;">Bank</td>
+                                <td><t t-esc="bg.bank_id.name or '-'"/></td>
+                                <td style="font-weight:600;">Nature</td>
+                                <td style="text-transform:capitalize;">
+                                    <t t-esc="dict(bg._fields['nature'].selection).get(bg.nature, bg.nature or '-')"/>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="font-weight:600;">Beneficiary</td>
+                                <td><t t-esc="bg.beneficiary_name or '-'"/></td>
+                                <td style="font-weight:600;">Project</td>
+                                <td><t t-esc="bg.project_analytic_account_id.name or '-'"/></td>
+                            </tr>
+                            <tr>
+                                <td style="font-weight:600;">Issue Date</td>
+                                <td><t t-esc="bg.issue_date.strftime('%d %b %Y') if bg.issue_date else '-'"/></td>
+                                <td style="font-weight:600;">Expiry Date</td>
+                                <td><t t-esc="bg.expiry_date.strftime('%d %b %Y') if bg.expiry_date else '-'"/></td>
+                            </tr>
+                            <tr>
+                                <td style="font-weight:600;">BG Amount</td>
+                                <td class="fw-bold fs-5">
+                                    <t t-esc="bg.currency_id.symbol"/>
+                                    <t t-esc="'{:,.2f}'.format(bg.bg_amount)"/>
+                                </td>
+                                <td style="font-weight:600;">Cash Margin</td>
+                                <td>
+                                    <t t-esc="'{:,.2f}'.format(bg.margin_amount)"/>
+                                    &amp;nbsp;(<t t-esc="bg.cash_margin_percent"/>%)
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="font-weight:600;">Status</td>
+                                <td class="fw-bold" colspan="3" style="text-transform:capitalize;">
+                                    <t t-esc="dict(bg._fields['state'].selection).get(bg.state, bg.state)"/>
+                                </td>
+                            </tr>
+                        </table>
+                        <div class="row mt-5">
+                            <div class="col-4 text-center">
+                                <div style="border-top:1px solid #000;padding-top:4px;margin-top:40px;">Prepared By</div>
+                            </div>
+                            <div class="col-4 text-center">
+                                <div style="border-top:1px solid #000;padding-top:4px;margin-top:40px;">Verified By</div>
+                            </div>
+                            <div class="col-4 text-center">
+                                <div style="border-top:1px solid #000;padding-top:4px;margin-top:40px;">Authorized By</div>
+                            </div>
+                        </div>
+                        <p class="text-muted small mt-3">System-generated — Matracon Pakistan Pvt. Ltd.</p>
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+
+</odoo>

@@ -46,6 +46,9 @@
                             string="Cancel"
                             class="btn-secondary"
                             invisible="state in ('cleared', 'bounced', 'cancelled')"/>
+                    <button name="action_print_postdated_cheque" type="object"
+                            string="Print Report" class="btn-secondary"
+                            icon="fa-print"/>
                     <field name="state" widget="statusbar"
                            statusbar_visible="pending,cleared,bounced,cancelled"/>
                 </header>

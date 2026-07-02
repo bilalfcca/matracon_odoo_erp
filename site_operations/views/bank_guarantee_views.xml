@@ -115,6 +115,9 @@
                             invisible="state not in ('pending', 'cancelled')"/>
                     <button name="action_cancel" type="object" string="Cancel"
                             invisible="state not in ('draft', 'pending')"/>
+                    <button name="action_print_bank_guarantee" type="object"
+                            string="Print Report" class="btn-secondary"
+                            icon="fa-print"/>
                     <field name="state" widget="statusbar"
                            statusbar_visible="draft,pending,active,locked,released"/>
                 </header>

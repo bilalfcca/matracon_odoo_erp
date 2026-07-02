@@ -413,6 +413,11 @@ class BankGuarantee(models.Model):
                 summary=_('BG Expired'),
             )
 
+    def action_print_bank_guarantee(self):
+        return self.env.ref(
+            'site_operations.action_report_bank_guarantee'
+        ).report_action(self)
+
 
 class BankGuaranteeAmendment(models.Model):
     _name = 'x.bank.guarantee.amendment'
