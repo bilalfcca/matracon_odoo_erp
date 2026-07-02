@@ -139,6 +139,43 @@
              STOCK — Site Store (warehouse-scoped)
         ════════════════════════════════════════════════════════════════════ -->
 
+        <!-- Stock Moves: Site Store sees moves in/out of their warehouse
+             plus MI/S2S moves tagged to their project (source or destination).
+             Moves without a picking (inventory adjustments) are filtered by
+             their source location's warehouse. -->
+        <record id="rule_stock_move_site_store" model="ir.rule">
+            <field name="name">Stock Move: Site Store sees own warehouse &amp; project</field>
+            <field name="model_id" ref="stock.model_stock_move"/>
+            <field name="domain_force">['|', '|', '|',
+                ('picking_id.picking_type_id.warehouse_id', '=', user.x_default_warehouse_id.id),
+                ('picking_id.x_issuance_project_id', '=', user.x_default_analytic_account_id.id),
+                ('picking_id.x_dest_project_id', '=', user.x_default_analytic_account_id.id),
+                ('location_id.warehouse_id', '=', user.x_default_warehouse_id.id)
+            ]</field>
+            <field name="groups" eval="[(4, ref('purchase_demand_raise.group_site_store'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <!-- Stock Move Lines: same warehouse/project scope as stock.move -->
+        <record id="rule_stock_move_line_site_store" model="ir.rule">
+            <field name="name">Stock Move Line: Site Store sees own warehouse &amp; project</field>
+            <field name="model_id" ref="stock.model_stock_move_line"/>
+            <field name="domain_force">['|', '|', '|',
+                ('move_id.picking_id.picking_type_id.warehouse_id', '=', user.x_default_warehouse_id.id),
+                ('move_id.picking_id.x_issuance_project_id', '=', user.x_default_analytic_account_id.id),
+                ('move_id.picking_id.x_dest_project_id', '=', user.x_default_analytic_account_id.id),
+                ('location_id.warehouse_id', '=', user.x_default_warehouse_id.id)
+            ]</field>
+            <field name="groups" eval="[(4, ref('purchase_demand_raise.group_site_store'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
         <!-- Stock Pickings: Site Store sees transfers in/out of their warehouse
              plus MI/S2S transfers tagged to their project. -->
         <record id="rule_material_issuance_site_store" model="ir.rule">
@@ -199,6 +236,18 @@
             <field name="groups" eval="[(4, ref('purchase_demand_raise.group_matracon_admin'))]"/>
             <field name="domain_force">[(1, '=', 1)]</field>
         </record>
+        <record id="rule_stock_move_matracon_admin" model="ir.rule">
+            <field name="name">Stock Move: Matracon Admin sees all</field>
+            <field name="model_id" ref="stock.model_stock_move"/>
+            <field name="groups" eval="[(4, ref('purchase_demand_raise.group_matracon_admin'))]"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+        </record>
+        <record id="rule_stock_move_line_matracon_admin" model="ir.rule">
+            <field name="name">Stock Move Line: Matracon Admin sees all</field>
+            <field name="model_id" ref="stock.model_stock_move_line"/>
+            <field name="groups" eval="[(4, ref('purchase_demand_raise.group_matracon_admin'))]"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+        </record>
         <record id="rule_liability_sheet_matracon_admin" model="ir.rule">
             <field name="name">Liability Sheet: Matracon Admin sees all</field>
             <field name="model_id" ref="model_x_liability_sheet"/>
@@ -248,6 +297,18 @@
         <record id="rule_stock_quant_admin" model="ir.rule">
             <field name="name">Stock Quant: Administrators see all</field>
             <field name="model_id" ref="stock.model_stock_quant"/>
+            <field name="groups" eval="[(4, ref('base.group_system'))]"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+        </record>
+        <record id="rule_stock_move_admin" model="ir.rule">
+            <field name="name">Stock Move: Administrators see all</field>
+            <field name="model_id" ref="stock.model_stock_move"/>
+            <field name="groups" eval="[(4, ref('base.group_system'))]"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+        </record>
+        <record id="rule_stock_move_line_admin" model="ir.rule">
+            <field name="name">Stock Move Line: Administrators see all</field>
+            <field name="model_id" ref="stock.model_stock_move_line"/>
             <field name="groups" eval="[(4, ref('base.group_system'))]"/>
             <field name="domain_force">[(1, '=', 1)]</field>
         </record>
