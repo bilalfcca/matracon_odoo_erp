@@ -28,6 +28,11 @@
             <field name="name" position="after">
                 <field name="x_initiator_id" string="Raised By" optional="show"/>
                 <field name="x_project_analytic_account_id" string="Project" optional="show"/>
+                <field name="x_procurement_type" string="Procurement Type"
+                       widget="badge"
+                       decoration-info="x_procurement_type == 'ho_procurement'"
+                       decoration-warning="x_procurement_type == 'site_procurement'"
+                       optional="show"/>
                 <field name="x_category_id" string="Category" optional="show"/>
                 <field name="x_pr_state" string="PR Status"
                        widget="badge"
@@ -74,6 +79,11 @@
             <field name="name" position="after">
                 <field name="x_initiator_id" string="Raised By" optional="show"/>
                 <field name="x_project_analytic_account_id" string="Project" optional="show"/>
+                <field name="x_procurement_type" string="Procurement Type"
+                       widget="badge"
+                       decoration-info="x_procurement_type == 'ho_procurement'"
+                       decoration-warning="x_procurement_type == 'site_procurement'"
+                       optional="show"/>
                 <field name="x_category_id" string="Category" optional="show"/>
                 <field name="x_pr_state" string="PR Status"
                        widget="badge"
@@ -115,6 +125,17 @@
                 <field name="x_initiator_id" string="Raised By"/>
                 <field name="x_project_analytic_account_id" string="Project"/>
                 <field name="x_category_id" string="Category"/>
+                <field name="x_procurement_type" string="Procurement Type"/>
+
+                <separator/>
+
+                <!-- Procurement Type filters -->
+                <filter name="ho_procurement"
+                        string="HO Procurement"
+                        domain="[('x_procurement_type', '=', 'ho_procurement')]"/>
+                <filter name="site_procurement"
+                        string="Site Procurement"
+                        domain="[('x_procurement_type', '=', 'site_procurement')]"/>
 
                 <separator/>
 
@@ -162,6 +183,9 @@
                 <filter name="group_initiator"
                         string="Group by Raised By"
                         context="{'group_by': 'x_initiator_id'}"/>
+                <filter name="group_procurement_type"
+                        string="Group by Procurement Type"
+                        context="{'group_by': 'x_procurement_type'}"/>
 
             </xpath>
         </field>

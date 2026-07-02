@@ -176,11 +176,23 @@
 
             <!-- ── 5b. INJECT custom header fields after partner_id ── -->
             <field name="partner_id" position="after">
-                <!-- Category: visible on PR docs + site store; locked once submitted/rejected -->
+                <!-- Procurement Type: visible on PR docs + site store; locked once submitted -->
+                <field name="x_procurement_type"
+                       widget="radio"
+                       invisible="not x_is_pr_document and not x_is_site_store"
+                       readonly="x_pr_state not in ('draft')"/>
+
+                <!-- Vendor (info only) — Site Procurement only -->
+                <field name="x_site_vendor_name"
+                       placeholder="Vendor name for reference…"
+                       invisible="x_procurement_type != 'site_procurement' or (not x_is_pr_document and not x_is_site_store)"
+                       readonly="x_pr_state not in ('draft')"/>
+
+                <!-- Category: HO Procurement only; locked once submitted/rejected -->
                 <field name="x_category_id"
                        options="{'no_create': True, 'no_open': True}"
                        placeholder="Select Category"
-                       invisible="not x_is_pr_document and not x_is_site_store"
+                       invisible="x_procurement_type == 'site_procurement' or (not x_is_pr_document and not x_is_site_store)"
                        readonly="x_pr_state not in ('draft')"/>
 
                 <!-- Site Project: PO selects when raising a PR; auto-fills analytic + warehouse -->
@@ -300,10 +312,10 @@
                        readonly="parent.x_pr_state not in ('ceo_final', 'submitted')"
                        optional="show"/>
 
-                <!-- Approved Qty: PR docs + site store + alternatives (CEO edits on all) -->
+                <!-- Approved Qty: HO Procurement only (not used in Site Procurement) -->
                 <field name="x_approved_qty"
                        string="Approved Qty"
-                       column_invisible="not parent.x_is_pr_document and not parent.x_is_site_store and not parent.x_is_alternative_rfq"
+                       column_invisible="parent.x_procurement_type == 'site_procurement' or (not parent.x_is_pr_document and not parent.x_is_site_store and not parent.x_is_alternative_rfq)"
                        readonly="not x_is_ceo or parent.x_pr_state not in ('ceo_final', 'submitted')"
                        optional="show"/>
 

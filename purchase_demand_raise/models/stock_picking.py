@@ -64,10 +64,18 @@ class StockPickingPR(models.Model):
         return res
 
     def _matracon_after_receipt_validated(self):
-        """Hook: draft vendor bill + accountant notification after GRN."""
+        """Hook: accounting document creation after GRN.
+
+        - HO Procurement  → draft vendor bill (existing behaviour).
+        - Site Procurement → draft petty cash expense for the site accountant.
+        """
         for picking in self.filtered(
             lambda p: p.state == 'done'
             and p.picking_type_code == 'incoming'
             and p.purchase_id
         ):
-            self.env['account.move']._matracon_create_draft_bill_from_po_receipt(picking)
+            po = picking.purchase_id
+            if po.x_procurement_type == 'site_procurement':
+                self.env['x.petty.cash.expense']._matracon_create_from_po_receipt(picking)
+            else:
+                self.env['account.move']._matracon_create_draft_bill_from_po_receipt(picking)

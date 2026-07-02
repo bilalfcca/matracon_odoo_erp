@@ -311,9 +311,16 @@ class PettyCashExpense(models.Model):
     ], default='other', required=True)
     journal_id = fields.Many2one(
         'account.journal',
-        string='GL Journal',
-        domain=[('type', 'in', ('cash', 'bank', 'general'))],
-        help='Journal used for the petty cash expense entry.',
+        string='Cash Journal (Credit)',
+        domain=[('type', '=', 'cash')],
+        help='Site-specific cash journal. Credit side of the petty cash entry. '
+             'Auto-filled from the project analytic account.',
+    )
+    expense_account_id = fields.Many2one(
+        'account.account',
+        string='Expense Account (Debit)',
+        help='GL account to debit when posting this expense. '
+             'Leave blank to use the category-based default.',
     )
     receipt = fields.Binary(string='Receipt / Voucher')
     receipt_filename = fields.Char()
@@ -323,6 +330,20 @@ class PettyCashExpense(models.Model):
     ], default='draft', tracking=True)
     currency_id = fields.Many2one(
         'res.currency', default=lambda self: self.env.company.currency_id)
+
+    # ── Traceability: links back to the site procurement that created this expense ──
+    x_purchase_order_id = fields.Many2one(
+        'purchase.order',
+        string='Purchase Requisition',
+        readonly=True, copy=False, index=True,
+        help='Site Procurement PR that triggered this expense (auto-filled on receipt validation).',
+    )
+    x_picking_id = fields.Many2one(
+        'stock.picking',
+        string='Material Receipt',
+        readonly=True, copy=False,
+        help='GRN / material receipt that triggered this expense.',
+    )
 
     @api.model
     def default_get(self, fields_list):
@@ -336,6 +357,19 @@ class PettyCashExpense(models.Model):
                 if fund:
                     res['fund_id'] = fund.id
         return res
+
+    @api.onchange('fund_id')
+    def _onchange_fund_id_set_journal(self):
+        """Auto-select the site-specific cash journal when the fund (project) is set."""
+        analytic = self.project_analytic_account_id
+        if analytic and not self.journal_id:
+            journal = self.env['account.journal'].search([
+                ('type', '=', 'cash'),
+                ('x_site_ids', 'in', [analytic.id]),
+                ('company_id', '=', self.env.company.id),
+            ], limit=1)
+            if journal:
+                self.journal_id = journal
 
     def action_post(self):
         for expense in self:
@@ -386,41 +420,59 @@ class PettyCashExpense(models.Model):
             expense.message_post(body=body, attachment_ids=attachment_ids)
 
     def _create_journal_entry(self):
-        """Create debit Expense / credit Petty Cash journal entry."""
+        """Create double-entry journal: Debit Expense / Credit Cash-in-Hand.
+
+        Credit side: site-specific cash journal (e.g. 231102 CASH AT - STP MARDAN).
+          Lookup order:
+            1. Manually selected journal_id on the expense
+            2. Cash journal whose x_site_ids includes the project analytic account
+            3. Any cash journal (fallback)
+
+        Debit side: accountant-selected expense_account_id (if set),
+          otherwise auto-mapped from category.
+        """
         self.ensure_one()
-        # Find or create a 'Petty Cash' cash journal
+
+        # ── Credit: site-specific cash journal ───────────────────────────────
         Journal = self.env['account.journal']
-        cash_journal = self.journal_id or Journal.search([
-            ('type', '=', 'cash'),
-            ('company_id', '=', self.env.company.id),
-        ], limit=1)
+        cash_journal = self.journal_id
+        if not cash_journal:
+            analytic = self.project_analytic_account_id
+            if analytic:
+                cash_journal = Journal.search([
+                    ('type', '=', 'cash'),
+                    ('x_site_ids', 'in', [analytic.id]),
+                    ('company_id', '=', self.env.company.id),
+                ], limit=1)
+        if not cash_journal:
+            cash_journal = Journal.search([
+                ('type', '=', 'cash'),
+                ('company_id', '=', self.env.company.id),
+            ], limit=1)
         if not cash_journal:
             return  # No cash journal configured — skip silently
 
-        # Use the journal's default cash account as the credit (petty cash source).
-        # Note: payment_credit_account_id was removed in Odoo 17; default_account_id
-        # is the correct field for cash/bank journals.
         credit_account = cash_journal.default_account_id
         if not credit_account:
-            return  # Cannot determine petty cash account
+            return  # Cannot determine the Cash-in-Hand account
 
-        # Map expense category to an expense account code
-        CATEGORY_ACCOUNT_MAP = {
-            'travel': '6270',      # Travel expenses
-            'supplies': '6280',    # Office supplies
-            'utilities': '6300',   # Utilities
-            'meals': '6290',       # Meals & entertainment
-            'other': '6290',       # General admin expenses
-        }
-        AccountObj = self.env['account.account']
-        code = CATEGORY_ACCOUNT_MAP.get(self.category, '6290')
-        debit_account = AccountObj.search([
-            ('code', 'like', code),
-            ('company_id', '=', self.env.company.id),
-        ], limit=1)
+        # ── Debit: accountant-selected account or category fallback ──────────
+        debit_account = self.expense_account_id
         if not debit_account:
-            # Fallback: use journal default account on debit side too
-            debit_account = credit_account
+            CATEGORY_ACCOUNT_MAP = {
+                'travel': '6270',      # Travel expenses
+                'supplies': '6280',    # Office supplies
+                'utilities': '6300',   # Utilities
+                'meals': '6290',       # Meals & entertainment
+                'other': '6290',       # General admin expenses
+            }
+            code = CATEGORY_ACCOUNT_MAP.get(self.category, '6290')
+            debit_account = self.env['account.account'].search([
+                ('code', 'like', code),
+                ('company_id', '=', self.env.company.id),
+            ], limit=1)
+        if not debit_account:
+            debit_account = credit_account  # Last resort fallback
 
         analytic_distribution = {}
         if self.project_analytic_account_id:
@@ -428,12 +480,14 @@ class PettyCashExpense(models.Model):
                 str(self.project_analytic_account_id.id): 100
             }
 
+        cash_account_name = credit_account.display_name or _('Cash in Hand')
         move_vals = {
             'move_type': 'entry',
             'journal_id': cash_journal.id,
             'date': self.expense_date,
             'ref': _('Petty Cash Expense: %s') % self.name,
             'line_ids': [
+                # Debit: expense/GL account (increases expense balance)
                 (0, 0, {
                     'name': self.name,
                     'account_id': debit_account.id,
@@ -441,8 +495,10 @@ class PettyCashExpense(models.Model):
                     'credit': 0.0,
                     'analytic_distribution': analytic_distribution or False,
                 }),
+                # Credit: Cash in Hand for the project (reduces cash balance)
                 (0, 0, {
-                    'name': _('Petty Cash Fund'),
+                    'name': _('Cash in Hand — %s') % (
+                        self.project_analytic_account_id.name or _('Petty Cash')),
                     'account_id': credit_account.id,
                     'debit': 0.0,
                     'credit': self.amount,
@@ -456,3 +512,91 @@ class PettyCashExpense(models.Model):
         return self.env.ref(
             'site_operations.action_report_petty_cash_expense'
         ).report_action(self)
+
+    def action_view_pr_from_expense(self):
+        self.ensure_one()
+        if not self.x_purchase_order_id:
+            return
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'purchase.order',
+            'view_mode': 'form',
+            'res_id': self.x_purchase_order_id.id,
+        }
+
+    def action_view_picking_from_expense(self):
+        self.ensure_one()
+        if not self.x_picking_id:
+            return
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'stock.picking',
+            'view_mode': 'form',
+            'res_id': self.x_picking_id.id,
+        }
+
+    @api.model
+    def _matracon_create_from_po_receipt(self, picking):
+        """Create a Draft Petty Cash Expense when a Site Procurement receipt is validated.
+
+        Called automatically after site procurement GRN (stock.picking button_validate).
+        The site accountant then reviews the draft, selects the debit account, and posts.
+        """
+        po = picking.purchase_id
+        analytic = po.x_project_analytic_account_id
+        if not analytic:
+            picking.message_post(
+                body=_('Site Procurement receipt validated but no project analytic account '
+                       'found on PR %s — petty cash expense NOT created.') % po.name)
+            return self.env['x.petty.cash.expense']
+
+        fund = self.env['x.petty.cash.fund'].sudo().get_or_create_for_project(analytic)
+        if not fund:
+            return self.env['x.petty.cash.expense']
+
+        # Compute total from actual received (done) quantities
+        total = sum(
+            move.quantity * (move.product_id.standard_price or 0.0)
+            for move in picking.move_ids.filtered(
+                lambda m: m.product_id and m.quantity > 0
+            )
+        )
+
+        # Auto-select project's cash journal
+        cash_journal = self.env['account.journal'].search([
+            ('type', '=', 'cash'),
+            ('x_site_ids', 'in', [analytic.id]),
+            ('company_id', '=', self.env.company.id),
+        ], limit=1)
+
+        expense = self.sudo().create({
+            'name': _('Site Procurement — %s') % picking.name,
+            'fund_id': fund.id,
+            'expense_date': fields.Date.context_today(self),
+            'amount': total or 0.0,
+            'category': 'other',
+            'journal_id': cash_journal.id if cash_journal else False,
+            'x_purchase_order_id': po.id,
+            'x_picking_id': picking.id,
+            'state': 'draft',
+        })
+
+        accountants = matracon_notify.site_accountants_for_analytic(self.env, analytic)
+        matracon_notify.notify_users(
+            expense, accountants,
+            _('Draft petty cash expense <b>%(exp)s</b> created from site procurement '
+              'receipt <b>%(grn)s</b>. Please select the expense account and post.')
+            % {'exp': expense.name, 'grn': picking.name},
+            summary=_('Petty Cash Expense Ready'),
+        )
+        matracon_notify.schedule_activity(
+            expense, accountants,
+            _('Post petty cash expense for %s') % po.name,
+            note=_('Receipt %s validated — petty cash expense draft created.') % picking.name,
+        )
+        picking.sudo().message_post(
+            body=Markup(_(
+                'Draft petty cash expense <b>%(exp)s</b> created for site accountant review.'
+            )) % {'exp': expense.name}
+        )
+        return expense

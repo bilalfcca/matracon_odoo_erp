@@ -142,6 +142,26 @@
                     <field name="state" widget="statusbar"/>
                 </header>
                 <sheet>
+                    <!-- Smart buttons -->
+                    <div class="oe_button_box" name="button_box">
+                        <button type="object" class="oe_stat_button" icon="fa-shopping-cart"
+                                name="action_view_pr_from_expense"
+                                invisible="not x_purchase_order_id">
+                            <div class="o_field_widget o_stat_info">
+                                <span class="o_stat_text">Purchase</span>
+                                <span class="o_stat_text">Requisition</span>
+                            </div>
+                        </button>
+                        <button type="object" class="oe_stat_button" icon="fa-truck"
+                                name="action_view_picking_from_expense"
+                                invisible="not x_picking_id">
+                            <div class="o_field_widget o_stat_info">
+                                <span class="o_stat_text">Material</span>
+                                <span class="o_stat_text">Receipt</span>
+                            </div>
+                        </button>
+                    </div>
+
                     <group>
                         <group string="Fund">
                             <field name="fund_id" readonly="state == 'posted'"/>
@@ -154,12 +174,33 @@
                         <group string="Expense Details">
                             <field name="expense_date" readonly="state == 'posted'"/>
                             <field name="category" readonly="state == 'posted'"/>
-                            <field name="journal_id" readonly="state == 'posted'"
-                                   domain="[('type', 'in', ('cash', 'bank', 'general'))] + ([('x_site_ids', 'in', [project_analytic_account_id])] if project_analytic_account_id else [])"/>
                             <field name="name" string="Description" readonly="state == 'posted'"/>
                             <field name="amount" readonly="state == 'posted'"/>
                             <field name="currency_id" invisible="1"/>
                         </group>
+                    </group>
+                    <group string="Accounting">
+                        <group string="Credit (Cash Out)">
+                            <field name="journal_id" readonly="state == 'posted'"
+                                   domain="[('type', '=', 'cash'), ('x_site_ids', 'in', [project_analytic_account_id])] if project_analytic_account_id else [('type', '=', 'cash')]"
+                                   string="Cash Journal (Credit)"
+                                   help="Site-specific cash journal — the Cash-in-Hand account will be credited."/>
+                        </group>
+                        <group string="Debit (Expense)">
+                            <field name="expense_account_id" readonly="state == 'posted'"
+                                   string="Expense Account (Debit)"
+                                   options="{'no_create': True}"
+                                   help="Leave blank to auto-select based on category."/>
+                        </group>
+                    </group>
+                    <group string="Site Procurement Reference"
+                           invisible="not x_purchase_order_id">
+                        <field name="x_purchase_order_id" readonly="1"
+                               string="Purchase Requisition"
+                               options="{'no_open': False}"/>
+                        <field name="x_picking_id" readonly="1"
+                               string="Material Receipt"
+                               options="{'no_open': False}"/>
                     </group>
                     <group string="Receipt / Voucher">
                         <field name="receipt" widget="binary"

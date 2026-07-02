@@ -39,10 +39,26 @@ class PurchaseOrder(models.Model):
         ('rejected', 'Rejected'),
     ], string='CEO Status', default='pending', tracking=True)
 
+    # ── Procurement Type ─────────────────────────────────────────────────────
+    x_procurement_type = fields.Selection([
+        ('ho_procurement', 'HO Procurement'),
+        ('site_procurement', 'Site Procurement'),
+    ], string='Procurement Type', default='ho_procurement',
+       tracking=True, required=True,
+       help='HO Procurement: full approval chain (Site Store → HO → CEO → PO).\n'
+            'Site Procurement: PM-approved, skip HO/CEO — receipt triggers petty cash expense.')
+
+    # ── Vendor (info only — Site Procurement) ────────────────────────────────
+    x_site_vendor_name = fields.Char(
+        string='Vendor (Info)',
+        help='Vendor name for reference only. Does not affect the procurement workflow.',
+    )
+
     # ── Category ─────────────────────────────────────────────────────────────
     x_category_id = fields.Many2one(
         'product.category', string='Select Category', tracking=True,
-        help='All products on lines must belong to this category.'
+        help='All products on lines must belong to this category. '
+             'Not applicable for Site Procurement.'
     )
 
     # ── PM Signed PR Attachment ───────────────────────────────────────────────
@@ -91,17 +107,18 @@ class PurchaseOrder(models.Model):
              'False for Odoo native alternative RFQs.',
     )
 
-    @api.depends('x_pr_state', 'x_pm_signed_pr', 'x_category_id', 'x_is_alternative_rfq', 'x_pr_origin')
+    @api.depends('x_pr_state', 'x_pm_signed_pr', 'x_category_id', 'x_is_alternative_rfq', 'x_pr_origin', 'x_procurement_type')
     def _compute_is_pr_document(self):
         for order in self:
             if order.x_is_alternative_rfq:
                 order.x_is_pr_document = False
                 continue
             order.x_is_pr_document = bool(
-                order.x_pr_state != 'draft'              # Already progressed in workflow
-                or order.x_pm_signed_pr                   # PM doc attached → it's a PR
-                or order.x_category_id                    # Category selected → our PR form
-                or order.x_pr_origin == 'procurement_ho'  # PO-raised PR (always PR workflow)
+                order.x_pr_state != 'draft'                        # Already progressed in workflow
+                or order.x_pm_signed_pr                             # PM doc attached → it's a PR
+                or order.x_category_id                              # Category selected → our PR form
+                or order.x_pr_origin == 'procurement_ho'            # PO-raised PR (always PR workflow)
+                or order.x_procurement_type == 'site_procurement'   # Site Procurement type selected
             )
 
     # ── Role flags (used in view expressions — Odoo 19 forbids groups() in attrs) ──
@@ -349,6 +366,41 @@ class PurchaseOrder(models.Model):
             return []
         return config.site_user_ids.mapped('partner_id').ids
 
+    def _action_submit_site_procurement(self):
+        """Site Procurement: PM-approved → skip HO/CEO, lock PO, create receipt picking."""
+        self.ensure_one()
+        self.write({
+            'x_pr_state': 'po_locked',
+            'x_ho_status': 'approved',   # auto-approved (no HO review required)
+            'x_ceo_status': 'approved',  # auto-approved (no CEO review required)
+        })
+        self._ensure_followers()
+        # Confirm PO directly (no vendor required for site procurement)
+        self.sudo().write({
+            'state': 'purchase',
+            'date_approve': fields.Datetime.now(),
+            'date_order': self.date_order or fields.Datetime.now(),
+        })
+        self._matracon_ensure_receipt_pickings()
+        self.message_post(
+            body=Markup(
+                '📦 <b>Site Procurement PR submitted</b> by <b>%(user)s</b>.<br/>'
+                'PM-signed approval received — no HO/CEO approval required.<br/>'
+                'PO confirmed. Material receipt is ready for Site Store.'
+            ) % {'user': self.env.user.name},
+            subtype_xmlid='mail.mt_log_note',
+        )
+        site_store_partners = self._get_project_site_store_partners()
+        if site_store_partners:
+            self._notify_partners(
+                site_store_partners,
+                Markup(
+                    '📦 <b>Site Procurement PR Ready for Receipt: %(pr)s</b><br/>'
+                    'PM-signed approval received. '
+                    'You can now proceed with receiving the material.'
+                ) % {'pr': self.name}
+            )
+
     def action_submit_pr(self):
         """Submit PR — Site Store (with PM doc) or Procurement Officer (direct to CEO)."""
         for order in self:
@@ -357,6 +409,11 @@ class PurchaseOrder(models.Model):
                 raise UserError(_('Please attach the PM Signed PR before submitting.'))
             if not order.order_line:
                 raise UserError(_('Please add at least one product line before submitting.'))
+
+            # ── Site Procurement: skip HO/CEO, go directly to po_locked ─────
+            if order.x_procurement_type == 'site_procurement':
+                order._action_submit_site_procurement()
+                continue
 
             ho_raised = is_ho and order.x_pr_origin != 'site_store'
             if ho_raised:
