@@ -1,6 +1,31 @@
 from odoo import models, fields, api
 
 
+class HrEmployeePublicMatracon(models.Model):
+    """Expose custom salary fields on the public employee profile
+    so non-HR users (e.g. Site Accountants) can read them when
+    generating salary slips."""
+    _inherit = 'hr.employee.public'
+
+    x_project_analytic_account_id = fields.Many2one(
+        'account.analytic.account', string='Site Project')
+    x_cnic = fields.Char(string='CNIC')
+    x_basic_salary = fields.Monetary(
+        string='Basic Salary', currency_field='currency_id')
+    x_hra = fields.Monetary(
+        string='House Rent Allowance', currency_field='currency_id')
+    x_site_allowance = fields.Monetary(
+        string='Site Allowance', currency_field='currency_id')
+    x_advance_balance = fields.Monetary(
+        string='Advance Balance', currency_field='currency_id')
+    x_wht_rate = fields.Float(string='WHT %')
+    x_eobi_amount = fields.Monetary(
+        string='EOBI Deduction', currency_field='currency_id')
+    currency_id = fields.Many2one(
+        'res.currency', related='company_id.currency_id',
+        depends=['company_id'])
+
+
 class HrEmployeeMatracon(models.Model):
     _inherit = 'hr.employee'
 
