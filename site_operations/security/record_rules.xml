@@ -1,7 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <data>
-        <!-- ── Liability Sheet: Site Accountant sees only their project ──── -->
+
+        <!-- ═══════════════════════════════════════════════════════════════════
+             CUSTOM MODELS — Site Accountant (project-scoped)
+        ════════════════════════════════════════════════════════════════════ -->
+
         <record id="rule_liability_sheet_site_accountant" model="ir.rule">
             <field name="name">Liability Sheet: Site Accountant sees own project</field>
             <field name="model_id" ref="model_x_liability_sheet"/>
@@ -13,85 +17,34 @@
             <field name="perm_unlink" eval="False"/>
         </record>
 
-        <!-- ── Material Issuance: Site Store sees only own project ────────── -->
-        <record id="rule_material_issuance_site_store" model="ir.rule">
-            <field name="name">Material Issuance: Site Store sees own project</field>
-            <field name="model_id" ref="stock.model_stock_picking"/>
-            <field name="domain_force">['|',
-                ('x_transfer_purpose', 'not in', ['material_issuance', 'site_to_site']),
-                '|',
-                ('x_issuance_project_id', '=', user.x_default_analytic_account_id.id),
-                ('x_dest_project_id', '=', user.x_default_analytic_account_id.id)
-            ]</field>
-            <field name="groups" eval="[(4, ref('purchase_demand_raise.group_site_store'))]"/>
-            <field name="perm_read" eval="True"/>
-            <field name="perm_write" eval="True"/>
-            <field name="perm_create" eval="True"/>
-            <field name="perm_unlink" eval="False"/>
-        </record>
-
-        <!-- ── Material Issuance: Site Accountant blocked from MI/S2S ──── -->
-        <record id="rule_material_issuance_site_accountant" model="ir.rule">
-            <field name="name">Material Issuance: Site Accountant blocked from MI/S2S</field>
-            <field name="model_id" ref="stock.model_stock_picking"/>
-            <field name="domain_force">[('x_transfer_purpose', 'not in', ['material_issuance', 'site_to_site'])]</field>
-            <field name="groups" eval="[(4, ref('site_operations.group_site_accountant'))]"/>
-            <field name="perm_read" eval="True"/>
-            <field name="perm_write" eval="False"/>
-            <field name="perm_create" eval="False"/>
-            <field name="perm_unlink" eval="False"/>
-        </record>
-
-        <!-- Matracon Admin + Odoo Administrators: see all -->
-        <record id="rule_material_issuance_matracon_admin" model="ir.rule">
-            <field name="name">Material Issuance: Matracon Admin sees all</field>
-            <field name="model_id" ref="stock.model_stock_picking"/>
-            <field name="groups" eval="[(4, ref('purchase_demand_raise.group_matracon_admin'))]"/>
-            <field name="domain_force">[(1, '=', 1)]</field>
-        </record>
-        <record id="rule_liability_sheet_matracon_admin" model="ir.rule">
-            <field name="name">Liability Sheet: Matracon Admin sees all</field>
-            <field name="model_id" ref="model_x_liability_sheet"/>
-            <field name="groups" eval="[(4, ref('purchase_demand_raise.group_matracon_admin'))]"/>
-            <field name="domain_force">[(1, '=', 1)]</field>
-        </record>
-        <record id="rule_material_issuance_admin" model="ir.rule">
-            <field name="name">Material Issuance: Administrators see all</field>
-            <field name="model_id" ref="stock.model_stock_picking"/>
-            <field name="groups" eval="[(4, ref('base.group_system'))]"/>
-            <field name="domain_force">[(1, '=', 1)]</field>
-        </record>
-        <record id="rule_liability_sheet_admin" model="ir.rule">
-            <field name="name">Liability Sheet: Administrators see all</field>
-            <field name="model_id" ref="model_x_liability_sheet"/>
-            <field name="groups" eval="[(4, ref('base.group_system'))]"/>
-            <field name="domain_force">[(1, '=', 1)]</field>
-        </record>
-
         <record id="rule_attendance_sheet_site_accountant" model="ir.rule">
             <field name="name">Attendance: Site Accountant own project</field>
             <field name="model_id" ref="model_x_attendance_sheet"/>
             <field name="domain_force">[('project_analytic_account_id', '=', user.x_default_analytic_account_id.id)]</field>
             <field name="groups" eval="[(4, ref('site_operations.group_site_accountant'))]"/>
         </record>
+
         <record id="rule_salary_sheet_site_accountant" model="ir.rule">
             <field name="name">Salary Sheet: Site Accountant own project</field>
             <field name="model_id" ref="model_x_salary_sheet"/>
             <field name="domain_force">[('project_analytic_account_id', '=', user.x_default_analytic_account_id.id)]</field>
             <field name="groups" eval="[(4, ref('site_operations.group_site_accountant'))]"/>
         </record>
+
         <record id="rule_petty_cash_site_accountant" model="ir.rule">
             <field name="name">Petty Cash: Site Accountant own project</field>
             <field name="model_id" ref="model_x_petty_cash_request"/>
             <field name="domain_force">[('project_analytic_account_id', '=', user.x_default_analytic_account_id.id)]</field>
             <field name="groups" eval="[(4, ref('site_operations.group_site_accountant'))]"/>
         </record>
+
         <record id="rule_petty_cash_expense_site_accountant" model="ir.rule">
             <field name="name">Petty Cash Expense: Site Accountant own project</field>
             <field name="model_id" ref="model_x_petty_cash_expense"/>
             <field name="domain_force">[('project_analytic_account_id', '=', user.x_default_analytic_account_id.id)]</field>
             <field name="groups" eval="[(4, ref('site_operations.group_site_accountant'))]"/>
         </record>
+
         <record id="rule_petty_cash_fund_site_accountant" model="ir.rule">
             <field name="name">Petty Cash Fund: Site Accountant own project</field>
             <field name="model_id" ref="model_x_petty_cash_fund"/>
@@ -114,10 +67,220 @@
             <field name="perm_unlink" eval="False"/>
         </record>
 
+        <!-- Bank Guarantee: Site Accountant sees only own project -->
+        <record id="rule_bank_guarantee_site_accountant" model="ir.rule">
+            <field name="name">Bank Guarantee: Site Accountant own project</field>
+            <field name="model_id" ref="model_x_bank_guarantee"/>
+            <field name="domain_force">[('project_analytic_account_id', '=', user.x_default_analytic_account_id.id)]</field>
+            <field name="groups" eval="[(4, ref('site_operations.group_site_accountant'))]"/>
+        </record>
+
+        <!-- WHT Certificate: Site Accountant sees only own project
+             (via vendor payment destination project OR salary sheet project) -->
+        <record id="rule_wht_certificate_site_accountant" model="ir.rule">
+            <field name="name">WHT Certificate: Site Accountant own project</field>
+            <field name="model_id" ref="model_x_wht_certificate"/>
+            <field name="domain_force">['|',
+                ('payment_id.x_destination_project_id', '=', user.x_default_analytic_account_id.id),
+                ('x_salary_sheet_id.project_analytic_account_id', '=', user.x_default_analytic_account_id.id)
+            ]</field>
+            <field name="groups" eval="[(4, ref('site_operations.group_site_accountant'))]"/>
+        </record>
+
+        <!-- ═══════════════════════════════════════════════════════════════════
+             STANDARD ODOO MODELS — Site Accountant (project-scoped)
+        ════════════════════════════════════════════════════════════════════ -->
+
+        <!-- Vendor Bills / Invoices / Journal Entries:
+             Site Accountant sees records tagged to their project, plus any
+             untagged entries (system-generated reconciliation / tax lines). -->
+        <record id="rule_account_move_site_accountant" model="ir.rule">
+            <field name="name">Account Move: Site Accountant own project</field>
+            <field name="model_id" ref="account.model_account_move"/>
+            <field name="domain_force">['|',
+                ('x_project_analytic_account_id', '=', user.x_default_analytic_account_id.id),
+                ('x_project_analytic_account_id', '=', False)
+            ]</field>
+            <field name="groups" eval="[(4, ref('site_operations.group_site_accountant'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <!-- Payments: Site Accountant sees only payments destined to their project -->
+        <record id="rule_account_payment_site_accountant" model="ir.rule">
+            <field name="name">Account Payment: Site Accountant own project</field>
+            <field name="model_id" ref="account.model_account_payment"/>
+            <field name="domain_force">['|',
+                ('x_destination_project_id', '=', user.x_default_analytic_account_id.id),
+                ('x_destination_project_id', '=', False)
+            ]</field>
+            <field name="groups" eval="[(4, ref('site_operations.group_site_accountant'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <!-- Employees: Site Accountant sees only employees assigned to their project -->
+        <record id="rule_hr_employee_site_accountant" model="ir.rule">
+            <field name="name">Employee: Site Accountant own project</field>
+            <field name="model_id" ref="hr.model_hr_employee"/>
+            <field name="domain_force">[('x_project_analytic_account_id', '=', user.x_default_analytic_account_id.id)]</field>
+            <field name="groups" eval="[(4, ref('site_operations.group_site_accountant'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <!-- ═══════════════════════════════════════════════════════════════════
+             STOCK — Site Store (warehouse-scoped)
+        ════════════════════════════════════════════════════════════════════ -->
+
+        <!-- Stock Pickings: Site Store sees transfers in/out of their warehouse
+             plus MI/S2S transfers tagged to their project. -->
+        <record id="rule_material_issuance_site_store" model="ir.rule">
+            <field name="name">Stock Picking: Site Store sees own warehouse &amp; project</field>
+            <field name="model_id" ref="stock.model_stock_picking"/>
+            <field name="domain_force">['|',
+                '&amp;',
+                ('x_transfer_purpose', 'not in', ['material_issuance', 'site_to_site']),
+                ('picking_type_id.warehouse_id', '=', user.x_default_warehouse_id.id),
+                '|',
+                ('x_issuance_project_id', '=', user.x_default_analytic_account_id.id),
+                ('x_dest_project_id', '=', user.x_default_analytic_account_id.id)
+            ]</field>
+            <field name="groups" eval="[(4, ref('purchase_demand_raise.group_site_store'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <!-- Stock Quant (on-hand inventory): Site Store sees only their warehouse -->
+        <record id="rule_stock_quant_site_store" model="ir.rule">
+            <field name="name">Stock Quant: Site Store sees own warehouse</field>
+            <field name="model_id" ref="stock.model_stock_quant"/>
+            <field name="domain_force">[('location_id.warehouse_id', '=', user.x_default_warehouse_id.id)]</field>
+            <field name="groups" eval="[(4, ref('purchase_demand_raise.group_site_store'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <!-- Site Accountant: blocked from MI/S2S stock pickings entirely -->
+        <record id="rule_material_issuance_site_accountant" model="ir.rule">
+            <field name="name">Material Issuance: Site Accountant blocked from MI/S2S</field>
+            <field name="model_id" ref="stock.model_stock_picking"/>
+            <field name="domain_force">[('x_transfer_purpose', 'not in', ['material_issuance', 'site_to_site'])]</field>
+            <field name="groups" eval="[(4, ref('site_operations.group_site_accountant'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <!-- ═══════════════════════════════════════════════════════════════════
+             ADMIN / HO BYPASS RULES — see everything
+        ════════════════════════════════════════════════════════════════════ -->
+
+        <record id="rule_material_issuance_matracon_admin" model="ir.rule">
+            <field name="name">Stock Picking: Matracon Admin sees all</field>
+            <field name="model_id" ref="stock.model_stock_picking"/>
+            <field name="groups" eval="[(4, ref('purchase_demand_raise.group_matracon_admin'))]"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+        </record>
+        <record id="rule_stock_quant_matracon_admin" model="ir.rule">
+            <field name="name">Stock Quant: Matracon Admin sees all</field>
+            <field name="model_id" ref="stock.model_stock_quant"/>
+            <field name="groups" eval="[(4, ref('purchase_demand_raise.group_matracon_admin'))]"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+        </record>
+        <record id="rule_liability_sheet_matracon_admin" model="ir.rule">
+            <field name="name">Liability Sheet: Matracon Admin sees all</field>
+            <field name="model_id" ref="model_x_liability_sheet"/>
+            <field name="groups" eval="[(4, ref('purchase_demand_raise.group_matracon_admin'))]"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+        </record>
+        <record id="rule_account_move_matracon_admin" model="ir.rule">
+            <field name="name">Account Move: Matracon Admin sees all</field>
+            <field name="model_id" ref="account.model_account_move"/>
+            <field name="groups" eval="[(4, ref('purchase_demand_raise.group_matracon_admin'))]"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+        </record>
+        <record id="rule_account_payment_matracon_admin" model="ir.rule">
+            <field name="name">Account Payment: Matracon Admin sees all</field>
+            <field name="model_id" ref="account.model_account_payment"/>
+            <field name="groups" eval="[(4, ref('purchase_demand_raise.group_matracon_admin'))]"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+        </record>
+        <record id="rule_hr_employee_matracon_admin" model="ir.rule">
+            <field name="name">Employee: Matracon Admin sees all</field>
+            <field name="model_id" ref="hr.model_hr_employee"/>
+            <field name="groups" eval="[(4, ref('purchase_demand_raise.group_matracon_admin'))]"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+        </record>
+        <record id="rule_wht_certificate_matracon_admin" model="ir.rule">
+            <field name="name">WHT Certificate: Matracon Admin sees all</field>
+            <field name="model_id" ref="model_x_wht_certificate"/>
+            <field name="groups" eval="[(4, ref('purchase_demand_raise.group_matracon_admin'))]"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+        </record>
+        <record id="rule_bank_guarantee_matracon_admin" model="ir.rule">
+            <field name="name">Bank Guarantee: Matracon Admin sees all</field>
+            <field name="model_id" ref="model_x_bank_guarantee"/>
+            <field name="groups" eval="[(4, ref('purchase_demand_raise.group_matracon_admin'))]"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+        </record>
+
+        <!-- System administrators bypass all rules natively in Odoo, but
+             explicit rules here ensure visibility with admin groups that
+             may be combined with site groups. -->
+        <record id="rule_material_issuance_admin" model="ir.rule">
+            <field name="name">Stock Picking: Administrators see all</field>
+            <field name="model_id" ref="stock.model_stock_picking"/>
+            <field name="groups" eval="[(4, ref('base.group_system'))]"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+        </record>
+        <record id="rule_stock_quant_admin" model="ir.rule">
+            <field name="name">Stock Quant: Administrators see all</field>
+            <field name="model_id" ref="stock.model_stock_quant"/>
+            <field name="groups" eval="[(4, ref('base.group_system'))]"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+        </record>
+        <record id="rule_liability_sheet_admin" model="ir.rule">
+            <field name="name">Liability Sheet: Administrators see all</field>
+            <field name="model_id" ref="model_x_liability_sheet"/>
+            <field name="groups" eval="[(4, ref('base.group_system'))]"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+        </record>
+        <record id="rule_account_move_admin" model="ir.rule">
+            <field name="name">Account Move: Administrators see all</field>
+            <field name="model_id" ref="account.model_account_move"/>
+            <field name="groups" eval="[(4, ref('base.group_system'))]"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+        </record>
+        <record id="rule_account_payment_admin" model="ir.rule">
+            <field name="name">Account Payment: Administrators see all</field>
+            <field name="model_id" ref="account.model_account_payment"/>
+            <field name="groups" eval="[(4, ref('base.group_system'))]"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+        </record>
+        <record id="rule_hr_employee_admin" model="ir.rule">
+            <field name="name">Employee: Administrators see all</field>
+            <field name="model_id" ref="hr.model_hr_employee"/>
+            <field name="groups" eval="[(4, ref('base.group_system'))]"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+        </record>
+
         <!-- Chart of Accounts visibility for site accountants is controlled via a
              dedicated filtered window action (action_coa_site_accountant) rather
              than an ir.rule, so that reading accounts on bills/payments does not
              raise access errors while the CoA browse view still shows only the
              site's own accounts. -->
+
     </data>
 </odoo>

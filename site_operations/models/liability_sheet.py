@@ -360,7 +360,8 @@ class LiabilitySheet(models.Model):
         }
 
     def action_refresh_from_ledger(self):
-        """Pull opening_balance and new_liability from actual partner ledger entries."""
+        """Pull opening_balance and new_liability from actual partner ledger entries,
+        scoped to this liability sheet's project so totals are never mixed across sites."""
         AML = self.env['account.move.line'].sudo()
         for sheet in self:
             for line in sheet.line_ids:
@@ -372,6 +373,13 @@ class LiabilitySheet(models.Model):
                     ('move_id.state', '=', 'posted'),
                     ('account_id.account_type', '=', 'liability_payable'),
                 ]
+
+                # Scope to this sheet's project so figures from other sites are excluded.
+                if sheet.project_analytic_account_id:
+                    base_domain.append(
+                        ('move_id.x_project_analytic_account_id', '=',
+                         sheet.project_analytic_account_id.id)
+                    )
 
                 # Use move_id.date (always set on every journal entry and vendor bill)
                 # instead of invoice_date which is NULL on plain journal entries
