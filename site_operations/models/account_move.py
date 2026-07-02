@@ -130,6 +130,18 @@ class AccountMoveSiteOps(models.Model):
         return moves
 
     def write(self, vals):
+        # Capture old project links BEFORE the write so that if a posted
+        # customer invoice is re-assigned to a different project, the OLD
+        # project's billed amount is also recalculated.
+        pre_analytics = set()
+        if 'x_project_analytic_account_id' in vals:
+            pre_analytics = set(
+                m.x_project_analytic_account_id.id
+                for m in self
+                if m.move_type in ('out_invoice', 'out_refund')
+                and m.state == 'posted'
+                and m.x_project_analytic_account_id
+            )
         res = super().write(vals)
         if any(k in vals for k in (
             'x_project_analytic_account_id', 'partner_id', 'amount_total',
@@ -139,6 +151,10 @@ class AccountMoveSiteOps(models.Model):
                 lambda m: m.move_type == 'in_invoice' and m.state == 'draft'
             ):
                 move._ensure_liability_sheet_for_bill(notify=False)
+        # If x_project_analytic_account_id changed on any customer invoice,
+        # recompute billed amount for both old and new project.
+        if 'x_project_analytic_account_id' in vals:
+            self._matracon_update_project_billed_amount(extra_analytic_ids=pre_analytics)
         return res
 
     @api.model
@@ -169,6 +185,33 @@ class AccountMoveSiteOps(models.Model):
                 self.x_purchase_order_id.x_project_analytic_account_id)
             self.invoice_origin = self.x_purchase_order_id.name
 
+    def _matracon_update_project_billed_amount(self, extra_analytic_ids=()):
+        """Recompute x_billed_to_client on every project linked to a customer
+        invoice (out_invoice / out_refund) in this recordset.
+
+        ``extra_analytic_ids`` allows passing analytic IDs that were linked
+        *before* a write so that projects losing their invoice link are also
+        updated (e.g. when x_project_analytic_account_id is changed on an
+        already-posted invoice).
+        """
+        analytic_ids = set(extra_analytic_ids)
+        for m in self:
+            if (
+                m.move_type in ('out_invoice', 'out_refund')
+                and m.x_project_analytic_account_id
+            ):
+                analytic_ids.add(m.x_project_analytic_account_id.id)
+        if not analytic_ids:
+            return
+        projects = self.env['project.project'].sudo().search([
+            ('x_analytic_account_id', 'in', list(analytic_ids)),
+        ])
+        if projects:
+            projects._compute_billed_to_client()
+            # _compute_financial_completion_pct depends on x_billed_to_client;
+            # call it explicitly to flush all dependent stored fields at once.
+            projects._compute_financial_completion_pct()
+
     def action_post(self):
         for move in self.filtered(
             lambda m: m.move_type == 'in_invoice'
@@ -186,14 +229,29 @@ class AccountMoveSiteOps(models.Model):
                 move._update_project_balance_from_bill()
             if move.x_wht_tax_id:
                 move._create_fbr_wht_payment_draft()
+        # Recompute project billed amount for any customer invoices just posted
+        self._matracon_update_project_billed_amount()
         return res
 
     def button_draft(self):
+        # Capture customer-invoice analytics BEFORE state changes to draft so
+        # projects that lose a posted invoice are correctly updated afterwards.
+        pre_analytics = set(
+            m.x_project_analytic_account_id.id
+            for m in self
+            if m.move_type in ('out_invoice', 'out_refund')
+            and m.state == 'posted'
+            and m.x_project_analytic_account_id
+        )
         for move in self.filtered(
             lambda m: m.move_type == 'in_invoice' and m.x_liability_registered
         ):
             move._reverse_liability_sheet_from_bill()
-        return super().button_draft()
+        res = super().button_draft()
+        # Recompute after draft: pass pre-reset analytics so the compute runs
+        # even though the invoices are no longer 'posted'.
+        self._matracon_update_project_billed_amount(extra_analytic_ids=pre_analytics)
+        return res
 
     def _ensure_liability_sheet_for_bill(self, notify=True):
         """Create/update liability sheet for this vendor bill.

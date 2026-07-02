@@ -382,7 +382,7 @@
                                         <field name="billed_to_client" widget="monetary" options="{'currency_field': 'currency_id'}" optional="show"/>
                                         <field name="work_completion_pct" string="Work %" optional="show"/>
                                         <field name="financial_completion_pct" string="Financial %" optional="show"/>
-                                        <field name="remaining_work_value" widget="monetary" options="{'currency_field': 'currency_id'}" optional="show"/>
+                                        <field name="remaining_work_value" string="Project Progress" widget="monetary" options="{'currency_field': 'currency_id'}" optional="show"/>
                                     </list>
                                 </field>
                             </div>

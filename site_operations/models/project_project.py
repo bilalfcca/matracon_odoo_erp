@@ -75,9 +75,14 @@ class ProjectProjectMatracon(models.Model):
     )
     x_billed_to_client = fields.Monetary(
         string='Billed to Client',
+        compute='_compute_billed_to_client',
+        store=True,
         currency_field='currency_id',
-        tracking=True,
-        help='Total amount invoiced to the client so far.',
+        help=(
+            'Auto-calculated: sum of all posted Customer Invoices (minus credit notes) '
+            'linked to this project via Analytic Account. '
+            'Updates automatically when invoices are posted or cancelled.'
+        ),
     )
     x_work_completion_pct = fields.Float(
         string='Work Completion %',
@@ -93,10 +98,11 @@ class ProjectProjectMatracon(models.Model):
         help='Auto: Billed to Client ÷ Contract Value × 100.',
     )
     x_remaining_work_value = fields.Monetary(
-        string='Remaining Work Value',
+        string='Project Progress',
         compute='_compute_financial_completion_pct',
         currency_field='currency_id',
         store=True,
+        help='Auto: Contract Value − Billed to Client (amount remaining to bill).',
     )
 
     currency_id = fields.Many2one(
@@ -112,6 +118,33 @@ class ProjectProjectMatracon(models.Model):
                 project.company_id.currency_id
                 or self.env.company.currency_id
             )
+
+    @api.depends('x_analytic_account_id')
+    def _compute_billed_to_client(self):
+        """Compute billed amount from posted Customer Invoices/credit notes.
+
+        Sums ``amount_untaxed`` of every posted ``out_invoice`` linked to this
+        project via ``x_project_analytic_account_id``, then subtracts the same
+        for ``out_refund`` (credit notes).  This method is also called directly
+        from ``account.move`` whenever an invoice is posted, reset to draft, or
+        re-assigned to a different project.
+        """
+        Move = self.env['account.move'].sudo()
+        for project in self:
+            analytic = project.x_analytic_account_id
+            if not analytic:
+                project.x_billed_to_client = 0.0
+                continue
+            moves = Move.search([
+                ('move_type', 'in', ('out_invoice', 'out_refund')),
+                ('state', '=', 'posted'),
+                ('x_project_analytic_account_id', '=', analytic.id),
+            ])
+            billed = sum(
+                m.amount_untaxed * (1.0 if m.move_type == 'out_invoice' else -1.0)
+                for m in moves
+            )
+            project.x_billed_to_client = max(billed, 0.0)
 
     @api.depends('x_contract_value', 'x_billed_to_client')
     def _compute_financial_completion_pct(self):
