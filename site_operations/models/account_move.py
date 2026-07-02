@@ -213,6 +213,24 @@ class AccountMoveSiteOps(models.Model):
             projects._compute_financial_completion_pct()
 
     def action_post(self):
+        # ── Bill Copy mandatory for vendor bills (not system-generated backcharges) ──
+        missing_attachment = self.filtered(
+            lambda m: (
+                m.move_type == 'in_invoice'
+                and m.state != 'posted'
+                and not m.x_source_picking_id   # skip auto-generated backcharge bills
+                and not m.x_bill_copy
+            )
+        )
+        if missing_attachment:
+            names = ', '.join(
+                m.name or _('New') for m in missing_attachment
+            )
+            raise UserError(_(
+                'Bill Copy attachment is mandatory before posting a Vendor Bill.\n\n'
+                'Please upload the physical bill document for: %s'
+            ) % names)
+
         for move in self.filtered(
             lambda m: m.move_type == 'in_invoice'
             and m.state != 'posted'

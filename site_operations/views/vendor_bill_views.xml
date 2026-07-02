@@ -53,17 +53,19 @@
                 <field name="x_wht_tax_id"
                        invisible="move_type != 'in_invoice'"
                        options="{'no_create': True}"/>
+                <!-- Bill Copy — mandatory for vendor bills; shown prominently here
+                     so it is never missed before posting. -->
+                <field name="x_bill_copy"
+                       widget="binary"
+                       filename="x_bill_copy_filename"
+                       string="Bill Copy"
+                       invisible="move_type != 'in_invoice'"
+                       required="move_type == 'in_invoice' and state == 'draft'"/>
+                <field name="x_bill_copy_filename" invisible="1"/>
             </xpath>
 
-            <!-- Bill copy attachment (optional) -->
+            <!-- Liability-registered info banner (kept before narration) -->
             <xpath expr="//field[@name='narration']" position="before">
-                <group invisible="move_type != 'in_invoice'">
-                    <field name="x_bill_copy"
-                           widget="binary"
-                           filename="x_bill_copy_filename"
-                           string="Bill Copy (optional)"/>
-                    <field name="x_bill_copy_filename" invisible="1"/>
-                </group>
                 <div class="alert alert-info mb-2 py-1"
                      role="status"
                      invisible="not x_liability_registered">
