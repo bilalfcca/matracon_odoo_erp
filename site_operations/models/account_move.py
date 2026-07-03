@@ -216,7 +216,9 @@ class AccountMoveSiteOps(models.Model):
         # ── Bill Copy mandatory for vendor bills (not system-generated backcharges) ──
         # Skip during module installation / demo-data loading so that Odoo's own
         # demo fixtures (account_demo.py) are not blocked by this custom check.
-        if not self.env.registry._init:
+        # registry._init covers the install phase; install_mode=True in context
+        # covers _post_load_demo_data which is called after _init is cleared.
+        if not self.env.registry._init and not self.env.context.get('install_mode'):
             missing_attachment = self.filtered(
                 lambda m: (
                     m.move_type == 'in_invoice'
