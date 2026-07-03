@@ -158,7 +158,6 @@ access_petty_cash_expense_matracon_admin,petty.cash.expense.matracon.admin,model
 access_wht_certificate_site_accountant,wht.certificate.site.accountant,model_x_wht_certificate,site_operations.group_site_accountant,1,0,0,0
 access_postdated_cheque_site_accountant,postdated.cheque.site.accountant,model_x_postdated_cheque,site_operations.group_site_accountant,1,0,0,0
 access_cheque_series_ceo,cheque.series.ceo,model_x_cheque_series,purchase_demand_raise.group_ceo_approval,1,0,0,0
-access_subcontractor_ipc_head_office,subcontractor.ipc.head.office,model_x_subcontractor_ipc,purchase_demand_raise.group_head_office,1,1,1,0
 access_material_cost_report_head_office,material.cost.report.head.office,model_x_material_cost_report,purchase_demand_raise.group_head_office,1,0,0,0
 access_employee_doc_ceo,employee.doc.ceo,model_x_employee_document,purchase_demand_raise.group_ceo_approval,1,0,0,0
 access_employee_doc_head_office,employee.doc.head.office,model_x_employee_document,purchase_demand_raise.group_head_office,1,1,1,1

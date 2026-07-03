@@ -214,14 +214,19 @@ class AccountMoveSiteOps(models.Model):
 
     def action_post(self):
         # ── Bill Copy mandatory for vendor bills (not system-generated backcharges) ──
-        missing_attachment = self.filtered(
-            lambda m: (
-                m.move_type == 'in_invoice'
-                and m.state != 'posted'
-                and not m.x_source_picking_id   # skip auto-generated backcharge bills
-                and not m.x_bill_copy
+        # Skip during module installation / demo-data loading so that Odoo's own
+        # demo fixtures (account_demo.py) are not blocked by this custom check.
+        if not self.env.registry._init:
+            missing_attachment = self.filtered(
+                lambda m: (
+                    m.move_type == 'in_invoice'
+                    and m.state != 'posted'
+                    and not m.x_source_picking_id   # skip auto-generated backcharge bills
+                    and not m.x_bill_copy
+                )
             )
-        )
+        else:
+            missing_attachment = self.browse()  # empty recordset — no check during init
         if missing_attachment:
             names = ', '.join(
                 m.name or _('New') for m in missing_attachment
