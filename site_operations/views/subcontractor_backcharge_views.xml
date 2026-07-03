@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_subcontractor_backcharge_list" model="ir.ui.view">
+        <field name="name">x.subcontractor.backcharge.list</field>
+        <field name="model">x.subcontractor.backcharge</field>
+        <field name="arch" type="xml">
+            <list string="Subcontractor Back Charges"
+                  decoration-muted="state == 'processed'"
+                  decoration-warning="state == 'pending'">
+                <field name="name" string="Reference"/>
+                <field name="subcontractor_id" string="Subcontractor"/>
+                <field name="project_analytic_account_id" string="Project"/>
+                <field name="description" string="Description"/>
+                <field name="date" string="Date"/>
+                <field name="amount" string="Amount" sum="Total"/>
+                <field name="currency_id" column_invisible="1"/>
+                <field name="state" widget="badge"
+                       decoration-warning="state == 'pending'"
+                       decoration-success="state == 'processed'"/>
+                <field name="ipc_id" string="Processed in IPC" optional="show"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_subcontractor_backcharge_form" model="ir.ui.view">
+        <field name="name">x.subcontractor.backcharge.form</field>
+        <field name="model">x.subcontractor.backcharge</field>
+        <field name="arch" type="xml">
+            <form string="Subcontractor Back Charge">
+                <header>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="pending,processed"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name" readonly="1"/></h1>
+                    </div>
+                    <group>
+                        <group string="Back Charge Details">
+                            <field name="subcontractor_id"
+                                   readonly="state == 'processed'"/>
+                            <field name="project_analytic_account_id"
+                                   readonly="state == 'processed'"/>
+                            <field name="date"
+                                   readonly="state == 'processed'"/>
+                            <field name="currency_id" invisible="1"/>
+                        </group>
+                        <group string="Amount &amp; Description">
+                            <field name="description"
+                                   readonly="state == 'processed'"/>
+                            <field name="amount"
+                                   readonly="state == 'processed'"/>
+                            <field name="state" readonly="1"/>
+                            <field name="ipc_id"
+                                   invisible="not ipc_id"
+                                   readonly="1"/>
+                        </group>
+                    </group>
+                    <group>
+                        <field name="notes" readonly="state == 'processed'"/>
+                    </group>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_subcontractor_backcharge_search" model="ir.ui.view">
+        <field name="name">x.subcontractor.backcharge.search</field>
+        <field name="model">x.subcontractor.backcharge</field>
+        <field name="arch" type="xml">
+            <search string="Search Back Charges">
+                <field name="name"/>
+                <field name="subcontractor_id"/>
+                <field name="project_analytic_account_id"/>
+                <field name="description"/>
+                <filter name="filter_pending" string="Pending"
+                        domain="[('state', '=', 'pending')]"/>
+                <filter name="filter_processed" string="Processed"
+                        domain="[('state', '=', 'processed')]"/>
+                <separator/>
+                <filter name="group_sub" string="Group by Subcontractor"
+                        context="{'group_by': 'subcontractor_id'}"/>
+                <filter name="group_project" string="Group by Project"
+                        context="{'group_by': 'project_analytic_account_id'}"/>
+                <filter name="group_state" string="Group by Status"
+                        context="{'group_by': 'state'}"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_subcontractor_backcharge" model="ir.actions.act_window">
+        <field name="name">Back Charges</field>
+        <field name="res_model">x.subcontractor.backcharge</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_subcontractor_backcharge_search"/>
+        <field name="context">{'search_default_filter_pending': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No back charges recorded yet.
+            </p>
+            <p>
+                Create back charges here. They will be automatically included in the
+                next IPC for the same subcontractor and project, and marked as
+                processed once the IPC is submitted.
+            </p>
+        </field>
+    </record>
+
+</odoo>

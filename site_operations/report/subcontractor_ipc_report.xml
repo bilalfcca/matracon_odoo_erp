@@ -1,176 +1,369 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- ── Subcontractor IPC Report Action ──────────────────────────────── -->
+    <!-- ── Report Action ─────────────────────────────────────────────────── -->
     <record id="action_report_subcontractor_ipc" model="ir.actions.report">
         <field name="name">Subcontractor IPC</field>
         <field name="model">x.subcontractor.ipc</field>
         <field name="report_type">qweb-pdf</field>
         <field name="report_name">site_operations.report_subcontractor_ipc_document</field>
         <field name="report_file">site_operations.report_subcontractor_ipc_document</field>
-        <field name="print_report_name">'IPC - ' + (object.name or '')</field>
+        <field name="print_report_name">'IPC-' + str(object.ipc_number or '') + ' - ' + (object.subcontractor_id.name or '') + ' - ' + (object.name or '')</field>
         <field name="binding_model_id" ref="model_x_subcontractor_ipc"/>
         <field name="binding_type">report</field>
     </record>
 
+    <!-- ── Report Template ───────────────────────────────────────────────── -->
     <template id="report_subcontractor_ipc_document">
         <t t-call="web.html_container">
             <t t-foreach="docs" t-as="ipc">
                 <t t-call="web.external_layout">
-                    <div class="page">
+                    <div class="page" style="font-size:12px;">
 
-                        <!-- Title -->
-                        <div class="row mb-4">
-                            <div class="col-12 text-center">
-                                <h2 style="font-weight:bold; text-transform:uppercase; border-bottom:2px solid #000; padding-bottom:8px;">
-                                    INTERIM PAYMENT CERTIFICATE
-                                </h2>
-                                <p style="font-size:13px; color:#555;">Subcontractor Payment Certificate</p>
-                            </div>
+                        <!-- ── Title ──────────────────────────────────────── -->
+                        <div class="text-center mb-3">
+                            <h3 style="font-weight:bold; text-transform:uppercase;
+                                       border-bottom:2px solid #000; padding-bottom:6px;
+                                       margin-bottom:4px;">
+                                INTERIM PAYMENT CERTIFICATE
+                            </h3>
                         </div>
 
-                        <!-- Header Info -->
-                        <div class="row mb-4">
-                            <div class="col-6">
-                                <table class="table table-borderless table-sm" style="font-size:13px;">
-                                    <tr>
-                                        <td style="font-weight:bold; width:160px;">IPC No:</td>
-                                        <td><t t-esc="ipc.name"/></td>
-                                    </tr>
-                                    <tr>
-                                        <td style="font-weight:bold;">Date:</td>
-                                        <td>
-                                            <t t-esc="ipc.ipc_date" t-options="{'widget': 'date'}"/>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td style="font-weight:bold;">Project:</td>
-                                        <td>
-                                            <t t-esc="ipc.project_analytic_account_id.name or ''"/>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td style="font-weight:bold;">IPC Period:</td>
-                                        <td>
-                                            <t t-esc="ipc.period or ''"/>
-                                        </td>
-                                    </tr>
-                                </table>
-                            </div>
-                            <div class="col-6">
-                                <table class="table table-borderless table-sm" style="font-size:13px;">
-                                    <tr>
-                                        <td style="font-weight:bold; width:160px;">Subcontractor:</td>
-                                        <td><t t-esc="ipc.subcontractor_id.name or ''"/></td>
-                                    </tr>
-                                    <tr>
-                                        <td style="font-weight:bold;">Liability Sheet:</td>
-                                        <td>
-                                            <t t-esc="ipc.liability_sheet_id.name or 'N/A'"/>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td style="font-weight:bold;">Status:</td>
-                                        <td>
-                                            <t t-esc="dict(ipc._fields['state'].selection).get(ipc.state, ipc.state)"/>
-                                        </td>
-                                    </tr>
-                                </table>
-                            </div>
-                        </div>
+                        <!-- ── Header Table ───────────────────────────────── -->
+                        <table class="table table-bordered table-sm mb-2"
+                               style="font-size:12px; border-collapse:collapse;">
+                            <tr>
+                                <td style="width:15%; font-weight:bold;">PROJECT</td>
+                                <td colspan="3">
+                                    <t t-esc="ipc.project_analytic_account_id.name or ''"/>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="font-weight:bold;">SUB-CONTRACTOR</td>
+                                <td style="width:35%;">
+                                    <strong><t t-esc="ipc.subcontractor_id.name or ''"/></strong>
+                                </td>
+                                <td style="width:15%; font-weight:bold; text-align:right;">IPC No.</td>
+                                <td style="width:10%; text-align:center; font-weight:bold;">
+                                    <t t-esc="ipc.ipc_number"/>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="font-weight:bold;">PERIOD</td>
+                                <td>
+                                    <t t-if="ipc.ipc_date_from">
+                                        <t t-esc="ipc.ipc_date_from"
+                                           t-options="{'widget': 'date'}"/>
+                                        &#160;to&#160;
+                                    </t>
+                                    <t t-esc="ipc.ipc_date"
+                                       t-options="{'widget': 'date'}"/>
+                                </td>
+                                <td style="font-weight:bold; text-align:right;">DATE</td>
+                                <td style="text-align:center;">
+                                    <t t-esc="ipc.ipc_date"
+                                       t-options="{'widget': 'date'}"/>
+                                </td>
+                            </tr>
+                        </table>
 
-                        <!-- Payment Calculation Table -->
-                        <div class="row mb-4">
-                            <div class="col-12">
-                                <h5 style="font-weight:bold; border-bottom:1px solid #ccc; padding-bottom:4px;">Payment Calculation</h5>
-                                <table class="table table-bordered" style="font-size:13px;">
-                                    <thead style="background:#f8f9fa;">
+                        <!-- ── Main Calculation Table ─────────────────────── -->
+                        <table class="table table-bordered table-sm"
+                               style="font-size:12px; border-collapse:collapse;">
+                            <colgroup>
+                                <col style="width:6%;"/>
+                                <col style="width:54%;"/>
+                                <col style="width:20%;"/>
+                                <col style="width:20%;"/>
+                            </colgroup>
+                            <tbody>
+
+                                <!-- Row 1: Gross cumulative -->
+                                <tr>
+                                    <td class="text-center fw-bold">1.</td>
+                                    <td>Total Value of Work Done up to this IPC</td>
+                                    <td></td>
+                                    <td class="text-end">
+                                        <t t-esc="ipc.gross_work_done"
+                                           t-options="{'widget': 'monetary', 'display_currency': ipc.currency_id}"/>
+                                    </td>
+                                </tr>
+
+                                <!-- Row 2: Previous cumulative -->
+                                <tr>
+                                    <td class="text-center fw-bold">2.</td>
+                                    <td>Total Value of Work Done up to Previous IPC</td>
+                                    <td></td>
+                                    <td class="text-end">
+                                        <t t-esc="ipc.previous_gross_work_done"
+                                           t-options="{'widget': 'monetary', 'display_currency': ipc.currency_id}"/>
+                                    </td>
+                                </tr>
+
+                                <!-- Row 3: This IPC work -->
+                                <tr style="font-weight:bold; background:#f0f4ff;">
+                                    <td class="text-center fw-bold">3.</td>
+                                    <td>Total Value of Work Done for this IPC (1 − 2)</td>
+                                    <td></td>
+                                    <td class="text-end">
+                                        <t t-esc="ipc.this_ipc_gross"
+                                           t-options="{'widget': 'monetary', 'display_currency': ipc.currency_id}"/>
+                                    </td>
+                                </tr>
+
+                                <!-- Deductions heading -->
+                                <tr>
+                                    <td colspan="4" style="font-weight:bold; padding-top:6px;">
+                                        Deductions:
+                                    </td>
+                                </tr>
+
+                                <!-- a) Retention -->
+                                <tr>
+                                    <td></td>
+                                    <td colspan="3" style="font-weight:bold;
+                                                          text-decoration:underline;">
+                                        a) &#160; Deductions for Retention Money:
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td></td>
+                                    <td style="padding-left:24px;">
+                                        a. Total Retention Money @5.0% up to this IPC
+                                    </td>
+                                    <td class="text-end">
+                                        <t t-esc="ipc.total_retention_cumulative"
+                                           t-options="{'widget': 'monetary', 'display_currency': ipc.currency_id}"/>
+                                    </td>
+                                    <td></td>
+                                </tr>
+                                <tr>
+                                    <td></td>
+                                    <td style="padding-left:24px;">
+                                        b. Already Retained up to Previous IPC
+                                    </td>
+                                    <td class="text-end">
+                                        <t t-esc="ipc.previous_retention_amount"
+                                           t-options="{'widget': 'monetary', 'display_currency': ipc.currency_id}"/>
+                                    </td>
+                                    <td></td>
+                                </tr>
+                                <tr>
+                                    <td></td>
+                                    <td style="padding-left:24px; font-weight:bold;">
+                                        c. To be Retained in this IPC
+                                    </td>
+                                    <td class="text-end fw-bold">
+                                        <t t-esc="ipc.retention_amount"
+                                           t-options="{'widget': 'monetary', 'display_currency': ipc.currency_id}"/>
+                                    </td>
+                                    <td></td>
+                                </tr>
+
+                                <!-- b) Mob Advance Recovery -->
+                                <t t-if="ipc.mob_advance_recovery">
+                                    <tr>
+                                        <td></td>
+                                        <td colspan="3" style="font-weight:bold;
+                                                              text-decoration:underline;">
+                                            b) &#160; Mob Advance Recovery:
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td></td>
+                                        <td style="padding-left:24px;">
+                                            Mob Advance Recovery for this IPC
+                                        </td>
+                                        <td class="text-end fw-bold">
+                                            <t t-esc="ipc.mob_advance_recovery"
+                                               t-options="{'widget': 'monetary', 'display_currency': ipc.currency_id}"/>
+                                        </td>
+                                        <td></td>
+                                    </tr>
+                                </t>
+
+                                <!-- c) Back Charges -->
+                                <t t-if="ipc.backcharge_line_ids">
+                                    <tr>
+                                        <td></td>
+                                        <td colspan="3" style="font-weight:bold;
+                                                              text-decoration:underline;">
+                                            c) &#160; Back Charges:
+                                        </td>
+                                    </tr>
+                                    <t t-foreach="ipc.backcharge_line_ids" t-as="bcl">
                                         <tr>
-                                            <th>Description</th>
-                                            <th class="text-end">Amount (PKR)</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <tr>
-                                            <td>Gross Work Done</td>
-                                            <td class="text-end">
-                                                <t t-esc="ipc.gross_work_done" t-options="{'widget': 'monetary', 'display_currency': ipc.currency_id}"/>
-                                            </td>
-                                        </tr>
-                                        <tr style="color:#c00;">
-                                            <td>(-) Retention
-                                                <t t-if="ipc.retention_pct"> (<t t-esc="ipc.retention_pct"/>%)</t>
+                                            <td></td>
+                                            <td style="padding-left:24px;">
+                                                <t t-esc="bcl.description or ''"/>
+                                                <t t-if="bcl.date">
+                                                    &#160;
+                                                    (<t t-esc="bcl.date"
+                                                       t-options="{'widget': 'date'}"/>)
+                                                </t>
                                             </td>
                                             <td class="text-end">
-                                                (<t t-esc="ipc.retention_amount" t-options="{'widget': 'monetary', 'display_currency': ipc.currency_id}"/>)
+                                                <t t-esc="bcl.amount"
+                                                   t-options="{'widget': 'monetary', 'display_currency': ipc.currency_id}"/>
                                             </td>
+                                            <td></td>
                                         </tr>
-                                        <tr style="color:#c00;">
-                                            <td>(-) Advance Recovery</td>
-                                            <td class="text-end">
-                                                (<t t-esc="ipc.advance_recovery" t-options="{'widget': 'monetary', 'display_currency': ipc.currency_id}"/>)
-                                            </td>
-                                        </tr>
-                                        <tr style="color:#c00;" t-if="ipc.security_withheld">
-                                            <td>(-) Security Withheld</td>
-                                            <td class="text-end">
-                                                (<t t-esc="ipc.security_withheld" t-options="{'widget': 'monetary', 'display_currency': ipc.currency_id}"/>)
-                                            </td>
-                                        </tr>
-                                        <tr style="color:#c00;" t-if="ipc.backcharge_amount">
-                                            <td>(-) Backcharge</td>
-                                            <td class="text-end">
-                                                (<t t-esc="ipc.backcharge_amount" t-options="{'widget': 'monetary', 'display_currency': ipc.currency_id}"/>)
-                                            </td>
-                                        </tr>
-                                        <tr style="color:#c00;" t-if="ipc.other_deductions">
-                                            <td>(-) Other Deductions</td>
-                                            <td class="text-end">
-                                                (<t t-esc="ipc.other_deductions" t-options="{'widget': 'monetary', 'display_currency': ipc.currency_id}"/>)
-                                            </td>
-                                        </tr>
-                                        <tr style="font-weight:bold; background:#f0f0f0; border-top:2px solid #000;">
-                                            <td>Total Deductions</td>
-                                            <td class="text-end">
-                                                (<t t-esc="ipc.total_deductions" t-options="{'widget': 'monetary', 'display_currency': ipc.currency_id}"/>)
-                                            </td>
-                                        </tr>
-                                        <tr style="font-weight:bold; font-size:15px; background:#e8f5e9;">
-                                            <td>NET PAYABLE</td>
-                                            <td class="text-end">
-                                                <t t-esc="ipc.net_payable" t-options="{'widget': 'monetary', 'display_currency': ipc.currency_id}"/>
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
+                                    </t>
+                                    <tr>
+                                        <td></td>
+                                        <td style="padding-left:24px; font-weight:bold;">
+                                            Total Back Charges
+                                        </td>
+                                        <td class="text-end fw-bold">
+                                            <t t-esc="ipc.backcharge_total"
+                                               t-options="{'widget': 'monetary', 'display_currency': ipc.currency_id}"/>
+                                        </td>
+                                        <td></td>
+                                    </tr>
+                                </t>
+
+                                <!-- d) Security Withheld -->
+                                <t t-if="ipc.security_withheld">
+                                    <tr>
+                                        <td></td>
+                                        <td colspan="3" style="font-weight:bold;
+                                                              text-decoration:underline;">
+                                            d) &#160; Security Withheld:
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td></td>
+                                        <td style="padding-left:24px;">
+                                            Security Withheld for this IPC
+                                        </td>
+                                        <td class="text-end fw-bold">
+                                            <t t-esc="ipc.security_withheld"
+                                               t-options="{'widget': 'monetary', 'display_currency': ipc.currency_id}"/>
+                                        </td>
+                                        <td></td>
+                                    </tr>
+                                </t>
+
+                                <!-- e) Other Deductions -->
+                                <t t-if="ipc.other_deductions_amount">
+                                    <tr>
+                                        <td></td>
+                                        <td colspan="3" style="font-weight:bold;
+                                                              text-decoration:underline;">
+                                            e) &#160; Other Deductions:
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td></td>
+                                        <td style="padding-left:24px;">
+                                            <t t-esc="ipc.other_deductions_reason or 'Other Deductions'"/>
+                                        </td>
+                                        <td class="text-end fw-bold">
+                                            <t t-esc="ipc.other_deductions_amount"
+                                               t-options="{'widget': 'monetary', 'display_currency': ipc.currency_id}"/>
+                                        </td>
+                                        <td></td>
+                                    </tr>
+                                </t>
+
+                                <!-- f) Other Additions -->
+                                <t t-if="ipc.other_additions_amount">
+                                    <tr>
+                                        <td></td>
+                                        <td colspan="3" style="font-weight:bold;
+                                                              text-decoration:underline;">
+                                            f) &#160; Other Additions:
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td></td>
+                                        <td style="padding-left:24px;">
+                                            <t t-esc="ipc.other_additions_reason or 'Other Additions'"/>
+                                        </td>
+                                        <td class="text-end fw-bold" style="color:green;">
+                                            +<t t-esc="ipc.other_additions_amount"
+                                               t-options="{'widget': 'monetary', 'display_currency': ipc.currency_id}"/>
+                                        </td>
+                                        <td></td>
+                                    </tr>
+                                </t>
+
+                                <!-- Row 4: Total Deductions -->
+                                <tr style="font-weight:bold; background:#fff0f0;">
+                                    <td class="text-center fw-bold">4.</td>
+                                    <td>Total Deductions (a + b + c + d + e)</td>
+                                    <td></td>
+                                    <td class="text-end" style="color:#cc0000;">
+                                        <t t-esc="ipc.total_deductions"
+                                           t-options="{'widget': 'monetary', 'display_currency': ipc.currency_id}"/>
+                                    </td>
+                                </tr>
+
+                                <!-- Row 5: Net Payable -->
+                                <tr style="font-weight:bold; font-size:14px;
+                                           background:#e8f5e9; border-top:2px solid #000;">
+                                    <td class="text-center fw-bold">5.</td>
+                                    <td>NET PAYABLE in this IPC
+                                        <t t-if="ipc.other_additions_amount">
+                                            (Row 3 − Row 4 + Additions)
+                                        </t>
+                                        <t t-else="">
+                                            (Row 3 − Row 4)
+                                        </t>
+                                    </td>
+                                    <td></td>
+                                    <td class="text-end" style="color:#1a7a1a;">
+                                        <t t-esc="ipc.net_payable"
+                                           t-options="{'widget': 'monetary', 'display_currency': ipc.currency_id}"/>
+                                    </td>
+                                </tr>
+
+                            </tbody>
+                        </table>
+
+                        <!-- ── Notes ──────────────────────────────────────── -->
+                        <div t-if="ipc.notes" class="mt-3">
+                            <strong>Notes / Scope of Work:</strong>
+                            <p style="font-size:11px; margin-top:4px;">
+                                <t t-esc="ipc.notes"/>
+                            </p>
                         </div>
 
-                        <!-- Notes -->
-                        <div class="row mb-4" t-if="ipc.notes">
-                            <div class="col-12">
-                                <h5 style="font-weight:bold;">Notes</h5>
-                                <p style="font-size:12px;"><t t-esc="ipc.notes"/></p>
-                            </div>
-                        </div>
-
-                        <!-- Signatures -->
+                        <!-- ── Signatures ─────────────────────────────────── -->
                         <div class="row mt-5">
-                            <div class="col-4 text-center">
-                                <div style="border-top:1px solid #000; padding-top:6px; margin-top:40px;">
-                                    <p style="font-size:12px; font-weight:bold;">Prepared By</p>
-                                    <p style="font-size:11px;">Site Accountant</p>
+                            <div class="col-3 text-center">
+                                <div style="border-top:1px solid #000;
+                                            padding-top:4px; margin-top:50px;">
+                                    <p style="font-size:11px; font-weight:bold; margin:0;">
+                                        Prepared By</p>
+                                    <p style="font-size:10px; color:#555; margin:0;">
+                                        Site Accountant</p>
                                 </div>
                             </div>
-                            <div class="col-4 text-center">
-                                <div style="border-top:1px solid #000; padding-top:6px; margin-top:40px;">
-                                    <p style="font-size:12px; font-weight:bold;">Verified By</p>
-                                    <p style="font-size:11px;">Finance HO</p>
+                            <div class="col-3 text-center">
+                                <div style="border-top:1px solid #000;
+                                            padding-top:4px; margin-top:50px;">
+                                    <p style="font-size:11px; font-weight:bold; margin:0;">
+                                        Recommended By</p>
+                                    <p style="font-size:10px; color:#555; margin:0;">
+                                        Accounts Manager</p>
                                 </div>
                             </div>
-                            <div class="col-4 text-center">
-                                <div style="border-top:1px solid #000; padding-top:6px; margin-top:40px;">
-                                    <p style="font-size:12px; font-weight:bold;">Approved By</p>
-                                    <p style="font-size:11px;">CEO</p>
+                            <div class="col-3 text-center">
+                                <div style="border-top:1px solid #000;
+                                            padding-top:4px; margin-top:50px;">
+                                    <p style="font-size:11px; font-weight:bold; margin:0;">
+                                        Verified By</p>
+                                    <p style="font-size:10px; color:#555; margin:0;">
+                                        Finance HO</p>
+                                </div>
+                            </div>
+                            <div class="col-3 text-center">
+                                <div style="border-top:1px solid #000;
+                                            padding-top:4px; margin-top:50px;">
+                                    <p style="font-size:11px; font-weight:bold; margin:0;">
+                                        Approved By</p>
+                                    <p style="font-size:10px; color:#555; margin:0;">
+                                        CEO</p>
                                 </div>
                             </div>
                         </div>

@@ -227,6 +227,14 @@
               sequence="30"
               groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
+    <!-- Accounting → Vendors → Back Charges -->
+    <menuitem id="menu_subcontractor_backcharge"
+              name="Back Charges"
+              parent="account.menu_finance_payables"
+              action="site_operations.action_subcontractor_backcharge"
+              sequence="31"
+              groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
     <!-- Accounting → Chart of Accounts (Site Accountant — sees only their site accounts) -->
     <menuitem id="menu_chart_of_accounts_site_accountant"
               name="Chart of Accounts"

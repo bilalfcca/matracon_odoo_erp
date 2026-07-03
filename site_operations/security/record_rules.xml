@@ -67,6 +67,17 @@
             <field name="perm_unlink" eval="False"/>
         </record>
 
+        <record id="rule_subcontractor_backcharge_site_accountant" model="ir.rule">
+            <field name="name">Back Charge: Site Accountant own project</field>
+            <field name="model_id" ref="model_x_subcontractor_backcharge"/>
+            <field name="domain_force">[('project_analytic_account_id', '=', user.x_default_analytic_account_id.id)]</field>
+            <field name="groups" eval="[(4, ref('site_operations.group_site_accountant'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
         <!-- Bank Guarantee: Site Accountant sees only own project -->
         <record id="rule_bank_guarantee_site_accountant" model="ir.rule">
             <field name="name">Bank Guarantee: Site Accountant own project</field>

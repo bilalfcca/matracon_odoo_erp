@@ -57,6 +57,7 @@
         'views/wht_certificate_views.xml',
         'views/postdated_cheque_views.xml',
         'views/cheque_series_views.xml',
+        'views/subcontractor_backcharge_views.xml',
         'views/subcontractor_ipc_views.xml',
         'views/material_cost_views.xml',
         'views/menus.xml',

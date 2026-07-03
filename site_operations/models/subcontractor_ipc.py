@@ -1,6 +1,34 @@
+"""Subcontractor Interim Payment Certificate — cumulative billing workflow."""
+
+from dateutil.relativedelta import relativedelta
 from markupsafe import Markup
+
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
+
+RETENTION_PCT = 5.0 / 100.0
+
+
+class SubcontractorIPCBackchargeLine(models.Model):
+    _name = 'x.subcontractor.ipc.backcharge.line'
+    _description = 'IPC Back Charge Line'
+    _order = 'date asc, id asc'
+
+    ipc_id = fields.Many2one(
+        'x.subcontractor.ipc', string='IPC',
+        ondelete='cascade', required=True, index=True)
+    backcharge_id = fields.Many2one(
+        'x.subcontractor.backcharge', string='Back Charge',
+        required=True)
+    description = fields.Char(
+        string='Description', related='backcharge_id.description')
+    date = fields.Date(
+        string='Date', related='backcharge_id.date')
+    amount = fields.Monetary(
+        string='Amount', related='backcharge_id.amount',
+        currency_field='currency_id')
+    currency_id = fields.Many2one(
+        'res.currency', related='ipc_id.currency_id')
 
 
 class SubcontractorIPC(models.Model):
@@ -9,44 +37,119 @@ class SubcontractorIPC(models.Model):
     _inherit = ['mail.thread', 'mail.activity.mixin']
     _order = 'ipc_date desc, id desc'
 
+    # ── Identifiers ───────────────────────────────────────────────────────────
     name = fields.Char(
-        string='IPC No', readonly=True,
+        string='IPC Reference', readonly=True,
         default=lambda self: _('New'), copy=False)
+    ipc_number = fields.Integer(
+        string='IPC No.', required=True, tracking=True,
+        help='Sequential IPC number for this subcontractor on this project '
+             '(e.g. 1, 2, 3). Enter manually — specific to each sub+project combination.')
     subcontractor_id = fields.Many2one(
         'res.partner', string='Subcontractor',
-        required=True, domain=[('category_id.name', '=', 'Subcontractor')], tracking=True)
+        required=True,
+        domain=[('category_id.name', '=', 'Subcontractor')],
+        tracking=True)
     project_analytic_account_id = fields.Many2one(
-        'account.analytic.account',
-        string='Project', required=True, tracking=True)
+        'account.analytic.account', string='Project',
+        required=True, tracking=True)
     ipc_date = fields.Date(
-        string='IPC Date',
-        default=fields.Date.context_today, required=True)
-    period = fields.Char(
-        string='Period / Billing Month', required=True, tracking=True)
+        string='IPC Date', default=fields.Date.context_today, required=True)
+    currency_id = fields.Many2one(
+        'res.currency', default=lambda self: self.env.company.currency_id)
+    state = fields.Selection([
+        ('draft', 'Draft'),
+        ('submitted', 'Submitted'),
+        ('paid', 'Paid'),
+    ], default='draft', tracking=True, string='Status')
 
-    # Work amounts
+    # ── IPC Document (mandatory before submission) ────────────────────────────
+    ipc_document = fields.Binary(
+        string='IPC Document', attachment=True, copy=False,
+        help='Signed/stamped IPC document — mandatory before submission.')
+    ipc_document_filename = fields.Char(string='IPC Document Filename')
+
+    # ── Previous IPC data (auto, same subcontractor + same project only) ──────
+    previous_ipc_id = fields.Many2one(
+        'x.subcontractor.ipc', string='Previous IPC',
+        compute='_compute_previous_ipc', store=True, readonly=True,
+        help='Most recently submitted/paid IPC for this subcontractor on this project.')
+    previous_gross_work_done = fields.Monetary(
+        string='Work Done up to Previous IPC',
+        compute='_compute_previous_ipc', store=True,
+        currency_field='currency_id', readonly=True,
+        help='Cumulative gross work value from the previous submitted IPC.')
+    ipc_date_from = fields.Date(
+        string='Period From',
+        compute='_compute_previous_ipc', store=True,
+        help='Auto-computed: one day after the previous IPC date.')
+
+    # ── Work amounts ──────────────────────────────────────────────────────────
     gross_work_done = fields.Monetary(
-        string='Gross Work Done', required=True,
-        currency_field='currency_id', tracking=True)
-    advance_recovery = fields.Monetary(
-        string='Advance Recovery',
-        currency_field='currency_id', tracking=True)
-    retention_pct = fields.Float(
-        string='Retention %', digits=(5, 2), tracking=True)
+        string='Gross Work Done (Cumulative)',
+        required=True, currency_field='currency_id', tracking=True,
+        help='Total cumulative value of work done from project start up to and '
+             'including this IPC. Enter the running total, not just this period.')
+    this_ipc_gross = fields.Monetary(
+        string='Work Done for this IPC',
+        compute='_compute_deductions', store=True,
+        currency_field='currency_id',
+        help='Auto: Gross Work Done − Work Done up to Previous IPC.')
+
+    # ── Retention (fixed at 5%) ───────────────────────────────────────────────
+    total_retention_cumulative = fields.Monetary(
+        string='Total Retention @5% (cumulative)',
+        compute='_compute_deductions', store=True,
+        currency_field='currency_id',
+        help='Auto: 5% × Gross Work Done (cumulative).')
+    previous_retention_amount = fields.Monetary(
+        string='Retention Deducted in Previous IPCs',
+        compute='_compute_deductions', store=True,
+        currency_field='currency_id',
+        help='Auto: 5% × Work Done up to Previous IPC.')
     retention_amount = fields.Monetary(
-        string='Retention Amount',
+        string='Retention for this IPC',
+        compute='_compute_deductions', store=True,
+        currency_field='currency_id',
+        help='Auto: Total Retention − Previous Retention = 5% × this IPC work.')
+
+    # ── Mob Advance Recovery ──────────────────────────────────────────────────
+    mob_advance_recovery = fields.Monetary(
+        string='Mob Advance Recovery',
+        currency_field='currency_id', tracking=True,
+        help='Mobilisation advance amount to be recovered in this IPC.')
+
+    # ── Back charges (auto-populated from pending records for this sub+project) ─
+    backcharge_line_ids = fields.One2many(
+        'x.subcontractor.ipc.backcharge.line', 'ipc_id',
+        string='Back Charges')
+    backcharge_total = fields.Monetary(
+        string='Total Back Charges',
         compute='_compute_deductions', store=True,
         currency_field='currency_id')
+
+    # ── Security Withheld ─────────────────────────────────────────────────────
     security_withheld = fields.Monetary(
-        string='Security Withheld',
-        currency_field='currency_id', tracking=True)
-    backcharge_amount = fields.Monetary(
-        string='Backcharge Deductions',
-        currency_field='currency_id', tracking=True)
-    other_deductions = fields.Monetary(
+        string='Security Withheld', currency_field='currency_id', tracking=True)
+
+    # ── Other Deductions (user, with mandatory reason) ────────────────────────
+    other_deductions_amount = fields.Monetary(
         string='Other Deductions',
         currency_field='currency_id', tracking=True)
+    other_deductions_reason = fields.Char(
+        string='Reason (Other Deductions)',
+        help='Mandatory when Other Deductions > 0.')
 
+    # ── Other Additions (user, with mandatory reason) ─────────────────────────
+    other_additions_amount = fields.Monetary(
+        string='Other Additions',
+        currency_field='currency_id', tracking=True,
+        help='Positive adjustments that increase the net payable for this IPC.')
+    other_additions_reason = fields.Char(
+        string='Reason (Other Additions)',
+        help='Mandatory when Other Additions > 0.')
+
+    # ── Computed totals ───────────────────────────────────────────────────────
     total_deductions = fields.Monetary(
         string='Total Deductions',
         compute='_compute_deductions', store=True,
@@ -56,44 +159,94 @@ class SubcontractorIPC(models.Model):
         compute='_compute_deductions', store=True,
         currency_field='currency_id')
 
-    currency_id = fields.Many2one(
-        'res.currency',
-        default=lambda self: self.env.company.currency_id)
-    state = fields.Selection([
-        ('draft', 'Draft'),
-        ('submitted', 'Submitted'),
-        ('approved', 'Approved'),
-        ('paid', 'Paid'),
-    ], default='draft', tracking=True)
-
-    liability_sheet_id = fields.Many2one(
-        'x.liability.sheet', string='Liability Sheet',
-        domain=[('state', 'in', ('approved', 'paid'))], tracking=True)
+    # ── Payments ──────────────────────────────────────────────────────────────
     payment_ids = fields.One2many(
         'account.payment', 'x_ipc_id', string='Payments')
     payment_count = fields.Integer(compute='_compute_payment_count')
 
+    # ── Linked liability sheet (auto on submit) ────────────────────────────────
+    liability_sheet_id = fields.Many2one(
+        'x.liability.sheet', string='Liability Sheet',
+        readonly=True, copy=False)
+
     notes = fields.Text(string='Notes / Scope of Work')
 
+    # ─────────────────────────────────────────────────────────────────────────
+    # COMPUTE
+    # ─────────────────────────────────────────────────────────────────────────
+
+    @api.depends('subcontractor_id', 'project_analytic_account_id', 'ipc_date')
+    def _compute_previous_ipc(self):
+        """Find the most recently submitted/paid IPC for the same sub+project."""
+        for ipc in self:
+            if not ipc.subcontractor_id or not ipc.project_analytic_account_id:
+                ipc.previous_ipc_id = False
+                ipc.previous_gross_work_done = 0.0
+                ipc.ipc_date_from = False
+                continue
+            domain = [
+                ('subcontractor_id', '=', ipc.subcontractor_id.id),
+                ('project_analytic_account_id', '=', ipc.project_analytic_account_id.id),
+                ('state', 'in', ('submitted', 'paid')),
+            ]
+            if ipc.id:
+                domain.append(('id', '!=', ipc.id))
+            prev = self.search(domain, order='ipc_date desc, id desc', limit=1)
+            if prev:
+                ipc.previous_ipc_id = prev.id
+                ipc.previous_gross_work_done = prev.gross_work_done
+                ipc.ipc_date_from = (
+                    prev.ipc_date + relativedelta(days=1)
+                    if prev.ipc_date else False
+                )
+            else:
+                ipc.previous_ipc_id = False
+                ipc.previous_gross_work_done = 0.0
+                ipc.ipc_date_from = False
+
     @api.depends(
-        'gross_work_done', 'retention_pct', 'advance_recovery',
-        'security_withheld', 'backcharge_amount', 'other_deductions',
+        'gross_work_done', 'previous_gross_work_done',
+        'mob_advance_recovery', 'security_withheld',
+        'other_deductions_amount', 'other_additions_amount',
+        'backcharge_line_ids.amount',
     )
     def _compute_deductions(self):
         for ipc in self:
-            ipc.retention_amount = (
-                ipc.gross_work_done * ipc.retention_pct / 100.0)
-            ipc.total_deductions = (
-                ipc.retention_amount + ipc.advance_recovery
-                + ipc.security_withheld + ipc.backcharge_amount
-                + ipc.other_deductions
+            this_gross = max(
+                ipc.gross_work_done - ipc.previous_gross_work_done, 0.0)
+            total_ret = ipc.gross_work_done * RETENTION_PCT
+            prev_ret = ipc.previous_gross_work_done * RETENTION_PCT
+            this_ret = total_ret - prev_ret
+
+            bc_total = sum(
+                line.amount for line in ipc.backcharge_line_ids
+                if line.backcharge_id
             )
-            ipc.net_payable = max(
-                ipc.gross_work_done - ipc.total_deductions, 0.0)
+
+            total_ded = (
+                this_ret
+                + ipc.mob_advance_recovery
+                + ipc.security_withheld
+                + bc_total
+                + ipc.other_deductions_amount
+            )
+            net = max(this_gross - total_ded + ipc.other_additions_amount, 0.0)
+
+            ipc.this_ipc_gross = this_gross
+            ipc.total_retention_cumulative = total_ret
+            ipc.previous_retention_amount = prev_ret
+            ipc.retention_amount = this_ret
+            ipc.backcharge_total = bc_total
+            ipc.total_deductions = total_ded
+            ipc.net_payable = net
 
     def _compute_payment_count(self):
         for ipc in self:
             ipc.payment_count = len(ipc.payment_ids)
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # ORM OVERRIDES
+    # ─────────────────────────────────────────────────────────────────────────
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -105,25 +258,140 @@ class SubcontractorIPC(models.Model):
                 )
         return super().create(vals_list)
 
+    # ─────────────────────────────────────────────────────────────────────────
+    # ONCHANGE
+    # ─────────────────────────────────────────────────────────────────────────
+
+    @api.onchange('subcontractor_id', 'project_analytic_account_id')
+    def _onchange_fetch_backcharges(self):
+        """Auto-populate back charge lines from all pending back charges
+        for this subcontractor + project combination."""
+        if not self.subcontractor_id or not self.project_analytic_account_id:
+            return
+        pending_bc = self.env['x.subcontractor.backcharge'].search([
+            ('subcontractor_id', '=', self.subcontractor_id.id),
+            ('project_analytic_account_id', '=',
+             self.project_analytic_account_id.id),
+            ('state', '=', 'pending'),
+        ])
+        new_lines = [(0, 0, {'backcharge_id': bc.id}) for bc in pending_bc]
+        # Replace lines — start fresh so we don't double-add on sub/project change
+        self.backcharge_line_ids = [(5, 0, 0)] + new_lines
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # WORKFLOW ACTIONS
+    # ─────────────────────────────────────────────────────────────────────────
+
     def action_submit(self):
         for ipc in self:
             if ipc.state != 'draft':
                 raise UserError(_('Only draft IPCs can be submitted.'))
+            if not ipc.ipc_document:
+                raise UserError(_(
+                    'Please attach the signed IPC document before submitting.\n\n'
+                    'Upload the signed/stamped IPC file using the "IPC Document" field.'
+                ))
+            if ipc.other_deductions_amount and not (
+                    ipc.other_deductions_reason or '').strip():
+                raise UserError(_(
+                    'A reason is required when Other Deductions > 0.\n\n'
+                    'Please fill in the "Reason (Other Deductions)" field.'
+                ))
+            if ipc.other_additions_amount and not (
+                    ipc.other_additions_reason or '').strip():
+                raise UserError(_(
+                    'A reason is required when Other Additions > 0.\n\n'
+                    'Please fill in the "Reason (Other Additions)" field.'
+                ))
+            # Update liability sheet with net payable
+            ipc._update_liability_sheet()
+            # Mark all included back charges as processed
+            for line in ipc.backcharge_line_ids:
+                if line.backcharge_id and line.backcharge_id.state == 'pending':
+                    line.backcharge_id.sudo().write({
+                        'state': 'processed',
+                        'ipc_id': ipc.id,
+                    })
             ipc.state = 'submitted'
-            ipc.message_post(
-                body=Markup(_('IPC <b>%s</b> submitted for approval.'))
-                % ipc.name)
+            ipc.message_post(body=Markup(_(
+                'IPC <b>%(name)s</b> (IPC No. %(num)s) submitted. '
+                'Net Payable: <b>%(currency)s %(amount)s</b>. '
+                'Liability sheet updated.'
+            )) % {
+                'name': ipc.name,
+                'num': ipc.ipc_number,
+                'currency': ipc.currency_id.symbol,
+                'amount': f'{ipc.net_payable:,.2f}',
+            })
 
-    def action_approve(self):
+    def action_mark_paid(self):
         for ipc in self:
             if ipc.state != 'submitted':
-                raise UserError(_('Only submitted IPCs can be approved.'))
-            ipc.state = 'approved'
+                raise UserError(_('Only submitted IPCs can be marked as paid.'))
+            ipc.state = 'paid'
             ipc.message_post(
-                body=Markup(
-                    _('IPC <b>%s</b> approved. Net payable: '
-                      '<b>%s %.2f</b>')
-                ) % (ipc.name, ipc.currency_id.symbol, ipc.net_payable))
+                body=_('IPC %s marked as paid.') % ipc.name)
+
+    def _update_liability_sheet(self):
+        """Add this IPC's net payable to the current month's liability sheet
+        for the project. Creates the sheet if one does not yet exist."""
+        self.ensure_one()
+        if not self.project_analytic_account_id or not self.subcontractor_id:
+            return
+
+        bill_date = self.ipc_date or fields.Date.today()
+        month_start = bill_date.replace(day=1)
+        month_end = (
+            month_start + relativedelta(months=1)) - relativedelta(days=1)
+
+        LiabilitySheet = self.env['x.liability.sheet'].sudo()
+        sheet = LiabilitySheet.search([
+            ('project_analytic_account_id', '=',
+             self.project_analytic_account_id.id),
+            ('date_from', '=', month_start),
+            ('state', 'in', ('draft', 'submitted')),
+        ], limit=1)
+        if not sheet:
+            sheet = LiabilitySheet.create({
+                'project_analytic_account_id': self.project_analytic_account_id.id,
+                'date_from': month_start,
+                'date_to': month_end,
+            })
+
+        amount = self.net_payable
+        date_str = (
+            self.ipc_date.strftime('%d-%b-%Y') if self.ipc_date else '')
+        desc = _('IPC No.%s — %s — %s') % (
+            self.ipc_number, self.name, date_str)
+
+        existing_line = sheet.line_ids.filtered(
+            lambda l: l.partner_id.id == self.subcontractor_id.id)
+        if existing_line:
+            existing_line[0].write({
+                'new_liability': existing_line[0].new_liability + amount,
+                'description': desc,
+            })
+        else:
+            sheet.write({'line_ids': [(0, 0, {
+                'description': desc,
+                'partner_id': self.subcontractor_id.id,
+                'new_liability': amount,
+            })]})
+
+        self.liability_sheet_id = sheet.id
+        self.message_post(body=Markup(_(
+            'Liability Sheet <b>%(sheet)s</b> updated — '
+            '<b>%(sub)s</b> &nbsp;+&nbsp;<b>%(currency)s %(amount)s</b> registered.'
+        )) % {
+            'sheet': sheet.name,
+            'sub': self.subcontractor_id.name,
+            'currency': self.currency_id.symbol,
+            'amount': f'{amount:,.2f}',
+        })
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # SMART BUTTON ACTIONS
+    # ─────────────────────────────────────────────────────────────────────────
 
     def action_view_payments(self):
         self.ensure_one()
@@ -135,5 +403,19 @@ class SubcontractorIPC(models.Model):
             'domain': [('x_ipc_id', '=', self.id)],
         }
 
+    def action_view_liability_sheet(self):
+        self.ensure_one()
+        if not self.liability_sheet_id:
+            return
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Liability Sheet'),
+            'res_model': 'x.liability.sheet',
+            'view_mode': 'form',
+            'res_id': self.liability_sheet_id.id,
+        }
+
     def action_print_ipc(self):
-        return self.env.ref('site_operations.action_report_subcontractor_ipc').report_action(self)
+        return self.env.ref(
+            'site_operations.action_report_subcontractor_ipc'
+        ).report_action(self)
