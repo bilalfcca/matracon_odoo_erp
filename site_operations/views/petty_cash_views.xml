@@ -33,7 +33,6 @@
                                 <list editable="bottom">
                                     <field name="expense_date"/>
                                     <field name="name"/>
-                                    <field name="category"/>
                                     <field name="amount"/>
                                     <field name="state" widget="badge"/>
                                 </list>
@@ -173,10 +172,18 @@
                         </group>
                         <group string="Expense Details">
                             <field name="expense_date" readonly="state == 'posted'"/>
-                            <field name="category" readonly="state == 'posted'"/>
                             <field name="name" string="Description" readonly="state == 'posted'"/>
                             <field name="amount" readonly="state == 'posted'"/>
                             <field name="currency_id" invisible="1"/>
+                            <field name="is_employee_advance" readonly="state == 'posted'"/>
+                            <field name="employee_id"
+                                   readonly="state == 'posted'"
+                                   invisible="not is_employee_advance"
+                                   required="is_employee_advance"/>
+                            <field name="employee_advance_balance"
+                                   readonly="1"
+                                   invisible="not is_employee_advance"
+                                   string="Current Outstanding Balance"/>
                         </group>
                     </group>
                     <group string="Accounting">
@@ -190,7 +197,7 @@
                             <field name="expense_account_id" readonly="state == 'posted'"
                                    string="Expense Account (Debit)"
                                    options="{'no_create': True}"
-                                   help="Leave blank to auto-select based on category."/>
+                                   help="Leave blank to use the default expense account."/>
                         </group>
                     </group>
                     <group string="Site Procurement Reference"
@@ -223,7 +230,6 @@
                 <field name="expense_date"/>
                 <field name="name"/>
                 <field name="project_analytic_account_id"/>
-                <field name="category"/>
                 <field name="amount"/>
                 <field name="state" widget="badge"/>
             </list>

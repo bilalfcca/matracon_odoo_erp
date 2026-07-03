@@ -1,17 +1,287 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+    <!--
+        Comparative Statement PDF — reads directly from x.comparative.statement records.
+        The 'docs' variable is a recordset of x.comparative.statement.
+    -->
+    <template id="report_cs_from_cs_document">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="cs">
+                <t t-set="pr" t-value="cs.x_purchase_order_id"/>
+                <t t-set="vendors" t-value="cs.x_vendor_line_ids"/>
+                <t t-call="web.external_layout">
+                    <div class="page" style="font-family: Arial, sans-serif; font-size: 11px;">
+
+                        <!-- ── Title ── -->
+                        <div style="text-align:center; margin-bottom:14px;">
+                            <h2 style="margin:0; font-weight:bold; text-transform:uppercase;
+                                       border-bottom:2px solid #1a3a5c; padding-bottom:6px;">
+                                Rate Comparative Statement
+                            </h2>
+                            <p style="margin:6px 0 0 0; font-size:11px;">
+                                <strong>PR:</strong> <t t-esc="pr.name"/>
+                                <t t-if="pr.x_project_site_config_id">
+                                    &#160;|&#160;
+                                    <strong>Project:</strong>
+                                    <t t-esc="pr.x_project_site_config_id.name"/>
+                                </t>
+                                &#160;|&#160;
+                                <strong>Date:</strong>
+                                <t t-esc="cs.create_date" t-options='{"widget":"date"}'/>
+                                &#160;|&#160;
+                                <strong>CS Ref:</strong> <t t-esc="cs.name"/>
+                            </p>
+                            <t t-if="cs.x_recommended_vendor_id">
+                                <p style="margin:4px 0 0 0; color:#155724; font-weight:bold;">
+                                    &#9733; Recommended Vendor:
+                                    <t t-esc="cs.x_recommended_vendor_id.name"/>
+                                </p>
+                            </t>
+                        </div>
+
+                        <!-- ── Price Comparison Grid ── -->
+                        <t t-if="vendors">
+                            <!-- Collect all unique products in PR order -->
+                            <t t-set="prod_lines" t-value="pr.order_line.filtered(lambda l: l.product_id and not l.display_type)"/>
+
+                            <table style="width:100%; border-collapse:collapse; font-size:9px; margin-bottom:10px;">
+                                <thead>
+                                    <tr style="background:#1a3a5c; color:#fff;">
+                                        <th rowspan="2" style="border:1px solid #333; padding:4px; width:22px; text-align:center;">Sr</th>
+                                        <th rowspan="2" style="border:1px solid #333; padding:4px; text-align:left; min-width:120px;">Description</th>
+                                        <th rowspan="2" style="border:1px solid #333; padding:4px; text-align:center; width:40px;">UoM</th>
+                                        <th rowspan="2" style="border:1px solid #333; padding:4px; text-align:center; width:40px;">Qty</th>
+                                        <t t-foreach="vendors" t-as="vendor">
+                                            <t t-set="is_win" t-value="vendor.id == cs.x_recommended_vendor_line_id.id"/>
+                                            <th colspan="2" t-att-style="'border:1px solid #333;padding:4px;text-align:center;' + ('background:#155724;' if is_win else '')">
+                                                <t t-if="is_win">&#9733; </t>
+                                                <t t-esc="vendor.x_partner_id.name"/>
+                                                <t t-if="vendor.x_rfq_reference">
+                                                    <br/>
+                                                    <span style="font-weight:normal;font-size:8px;">
+                                                        (<t t-esc="vendor.x_rfq_reference"/>)
+                                                    </span>
+                                                </t>
+                                            </th>
+                                        </t>
+                                    </tr>
+                                    <tr style="background:#2c5282; color:#fff;">
+                                        <t t-foreach="vendors" t-as="vendor">
+                                            <th style="border:1px solid #333; padding:3px; text-align:right; font-size:8px;">Rate</th>
+                                            <th style="border:1px solid #333; padding:3px; text-align:right; font-size:8px;">Total</th>
+                                        </t>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <t t-set="seq" t-value="1"/>
+                                    <t t-foreach="prod_lines" t-as="pr_line">
+                                        <t t-set="prod" t-value="pr_line.product_id"/>
+                                        <tr>
+                                            <td style="border:1px solid #ddd; padding:3px; text-align:center;">
+                                                <t t-esc="seq"/>
+                                                <t t-set="seq" t-value="seq + 1"/>
+                                            </td>
+                                            <td style="border:1px solid #ddd; padding:3px;">
+                                                <t t-esc="prod.display_name"/>
+                                            </td>
+                                            <td style="border:1px solid #ddd; padding:3px; text-align:center;">
+                                                <t t-esc="pr_line.product_uom_id.name"/>
+                                            </td>
+                                            <td style="border:1px solid #ddd; padding:3px; text-align:right;">
+                                                <t t-esc="'{:,.2f}'.format(pr_line.x_requested_qty or pr_line.product_qty or 0)"/>
+                                            </td>
+                                            <t t-foreach="vendors" t-as="vendor">
+                                                <t t-set="vline" t-value="vendor.x_line_ids.filtered(lambda l: l.x_product_id == prod)[:1]"/>
+                                                <t t-set="is_win" t-value="vendor.id == cs.x_recommended_vendor_line_id.id"/>
+                                                <t t-if="vline">
+                                                    <td t-att-style="'border:1px solid #ddd;padding:3px;text-align:right;' + ('background:#e8f5e9;' if is_win else '')">
+                                                        <t t-esc="'{:,.2f}'.format(vline.x_unit_price)"/>
+                                                    </td>
+                                                    <td t-att-style="'border:1px solid #ddd;padding:3px;text-align:right;font-weight:bold;' + ('background:#c3e6cb;' if is_win else '')">
+                                                        <t t-esc="'{:,.2f}'.format(vline.x_total_price)"/>
+                                                    </td>
+                                                </t>
+                                                <t t-else="">
+                                                    <td colspan="2" style="border:1px solid #ddd; padding:3px; text-align:center; color:#999; font-style:italic;">
+                                                        Not Quoted
+                                                    </td>
+                                                </t>
+                                            </t>
+                                        </tr>
+                                    </t>
+                                </tbody>
+                                <tfoot style="font-weight:bold;">
+                                    <tr style="background:#e8f0fe;">
+                                        <td colspan="4" style="border:1px solid #333; padding:4px; text-align:right;">
+                                            SUB-TOTAL (Excl. GST)
+                                        </td>
+                                        <t t-foreach="vendors" t-as="vendor">
+                                            <t t-set="is_win" t-value="vendor.id == cs.x_recommended_vendor_line_id.id"/>
+                                            <td colspan="2" t-att-style="'border:1px solid #333;padding:4px;text-align:right;' + ('background:#c3e6cb;' if is_win else '')">
+                                                <t t-esc="'{:,.2f}'.format(vendor.x_total_price)"/>
+                                            </td>
+                                        </t>
+                                    </tr>
+                                    <tr style="background:#e8f0fe;">
+                                        <td colspan="4" style="border:1px solid #333; padding:4px; text-align:right;">
+                                            GST
+                                        </td>
+                                        <t t-foreach="vendors" t-as="vendor">
+                                            <t t-set="is_win" t-value="vendor.id == cs.x_recommended_vendor_line_id.id"/>
+                                            <td colspan="2" t-att-style="'border:1px solid #333;padding:4px;text-align:right;' + ('background:#c3e6cb;' if is_win else '')">
+                                                <t t-esc="'{:,.2f}'.format(vendor.x_gst_amount)"/>
+                                            </td>
+                                        </t>
+                                    </tr>
+                                    <tr style="background:#1a3a5c; color:#fff; font-size:10px;">
+                                        <td colspan="4" style="border:1px solid #333; padding:5px; text-align:right;">
+                                            GRAND TOTAL (Incl. GST)
+                                        </td>
+                                        <t t-foreach="vendors" t-as="vendor">
+                                            <t t-set="is_win" t-value="vendor.id == cs.x_recommended_vendor_line_id.id"/>
+                                            <td colspan="2" t-att-style="'border:1px solid #333;padding:5px;text-align:right;' + ('background:#155724;font-weight:bold;' if is_win else '')">
+                                                <t t-if="is_win">&#9733; </t>
+                                                <t t-esc="'{:,.2f}'.format(vendor.x_net_total)"/>
+                                            </td>
+                                        </t>
+                                    </tr>
+                                </tfoot>
+                            </table>
+
+                            <!-- ── Winner summary banner ── -->
+                            <t t-if="cs.x_recommended_vendor_line_id">
+                                <t t-set="winner" t-value="cs.x_recommended_vendor_line_id"/>
+                                <div style="margin:10px 0; padding:8px 12px; background:#fff8e1;
+                                            border:2px solid #f9a825; border-radius:4px; font-size:10px;">
+                                    <strong>&#9733; SELECTED VENDOR:</strong>
+                                    <t t-esc="winner.x_partner_id.name"/>
+                                    &#160;|&#160;
+                                    <strong>Net Total:</strong>
+                                    <t t-esc="'{:,.2f}'.format(winner.x_net_total)"/>
+                                    <t t-if="winner.x_savings_vs_highest > 0">
+                                        &#160;|&#160;
+                                        <strong>Saving vs Most Expensive:</strong>
+                                        <t t-esc="'{:,.2f}'.format(winner.x_savings_vs_highest)"/>
+                                    </t>
+                                </div>
+                            </t>
+
+                            <!-- ── Terms &amp; Conditions Comparison ── -->
+                            <h3 style="margin:14px 0 6px 0; font-size:11px; text-transform:uppercase;
+                                       border-bottom:1px solid #333; padding-bottom:3px;">
+                                Terms &amp; Conditions Comparison
+                            </h3>
+                            <table style="width:100%; border-collapse:collapse; font-size:9px; margin-bottom:10px;">
+                                <thead>
+                                    <tr style="background:#f0f0f0;">
+                                        <th style="border:1px solid #ccc; padding:4px; text-align:left; width:18%;">
+                                            Parameter
+                                        </th>
+                                        <t t-foreach="vendors" t-as="vendor">
+                                            <th style="border:1px solid #ccc; padding:4px; text-align:left;">
+                                                <t t-esc="vendor.x_partner_id.name"/>
+                                            </th>
+                                        </t>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <t t-set="terms" t-value="[
+                                        ('Brand / Origin',    [v.x_brand_origin      for v in vendors]),
+                                        ('Delivery Basis',    [dict(v._fields['x_delivery_basis'].selection).get(v.x_delivery_basis, v.x_delivery_basis or '—') for v in vendors]),
+                                        ('Lead Time',         [v.x_delivery_period   for v in vendors]),
+                                        ('Payment Terms',     [v.x_payment_term_id.name or v.x_payment_terms or '—' for v in vendors]),
+                                        ('Payment Notes',     [v.x_payment_terms     for v in vendors]),
+                                        ('Warranty',          [v.x_warranty          for v in vendors]),
+                                        ('Tax Treatment',     [v.x_tax_treatment     for v in vendors]),
+                                        ('Quote Reference',   [v.x_rfq_reference     for v in vendors]),
+                                        ('Quote Valid Until', [str(v.x_quote_validity) if v.x_quote_validity else '—' for v in vendors]),
+                                        ('Ancillaries Incl.', ['Yes' if v.x_ancillary_included else 'No' for v in vendors]),
+                                    ]"/>
+                                    <t t-foreach="terms" t-as="term">
+                                        <tr>
+                                            <td style="border:1px solid #ccc; padding:4px; font-weight:600; background:#fafafa;">
+                                                <t t-esc="term[0]"/>
+                                            </td>
+                                            <t t-foreach="term[1]" t-as="val">
+                                                <td style="border:1px solid #ccc; padding:4px;">
+                                                    <t t-esc="val or '—'"/>
+                                                </td>
+                                            </t>
+                                        </tr>
+                                    </t>
+                                </tbody>
+                            </table>
+
+                            <!-- ── Remarks per vendor ── -->
+                            <t t-set="has_remarks" t-value="any(v.x_remarks for v in vendors)"/>
+                            <t t-if="has_remarks">
+                                <h3 style="margin:14px 0 6px 0; font-size:11px; text-transform:uppercase;
+                                           border-bottom:1px solid #333; padding-bottom:3px;">
+                                    Additional Remarks
+                                </h3>
+                                <table style="width:100%; border-collapse:collapse; font-size:9px;">
+                                    <thead>
+                                        <tr style="background:#f0f0f0;">
+                                            <t t-foreach="vendors" t-as="vendor">
+                                                <th style="border:1px solid #ccc; padding:6px; text-align:left; width:33%; vertical-align:top;">
+                                                    <t t-esc="vendor.x_partner_id.name"/>
+                                                </th>
+                                            </t>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <t t-foreach="vendors" t-as="vendor">
+                                                <td style="border:1px solid #ccc; padding:6px; vertical-align:top;">
+                                                    <t t-esc="vendor.x_remarks or '—'"/>
+                                                </td>
+                                            </t>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </t>
+                        </t>
+                        <t t-else="">
+                            <p style="color:#666; font-style:italic;">
+                                No vendor quotations have been added to this Comparative Statement.
+                            </p>
+                        </t>
+
+                        <!-- ── Negotiation Notes ── -->
+                        <t t-if="cs.x_negotiation_notes">
+                            <h3 style="margin:14px 0 6px 0; font-size:11px; text-transform:uppercase;
+                                       border-bottom:1px solid #333; padding-bottom:3px;">
+                                Negotiation Notes
+                            </h3>
+                            <p style="font-size:9px; color:#444;">
+                                <t t-esc="cs.x_negotiation_notes"/>
+                            </p>
+                        </t>
+
+                        <p style="margin-top:14px; font-size:8px; color:#999;">
+                            Generated from Odoo Comparative Statement — <t t-esc="cs.name"/>
+                        </p>
+
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+
+    <!--
+        Legacy template (kept for backward compatibility with existing native-alternatives data).
+        Bound to purchase.order records with alternative_po_ids.
+    -->
     <template id="report_comparative_statement_document">
         <t t-call="web.html_container">
             <t t-foreach="docs" t-as="o">
                 <t t-set="cs" t-value="o._get_comparative_statement_data()"/>
                 <t t-call="web.external_layout">
                     <div class="page" style="font-family: Arial, sans-serif; font-size: 11px;">
-
-                        <!-- ── Title block ── -->
                         <div style="text-align: center; margin-bottom: 16px;">
                             <h2 style="margin: 0; font-weight: bold; text-transform: uppercase;
                                        border-bottom: 2px solid #000; padding-bottom: 6px;">
-                                Rate Comparative Statement
+                                Rate Comparative Statement (Legacy)
                             </h2>
                             <p style="margin: 8px 0 0 0; font-size: 12px;">
                                 <strong>PROJECT:</strong>
@@ -23,196 +293,49 @@
                                 <strong>Date:</strong>
                                 <t t-esc="cs['report_date']" t-options='{"widget": "date"}'/>
                             </p>
-                            <p style="margin: 4px 0 0 0; font-size: 10px; color: #555;">
-                                Generated from Odoo native vendor alternatives
-                                (<t t-esc="cs['vendor_count']"/> quotations)
-                            </p>
                         </div>
-
-                        <!-- ── Main comparison grid ── -->
-                        <table style="width: 100%; border-collapse: collapse; margin-bottom: 12px;
-                                      font-size: 9px;">
+                        <p style="color:#666; font-style:italic;">
+                            This is a legacy comparative statement generated from Odoo native
+                            alternative RFQs. Use the new Comparative Statement workflow for
+                            future PRs.
+                        </p>
+                        <table style="width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 9px;">
                             <thead>
                                 <tr style="background: #1a3a5c; color: #fff;">
-                                    <th rowspan="2" style="border: 1px solid #333; padding: 4px;
-                                        text-align: center; width: 24px;">Sr</th>
-                                    <th rowspan="2" style="border: 1px solid #333; padding: 4px;
-                                        text-align: left; min-width: 120px;">Description</th>
+                                    <th rowspan="2" style="border: 1px solid #333; padding: 4px; text-align: center; width: 24px;">Sr</th>
+                                    <th rowspan="2" style="border: 1px solid #333; padding: 4px; text-align: left; min-width: 120px;">Description</th>
                                     <t t-foreach="cs['vendors']" t-as="vendor">
-                                        <th colspan="2" style="border: 1px solid #333; padding: 4px;
-                                            text-align: center;">
+                                        <th colspan="2" style="border: 1px solid #333; padding: 4px; text-align: center;">
                                             <t t-esc="vendor['name']"/>
-                                            <t t-if="vendor['reference']">
-                                                <br/><span style="font-weight: normal; font-size: 8px;">
-                                                    (<t t-esc="vendor['reference']"/>)
-                                                </span>
-                                            </t>
                                         </th>
                                     </t>
                                 </tr>
                                 <tr style="background: #2c5282; color: #fff;">
                                     <t t-foreach="cs['vendors']" t-as="vendor">
-                                        <th style="border: 1px solid #333; padding: 3px; text-align: right;">
-                                            Rate</th>
-                                        <th style="border: 1px solid #333; padding: 3px; text-align: right;">
-                                            Total</th>
+                                        <th style="border: 1px solid #333; padding: 3px; text-align: right;">Rate</th>
+                                        <th style="border: 1px solid #333; padding: 3px; text-align: right;">Total</th>
                                     </t>
                                 </tr>
                             </thead>
                             <tbody>
                                 <t t-foreach="cs['line_rows']" t-as="row">
                                     <tr>
-                                        <td style="border: 1px solid #ccc; padding: 3px; text-align: center;">
-                                            <t t-esc="row['seq']"/>
-                                        </td>
-                                        <td style="border: 1px solid #ccc; padding: 3px;">
-                                            <t t-esc="row['description']"/>
-                                        </td>
+                                        <td style="border: 1px solid #ccc; padding: 3px; text-align: center;"><t t-esc="row['seq']"/></td>
+                                        <td style="border: 1px solid #ccc; padding: 3px;"><t t-esc="row['description']"/></td>
                                         <t t-foreach="row['cells']" t-as="cell">
                                             <td style="border: 1px solid #ccc; padding: 3px; text-align: right;">
-                                                <t t-if="cell['quoted']">
-                                                    <t t-esc="'{:,.2f}'.format(cell['unit_price'])"/>
-                                                </t>
-                                                <t t-else="">
-                                                    <span style="color: #999;">—</span>
-                                                </t>
+                                                <t t-if="cell['quoted']"><t t-esc="'{:,.2f}'.format(cell['unit_price'])"/></t>
+                                                <t t-else=""><span style="color: #999;">—</span></t>
                                             </td>
                                             <td style="border: 1px solid #ccc; padding: 3px; text-align: right;">
-                                                <t t-if="cell['quoted']">
-                                                    <t t-esc="'{:,.2f}'.format(cell['subtotal'])"/>
-                                                </t>
-                                                <t t-else="">
-                                                    <span style="color: #999; font-style: italic;">Not Quoted</span>
-                                                </t>
-                                            </td>
-                                        </t>
-                                    </tr>
-                                </t>
-                            </tbody>
-                            <tfoot style="font-weight: bold;">
-                                <!-- Sub-total excl. GST -->
-                                <tr style="background: #e8f0fe;">
-                                    <td colspan="2" style="border: 1px solid #333; padding: 4px; text-align: right;">
-                                        SUB-TOTAL (Excl. GST)
-                                    </td>
-                                    <t t-foreach="cs['vendor_totals']" t-as="vt">
-                                        <td colspan="2" style="border: 1px solid #333; padding: 4px; text-align: right;">
-                                            <t t-esc="'{:,.2f}'.format(vt['untaxed'])"/>
-                                        </td>
-                                    </t>
-                                </tr>
-                                <!-- GST -->
-                                <tr style="background: #e8f0fe;">
-                                    <td colspan="2" style="border: 1px solid #333; padding: 4px; text-align: right;">
-                                        GST
-                                    </td>
-                                    <t t-foreach="cs['vendor_totals']" t-as="vt">
-                                        <td colspan="2" style="border: 1px solid #333; padding: 4px; text-align: right;">
-                                            <t t-esc="'{:,.2f}'.format(vt['tax'])"/>
-                                            <span style="font-weight: normal; font-size: 8px;">
-                                                (<t t-esc="'{:.0f}'.format(vt['gst_rate'])"/>%)
-                                            </span>
-                                        </td>
-                                    </t>
-                                </tr>
-                                <!-- Grand total incl. GST -->
-                                <tr style="background: #1a3a5c; color: #fff; font-size: 10px;">
-                                    <td colspan="2" style="border: 1px solid #333; padding: 5px; text-align: right;">
-                                        GRAND TOTAL (Incl. GST)
-                                    </td>
-                                    <t t-foreach="cs['vendor_totals']" t-as="vt">
-                                        <td colspan="2" style="border: 1px solid #333; padding: 5px; text-align: right;">
-                                            <t t-if="vt['vendor_id'] == cs['lowest_vendor_id']">★ </t>
-                                            <t t-esc="'{:,.2f}'.format(vt['total'])"/>
-                                        </td>
-                                    </t>
-                                </tr>
-                            </tfoot>
-                        </table>
-
-                        <!-- ── Summary banner ── -->
-                        <div style="margin: 12px 0; padding: 10px; background: #fff8e1;
-                                    border: 2px solid #f9a825; border-radius: 4px;">
-                            <strong>★ LOWEST COMBINED TOTAL (incl. GST):</strong>
-                            <t t-esc="cs['currency'].symbol"/>
-                            <t t-esc="'{:,.2f}'.format(cs['lowest_total'])"/>
-                            <t t-if="cs['saving_vs_highest'] > 0">
-                                &#160;|&#160;
-                                <strong>Saving vs Most Expensive:</strong>
-                                <t t-esc="cs['currency'].symbol"/>
-                                <t t-esc="'{:,.2f}'.format(cs['saving_vs_highest'])"/>
-                            </t>
-                        </div>
-
-                        <!-- ── Terms &amp; conditions comparison ── -->
-                        <h3 style="margin: 16px 0 8px 0; font-size: 12px; text-transform: uppercase;
-                                   border-bottom: 1px solid #333; padding-bottom: 4px;">
-                            Terms &amp; Conditions Comparison
-                        </h3>
-                        <table style="width: 100%; border-collapse: collapse; font-size: 9px;">
-                            <thead>
-                                <tr style="background: #f0f0f0;">
-                                    <th style="border: 1px solid #ccc; padding: 4px; text-align: left;
-                                        width: 18%;">Parameter</th>
-                                    <t t-foreach="cs['vendors']" t-as="vendor">
-                                        <th style="border: 1px solid #ccc; padding: 4px; text-align: left;">
-                                            <t t-esc="vendor['name']"/>
-                                        </th>
-                                    </t>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <t t-foreach="cs['terms_table']" t-as="term">
-                                    <tr>
-                                        <td style="border: 1px solid #ccc; padding: 4px; font-weight: 600;">
-                                            <t t-esc="term['label']"/>
-                                        </td>
-                                        <t t-foreach="term['values']" t-as="val">
-                                            <td style="border: 1px solid #ccc; padding: 4px;">
-                                                <t t-esc="val"/>
+                                                <t t-if="cell['quoted']"><t t-esc="'{:,.2f}'.format(cell['subtotal'])"/></t>
+                                                <t t-else=""><span style="color: #999; font-style: italic;">Not Quoted</span></t>
                                             </td>
                                         </t>
                                     </tr>
                                 </t>
                             </tbody>
                         </table>
-
-                        <!-- ── Additional terms (free-form HTML per vendor) ── -->
-                        <t t-if="cs['has_additional_terms']">
-                            <h3 style="margin: 16px 0 8px 0; font-size: 12px; text-transform: uppercase;
-                                       border-bottom: 1px solid #333; padding-bottom: 4px;">
-                                Additional Terms &amp; Conditions
-                            </h3>
-                            <table style="width: 100%; border-collapse: collapse; font-size: 9px;">
-                                <thead>
-                                    <tr style="background: #f0f0f0;">
-                                        <t t-foreach="cs['vendor_additional_terms']" t-as="vat">
-                                            <th style="border: 1px solid #ccc; padding: 6px; text-align: left;
-                                                width: 33%; vertical-align: top;">
-                                                <t t-esc="vat['name']"/>
-                                            </th>
-                                        </t>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr>
-                                        <t t-foreach="cs['vendor_additional_terms']" t-as="vat">
-                                            <td style="border: 1px solid #ccc; padding: 6px; vertical-align: top;">
-                                                <t t-if="vat['html']">
-                                                    <div t-out="vat['html']"/>
-                                                </t>
-                                                <t t-else="">—</t>
-                                            </td>
-                                        </t>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </t>
-
-                        <p style="margin-top: 16px; font-size: 9px; color: #666;">
-                            Vendor quotations attached to each alternative RFQ in Odoo are the
-                            source documents. This statement is generated from live RFQ data.
-                        </p>
                     </div>
                 </t>
             </t>

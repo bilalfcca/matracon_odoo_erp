@@ -322,6 +322,23 @@ class PettyCashExpense(models.Model):
         help='GL account to debit when posting this expense. '
              'Leave blank to use the category-based default.',
     )
+    # ── Employee Advance ─────────────────────────────────────────────────────
+    is_employee_advance = fields.Boolean(
+        string='Employee Advance',
+        default=False,
+        help='Enable to record this petty cash payment as an advance to an employee. '
+             'The amount will be added to that employee\'s outstanding advance balance '
+             'and automatically reflected in their next salary deduction.')
+    employee_id = fields.Many2one(
+        'hr.employee', string='Employee',
+        domain="[('x_project_analytic_account_id', '=', project_analytic_account_id)]",
+        help='Employee receiving this advance.')
+    employee_advance_balance = fields.Monetary(
+        string='Current Advance Balance',
+        related='employee_id.x_advance_balance',
+        currency_field='currency_id', readonly=True,
+        help='Employee\'s outstanding advance balance before this expense.')
+
     receipt = fields.Binary(string='Receipt / Voucher')
     receipt_filename = fields.Char()
     state = fields.Selection([
@@ -375,6 +392,10 @@ class PettyCashExpense(models.Model):
         for expense in self:
             if expense.amount <= 0:
                 raise UserError(_('Expense amount must be positive.'))
+            if expense.is_employee_advance and not expense.employee_id:
+                raise UserError(_(
+                    'Please select an Employee before posting this advance.'
+                ))
             balance_before = expense.fund_id.balance
             if balance_before < expense.amount - 0.01:
                 raise UserError(_(
@@ -384,21 +405,38 @@ class PettyCashExpense(models.Model):
             expense._create_journal_entry()
             balance_after = balance_before - expense.amount
 
-            # Human-readable chatter with category label and balances
-            category_label = dict(
-                expense._fields['category'].selection
-            ).get(expense.category, expense.category)
+            # Update employee outstanding advance balance
+            if expense.is_employee_advance and expense.employee_id:
+                emp = expense.employee_id.sudo()
+                prev_balance = emp.x_advance_balance or 0.0
+                emp.x_advance_balance = prev_balance + expense.amount
+                expense.message_post(body=Markup(_(
+                    'Employee Advance posted for <b>%(emp)s</b>: '
+                    '<b>+%(sym)s %(amount)s</b>. '
+                    'Outstanding balance: %(sym)s %(prev)s → '
+                    '<b>%(sym)s %(new)s</b>'
+                )) % {
+                    'emp': emp.name,
+                    'sym': expense.currency_id.symbol,
+                    'amount': f'{expense.amount:,.2f}',
+                    'prev': f'{prev_balance:,.2f}',
+                    'new': f'{emp.x_advance_balance:,.2f}',
+                })
+
             sym = expense.currency_id.symbol
+            advance_note = ''
+            if expense.is_employee_advance and expense.employee_id:
+                advance_note = f'<br/><b>Employee Advance:</b> {expense.employee_id.name}'
             body = Markup(
                 '<b>Expense Posted</b><br/>'
-                '<b>Description:</b> {name}<br/>'
-                '<b>Category:</b> {cat}<br/>'
+                '<b>Description:</b> {name}'
+                '{advance_note}<br/>'
                 '<b>Amount:</b> {sym} {amount}<br/>'
                 '<b>Balance Before:</b> {sym} {before}<br/>'
                 '<b>Balance After:</b> {sym} {after}'
             ).format(
                 name=expense.name,
-                cat=category_label,
+                advance_note=advance_note,
                 sym=sym,
                 amount=f'{expense.amount:,.2f}',
                 before=f'{balance_before:,.2f}',

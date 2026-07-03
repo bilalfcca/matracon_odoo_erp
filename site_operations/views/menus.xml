@@ -26,6 +26,14 @@
               sequence="0"
               groups="purchase_demand_raise.group_site_store,purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin"/>
 
+    <!-- Purchase → Configuration → T&C Templates (Head Office + Admin) -->
+    <menuitem id="menu_po_terms_templates"
+              name="T&amp;C Templates"
+              parent="purchase.menu_purchase_config"
+              action="purchase_demand_raise.action_po_terms_template"
+              sequence="48"
+              groups="purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
     <!-- Purchase → Configuration → Site Project Configurations (Matracon Admin) -->
     <menuitem id="menu_project_site_config_matracon_admin"
               name="Site Project Configurations"
@@ -48,6 +56,14 @@
               action="site_operations.action_site_to_site_transfers"
               sequence="26"
               groups="purchase_demand_raise.group_site_store,purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
+    <!-- Inventory → Products (read-only browse for Site Store users) -->
+    <menuitem id="menu_site_store_products"
+              name="Products"
+              parent="stock.menu_stock_inventory_control"
+              action="stock.product_template_action_product"
+              sequence="1"
+              groups="purchase_demand_raise.group_site_store,purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
     <!-- Inventory → Reporting → S2S Material Transfer Register -->
     <menuitem id="menu_s2s_inventory_report"

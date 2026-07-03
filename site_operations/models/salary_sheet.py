@@ -96,11 +96,10 @@ class SalarySheet(models.Model):
                 gross = basic + allowances
                 wht = gross * (emp.x_wht_rate or 0.0) / 100.0
                 eobi = emp.x_eobi_amount or 0.0
-                # Use per-line advance if set (from CSV import), else employee balance
-                if att_line.x_advance_amount:
-                    advance = min(att_line.x_advance_amount, gross)
-                else:
-                    advance = min(emp.x_advance_balance or 0.0, gross)
+                # Always derive advance from employee's outstanding balance
+                # (manual Excel input is no longer used)
+                emp_advance_balance = emp.x_advance_balance or 0.0
+                advance = min(emp_advance_balance, gross)
                 deductions = wht + eobi + advance
                 net = max(gross - deductions, 0.0)
                 self.env['x.salary.sheet.line'].create({
@@ -117,6 +116,9 @@ class SalarySheet(models.Model):
                     'detail_wht': round(wht, 2),
                     'detail_eobi': round(eobi, 2),
                     'detail_advance': round(advance, 2),
+                    # Employee advance tracking
+                    'outstanding_advance': round(emp_advance_balance, 2),
+                    'advance_to_deduct': round(advance, 2),
                 })
 
     def action_refresh_from_attendance(self):
@@ -148,15 +150,42 @@ class SalarySheet(models.Model):
                 _('Approve salary sheet %s') % sheet.name)
 
     def action_ceo_approve(self):
-        """CEO approves the salary sheet — unlocks payment creation for FO."""
+        """CEO approves the salary sheet — unlocks payment creation for FO.
+
+        Automatically reduces each employee's outstanding advance balance
+        by the advance amount deducted in this salary sheet.
+        """
         for sheet in self:
             if sheet.state != 'submitted':
                 raise UserError(_('Only submitted salary sheets can be approved.'))
             sheet.state = 'approved'
-            sheet.message_post(
-                body=Markup(
-                    _('Salary sheet approved by CEO <b>%s</b>.')
-                ) % self.env.user.name)
+
+            # ── Reduce employee advance balances by the deducted amounts ──────
+            advance_log = []
+            for line in sheet.line_ids:
+                if line.advance_to_deduct > 0 and line.employee_id:
+                    emp = line.employee_id.sudo()
+                    prev = emp.x_advance_balance or 0.0
+                    emp.x_advance_balance = max(prev - line.advance_to_deduct, 0.0)
+                    # Keep detail_advance in sync (payment creation reads it)
+                    line.detail_advance = line.advance_to_deduct
+                    advance_log.append(
+                        _('%(emp)s: %(sym)s %(deducted)s deducted '
+                          '(balance %(prev)s → %(new)s)') % {
+                            'emp': emp.name,
+                            'sym': sheet.currency_id.symbol,
+                            'deducted': f'{line.advance_to_deduct:,.2f}',
+                            'prev': f'{prev:,.2f}',
+                            'new': f'{emp.x_advance_balance:,.2f}',
+                        }
+                    )
+
+            msg = Markup(_('Salary sheet approved by CEO <b>%s</b>.')) % self.env.user.name
+            if advance_log:
+                msg += Markup('<br/><b>Advance balances updated:</b><ul>%s</ul>') % Markup(
+                    ''.join(f'<li>{entry}</li>' for entry in advance_log)
+                )
+            sheet.message_post(body=msg)
             fo_users = self.env['res.users'].search([
                 ('group_ids', 'in', self.env.ref(
                     'site_operations.group_finance_ho').id),
@@ -312,7 +341,10 @@ class SalarySheetLine(models.Model):
         'x.salary.sheet', required=True, ondelete='cascade', index=True)
     employee_id = fields.Many2one('hr.employee', required=True, string='Employee')
     attendance_line_id = fields.Many2one('x.attendance.line', readonly=True)
-    paid_days = fields.Integer(string='Paid Days', readonly=True)
+    paid_days = fields.Float(
+        string='Paid Days', digits=(6, 2),
+        help='Number of paid days in the month (supports fractions for daily-wage workers, '
+             'e.g. 10.5 means 10.5 out of 30 days).')
 
     basic_salary = fields.Monetary(currency_field='currency_id')
     allowances = fields.Monetary(currency_field='currency_id')
@@ -330,6 +362,20 @@ class SalarySheetLine(models.Model):
     detail_eobi = fields.Monetary(string='EOBI', currency_field='currency_id')
     detail_advance = fields.Monetary(string='Advance Recovery', currency_field='currency_id')
 
+    # ── Employee Advance tracking ─────────────────────────────────────────────
+    outstanding_advance = fields.Monetary(
+        string='Outstanding Advance',
+        currency_field='currency_id',
+        readonly=True,
+        help='Employee\'s total outstanding advance balance at the time this '
+             'salary sheet was generated. Auto-fetched — do not edit.')
+    advance_to_deduct = fields.Monetary(
+        string='Advance to Deduct',
+        currency_field='currency_id',
+        help='Amount of outstanding advance to recover from this salary. '
+             'Pre-filled automatically; accountant may reduce for partial recovery. '
+             'Cannot exceed Outstanding Advance.')
+
     currency_id = fields.Many2one(
         related='sheet_id.currency_id', depends=['sheet_id'])
 
@@ -337,6 +383,81 @@ class SalarySheetLine(models.Model):
     def _compute_detail_basic_full(self):
         for line in self:
             line.detail_basic_full = line.employee_id.sudo().x_basic_salary or 0.0
+
+    @api.onchange('employee_id', 'paid_days')
+    def _onchange_recompute_salary(self):
+        """Auto-compute all salary fields from the employee record + paid_days.
+
+        Works for:
+        - Attendance-generated lines where the accountant adjusts paid_days.
+        - Manually added lines for employees missed in the attendance import.
+        """
+        if not self.employee_id or not self.paid_days:
+            return
+        emp = self.employee_id.sudo()
+        sheet = self.sheet_id
+        days_in_month = 30
+        if sheet and sheet.date_from:
+            days_in_month = calendar.monthrange(
+                sheet.date_from.year, sheet.date_from.month)[1]
+        factor = self.paid_days / days_in_month if days_in_month else 0.0
+        basic = (emp.x_basic_salary or 0.0) * factor
+        allowances = ((emp.x_hra or 0.0) + (emp.x_site_allowance or 0.0)) * factor
+        gross = basic + allowances
+        wht = gross * (emp.x_wht_rate or 0.0) / 100.0
+        eobi = emp.x_eobi_amount or 0.0
+        emp_advance = emp.x_advance_balance or 0.0
+        advance = min(emp_advance, gross)
+        deductions = wht + eobi + advance
+
+        self.basic_salary = round(basic, 2)
+        self.allowances = round(allowances, 2)
+        self.detail_hra = round((emp.x_hra or 0.0) * factor, 2)
+        self.detail_site_allowance = round((emp.x_site_allowance or 0.0) * factor, 2)
+        self.detail_wht = round(wht, 2)
+        self.detail_eobi = round(eobi, 2)
+        self.outstanding_advance = round(emp_advance, 2)
+        self.advance_to_deduct = round(advance, 2)
+        self.detail_advance = round(advance, 2)
+        self.deductions = round(deductions, 2)
+        self.net_payable = round(max(gross - deductions, 0.0), 2)
+
+    @api.onchange('advance_to_deduct')
+    def _onchange_advance_to_deduct(self):
+        """Recompute deductions and net payable when advance to deduct changes."""
+        for line in self:
+            if line.advance_to_deduct < 0:
+                line.advance_to_deduct = 0.0
+            if line.advance_to_deduct > line.outstanding_advance + 0.01:
+                line.advance_to_deduct = line.outstanding_advance
+                return {
+                    'warning': {
+                        'title': _('Advance Limit'),
+                        'message': _(
+                            'Advance to deduct cannot exceed the outstanding advance '
+                            'balance of %s (%.2f).'
+                        ) % (line.employee_id.name or '', line.outstanding_advance),
+                    }
+                }
+            line.detail_advance = line.advance_to_deduct
+            line.deductions = (
+                line.detail_wht + line.detail_eobi + line.advance_to_deduct)
+            line.net_payable = max(
+                line.basic_salary + line.allowances - line.deductions, 0.0)
+
+    @api.constrains('advance_to_deduct', 'outstanding_advance')
+    def _check_advance_to_deduct(self):
+        for line in self:
+            if line.advance_to_deduct < 0:
+                raise UserError(_(
+                    'Advance to deduct cannot be negative for employee %s.'
+                ) % line.employee_id.name)
+            if line.advance_to_deduct > line.outstanding_advance + 0.01:
+                raise UserError(_(
+                    'Advance to deduct (%.2f) exceeds outstanding advance balance '
+                    '(%.2f) for employee %s.'
+                ) % (line.advance_to_deduct, line.outstanding_advance,
+                     line.employee_id.name))
 
     def action_open_slip(self):
         self.ensure_one()

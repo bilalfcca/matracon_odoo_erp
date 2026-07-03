@@ -119,10 +119,12 @@
                         </div>
 
                         <!-- ── TERMS ── -->
-                        <div class="row mt-3" t-if="o.notes">
+                        <div class="row mt-3" t-if="o.note">
                             <div class="col-12">
-                                <h6 class="fw-bold">Terms &amp; Conditions</h6>
-                                <p><t t-esc="o.notes"/></p>
+                                <h5 class="fw-bold border-bottom pb-1">Terms &amp; Conditions</h5>
+                                <div style="font-size:12px; line-height:1.6;">
+                                    <t t-out="o.note"/>
+                                </div>
                             </div>
                         </div>
 

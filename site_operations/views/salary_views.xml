@@ -67,14 +67,22 @@
                     <notebook>
                         <page string="Payroll Lines">
                             <field name="line_ids" readonly="state != 'draft'">
-                                <list>
+                                <list editable="bottom">
                                     <field name="employee_id"/>
-                                    <field name="paid_days" optional="show"/>
-                                    <field name="detail_basic_full" string="Monthly Basic" optional="show"/>
-                                    <field name="basic_salary" string="Basic (Paid Days)"/>
-                                    <field name="allowances"/>
-                                    <field name="deductions"/>
-                                    <field name="net_payable"/>
+                                    <field name="paid_days" optional="show"
+                                           help="Paid days in month (supports fractions, e.g. 10.5 for daily-wage workers)"/>
+                                    <field name="detail_basic_full" string="Monthly Basic" optional="show" readonly="1"/>
+                                    <field name="basic_salary" string="Basic (Paid Days)" readonly="1"/>
+                                    <field name="allowances" readonly="1"/>
+                                    <field name="outstanding_advance"
+                                           string="Outstanding Advance"
+                                           readonly="1"
+                                           optional="show"/>
+                                    <field name="advance_to_deduct"
+                                           string="Advance to Deduct"
+                                           optional="show"/>
+                                    <field name="deductions" readonly="1"/>
+                                    <field name="net_payable" readonly="1"/>
                                     <button name="action_open_slip" type="object"
                                             string="Slip" icon="fa-file-text-o"
                                             groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
@@ -96,7 +104,8 @@
                 <sheet>
                     <group>
                         <field name="employee_id" readonly="1"/>
-                        <field name="paid_days" readonly="1"/>
+                        <field name="paid_days" readonly="1"
+                               help="Days worked this month (fractions supported for daily-wage workers)"/>
                     </group>
                     <group string="Earnings">
                         <field name="detail_basic_full" readonly="1" string="Monthly Basic (Full)"/>
@@ -108,7 +117,12 @@
                     <group string="Deductions">
                         <field name="detail_wht" readonly="1"/>
                         <field name="detail_eobi" readonly="1"/>
-                        <field name="detail_advance" readonly="1"/>
+                        <field name="outstanding_advance"
+                               readonly="1"
+                               string="Outstanding Advance (before deduction)"/>
+                        <field name="advance_to_deduct"
+                               readonly="1"
+                               string="Advance Recovered"/>
                         <field name="deductions" readonly="1"/>
                     </group>
                     <group>

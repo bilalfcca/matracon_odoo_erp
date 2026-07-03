@@ -175,6 +175,24 @@ class PurchaseOrder(models.Model):
         ('procurement_ho', 'Procurement Officer'),
     ], string='PR Origin', default='site_store', tracking=True)
 
+    # ── T&C Template ──────────────────────────────────────────────────────────
+    x_terms_template_id = fields.Many2one(
+        'x.po.terms.template',
+        string='T&C Template',
+        domain="[('active', '=', True)]",
+        tracking=True,
+        copy=False,
+        help='Select a Terms & Conditions template to auto-fill the '
+             'Terms & Conditions field below. The populated text remains '
+             'fully editable per order after selection.',
+    )
+
+    @api.onchange('x_terms_template_id')
+    def _onchange_terms_template_id(self):
+        """Copy template content into the order's Terms & Conditions field."""
+        if self.x_terms_template_id:
+            self.note = self.x_terms_template_id.content
+
     # ── Computed helper: can Submit button be enabled? ────────────────────────
     x_can_submit = fields.Boolean(compute='_compute_can_submit')
 
@@ -911,6 +929,96 @@ class PurchaseOrder(models.Model):
             'view_mode': 'form',
             'target': 'current',
         }
+
+    def action_confirm_cs(self, cs):
+        """Called from CS.action_confirm() — set vendor+prices on PR and route to CEO.
+
+        This replaces the manual 'Approve & Submit to CEO' flow when a Comparative
+        Statement is used: the CS sets the vendor and transfers prices, then advances
+        the PR to the 'ceo_final' state.
+        """
+        self.ensure_one()
+        if self.x_pr_state != 'submitted':
+            raise UserError(_(
+                'PR must be in Submitted state to confirm the Comparative Statement.\n'
+                'Current state: %s'
+            ) % dict(self._fields['x_pr_state'].selection).get(
+                self.x_pr_state, self.x_pr_state
+            ))
+
+        recommended = cs.x_recommended_vendor_line_id
+        if not recommended or not recommended.x_partner_id:
+            raise UserError(_('No recommended vendor is set on the Comparative Statement.'))
+
+        # ── Set vendor on PR ──────────────────────────────────────────────────
+        self.partner_id = recommended.x_partner_id
+
+        # ── Copy winning vendor prices to PR order lines ─────────────────────
+        for cs_line in recommended.x_line_ids:
+            if not cs_line.x_product_id:
+                continue
+            pr_line = self.order_line.filtered(
+                lambda l, p=cs_line.x_product_id: l.product_id == p and not l.display_type
+            )[:1]
+            if pr_line and cs_line.x_unit_price:
+                pr_line.price_unit = cs_line.x_unit_price
+
+        # ── Auto-set recommended qty = requested if not set by HO ────────────
+        # (CEO will still decide final approved qty per line)
+        for line in self.order_line.filtered(lambda l: l.product_id and not l.display_type):
+            if not line.x_recommended_qty and line.x_requested_qty:
+                line.x_recommended_qty = line.x_requested_qty
+
+        # ── Advance PR state ──────────────────────────────────────────────────
+        self.write({
+            'x_ho_status': 'approved',
+            'x_pr_state': 'ceo_final',
+        })
+
+        # ── Close any pending HO activities ──────────────────────────────────
+        self.activity_ids.filtered(
+            lambda a: a.user_id == self.env.user
+        ).action_feedback(
+            feedback=_('Approved via Comparative Statement — Vendor: %s')
+            % recommended.x_partner_id.name
+        )
+
+        self.message_post(
+            body=Markup(
+                '✅ <b>Comparative Statement confirmed</b> by <b>%(user)s</b>.<br/>'
+                'Selected vendor: <b>%(vendor)s</b>.<br/>'
+                'PR routed to CEO for final approval.'
+            ) % {
+                'user': self.env.user.name,
+                'vendor': recommended.x_partner_id.name,
+            },
+            subtype_xmlid='mail.mt_log_note',
+        )
+
+        # ── Schedule CEO activities ───────────────────────────────────────────
+        ceo_users = self._get_group_users('purchase_demand_raise.group_ceo_approval')
+        for user in ceo_users:
+            self.activity_schedule(
+                'mail.mail_activity_data_todo',
+                summary=_('Final Approval Required: %s') % self.name,
+                note=_(
+                    'HO approved via Comparative Statement and recommended %(vendor)s. '
+                    'Please review quantities and give final CEO approval.'
+                ) % {'vendor': recommended.x_partner_id.name},
+                user_id=user.id,
+            )
+
+        # ── Notify CEO ────────────────────────────────────────────────────────
+        ceo_partners = self._get_group_partners('purchase_demand_raise.group_ceo_approval')
+        self._notify_partners(
+            ceo_partners,
+            Markup(
+                '📋 <b>Action Required — Final Approval: %(pr)s</b><br/>'
+                'Procurement HO confirmed the Comparative Statement and '
+                'recommended <b>%(vendor)s</b> as the vendor.<br/>'
+                'Please review quantities and give final CEO approval.'
+            ) % {'pr': self.name, 'vendor': recommended.x_partner_id.name},
+        )
 
     # ── Internal PR Print Report ──────────────────────────────────────────────
     def action_print_pr_internal(self):

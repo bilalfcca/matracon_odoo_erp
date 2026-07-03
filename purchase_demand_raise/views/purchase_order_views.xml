@@ -358,7 +358,7 @@
     </record>
 
     <!-- ═══════════════════════════════════════
-         SMART BUTTON — Comparative Statement PDF (native alternatives)
+         SMART BUTTON — Comparative Statement (CS-model based)
          ═══════════════════════════════════════ -->
     <record id="view_purchase_order_buttons_cs" model="ir.ui.view">
         <field name="name">purchase.order.buttons.cs</field>
@@ -366,25 +366,13 @@
         <field name="inherit_id" ref="purchase.purchase_order_form"/>
         <field name="arch" type="xml">
             <xpath expr="//div[@name='button_box']" position="inside">
-                <!-- Legacy manual CS (optional) -->
+                <!-- Primary CS button: opens / creates the CS for this PR -->
                 <button name="action_open_comparative_statement"
                         type="object"
                         class="oe_stat_button"
-                        icon="fa-list-alt"
-                        groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,base.group_system"
-                        invisible="x_is_site_store or x_has_tender_alternatives or x_pr_state not in ('submitted','ceo_final','po_locked')">
-                    <div class="o_field_widget o_stat_info">
-                        <span class="o_stat_text">Manual</span>
-                        <span class="o_stat_text">CS Entry</span>
-                    </div>
-                </button>
-                <!-- Native alternatives → PDF -->
-                <button name="action_print_comparative_statement"
-                        type="object"
-                        class="oe_stat_button"
                         icon="fa-balance-scale"
-                        groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,base.group_system"
-                        invisible="not x_has_tender_alternatives or x_is_site_store">
+                        groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"
+                        invisible="x_is_site_store or x_pr_state not in ('submitted','ceo_final','po_locked')">
                     <div class="o_field_widget o_stat_info">
                         <span class="o_stat_text">Comparative</span>
                         <span class="o_stat_text">Statement</span>
@@ -512,6 +500,29 @@
                 <attribute name="invisible">state not in ('purchase', 'done') or x_pr_state not in ('po_locked', 'dispatched')</attribute>
             </xpath>
 
+        </field>
+    </record>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         T&C TEMPLATE SELECTOR — injected above the note field
+         Visible to Procurement HO, Head Office, CEO, and Admin only.
+         Site Store does not select templates (they don't create confirmed POs).
+         ═══════════════════════════════════════════════════════════════════ -->
+    <record id="view_purchase_order_form_tc_template" model="ir.ui.view">
+        <field name="name">purchase.order.form.tc.template</field>
+        <field name="model">purchase.order</field>
+        <field name="inherit_id" ref="purchase.purchase_order_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='note']" position="before">
+                <group invisible="x_is_site_store"
+                       groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system">
+                    <field name="x_terms_template_id"
+                           string="T&amp;C Template"
+                           placeholder="Select a template to auto-fill Terms &amp; Conditions…"
+                           options="{'no_create': True}"
+                           readonly="state in ('purchase', 'done', 'cancel')"/>
+                </group>
+            </xpath>
         </field>
     </record>
 

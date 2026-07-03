@@ -10,6 +10,8 @@
         'security/record_rules.xml',
         'data/analytic_accounts.xml',
         'data/sync_alternatives.xml',
+        'data/po_terms_templates.xml',
+        'views/po_terms_template_views.xml',
         'views/project_site_config_views.xml',
         'views/purchase_order_views.xml',
         'views/purchase_order_list_view.xml',

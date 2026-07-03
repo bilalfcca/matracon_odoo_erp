@@ -1,3 +1,4 @@
+from . import po_terms_template
 from . import project_site_config
 from . import res_users
 from . import purchase_order
