@@ -368,9 +368,7 @@ class PettyCashExpense(models.Model):
         if 'fund_id' in fields_list and not res.get('fund_id'):
             analytic = self.env.user.sudo().x_default_analytic_account_id
             if analytic:
-                fund = self.env['x.petty.cash.fund'].sudo().search([
-                    ('project_analytic_account_id', '=', analytic.id)
-                ], limit=1)
+                fund = self.env['x.petty.cash.fund'].sudo().get_or_create_for_project(analytic)
                 if fund:
                     res['fund_id'] = fund.id
         return res
