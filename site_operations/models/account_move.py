@@ -249,6 +249,14 @@ class AccountMoveSiteOps(models.Model):
             projects._compute_financial_completion_pct()
 
     def action_post(self):
+        # ── Auto-fill invoice_date_due so payment-term lines always carry a date ──
+        # The due date field is hidden from site accountants in the vendor-bill form.
+        # Odoo's compute defaults to today(), but as a safeguard we ensure
+        # invoice_date_due is always populated before posting so the payment_term
+        # line's date_maturity is never NULL, avoiding constraint errors.
+        for move in self.filtered(lambda m: m.is_invoice() and not m.invoice_date_due):
+            move.invoice_date_due = move.invoice_date or fields.Date.context_today(self)
+
         # ── Bill Copy mandatory for vendor bills (not system-generated backcharges) ──
         # Skip during module installation / demo-data loading so that Odoo's own
         # demo fixtures (account_demo.py) are not blocked by this custom check.
