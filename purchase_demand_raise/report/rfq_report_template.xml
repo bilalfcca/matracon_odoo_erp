@@ -5,39 +5,142 @@
             <t t-foreach="docs" t-as="o">
                 <t t-call="web.external_layout">
                     <div class="page">
-                        <h2>Request for Quotation</h2>
-                        <p><strong>Reference:</strong> <t t-esc="o.name"/></p>
-                        <p><strong>Date:</strong> <t t-esc="o.date_order" t-options='{"widget": "date"}'/></p>
-                        <p t-if="o.date_approve"><strong>Order Deadline:</strong> <t t-esc="o.date_approve" t-options='{"widget": "date"}'/></p>
 
-                        <table class="table table-sm o_main_table">
-                            <thead>
-                                <tr>
-                                    <th>Product</th>
-                                    <th>Quantity</th>
-                                    <th>Unit of Measure</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <t t-foreach="o.order_line" t-as="line">
+                        <!-- ── TITLE ── -->
+                        <div class="row mb-3">
+                            <div class="col-12 text-center">
+                                <h2 class="fw-bold">REQUEST FOR QUOTATION</h2>
+                            </div>
+                        </div>
+
+                        <!-- ── HEADER INFO ── -->
+                        <div class="row mb-3">
+                            <div class="col-6">
+                                <table class="table table-sm table-borderless">
                                     <tr>
-                                        <td><t t-esc="line.product_id.name"/></td>
-                                        <td>
-                                            <!-- RFQ cascade: recommended → requested -->
-                                            <t t-if="line.x_recommended_qty > 0">
-                                                <t t-esc="line.x_recommended_qty"/>
-                                            </t>
-                                            <t t-else="">
-                                                <t t-esc="line.x_requested_qty or line.product_qty"/>
-                                            </t>
-                                        </td>
-                                        <td><t t-esc="line.product_uom_id.name"/></td>
+                                        <td class="fw-bold" style="width:42%">RFQ Reference:</td>
+                                        <td><t t-esc="o.name"/></td>
                                     </tr>
+                                    <tr>
+                                        <td class="fw-bold">Date:</td>
+                                        <td><t t-esc="o.date_order" t-options='{"widget": "date"}'/></td>
+                                    </tr>
+                                    <tr t-if="o.date_approve">
+                                        <td class="fw-bold">Deadline:</td>
+                                        <td><t t-esc="o.date_approve" t-options='{"widget": "date"}'/></td>
+                                    </tr>
+                                    <tr t-if="o.x_category_id">
+                                        <td class="fw-bold">Category:</td>
+                                        <td><t t-esc="o.x_category_id.name"/></td>
+                                    </tr>
+                                    <tr t-if="o.x_project_analytic_account_id">
+                                        <td class="fw-bold">Project:</td>
+                                        <td><t t-esc="o.x_project_analytic_account_id.name"/></td>
+                                    </tr>
+                                </table>
+                            </div>
+                            <div class="col-6" t-if="o.partner_id">
+                                <div class="fw-bold mb-1">To:</div>
+                                <div class="fw-semibold"><t t-esc="o.partner_id.name"/></div>
+                                <t t-if="o.partner_id.street">
+                                    <div><t t-esc="o.partner_id.street"/></div>
                                 </t>
-                            </tbody>
-                        </table>
+                                <t t-if="o.partner_id.city or o.partner_id.state_id">
+                                    <div>
+                                        <t t-esc="o.partner_id.city or ''"/>
+                                        <t t-if="o.partner_id.city and o.partner_id.state_id">, </t>
+                                        <t t-esc="o.partner_id.state_id.name or ''"/>
+                                    </div>
+                                </t>
+                                <t t-if="o.partner_id.phone or o.partner_id.mobile">
+                                    <div>Tel: <t t-esc="o.partner_id.phone or o.partner_id.mobile"/></div>
+                                </t>
+                                <t t-if="o.partner_id.email">
+                                    <div>Email: <t t-esc="o.partner_id.email"/></div>
+                                </t>
+                            </div>
+                        </div>
 
-                        <!-- NO pricing, NO analytic, NO internal fields on this report -->
+                        <!-- ── FORMAL LETTER INTRO ── -->
+                        <div class="row mb-3">
+                            <div class="col-12">
+                                <p style="font-size:12px;margin-bottom:6px;">Dear Sir/Madam,</p>
+                                <p style="font-size:12px;margin-bottom:6px;">
+                                    We are pleased to invite your quotation for the supply of the following
+                                    materials/services. Please provide your best competitive rates against each
+                                    item listed below and return the completed form at the earliest.
+                                </p>
+                                <p style="font-size:12px;margin-bottom:0;">
+                                    Kindly include the following in your quotation:
+                                    unit rates, delivery period, warranty details, validity of the offer,
+                                    and installation/testing charges (if applicable).
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- ── LINE ITEMS ── -->
+                        <div class="row mb-3">
+                            <div class="col-12">
+                                <table class="table table-sm table-bordered o_main_table">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th style="width:4%">#</th>
+                                            <th style="width:30%">Product / Description</th>
+                                            <th style="width:10%" class="text-center">UoM</th>
+                                            <th style="width:11%" class="text-center">Quantity</th>
+                                            <th style="width:15%" class="text-end">Unit Price (PKR)</th>
+                                            <th style="width:12%" class="text-center">Tax %</th>
+                                            <th style="width:18%" class="text-end">Total (PKR)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <t t-set="line_no" t-value="1"/>
+                                        <t t-foreach="o.order_line" t-as="line">
+                                            <!-- RFQ qty cascade: recommended → requested → product_qty -->
+                                            <t t-set="rfq_qty"
+                                               t-value="line.x_recommended_qty if (line.x_recommended_qty or 0) > 0
+                                                        else (line.x_requested_qty if (line.x_requested_qty or 0) > 0
+                                                        else (line.product_qty or 0))"/>
+                                            <tr>
+                                                <td class="text-center">
+                                                    <t t-esc="line_no"/>
+                                                    <t t-set="line_no" t-value="line_no + 1"/>
+                                                </td>
+                                                <td>
+                                                    <span t-esc="line.product_id.display_name"/>
+                                                    <t t-if="line.name and line.name != line.product_id.display_name">
+                                                        <br/><small class="text-muted"><t t-esc="line.name"/></small>
+                                                    </t>
+                                                </td>
+                                                <td class="text-center">
+                                                    <t t-esc="line.product_uom_id.name"/>
+                                                </td>
+                                                <td class="text-center fw-bold">
+                                                    <t t-esc="'%.4g' % rfq_qty"/>
+                                                </td>
+                                                <!-- Unit Price, Tax %, Total: intentionally BLANK
+                                                     Vendor fills these in when returning their quote. -->
+                                                <td></td>
+                                                <td></td>
+                                                <td></td>
+                                            </tr>
+                                        </t>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- ── FOOTER NOTE ── -->
+                        <div class="row">
+                            <div class="col-12">
+                                <p class="text-muted" style="font-size:11px;">
+                                    Please provide your best quotation along with technical specifications,
+                                    delivery period, warranty details, and validity of offer.
+                                    For queries, contact Matracon Pakistan (Pvt.) Limited Procurement Department.
+                                </p>
+                            </div>
+                        </div>
+
                     </div>
                 </t>
             </t>

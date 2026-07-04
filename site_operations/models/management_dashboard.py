@@ -56,6 +56,9 @@ class ManagementDashboard(models.TransientModel):
     kpi_petty_cash = fields.Monetary(readonly=True, currency_field='currency_id')
     kpi_vendor_liability = fields.Monetary(readonly=True, currency_field='currency_id')
     kpi_sub_liability = fields.Monetary(readonly=True, currency_field='currency_id')
+    kpi_inventory_value = fields.Monetary(
+        string='Site Inventory Value', readonly=True, currency_field='currency_id',
+        help='Total value of site-store inventory based on posted vendor bills from GRN receipts (at cost, excl. tax).')
 
     # ── Bank guarantee KPIs ──────────────────────────────────────────────────
     kpi_bg_total_facility = fields.Monetary(readonly=True, currency_field='currency_id')
@@ -116,6 +119,9 @@ class ManagementDashboard(models.TransientModel):
     ipc_line_ids = fields.One2many(
         'x.management.dashboard.ipc.line', 'dashboard_id',
         string='Subcontractor IPCs', readonly=True)
+    inventory_line_ids = fields.One2many(
+        'x.management.dashboard.inventory.line', 'dashboard_id',
+        string='Inventory by Project', readonly=True)
 
     _FILTER_FIELDS = frozenset({
         'filter_dashboard_tab', 'filter_scope', 'filter_project_id',
@@ -481,6 +487,100 @@ class ManagementDashboard(models.TransientModel):
             'attendance_line_ids': attendance_lines,
         }
 
+    def _liability_lines_from_bills(self, bills):
+        """Build vendor/sub liability partner lines from a bill recordset.
+
+        Used in period-filter mode instead of the liability-sheet aggregation
+        so that embedded liability tables also reflect the selected period.
+        Returns (vendor_lines, sub_lines) — same format as
+        ``_liability_lines_for_analytics``.
+        """
+        currency = self.env.company.currency_id
+        partner_map = {}
+        for bill in bills:
+            if not bill.partner_id:
+                continue
+            pid = bill.partner_id.id
+            is_sub = self._is_subcontractor(bill.partner_id)
+            key = (pid, is_sub)
+            if key not in partner_map:
+                partner_map[key] = {
+                    'partner_id': pid,
+                    'partner_name': bill.partner_id.display_name,
+                    'partner_type': 'subcontractor' if is_sub else 'vendor',
+                    'category_label': (
+                        bill.partner_id.category_id[:1].name
+                        if bill.partner_id.category_id else ''
+                    ),
+                    'total_value': 0.0,
+                    'paid_amount': 0.0,
+                    'liability_amount': 0.0,
+                    'currency_id': currency.id,
+                }
+            residual = abs(bill.amount_residual)
+            partner_map[key]['total_value'] += bill.amount_total
+            partner_map[key]['paid_amount'] += bill.amount_total - residual
+            partner_map[key]['liability_amount'] += residual
+        vendor_lines = [v for v in partner_map.values() if v['partner_type'] == 'vendor']
+        sub_lines = [v for v in partner_map.values() if v['partner_type'] == 'subcontractor']
+        return vendor_lines, sub_lines
+
+    def _inventory_kpis(self, analytics, date_from=None, date_to=None):
+        """Compute site-store inventory value per project.
+
+        Source: posted vendor bills that are linked to a Purchase Order
+        (``x_purchase_order_id`` set).  A bill linked to a PO means it was
+        created for material actually received via GRN at the site store.
+        We sum ``amount_untaxed`` (cost of goods, excluding tax) per project
+        analytic account.
+
+        When ``date_from`` / ``date_to`` are supplied the query is restricted
+        to bills whose ``invoice_date`` falls within that range, so the
+        inventory card reflects the selected period rather than all-time.
+
+        Returns a dict with keys:
+          ``kpi_inventory_value``  – company-wide total
+          ``inventory_line_ids``   – list of per-project dicts (ready for O2M)
+        """
+        if not analytics:
+            return {'kpi_inventory_value': 0.0, 'inventory_line_ids': []}
+
+        currency = self.env.company.currency_id
+        bill_domain = [
+            ('move_type', '=', 'in_invoice'),
+            ('state', '=', 'posted'),
+            ('x_purchase_order_id', '!=', False),
+            ('x_project_analytic_account_id', 'in', analytics.ids),
+        ]
+        if date_from:
+            bill_domain.append(('invoice_date', '>=', date_from))
+        if date_to:
+            bill_domain.append(('invoice_date', '<=', date_to))
+        bills = self.env['account.move'].sudo().search(bill_domain)
+
+        # Aggregate by analytic account
+        by_project = {}  # {analytic_id: {project_name, inventory_value, bill_count}}
+        for bill in bills:
+            aid = bill.x_project_analytic_account_id.id
+            if not aid:
+                continue
+            if aid not in by_project:
+                by_project[aid] = {
+                    'project_name': bill.x_project_analytic_account_id.name or '',
+                    'analytic_account_id': aid,
+                    'inventory_value': 0.0,
+                    'bill_count': 0,
+                    'currency_id': currency.id,
+                }
+            by_project[aid]['inventory_value'] += bill.amount_untaxed
+            by_project[aid]['bill_count'] += 1
+
+        total = sum(v['inventory_value'] for v in by_project.values())
+        return {
+            'kpi_inventory_value': total,
+            'inventory_line_ids': list(by_project.values()),
+        }
+
     def _compute_kpi_data(self):
         self.ensure_one()
         user = self.env.user
@@ -498,6 +598,13 @@ class ManagementDashboard(models.TransientModel):
         vendor_liability = 0.0
         sub_liability = 0.0
         petty_cash_total = 0.0
+
+        # Pre-compute inventory values for all analytics at once (single query)
+        inventory_data = self._inventory_kpis(analytics, date_from, date_to)
+        inv_by_project = {
+            line['analytic_account_id']: line['inventory_value']
+            for line in inventory_data['inventory_line_ids']
+        }
 
         project_line_vals = []
         for project in projects:
@@ -533,6 +640,8 @@ class ManagementDashboard(models.TransientModel):
                 'bg_status': bg_status,
                 'bg_amount': bg_amount,
                 'petty_cash_balance': pc_balance,
+                'inventory_value': inv_by_project.get(
+                    project.x_analytic_account_id.id, 0.0),
                 'contract_value': project.x_contract_value,
                 'billed_to_client': project.x_billed_to_client,
                 'work_completion_pct': project.x_work_completion_pct,
@@ -549,7 +658,47 @@ class ManagementDashboard(models.TransientModel):
             payments_made = total_spent_lifetime
 
         bank_total, bank_line_vals = self._bank_balances()
-        vendor_lines, sub_lines = self._liability_lines_for_analytics(analytics)
+
+        # ── Period-override: when a date range is active, replace lifetime KPIs ──
+        # with values derived from vendor bills whose invoice_date falls in the
+        # selected period, so that custom / monthly / quarterly / yearly filters
+        # produce visibly different results for every financial metric.
+        if date_from or date_to:
+            _pd = [('move_type', '=', 'in_invoice'), ('state', '=', 'posted')]
+            if analytics:
+                _pd.append(('x_project_analytic_account_id', 'in', analytics.ids))
+            if date_from:
+                _pd.append(('invoice_date', '>=', date_from))
+            if date_to:
+                _pd.append(('invoice_date', '<=', date_to))
+            _pbills = self.env['account.move'].sudo().search(_pd)
+
+            vendor_liability = sum(
+                b.amount_total for b in _pbills
+                if not self._is_subcontractor(b.partner_id))
+            sub_liability = sum(
+                b.amount_total for b in _pbills
+                if self._is_subcontractor(b.partner_id))
+            total_liabilities = vendor_liability + sub_liability
+
+            # Period net cashflow (inflows minus outflows)
+            kpi_net_balance = payments_received - payments_made
+
+            # Liability partner breakdown from bills (replaces sheet-based lines)
+            vendor_lines, sub_lines = self._liability_lines_from_bills(_pbills)
+
+            # Update per-project total_liability in project summary lines
+            _bt = {}
+            for _b in _pbills:
+                _aid = _b.x_project_analytic_account_id.id
+                if _aid:
+                    _bt[_aid] = _bt.get(_aid, 0.0) + _b.amount_total
+            for _pv in project_line_vals:
+                _pv['total_liability'] = _bt.get(_pv.get('analytic_account_id'), 0.0)
+        else:
+            # Lifetime/current-state mode
+            kpi_net_balance = funds_received - total_spent_lifetime
+            vendor_lines, sub_lines = self._liability_lines_for_analytics(analytics)
 
         facilities = self.env['x.bank.guarantee.facility'].sudo().search([])
         bg_total_facility = sum(facilities.mapped('total_limit'))
@@ -667,7 +816,7 @@ class ManagementDashboard(models.TransientModel):
             'kpi_total_liabilities': total_liabilities,
             'kpi_payments_made': payments_made,
             'kpi_payments_received': payments_received,
-            'kpi_net_balance': funds_received - total_spent_lifetime,
+            'kpi_net_balance': kpi_net_balance,
             'kpi_bank_balance': bank_total,
             'kpi_project_available': available_total,
             'kpi_petty_cash': petty_cash_total,
@@ -698,6 +847,8 @@ class ManagementDashboard(models.TransientModel):
             'kpi_capacity_utilization_pct': attendance_data['kpi_capacity_utilization_pct'],
             'attendance_line_ids': attendance_data['attendance_line_ids'],
             'ipc_line_ids': ipc_lines,
+            'kpi_inventory_value': inventory_data['kpi_inventory_value'],
+            'inventory_line_ids': inventory_data['inventory_line_ids'],
         }
 
     @api.model
@@ -706,7 +857,7 @@ class ManagementDashboard(models.TransientModel):
         line_fields = {
             'project_line_ids', 'vendor_liability_line_ids', 'sub_liability_line_ids',
             'bank_line_ids', 'bg_facility_line_ids', 'bg_project_line_ids',
-            'attendance_line_ids', 'ipc_line_ids',
+            'attendance_line_ids', 'ipc_line_ids', 'inventory_line_ids',
         }
         write_vals = {}
         for fname, val in data.items():
@@ -740,7 +891,7 @@ class ManagementDashboard(models.TransientModel):
         line_fields = {
             'project_line_ids', 'vendor_liability_line_ids', 'sub_liability_line_ids',
             'bank_line_ids', 'bg_facility_line_ids', 'bg_project_line_ids',
-            'attendance_line_ids', 'ipc_line_ids',
+            'attendance_line_ids', 'ipc_line_ids', 'inventory_line_ids',
         }
         for fname, val in data.items():
             if fname in line_fields:
@@ -992,6 +1143,24 @@ class ManagementDashboard(models.TransientModel):
             'name': _('Tax Notices & Orders'),
             'res_model': 'x.tax.notice.order',
             'view_mode': 'list,form',
+        }
+
+    def action_open_inventory_bills(self):
+        """Drilldown: open posted PO-linked vendor bills for site-store inventory."""
+        analytics = self._active_analytic_accounts()
+        domain = [
+            ('move_type', '=', 'in_invoice'),
+            ('state', '=', 'posted'),
+            ('x_purchase_order_id', '!=', False),
+        ]
+        if analytics:
+            domain.append(('x_project_analytic_account_id', 'in', analytics.ids))
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Site Store — Vendor Bills (Inventory)'),
+            'res_model': 'account.move',
+            'view_mode': 'list,form',
+            'domain': domain,
         }
 
     def action_open_project_line(self):

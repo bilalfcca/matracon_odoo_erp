@@ -62,6 +62,15 @@ class AccountPaymentSiteOps(models.Model):
         ('petty_cash', 'Petty Cash'),
     ], string='Payment Category', default='vendor', tracking=True)
 
+    x_is_ho_advance = fields.Boolean(
+        string='HO Advance to Subcontractor',
+        default=False,
+        tracking=True,
+        help='Tick when this outbound payment is an HO advance disbursed directly '
+             'to a subcontractor.  On posting, an advance record is auto-created '
+             'and linked to the IPC advance tracker.',
+    )
+
     x_ceo_approval_state = fields.Selection([
         ('not_required', 'Not Required'),
         ('pending', 'Pending CEO'),
@@ -161,6 +170,18 @@ class AccountPaymentSiteOps(models.Model):
         readonly=True, copy=False,
         help='The vendor payment from which this WHT payment was generated.')
 
+    # Separate payee field for WHT companion payments.
+    # Kept distinct from partner_id so it is always editable regardless of
+    # payment state — FO may need to select the correct FBR account even
+    # after the payment is confirmed.  An onchange keeps partner_id in sync.
+    x_payee_id = fields.Many2one(
+        'res.partner',
+        string='Payee',
+        domain="['|', ('parent_id', '=', False), ('is_company', '=', True)]",
+        tracking=True,
+        help='Payee for WHT companion payments (FBR or alternate entity).',
+    )
+
     # Journal entry created to debit vendor AP for WHT + Retention deductions.
     # This reduces the vendor's balance in the partner ledger by the deducted amounts
     # and creates a Retention Payable back to the same subcontractor.
@@ -176,6 +197,21 @@ class AccountPaymentSiteOps(models.Model):
     x_allocation_ids = fields.One2many(
         'x.payment.project.allocation', 'payment_id',
         string='Fund Allocation')
+
+    # ── Multi-bank source tracking ────────────────────────────────────────────
+    x_source_journal_ids = fields.Many2many(
+        'account.journal',
+        'payment_source_journal_rel',
+        'payment_id', 'journal_id',
+        string='Source Banks',
+        domain="[('type', 'in', ('bank', 'cash'))]",
+        help='Bank / cash journals from which this payment is funded. '
+             'The first journal is also set as the primary posting journal.',
+    )
+    x_bank_allocation_ids = fields.One2many(
+        'x.payment.bank.allocation', 'payment_id',
+        string='Bank Allocations',
+    )
 
     x_available_bank_balance = fields.Float(
         string='Available Bank Balance',
@@ -415,6 +451,63 @@ class AccountPaymentSiteOps(models.Model):
                     'allocation_amount': 0.0,
                 }))
         self.x_allocation_ids = lines
+
+    @api.onchange('x_payee_id')
+    def _onchange_payee_sync_partner(self):
+        """Keep partner_id in sync with x_payee_id on WHT companion payments."""
+        if self.x_origin_payment_id and self.x_payee_id:
+            self.partner_id = self.x_payee_id
+
+    @api.onchange('x_bank_allocation_ids')
+    def _onchange_bank_allocations_set_journal(self):
+        """Auto-set journal_id from the first bank allocation line.
+
+        Since journal_id is hidden from the form (banks are selected via the
+        Bank Fund tab rows), we derive the primary posting journal from the
+        first allocation. When the journal changes, payment_method_line_id is
+        cleared so Odoo's own onchange picks a valid method for the new journal
+        — this avoids the "payment method not available" validation error.
+        """
+        if self.x_bank_allocation_ids:
+            first_journal = self.x_bank_allocation_ids[0].journal_id
+            if first_journal and first_journal != self.journal_id:
+                self.journal_id = first_journal
+                self.payment_method_line_id = False  # let Odoo re-pick for new journal
+        else:
+            if self.journal_id:
+                self.journal_id = False
+                self.payment_method_line_id = False
+
+    @api.onchange('x_source_journal_ids')
+    def _onchange_source_journals_sync_allocations(self):
+        """Sync bank allocation lines with the selected source journals.
+
+        NOTE: x_source_journal_ids is hidden from the payment form.
+        Banks are added directly as rows in the Bank Fund tab.
+        This onchange is kept for backward compatibility / programmatic use only.
+        It does NOT auto-set journal_id to avoid invalidating the payment
+        method line (which caused: "The selected payment method is not
+        available for this payment").
+        """
+        existing = {
+            a.journal_id.id: a
+            for a in self.x_bank_allocation_ids
+            if a.journal_id
+        }
+        lines = []
+        BankAlloc = self.env['x.payment.bank.allocation']
+        for journal in self.x_source_journal_ids:
+            if journal.id in existing:
+                lines.append((4, existing[journal.id].id))
+            else:
+                bal = BankAlloc._get_journal_balance(journal)
+                lines.append((0, 0, {
+                    'journal_id': journal.id,
+                    'available_balance': bal,
+                    'allocation_amount': 0.0,
+                }))
+        self.x_bank_allocation_ids = lines
+        # journal_id is NOT auto-set here — FO selects it manually on the form.
 
     @api.onchange('x_liability_sheet_id')
     def _onchange_liability_sheet_project(self):
@@ -861,6 +954,53 @@ class AccountPaymentSiteOps(models.Model):
                             (emp.x_advance_balance or 0.0) - line.detail_advance, 0.0)
                         emp.write({'x_advance_balance': new_balance})
 
+    def _matracon_confirm_ho_advance_on_post(self):
+        """Auto-create and confirm an x.subcontractor.ho.advance record when
+        this payment is posted with x_is_ho_advance = True.
+
+        Also confirms any draft advance that was pre-linked to this payment
+        (legacy manual-link path).
+
+        Called from action_post after the normal payment posting hooks.
+        No changes to the payment flow — CEO approval on the payment covers
+        the advance authorisation.
+        """
+        self.ensure_one()
+        if self.state not in _POSTED_STATES:
+            return
+
+        # ── Auto-create advance record from the payment checkbox ────────────
+        if (self.x_is_ho_advance
+                and self.payment_type == 'outbound'
+                and self.partner_id
+                and self.x_destination_project_id):
+            # Only create if not already linked
+            existing = self.env['x.subcontractor.ho.advance'].sudo().search([
+                ('payment_id', '=', self.id),
+            ], limit=1)
+            if not existing:
+                self.env['x.subcontractor.ho.advance'].sudo().create({
+                    'subcontractor_id': self.partner_id.id,
+                    'project_analytic_account_id': self.x_destination_project_id.id,
+                    'amount': self.amount,
+                    'advance_date': self.date or fields.Date.today(),
+                    'payment_id': self.id,
+                    'state': 'confirmed',
+                    'notes': _('Auto-created from payment %s.') % self.name,
+                })
+
+        # ── Confirm any pre-linked draft advance (manual-link path) ─────────
+        linked = self.env['x.subcontractor.ho.advance'].sudo().search([
+            ('payment_id', '=', self.id),
+            ('state', '=', 'draft'),
+        ])
+        for adv in linked:
+            adv.state = 'confirmed'
+            adv.message_post(
+                body=_('Advance auto-confirmed: linked payment <b>%s</b> posted.')
+                % self.name
+            )
+
     def action_post(self):
         """Auto-assign cheque number from series before posting if not already set."""
         for payment in self:
@@ -912,6 +1052,7 @@ class AccountPaymentSiteOps(models.Model):
             payment._matracon_update_salary_on_post()
             payment._matracon_invalidate_project_funds()
             payment._create_tax_deduction_entries()
+            payment._matracon_confirm_ho_advance_on_post()
             # Create companion WHT payment to FBR for ANY outbound payment that
             # carries a WHT deduction line — vendor, salary, or any other category.
             if payment.payment_type == 'outbound':
@@ -1010,6 +1151,7 @@ class AccountPaymentSiteOps(models.Model):
             'payment_type': 'outbound',
             'partner_type': 'supplier',
             'partner_id': fbr_partner.id if fbr_partner else False,
+            'x_payee_id': fbr_partner.id if fbr_partner else False,
             'amount': wht_amount,
             'currency_id': self.currency_id.id,
             'journal_id': self.journal_id.id,

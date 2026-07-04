@@ -55,16 +55,6 @@
                                         <td><t t-esc="sheet.pm_id.name or '-'"/></td>
                                     </tr>
                                     <tr>
-                                        <td style="font-weight:600;">PM Signed</td>
-                                        <td>
-                                            <t t-if="sheet.pm_is_signed">
-                                                ✓ Yes —
-                                                <t t-esc="sheet.pm_signature_date.strftime('%d-%b-%Y %H:%M') if sheet.pm_signature_date else ''"/>
-                                            </t>
-                                            <t t-else="">Not yet signed</t>
-                                        </td>
-                                    </tr>
-                                    <tr>
                                         <td style="font-weight:600;">Print Date</td>
                                         <td>
                                             <t t-esc="context_timestamp(datetime.datetime.now()).strftime('%d-%b-%Y %H:%M')"/>
@@ -113,7 +103,7 @@
                         <!-- ── Liability Lines Table ── -->
                         <table class="table table-sm table-bordered" style="font-size:12px;">
                             <thead>
-                                <tr style="background:#343a40; color:#fff;">
+                                <tr style="background:#c0392b; color:#fff;">
                                     <th class="text-center" style="width:4%;">#</th>
                                     <th style="width:20%;">Vendor / Partner</th>
                                     <th style="width:20%;">Description</th>

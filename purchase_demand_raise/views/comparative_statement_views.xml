@@ -1,7 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <!-- ════════════════════════════════════════════════════════════════
-         COMPARATIVE STATEMENT — Form View (Redesigned)
+         COMPARATIVE STATEMENT — Form View (Redesigned v2)
+         Layout:
+           • Product summary table above tabs (all PR items with qty breakdown)
+           • "Vendor Quotes" tab — one vendor per row; click to open full detail
+             dialog with price table + terms + T&C template + documents
+           • "Comparison Matrix" tab — side-by-side HTML
+           • "Notes" tab
          ════════════════════════════════════════════════════════════════ -->
     <record id="view_cs_form" model="ir.ui.view">
         <field name="name">x.comparative.statement.form</field>
@@ -15,39 +21,62 @@
                             type="object"
                             class="btn-primary"
                             invisible="x_state != 'draft'"
-                            confirm="This will lock the winner selection and advance the PR to CEO approval. Continue?"/>
+                            confirm="Lock the winning vendor and advance this PR to CEO approval?"/>
                     <!-- Print CS PDF -->
                     <button name="action_print"
-                            string="Print CS"
+                            string="⬇ Download CS"
                             type="object"
                             class="btn-secondary"
-                            icon="fa-print"/>
+                            icon="fa-file-pdf-o"/>
+                    <!-- Onscreen HTML Preview (for PO / CEO) -->
+                    <button name="action_preview_cs"
+                            string="👁 Preview CS"
+                            type="object"
+                            class="btn-secondary"
+                            title="Open a formatted onscreen preview of the Comparative Statement"/>
+                    <!-- Send RFQ to all vendors in this CS -->
+                    <button name="action_send_rfq_to_vendors"
+                            string="📧 Send RFQ to Vendors"
+                            type="object"
+                            class="btn-secondary"
+                            title="Send RFQ email to all vendors listed in this Comparative Statement"
+                            invisible="not x_vendor_line_ids"/>
                     <field name="x_state" widget="statusbar"
                            statusbar_visible="draft,confirmed"/>
                 </header>
 
                 <sheet>
-                    <!-- Winner banner (shows after selection) -->
-                    <div class="alert alert-success d-flex align-items-center"
+                    <!-- ── Winner banner ── -->
+                    <div class="alert alert-success d-flex align-items-center gap-2"
                          role="alert"
+                         style="border-left:4px solid #28a745;"
                          invisible="not x_recommended_vendor_id">
-                        <i class="fa fa-check-circle me-2 fs-5"/>
+                        <i class="fa fa-trophy fa-lg text-success"/>
                         <span>
-                            <strong>Winner selected: </strong>
+                            <strong style="font-size:15px;">Selected Winner: </strong>
                             <field name="x_recommended_vendor_id" readonly="1" nolabel="1"
-                                   class="fw-bold"/>
+                                   style="font-size:15px;font-weight:bold;"/>
+                            <span class="text-muted ms-2" invisible="x_state == 'confirmed'">—
+                                Click <strong>✓ Confirm Selection &amp; Route to CEO</strong>
+                                above to finalise.
+                            </span>
                         </span>
                     </div>
 
-                    <div class="alert alert-info"
+                    <!-- ── Guide when no winner yet ── -->
+                    <div class="alert alert-info d-flex align-items-start gap-2"
                          role="alert"
                          invisible="x_recommended_vendor_id or x_state == 'confirmed'">
-                        <i class="fa fa-info-circle me-2"/>
-                        <span>
-                            Add vendors in the <strong>Vendors &amp; Terms</strong> tab,
-                            enter prices in <strong>Quote Lines</strong>, then click
-                            <strong>⭐ Select as Winner</strong> on the best vendor row.
-                        </span>
+                        <i class="fa fa-info-circle fa-lg mt-1"/>
+                        <div>
+                            <strong>How to evaluate vendors:</strong>
+                            <ol class="mb-0 mt-1">
+                                <li>In <strong>Vendor Quotes</strong> tab: click <strong>+ Add a line</strong> to add each vendor.</li>
+                                <li>Click the vendor row to open their quote form — enter prices for each product, fill commercial terms, pick a T&amp;C template, and attach their quotation PDF.</li>
+                                <li>Click <strong>⭐ Choose</strong> on the best vendor row to select them and copy their details to the PR.</li>
+                                <li>Click <strong>✓ Confirm Selection &amp; Route to CEO</strong> above to finalise.</li>
+                            </ol>
+                        </div>
                     </div>
 
                     <div class="oe_title">
@@ -71,145 +100,197 @@
                         </group>
                     </group>
 
-                    <!-- ── Tabs ── -->
+                    <!-- ── Product Summary (above tabs) ───────────────────────── -->
+                    <div style="margin:0 0 8px 0;" invisible="not x_purchase_order_id">
+                        <div class="d-flex align-items-center gap-2 mb-1">
+                            <i class="fa fa-list-ul text-muted"/>
+                            <strong>Requisition Items</strong>
+                            <span class="text-muted small ms-1">— Requested &amp; approval quantities from the PR</span>
+                        </div>
+                        <field name="x_product_summary_html" widget="html" readonly="1" nolabel="1"/>
+                    </div>
+
+                    <!-- ════════════════════════════════════════════════════
+                         TABS
+                         ════════════════════════════════════════════════════ -->
                     <notebook>
 
-                        <!-- ── Tab 1: Vendors &amp; Terms ──────────────────── -->
-                        <page string="Vendors &amp; Terms" name="vendors_terms">
+                        <!-- ══════════════════════════════════════════════════
+                             TAB 1 — VENDOR QUOTES
+                             One row per vendor; click row to open full detail
+                             dialog (price table + terms + T&C + documents).
+                             ══════════════════════════════════════════════════ -->
+                        <page string="Vendor Quotes" name="vendor_quotes">
                             <div class="mb-2 text-muted small">
-                                Add vendors below. Product lines are auto-created from the PR.
-                                Click <strong>⭐ Select as Winner</strong> on the best vendor when ready.
+                                Add each vendor below. <strong>Click a vendor row</strong> to open their full quote form — enter prices, terms, T&amp;C and attach their quotation PDF. Then click
+                                <strong>⭐ Choose</strong> on the best vendor.
                             </div>
                             <field name="x_vendor_line_ids"
                                    readonly="x_state == 'confirmed'"
-                                   widget="one2many">
-                                <list editable="bottom"
+                                   widget="one2many"
+                                   context="{'default_x_cs_id': id}">
+
+                                <!-- ── Compact list (one row per vendor) ── -->
+                                <list string="Vendors"
                                       decoration-success="x_is_recommended"
-                                      decoration-muted="not x_is_recommended and x_is_lowest == False">
+                                      decoration-info="x_is_lowest">
                                     <field name="sequence" widget="handle"/>
                                     <field name="x_partner_id" string="Vendor" required="1"/>
-                                    <field name="x_brand_origin" string="Brand/Origin"/>
-                                    <field name="x_delivery_basis" string="Delivery"/>
-                                    <field name="x_delivery_period" string="Lead Time"/>
-                                    <field name="x_payment_term_id" string="Payment Terms"
-                                           options="{'no_create': True, 'no_open': True}"/>
-                                    <field name="x_payment_terms" string="Custom Pay. Notes"
-                                           optional="hide"/>
-                                    <field name="x_warranty" string="Warranty"/>
-                                    <field name="x_tax_treatment" string="Tax"/>
-                                    <field name="x_rfq_reference" string="Quote Ref"/>
-                                    <field name="x_quote_validity" string="Valid Until"/>
-                                    <field name="x_ancillary_included" string="Ancillaries?"/>
-                                    <field name="x_total_price" string="Total" readonly="1"/>
+                                    <field name="x_total_price" string="Sub-Total" readonly="1"/>
+                                    <field name="x_gst_amount" string="GST" readonly="1" optional="show"/>
                                     <field name="x_net_total" string="Net Total" readonly="1"
                                            decoration-success="x_is_lowest"
                                            decoration-danger="not x_is_lowest and x_total_price > 0"/>
-                                    <field name="x_savings_vs_highest" string="Saving" readonly="1"/>
+                                    <field name="x_savings_vs_highest" string="Saving" readonly="1" optional="show"/>
+                                    <field name="x_tc_template_id" string="T&amp;C Template"
+                                           readonly="1" optional="show"
+                                           options="{'no_create': True, 'no_open': True}"/>
                                     <field name="x_is_lowest" column_invisible="1"/>
                                     <field name="x_is_recommended" column_invisible="1"/>
-                                    <!-- Select Winner button -->
-                                    <button name="action_select_as_recommended"
-                                            string="⭐ Select Winner"
-                                            type="object"
-                                            class="btn-sm btn-success"
-                                            invisible="x_is_recommended"
-                                            title="Mark this vendor as the recommended winner"/>
-                                    <button name="action_select_as_recommended"
-                                            string="✓ Winner"
+                                    <!-- Choose / Winner buttons -->
+                                    <!-- Best-value vendor: star + green outline -->
+                                    <button name="action_choose_vendor"
+                                            string="⭐ Choose"
                                             type="object"
                                             class="btn-sm btn-outline-success"
+                                            invisible="not x_is_lowest or x_is_recommended"
+                                            title="Lowest price — select this vendor and copy their details to the PR"/>
+                                    <!-- Non-best, non-winner vendor: no star, grey outline -->
+                                    <button name="action_choose_vendor"
+                                            string="Choose"
+                                            type="object"
+                                            class="btn-sm btn-outline-secondary"
+                                            invisible="x_is_lowest or x_is_recommended"
+                                            title="Select this vendor and copy their details to the PR"/>
+                                    <!-- Already selected as winner -->
+                                    <button name="action_choose_vendor"
+                                            string="🏆 Winner"
+                                            type="object"
+                                            class="btn-sm btn-success"
                                             invisible="not x_is_recommended"
-                                            title="This vendor is currently selected as the winner"/>
+                                            title="This vendor is selected — click to re-select"/>
+                                    <!-- Send RFQ to this vendor -->
+                                    <button name="action_send_rfq"
+                                            string="📧 RFQ"
+                                            type="object"
+                                            class="btn-sm btn-outline-info"
+                                            title="Send RFQ email to this vendor"/>
                                 </list>
-                            </field>
-                        </page>
 
-                        <!-- ── Tab 2: Quote Lines (per vendor) ─────────────── -->
-                        <page string="Quote Lines" name="quote_lines">
-                            <div class="mb-2 text-muted small">
-                                Enter the quoted prices per vendor. Lines are grouped by vendor.
-                                Use <strong>Add a line</strong> to add extra items if needed.
-                            </div>
-                            <field name="x_vendor_line_ids"
-                                   readonly="x_state == 'confirmed'"
-                                   widget="one2many">
+                                <!-- ── Full per-vendor detail dialog ── -->
                                 <form string="Vendor Quote Details">
-                                    <group>
-                                        <group string="Vendor Info">
-                                            <field name="x_partner_id" string="Vendor"
-                                                   readonly="1"/>
-                                            <field name="x_rfq_reference"
-                                                   placeholder="Vendor's quotation number"/>
-                                            <field name="x_quote_validity"/>
-                                        </group>
-                                        <group string="Totals">
-                                            <field name="x_total_price" readonly="1"/>
-                                            <field name="x_gst_amount" readonly="1"/>
-                                            <field name="x_net_total" readonly="1"/>
-                                        </group>
-                                    </group>
-                                    <group string="Commercial Terms">
-                                        <group>
-                                            <field name="x_payment_term_id"
-                                                   string="Payment Terms"
-                                                   options="{'no_create': True, 'no_open': True}"
-                                                   placeholder="Select standard payment terms…"/>
-                                            <field name="x_payment_terms"
-                                                   string="Custom Payment Notes"
-                                                   placeholder="Any extra payment conditions not covered above…"/>
-                                            <field name="x_delivery_basis"/>
-                                            <field name="x_delivery_period"
-                                                   placeholder="e.g. 4–6 weeks"/>
-                                        </group>
-                                        <group>
-                                            <field name="x_warranty"
-                                                   placeholder="e.g. 12 months"/>
-                                            <field name="x_brand_origin"
-                                                   placeholder="e.g. Siemens, Local"/>
-                                            <field name="x_tax_treatment"
-                                                   placeholder="e.g. GST 17% extra"/>
-                                            <field name="x_ancillary_included"/>
-                                        </group>
-                                    </group>
-                                    <field name="x_line_ids" widget="one2many">
-                                        <list editable="bottom">
-                                            <field name="x_product_id" string="Product"/>
+                                    <div class="d-flex justify-content-between align-items-center mb-3"
+                                         style="border-bottom:2px solid #1a3a5c;padding-bottom:8px;">
+                                        <div>
+                                            <h4 class="mb-0" style="color:#1a3a5c;">
+                                                <field name="x_partner_id" required="1"
+                                                       options="{'no_create': False}"/>
+                                            </h4>
+                                        </div>
+                                        <div class="d-flex gap-2">
+                                            <button name="action_choose_vendor"
+                                                    string="⭐ Choose This Vendor"
+                                                    type="object"
+                                                    class="btn btn-success"
+                                                    invisible="x_is_recommended"
+                                                    title="Select this vendor and copy details to the PR"/>
+                                            <span class="badge bg-success fs-6 d-flex align-items-center"
+                                                  invisible="not x_is_recommended">
+                                                🏆 Selected Winner
+                                            </span>
+                                            <!-- Send RFQ to this specific vendor -->
+                                            <button name="action_send_rfq"
+                                                    string="📧 Send RFQ"
+                                                    type="object"
+                                                    class="btn btn-outline-secondary"
+                                                    title="Send Request for Quotation email to this vendor"/>
+                                        </div>
+                                    </div>
+
+                                    <!-- ── Price Quotation ── -->
+                                    <separator string="Price Quotation"/>
+                                    <field name="x_line_ids" widget="one2many"
+                                           readonly="parent.x_state == 'confirmed'">
+                                        <!-- create/delete disabled: products are fixed from the PR -->
+                                        <list editable="bottom"
+                                              create="0"
+                                              delete="0"
+                                              decoration-muted="x_unit_price == 0">
+                                            <field name="x_product_id" string="Product" readonly="1"/>
                                             <field name="x_uom_id" string="UoM" readonly="1"/>
-                                            <field name="x_qty" string="Qty"/>
+                                            <field name="x_qty" string="Qty" readonly="1"/>
                                             <field name="x_unit_price" string="Unit Price"/>
                                             <field name="x_total_price" string="Total" readonly="1"/>
                                             <field name="x_gst_rate" string="GST %"/>
                                             <field name="x_gst_amount" string="GST Amt" readonly="1"/>
-                                            <field name="x_net_price" string="Net" readonly="1"/>
-                                            <field name="x_remarks" string="Remarks"/>
+                                            <field name="x_net_price" string="Net Price" readonly="1"/>
+                                            <field name="x_remarks" string="Remarks" optional="show"/>
                                         </list>
                                     </field>
+
+                                    <!-- Totals row -->
+                                    <group>
+                                        <group/>
+                                        <group>
+                                            <field name="x_total_price" string="Sub-Total (Excl. GST)" readonly="1"/>
+                                            <field name="x_gst_amount" string="Total GST" readonly="1"/>
+                                            <field name="x_net_total" string="Grand Total (Incl. GST)" readonly="1"/>
+                                        </group>
+                                    </group>
+
+                                    <!-- ── Commercial Terms ── -->
+                                    <separator string="Commercial Terms"/>
+                                    <group>
+                                        <group string="Delivery &amp; Origin">
+                                            <field name="x_brand_origin"
+                                                   placeholder="e.g. Siemens, Local make"/>
+                                            <field name="x_delivery_basis"/>
+                                            <field name="x_delivery_period"
+                                                   placeholder="e.g. 4–6 weeks"/>
+                                            <field name="x_rfq_reference"
+                                                   placeholder="Vendor's quotation number"/>
+                                            <field name="x_quote_validity"/>
+                                        </group>
+                                        <group string="Payment &amp; Warranty">
+                                            <field name="x_payment_term_id"
+                                                   options="{'no_create': True, 'no_open': True}"
+                                                   placeholder="Select standard payment terms…"/>
+                                            <field name="x_payment_terms"
+                                                   placeholder="Any extra payment conditions…"/>
+                                            <field name="x_warranty"
+                                                   placeholder="e.g. 12 months DLP"/>
+                                            <field name="x_tax_treatment"
+                                                   placeholder="e.g. GST 17% extra"/>
+                                        </group>
+                                    </group>
+
+                                    <!-- ── T&C Template ── -->
+                                    <separator string="Terms &amp; Conditions"/>
+                                    <group>
+                                        <field name="x_tc_template_id"
+                                               string="T&amp;C Template"
+                                               options="{'no_create': True, 'no_open': True}"
+                                               placeholder="Select a template to auto-fill…"/>
+                                    </group>
+                                    <field name="x_tc_text" widget="html"
+                                           placeholder="Terms and conditions will appear here when a template is selected, or type them directly…"/>
+
+                                    <!-- ── Documents ── -->
                                     <separator string="Vendor Quotation Documents"/>
                                     <field name="x_attachment_ids"
                                            widget="many2many_binary"
-                                           string="Attached Quotation PDFs"/>
+                                           string="Attach Quotation PDFs / Images"/>
+
+                                    <!-- ── Remarks ── -->
                                     <separator string="Additional Remarks"/>
                                     <field name="x_remarks" widget="text"
                                            placeholder="Any remarks for this vendor…"/>
                                 </form>
+
                             </field>
                         </page>
 
-                        <!-- ── Tab 3: Comparison Matrix ────────────────────── -->
-                        <page string="Comparison Matrix" name="comparison_matrix">
-                            <div class="mb-2 text-muted small">
-                                Live cross-vendor price comparison.
-                                Green cells = lowest rate for that product.
-                                ★ column = selected winner.
-                            </div>
-                            <field name="x_comparison_html" widget="html" readonly="1"/>
-                        </page>
-
-                        <!-- ── Tab 4: Notes ────────────────────────────────── -->
-                        <page string="Negotiation Notes" name="notes">
-                            <field name="x_negotiation_notes" widget="html"
-                                   placeholder="Record negotiation history, audit trail, reasons for vendor selection…"/>
-                        </page>
+                        <!-- Comparison Matrix and Notes tabs removed per user request -->
 
                     </notebook>
                 </sheet>
@@ -231,6 +312,7 @@
                 <field name="name"/>
                 <field name="x_purchase_order_id"/>
                 <field name="x_recommended_vendor_id"/>
+                <field name="x_vendor_count" string="Vendors"/>
                 <field name="x_state" widget="badge"
                        decoration-warning="x_state == 'draft'"
                        decoration-success="x_state == 'confirmed'"/>
@@ -250,8 +332,8 @@
                 No Comparative Statements yet
             </p>
             <p>
-                Open a Purchase Requisition and click
-                <strong>Comparative Statement</strong> to start comparing vendors.
+                Open a Purchase Requisition in <strong>Submitted</strong> state and click
+                the <strong>Comparative Statement</strong> button to start comparing vendors.
             </p>
         </field>
     </record>

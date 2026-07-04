@@ -22,9 +22,14 @@
             <xpath expr="//header" position="inside">
 
                 <!-- PR Status bar: visible on PR docs, site store, and alternative RFQs -->
+                <!-- HO Procurement: full approval chain shown -->
                 <field name="x_pr_state" widget="statusbar"
                        statusbar_visible="draft,submitted,ceo_final,po_locked"
-                       invisible="not x_is_pr_document and not x_is_site_store and not x_is_alternative_rfq"/>
+                       invisible="(not x_is_pr_document and not x_is_site_store and not x_is_alternative_rfq) or x_procurement_type == 'site_procurement'"/>
+                <!-- Site Procurement: no HO/CEO steps — goes draft → po_locked directly -->
+                <field name="x_pr_state" widget="statusbar"
+                       statusbar_visible="draft,po_locked"
+                       invisible="(not x_is_pr_document and not x_is_site_store) or x_procurement_type != 'site_procurement'"/>
 
                 <!-- Print PR: Site Store only, draft/submitted only -->
                 <button name="action_print_pr_internal"
@@ -35,14 +40,23 @@
                         invisible="x_pr_state not in ('draft', 'submitted')"
                         data-hotkey="p"/>
 
-                <!-- Site Store: Submit PR (active when doc attached + lines exist) -->
+                <!-- Site Store: Submit HO Procurement PR (requires HO + CEO approval) -->
                 <button name="action_submit_pr"
                         string="Submit PR"
                         type="object"
                         class="btn-primary"
-                        invisible="x_pr_state != 'draft' or not x_can_submit"
+                        invisible="x_pr_state != 'draft' or not x_can_submit or x_procurement_type != 'ho_procurement'"
                         groups="purchase_demand_raise.group_site_store"
-                        confirm="Confirm submission? PR will be sent for HO and CEO approval."/>
+                        confirm="Confirm submission? PR will be sent to Procurement HO for vendor evaluation and CEO approval."/>
+
+                <!-- Site Store: Submit Site Procurement PR (PM-approved, no HO/CEO required) -->
+                <button name="action_submit_pr"
+                        string="Submit PR"
+                        type="object"
+                        class="btn-primary"
+                        invisible="x_pr_state != 'draft' or not x_can_submit or x_procurement_type != 'site_procurement'"
+                        groups="purchase_demand_raise.group_site_store"
+                        confirm="Submit this Site Procurement PR?"/>
 
                 <!-- Site Store: disabled hint when PM doc not attached yet -->
                 <button name="action_submit_pr"
@@ -160,6 +174,25 @@
                 <attribute name="groups">!purchase_demand_raise.group_site_store</attribute>
             </field>
 
+            <!-- ── HO Guidance Banner: visible on PR in 'submitted' state for HO users ── -->
+            <xpath expr="//sheet" position="inside">
+                <div class="alert alert-info d-flex align-items-start gap-2"
+                     role="status"
+                     style="margin-bottom:8px;"
+                     invisible="x_pr_state != 'submitted' or not x_is_ho or x_is_site_store">
+                    <i class="fa fa-balance-scale fa-lg mt-1 text-primary"/>
+                    <div>
+                        <strong>Use the Comparative Statement to evaluate vendors.</strong><br/>
+                        Click the <strong>Comparative Statement</strong> button (top-right) to add vendors,
+                        enter their quotation prices, and select the preferred vendor.
+                        The CS will automatically route this PR to CEO once a winner is selected and confirmed.
+                        <br/>
+                        <em class="text-muted">You can also set a vendor directly above and click
+                        <strong>Approve &amp; Submit to CEO</strong> for a single-vendor approval.</em>
+                    </div>
+                </div>
+            </xpath>
+
             <!-- ── 5a. Declare invisible flags (needed for column_invisible on line fields) ── -->
             <field name="x_pr_state" position="after">
                 <field name="x_is_site_store" invisible="1"/>
@@ -218,9 +251,9 @@
                 <field name="x_initiator_id" readonly="1"
                        invisible="not x_is_pr_document and not x_is_site_store"/>
 
-                <!-- Approval Status badges: PR docs, site store, and alternative RFQs -->
+                <!-- Approval Status badges: HO Procurement only (Site Procurement has no HO/CEO step) -->
                 <group string="Approval Status"
-                       invisible="(not x_is_pr_document and not x_is_site_store and not x_is_alternative_rfq) or x_pr_state == 'draft'">
+                       invisible="(not x_is_pr_document and not x_is_site_store and not x_is_alternative_rfq) or x_pr_state == 'draft' or x_procurement_type == 'site_procurement'">
                     <field name="x_ho_status" widget="badge"
                            decoration-warning="x_ho_status == 'pending'"
                            decoration-success="x_ho_status == 'approved'"
@@ -366,16 +399,28 @@
         <field name="inherit_id" ref="purchase.purchase_order_form"/>
         <field name="arch" type="xml">
             <xpath expr="//div[@name='button_box']" position="inside">
-                <!-- Primary CS button: opens / creates the CS for this PR -->
+                <!-- Primary CS button: opens / creates the CS for this PR.
+                     This is the MAIN vendor evaluation interface for HO —
+                     replaces the native Alternatives tab. -->
                 <button name="action_open_comparative_statement"
                         type="object"
                         class="oe_stat_button"
                         icon="fa-balance-scale"
                         groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"
                         invisible="x_is_site_store or x_pr_state not in ('submitted','ceo_final','po_locked')">
+                    <field name="x_comparative_statement_id" invisible="1"/>
                     <div class="o_field_widget o_stat_info">
-                        <span class="o_stat_text">Comparative</span>
-                        <span class="o_stat_text">Statement</span>
+                        <span class="o_stat_text" style="font-size:12px;font-weight:bold;">
+                            Comparative
+                        </span>
+                        <span class="o_stat_text" style="font-size:12px;font-weight:bold;">
+                            Statement
+                        </span>
+                        <span class="o_stat_text text-muted"
+                              style="font-size:10px;"
+                              invisible="x_comparative_statement_id">
+                            Click to start
+                        </span>
                     </div>
                 </button>
             </xpath>
@@ -427,6 +472,8 @@
 
     <!-- ═══════════════════════════════════════
          CATEGORY FILTER on product_id in lines
+         When x_category_id is set (HO Procurement): restrict to that category.
+         When x_category_id is not set (Site Procurement): show all purchasable products.
          ═══════════════════════════════════════ -->
     <record id="view_purchase_order_form_category_domain" model="ir.ui.view">
         <field name="name">purchase.order.form.category.domain</field>
@@ -434,7 +481,7 @@
         <field name="inherit_id" ref="purchase.purchase_order_form"/>
         <field name="arch" type="xml">
             <field name="product_id" position="attributes">
-                <attribute name="domain">[('categ_id', '=', parent.x_category_id), ('purchase_ok', '=', True)]</attribute>
+                <attribute name="domain">[('categ_id', '=', parent.x_category_id), ('purchase_ok', '=', True)] if parent.x_category_id else [('purchase_ok', '=', True)]</attribute>
             </field>
         </field>
     </record>
@@ -464,18 +511,22 @@
                 </attribute>
             </xpath>
 
-            <!-- Vendor field: hidden for Site Store using groups (server-side, reliable
-                 even after purchase_requisition replaces this node).
-                 PO edits at 'draft' (when raising their own PR) and 'submitted';
-                 CEO can override at 'ceo_final'. -->
+            <!-- Vendor field:
+                 - Site Procurement: always hidden (no formal vendor — use x_site_vendor_name instead).
+                 - HO Procurement, Site Store: hidden until PO is locked.
+                 - HO Procurement, po_locked: Site Store sees vendor read-only (so they know who to expect).
+                 - HO edits at 'draft'/'submitted'; CEO can override at 'ceo_final'. -->
             <xpath expr="//field[@name='partner_id']" position="attributes">
-                <attribute name="groups">!purchase_demand_raise.group_site_store</attribute>
-                <attribute name="readonly">x_pr_state not in ('draft', 'submitted', 'ceo_final')</attribute>
+                <attribute name="invisible">x_procurement_type == 'site_procurement' or (x_is_site_store and x_pr_state != 'po_locked')</attribute>
+                <attribute name="readonly">x_is_site_store or x_pr_state not in ('draft', 'submitted', 'ceo_final')</attribute>
             </xpath>
 
-            <!-- Alternatives tab: hidden for Site Store and once PO is locked/confirmed -->
+            <!-- Alternatives tab: hidden for ALL PR documents.
+                 Vendor comparison is now handled exclusively through the
+                 Comparative Statement (see smart button). This prevents
+                 duplicate RFQs from being created for each vendor. -->
             <xpath expr="//page[@name='alternative_pos']" position="attributes">
-                <attribute name="invisible">x_is_site_store or x_pr_state == 'po_locked'</attribute>
+                <attribute name="invisible">x_is_pr_document or x_pr_state == 'po_locked'</attribute>
             </xpath>
 
             <!-- Upload Bill widget: hidden from EVERYONE — site accountant feature for later -->
@@ -513,6 +564,7 @@
         <field name="model">purchase.order</field>
         <field name="inherit_id" ref="purchase.purchase_order_form"/>
         <field name="arch" type="xml">
+            <!-- T&C template selector: only for HO/CEO/Admin, never for Site Store -->
             <xpath expr="//field[@name='note']" position="before">
                 <group invisible="x_is_site_store"
                        groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system">
@@ -523,6 +575,24 @@
                            readonly="state in ('purchase', 'done', 'cancel')"/>
                 </group>
             </xpath>
+            <!-- T&C note text: hidden from Site Store (vendor terms are internal) -->
+            <xpath expr="//field[@name='note']" position="attributes">
+                <attribute name="invisible">x_is_site_store</attribute>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         CREATE ALTERNATIVE WIZARD — Restrict Vendor to "Vendor" tagged contacts
+         ═══════════════════════════════════════════════════════════════════ -->
+    <record id="view_create_alternative_vendor_domain" model="ir.ui.view">
+        <field name="name">purchase.requisition.create.alternative.vendor.domain</field>
+        <field name="model">purchase.requisition.create.alternative</field>
+        <field name="inherit_id" ref="purchase_requisition.purchase_requisition_create_alternative_form"/>
+        <field name="arch" type="xml">
+            <field name="partner_ids" position="attributes">
+                <attribute name="domain">[('category_id.name', '=', 'Vendor')]</attribute>
+            </field>
         </field>
     </record>
 

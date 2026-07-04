@@ -152,3 +152,37 @@ class ProjectSiteConfig(models.Model):
             'domain': [('x_site_config_id', '=', self.id)],
             'context': {'default_x_site_config_id': self.id},
         }
+
+    # \u2500\u2500 PR Sequence helpers \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+
+    def _matracon_pr_sequence_code(self):
+        """Return the ir.sequence code for PRs raised against this site config.
+        Example: warehouse code=MCH \u2192 'purchase.order.mch'
+        """
+        self.ensure_one()
+        if self.warehouse_id and self.warehouse_id.code:
+            return 'purchase.order.%s' % self.warehouse_id.code.strip().lower()
+        return 'purchase.order.ho'
+
+    def _matracon_next_pr_name(self):
+        """Return the next PR reference for this site, auto-creating the
+        ir.sequence if it does not yet exist (for dynamically added sites).
+        """
+        self.ensure_one()
+        seq_code = self._matracon_pr_sequence_code()
+        IrSeq = self.env['ir.sequence'].sudo()
+        if not IrSeq.search([('code', '=', seq_code)], limit=1):
+            wh_code = (
+                self.warehouse_id.code.strip().upper()
+                if self.warehouse_id else 'SITE'
+            )
+            IrSeq.create({
+                'name': _('Purchase Requisition \u2014 %s') % self.name,
+                'code': seq_code,
+                'prefix': 'P-%s-' % wh_code,
+                'padding': 4,
+                'number_next': 1,
+                'number_increment': 1,
+                'company_id': self.env.company.id,
+            })
+        return IrSeq.next_by_code(seq_code) or '/'

@@ -189,7 +189,7 @@
                     <group string="Accounting">
                         <group string="Credit (Cash Out)">
                             <field name="journal_id" readonly="state == 'posted'"
-                                   domain="[('type', '=', 'cash'), ('x_site_ids', 'in', [project_analytic_account_id])] if project_analytic_account_id else [('type', '=', 'cash')]"
+                                   domain="[('type', '=', 'cash'), '|', ('x_site_ids', '=', False), ('x_site_ids', 'in', [project_analytic_account_id])] if project_analytic_account_id else [('type', '=', 'cash')]"
                                    string="Cash Journal (Credit)"
                                    help="Site-specific cash journal — the Cash-in-Hand account will be credited."/>
                         </group>

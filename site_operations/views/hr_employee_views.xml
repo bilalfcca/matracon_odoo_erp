@@ -15,6 +15,18 @@
                         class="oe_stat_button"
                         icon="fa-id-card"
                         groups="purchase_demand_raise.group_matracon_admin,site_operations.group_finance_ho,purchase_demand_raise.group_head_office"/>
+                <button name="action_view_backcharges"
+                        type="object"
+                        class="oe_stat_button"
+                        icon="fa-exclamation-triangle"
+                        groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system">
+                    <div class="o_field_widget o_stat_info">
+                        <span class="o_stat_value">
+                            <field name="x_backcharge_count"/>
+                        </span>
+                        <span class="o_stat_text">Backcharges</span>
+                    </div>
+                </button>
             </xpath>
 
             <xpath expr="//page[@name='personal_information']" position="after">
@@ -28,6 +40,8 @@
                         <field name="x_advance_balance"/>
                         <field name="x_wht_rate"/>
                         <field name="x_eobi_amount"/>
+                        <field name="x_backcharge_balance" readonly="1"
+                               string="Outstanding Backcharge Balance"/>
                     </group>
                 </page>
                 <page string="Documents" name="matracon_documents">

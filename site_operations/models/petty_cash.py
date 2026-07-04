@@ -287,7 +287,7 @@ class PettyCashRequest(models.Model):
 class PettyCashExpense(models.Model):
     _name = 'x.petty.cash.expense'
     _description = 'Petty Cash Expense'
-    _inherit = ['mail.thread']
+    _inherit = ['mail.thread', 'mail.activity.mixin']
     _order = 'expense_date desc, id desc'
 
     name = fields.Char(string='Description', required=True)

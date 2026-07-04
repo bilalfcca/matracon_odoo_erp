@@ -1,5 +1,5 @@
 from markupsafe import Markup, escape
-from odoo import models, fields, api, _
+from odoo import models, fields, api, Command, _
 from odoo.exceptions import UserError
 
 
@@ -23,6 +23,22 @@ class ComparativeStatement(models.Model):
         'x.cs.vendor', 'x_cs_id', string='Vendor Comparisons',
     )
 
+    # ── Flat price-entry one2many (all vendor-product lines in one editable list) ─
+    x_all_line_ids = fields.One2many(
+        'x.cs.vendor.line', 'x_cs_id',
+        string='All Quote Lines',
+        help='Flat view of every vendor × product line — edit prices here directly.',
+    )
+
+    # ── Vendor count (for stat button) ───────────────────────────────────────
+    x_vendor_count = fields.Integer(
+        string='Vendors', compute='_compute_vendor_count',
+    )
+
+    def _compute_vendor_count(self):
+        for cs in self:
+            cs.x_vendor_count = len(cs.x_vendor_line_ids)
+
     # ── Winner selection ──────────────────────────────────────────────────────
     x_recommended_vendor_line_id = fields.Many2one(
         'x.cs.vendor', string='Winner',
@@ -38,6 +54,81 @@ class ComparativeStatement(models.Model):
     )
 
     x_negotiation_notes = fields.Text(string='Negotiation Notes / Audit Trail')
+
+    # ── Product Summary (computed HTML shown above tabs) ──────────────────────
+    x_product_summary_html = fields.Html(
+        string='Product Summary',
+        compute='_compute_product_summary_html',
+        sanitize=False,
+    )
+
+    @api.depends(
+        'x_purchase_order_id.order_line.product_id',
+        'x_purchase_order_id.order_line.x_requested_qty',
+        'x_purchase_order_id.order_line.x_recommended_qty',
+        'x_purchase_order_id.order_line.x_approved_qty',
+        'x_purchase_order_id.order_line.x_qty_on_hand',
+    )
+    def _compute_product_summary_html(self):
+        for cs in self:
+            pr = cs.x_purchase_order_id
+            if not pr:
+                cs.x_product_summary_html = Markup('')
+                continue
+            lines = pr.order_line.filtered(lambda l: l.product_id and not l.display_type)
+            if not lines:
+                cs.x_product_summary_html = Markup(
+                    '<p class="text-muted fst-italic">No product lines on this PR yet.</p>'
+                )
+                continue
+
+            _td = 'border:1px solid #dee2e6;padding:6px 10px;vertical-align:middle;'
+            _th = ('border:1px solid #1a3a5c;padding:6px 10px;background:#1a3a5c;'
+                   'color:#fff;text-align:center;')
+
+            rows = []
+            for i, line in enumerate(lines, 1):
+                req = line.x_requested_qty or line.product_qty or 0.0
+                on_hand = line.x_qty_on_hand or 0.0
+                rec = line.x_recommended_qty or 0.0
+                appr = line.x_approved_qty or 0.0
+
+                # Warn row if recommended is less than requested
+                warn = rec > 0 and rec < req
+                row_bg = '#fff8e1' if warn else ('#f9f9f9' if i % 2 else '#fff')
+
+                row_style = 'background:%s;' % row_bg
+                rec_style = _td + ('color:#e65100;font-weight:bold;' if warn else '')
+                warn_icon = Markup(' ⚠️') if warn else Markup('')
+
+                rows.append(
+                    Markup('<tr style="') + Markup(row_style) + Markup('">'
+                    '<td style="') + Markup(_td + 'text-align:center;') + Markup('">') + Markup(str(i)) + Markup('</td>'
+                    '<td style="') + Markup(_td) + Markup('">') + escape(line.product_id.display_name) + Markup('</td>'
+                    '<td style="') + Markup(_td + 'text-align:center;') + Markup('">') + escape(line.product_uom_id.name or '') + Markup('</td>'
+                    '<td style="') + Markup(_td + 'text-align:right;') + Markup('">') + Markup('%.4g' % req) + Markup('</td>'
+                    '<td style="') + Markup(_td + 'text-align:right;') + Markup('">') + Markup('%.4g' % on_hand) + Markup('</td>'
+                    '<td style="') + Markup(rec_style + 'text-align:right;') + Markup('">') + Markup('%.4g' % rec) + warn_icon + Markup('</td>'
+                    '<td style="') + Markup(_td + 'text-align:right;') + Markup('">') + Markup('%.4g' % appr if appr else '—') + Markup('</td>'
+                    '</tr>')
+                )
+
+            html = (
+                Markup('<div style="overflow-x:auto;margin:0 0 12px 0;">'
+                       '<table style="width:100%;border-collapse:collapse;font-size:13px;">'
+                       '<thead><tr>'
+                       '<th style="') + Markup(_th + 'width:30px;') + Markup('">#</th>'
+                       '<th style="') + Markup(_th) + Markup('">Product</th>'
+                       '<th style="') + Markup(_th + 'width:60px;') + Markup('">UoM</th>'
+                       '<th style="') + Markup(_th + 'width:100px;') + Markup('">Requested</th>'
+                       '<th style="') + Markup(_th + 'width:100px;') + Markup('">On Hand</th>'
+                       '<th style="') + Markup(_th + 'width:110px;') + Markup('">Recommended</th>'
+                       '<th style="') + Markup(_th + 'width:100px;') + Markup('">Approved</th>'
+                       '</tr></thead><tbody>')
+                + Markup('').join(rows)
+                + Markup('</tbody></table></div>')
+            )
+            cs.x_product_summary_html = html
 
     # ── Cross-vendor comparison matrix (computed HTML) ────────────────────────
     x_comparison_html = fields.Html(
@@ -102,9 +193,16 @@ class ComparativeStatement(models.Model):
 
             # ── Vendor header row ─────────────────────────────────────────────
             parts.append(Markup('<tr>'))
-            _hdr_base = 'border:1px solid #1a3a5c;padding:6px 8px;color:#fff;'
+            _hdr_base = 'border:1px solid #1a3a5c;padding:6px 10px;color:#fff;'
             _hdr_reg = _hdr_base + 'background:#1a3a5c;text-align:center;'
-            _hdr_win = _hdr_base + 'background:#155724;text-align:center;font-weight:bold;font-size:12px;'
+            # Winner: gold border, green background, larger font for clear visual emphasis
+            _hdr_win = (
+                _hdr_base
+                + 'background:#0a5c2a;text-align:center;'
+                + 'font-weight:bold;font-size:14px;'
+                + 'border:3px solid #ffc107;'
+                + 'box-shadow:inset 0 0 0 2px #ffc107;'
+            )
 
             for label in ('#', 'Product', 'UoM', 'Qty'):
                 parts.append(
@@ -114,12 +212,22 @@ class ComparativeStatement(models.Model):
                 )
 
             for vendor in vendors:
-                style = _hdr_win if vendor.x_is_recommended else _hdr_reg
-                star = Markup('&#9733; ') if vendor.x_is_recommended else Markup('')
+                if vendor.x_is_recommended:
+                    style = _hdr_win
+                    label_html = (
+                        Markup('<div style="font-size:16px;line-height:1;">&#127942;</div>')
+                        + Markup('<div style="font-size:14px;font-weight:bold;letter-spacing:0.3px;">')
+                        + escape(vendor.x_partner_id.name or 'Vendor')
+                        + Markup('</div>')
+                        + Markup('<div style="font-size:10px;font-weight:normal;opacity:0.9;">'
+                                 'SELECTED WINNER</div>')
+                    )
+                else:
+                    style = _hdr_reg
+                    label_html = escape(vendor.x_partner_id.name or 'Vendor')
                 parts.append(
                     Markup('<th colspan="2" style="') + Markup(style) + Markup('">')
-                    + star
-                    + escape(vendor.x_partner_id.name or 'Vendor')
+                    + label_html
                     + Markup('</th>')
                 )
             parts.append(Markup('</tr>'))
@@ -128,11 +236,12 @@ class ComparativeStatement(models.Model):
             parts.append(Markup('<tr>'))
             for vendor in vendors:
                 style = _hdr_win if vendor.x_is_recommended else _hdr_reg
+                sub_style = style + 'font-size:11px;'
                 parts.append(
-                    Markup('<th style="') + Markup(style) + Markup('">Rate</th>')
+                    Markup('<th style="') + Markup(sub_style) + Markup('">Rate</th>')
                 )
                 parts.append(
-                    Markup('<th style="') + Markup(style) + Markup('">Total</th>')
+                    Markup('<th style="') + Markup(sub_style) + Markup('">Total</th>')
                 )
             parts.append(Markup('</tr></thead><tbody>'))
 
@@ -238,8 +347,7 @@ class ComparativeStatement(models.Model):
             if not cs.x_recommended_vendor_line_id:
                 raise UserError(_(
                     'Please select a winning vendor first.\n\n'
-                    'Click "⭐ Select as Winner" on the vendor row in the '
-                    '"Vendors & Terms" tab, then confirm.'
+                    'Click "⭐ Choose" on the vendor row to select the winner.'
                 ))
             if not cs.x_recommended_vendor_line_id.x_partner_id:
                 raise UserError(_(
@@ -266,8 +374,68 @@ class ComparativeStatement(models.Model):
             'purchase_demand_raise.action_report_cs_from_cs'
         ).report_action(self)
 
+    def action_preview_cs(self):
+        """Open CS as formatted HTML page in the browser (for PO/CEO review)."""
+        self.ensure_one()
+        return self.env.ref(
+            'purchase_demand_raise.action_report_cs_preview_html'
+        ).report_action(self)
+
+    def action_send_rfq_to_vendors(self):
+        """Open mail compose dialog to send RFQ to ALL vendors in this CS.
+
+        Opens a single mail-compose window pre-filled with:
+          • Our custom Matracon RFQ email template
+          • All vendor partners from x_vendor_line_ids (with emails) as recipients
+          • The linked PR as the compose-target record (template renders against it)
+          • The Matracon custom RFQ PDF attached
+        """
+        self.ensure_one()
+        po = self.x_purchase_order_id
+        if not po:
+            raise UserError(_('No Purchase Requisition linked to this Comparative Statement.'))
+
+        # Collect vendor partners that have an email address
+        partners_with_email = self.x_vendor_line_ids.mapped('x_partner_id').filtered(
+            lambda p: p.email
+        )
+        if not partners_with_email:
+            raise UserError(_(
+                'No vendor email addresses found in this Comparative Statement.\n\n'
+                'Please add email addresses to the vendor contacts first.'
+            ))
+
+        # Use our standalone Matracon RFQ template (has our formal body AND
+        # our custom RFQ PDF in report_template_ids — no noupdate conflict)
+        template = self.env.ref(
+            'purchase_demand_raise.matracon_rfq_email_template',
+            raise_if_not_found=False,
+        )
+
+        ctx = {
+            'default_model': 'purchase.order',
+            'default_res_ids': po.ids,
+            'default_composition_mode': 'comment',
+            'default_partner_ids': partners_with_email.ids,
+            'default_email_layout_xmlid': 'mail.mail_notification_layout_with_responsible_signature',
+            'force_email': True,
+            'send_rfq': True,
+        }
+        if template:
+            ctx['default_template_id'] = template.id
+
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Send RFQ to Vendors'),
+            'res_model': 'mail.compose.message',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': ctx,
+        }
+
 
 class CSVendor(models.Model):
+
     _name = 'x.cs.vendor'
     _description = 'CS Vendor Comparison'
     _order = 'sequence, id'
@@ -289,11 +457,10 @@ class CSVendor(models.Model):
     # Commercial terms
     x_rfq_reference = fields.Char(string='Quotation Reference')
     x_quote_validity = fields.Date(string='Quote Validity')
-    x_delivery_basis = fields.Selection([
-        ('ex_works', 'Ex-Works'),
-        ('for', 'FOR'),
-        ('ddp', 'DDP'),
-    ], string='Delivery Basis')
+    x_delivery_basis = fields.Char(
+        string='Delivery Basis',
+        help='e.g. Ex-Works, FOR, DDP, or any custom delivery terms.',
+    )
     x_delivery_period = fields.Char(string='Delivery Period')
     # Payment Terms — Odoo native dropdown (account.payment.term)
     x_payment_term_id = fields.Many2one(
@@ -312,6 +479,68 @@ class CSVendor(models.Model):
     x_brand_origin = fields.Char(string='Brand / Origin')
     x_ancillary_included = fields.Boolean(string='Ancillary Items Included?')
     x_remarks = fields.Text(string='Remarks')
+
+    # ── T&C Template (per vendor) ─────────────────────────────────────────────
+    x_tc_template_id = fields.Many2one(
+        'x.po.terms.template',
+        string='T&C Template',
+        domain="[('active', '=', True)]",
+        help='Select a template to auto-fill the Terms & Conditions text below.',
+    )
+    x_tc_text = fields.Html(
+        string='Terms & Conditions',
+        sanitize_attributes=False,
+        help='Full terms for this vendor. Auto-filled when a template is selected.',
+    )
+
+    @api.onchange('x_partner_id')
+    def _onchange_partner_populate_lines(self):
+        """
+        Real-time product line population.
+
+        Fires when the vendor is selected (or changed) in the sub-form dialog.
+        If there are no product lines yet, auto-creates them from the linked PR
+        so the user can see and price the products immediately without saving first.
+        """
+        if not self.x_partner_id or self.x_line_ids:
+            return
+        cs = self.x_cs_id
+        if not cs or not cs.x_purchase_order_id:
+            return
+        pr = cs.x_purchase_order_id
+        lines = []
+        for pr_line in pr.order_line.filtered(lambda l: l.product_id and not l.display_type):
+            qty = (
+                pr_line.x_approved_qty
+                or pr_line.x_recommended_qty
+                or pr_line.x_requested_qty
+                or pr_line.product_qty
+                or 1.0
+            )
+            lines.append(Command.create({
+                'x_product_id': pr_line.product_id.id,
+                'x_qty': qty,
+                'x_unit_price': 0.0,
+                'x_pr_line_id': pr_line.id,
+            }))
+        if lines:
+            self.x_line_ids = lines
+
+    @api.onchange('x_tc_template_id')
+    def _onchange_tc_template(self):
+        """Fires in the sub-form dialog when the template is selected."""
+        if self.x_tc_template_id:
+            self.x_tc_text = self.x_tc_template_id.content
+
+    def write(self, vals):
+        """Ensure x_tc_text is populated from template on write (even via list inline)."""
+        if vals.get('x_tc_template_id') and 'x_tc_text' not in vals:
+            tmpl = self.env['x.po.terms.template'].browse(vals['x_tc_template_id'])
+            if tmpl.content:
+                vals['x_tc_text'] = tmpl.content
+        return super().write(vals)
+
+    # ── Document Attachments ──────────────────────────────────────────────────
     x_attachment_ids = fields.Many2many(
         'ir.attachment', string='Vendor Quotation Documents',
         relation='x_cs_vendor_attachment_rel',
@@ -367,7 +596,7 @@ class CSVendor(models.Model):
             else:
                 vendor.x_savings_vs_highest = 0.0
 
-    # ── Winner selection ──────────────────────────────────────────────────────
+    # ── Winner selection & vendor copy ───────────────────────────────────────
 
     def action_select_as_recommended(self):
         """Mark this vendor as the CS winner; unmark all others."""
@@ -375,21 +604,154 @@ class CSVendor(models.Model):
         cs = self.x_cs_id
         if cs.x_state == 'confirmed':
             raise UserError(_('Cannot change the winner on a confirmed Comparative Statement.'))
-        # Unset all
         cs.x_vendor_line_ids.write({'x_is_recommended': False})
-        # Set this one
         self.x_is_recommended = True
         cs.x_recommended_vendor_line_id = self
         return True
+
+    def action_send_rfq(self):
+        """Open mail compose dialog to send RFQ to THIS specific vendor."""
+        self.ensure_one()
+        po = self.x_cs_id.x_purchase_order_id
+        if not po:
+            raise UserError(_('No Purchase Requisition linked to this Comparative Statement.'))
+        if not self.x_partner_id:
+            raise UserError(_('No vendor selected on this line.'))
+        if not self.x_partner_id.email:
+            raise UserError(_(
+                'Vendor "%s" does not have an email address.\n\n'
+                'Please add an email address to this vendor\'s contact record first.'
+            ) % self.x_partner_id.name)
+
+        # Use our standalone Matracon RFQ template (correct PDF, no noupdate conflict)
+        template = self.env.ref(
+            'purchase_demand_raise.matracon_rfq_email_template',
+            raise_if_not_found=False,
+        )
+
+        ctx = {
+            'default_model': 'purchase.order',
+            'default_res_ids': po.ids,
+            'default_composition_mode': 'comment',
+            'default_partner_ids': [self.x_partner_id.id],
+            'default_email_layout_xmlid': 'mail.mail_notification_layout_with_responsible_signature',
+            'force_email': True,
+            'send_rfq': True,
+        }
+        if template:
+            ctx['default_template_id'] = template.id
+
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Send RFQ — %s') % self.x_partner_id.name,
+            'res_model': 'mail.compose.message',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': ctx,
+        }
+
+    def action_choose_vendor(self):
+        """Choose this vendor: mark as winner AND copy vendor + all terms to the PR."""
+        self.ensure_one()
+        cs = self.x_cs_id
+        if cs.x_state == 'confirmed':
+            raise UserError(_('Cannot change the selection on a confirmed Comparative Statement.'))
+
+        # Mark as winner
+        cs.x_vendor_line_ids.write({'x_is_recommended': False})
+        self.x_is_recommended = True
+        cs.x_recommended_vendor_line_id = self
+
+        # Copy vendor and terms to the main PR
+        pr = cs.x_purchase_order_id
+        if pr:
+            vals = {'partner_id': self.x_partner_id.id}
+            if self.x_payment_term_id:
+                vals['payment_term_id'] = self.x_payment_term_id.id
+            if self.x_tc_text:
+                vals['note'] = self.x_tc_text
+            if self.x_tc_template_id:
+                vals['x_terms_template_id'] = self.x_tc_template_id.id
+            pr.sudo().write(vals)
+
+            # Copy winning prices to PR lines
+            for cs_line in self.x_line_ids:
+                if not cs_line.x_product_id:
+                    continue
+                pr_line = pr.order_line.filtered(
+                    lambda l, p=cs_line.x_product_id: l.product_id == p and not l.display_type
+                )[:1]
+                if pr_line and cs_line.x_unit_price:
+                    pr_line.price_unit = cs_line.x_unit_price
+
+            pr.message_post(
+                body=Markup(
+                    '🏆 <b>Vendor Selected:</b> <b>%(vendor)s</b> chosen from '
+                    'Comparative Statement <b>%(cs)s</b>.<br/>'
+                    'Terms and price copied to this PR. '
+                    'Click <b>Confirm Selection &amp; Route to CEO</b> on the CS to finalise.'
+                ) % {'vendor': self.x_partner_id.name, 'cs': cs.name},
+                subtype_xmlid='mail.mt_log_note',
+            )
+        return True
+
+    # ── Pre-populate product lines when dialog opens (before save) ───────────
+
+    @api.model
+    def default_get(self, fields_list):
+        """Pre-populate x_line_ids from the PR when opening the new-vendor dialog."""
+        res = super().default_get(fields_list)
+        cs_id = self.env.context.get('default_x_cs_id')
+        if cs_id and 'x_line_ids' in fields_list:
+            cs = self.env['x.comparative.statement'].browse(cs_id)
+            pr = cs.x_purchase_order_id
+            if pr:
+                lines = []
+                for pr_line in pr.order_line.filtered(
+                    lambda l: l.product_id and not l.display_type
+                ):
+                    # Priority: approved → recommended → requested → product_qty
+                    qty = (
+                        pr_line.x_approved_qty
+                        or pr_line.x_recommended_qty
+                        or pr_line.x_requested_qty
+                        or pr_line.product_qty
+                        or 1.0
+                    )
+                    lines.append(Command.create({
+                        'x_product_id': pr_line.product_id.id,
+                        'x_qty': qty,
+                        'x_unit_price': 0.0,
+                        'x_pr_line_id': pr_line.id,
+                    }))
+                if lines:
+                    res['x_line_ids'] = lines
+        return res
 
     # ── Auto-create product lines from PR on vendor addition ──────────────────
 
     @api.model_create_multi
     def create(self, vals_list):
+        """
+        Single create override that:
+        1. Syncs x_tc_text from template if not already provided.
+        2. Auto-creates product lines from the linked PR for every new vendor.
+        """
+        # ── Step 1: T&C text sync ─────────────────────────────────────────────
+        for vals in vals_list:
+            if vals.get('x_tc_template_id') and not vals.get('x_tc_text'):
+                tmpl = self.env['x.po.terms.template'].browse(vals['x_tc_template_id'])
+                if tmpl.exists() and tmpl.content:
+                    vals['x_tc_text'] = tmpl.content
+
+        # ── Step 2: Create records ────────────────────────────────────────────
         records = super().create(vals_list)
+
+        # ── Step 3: Auto-create product lines from PR ─────────────────────────
         for record in records:
             if record.x_cs_id and record.x_cs_id.x_purchase_order_id:
                 record._auto_create_lines_from_pr()
+
         return records
 
     def _auto_create_lines_from_pr(self):
@@ -404,8 +766,9 @@ class CSVendor(models.Model):
             if pr_line.product_id in existing_products:
                 continue
             qty = (
-                pr_line.x_requested_qty
+                pr_line.x_approved_qty
                 or pr_line.x_recommended_qty
+                or pr_line.x_requested_qty
                 or pr_line.product_qty
                 or 1.0
             )
@@ -423,17 +786,57 @@ class CSVendor(models.Model):
 class CSVendorLine(models.Model):
     _name = 'x.cs.vendor.line'
     _description = 'CS Vendor Line Item'
+    _order = 'x_cs_vendor_id, id'
 
     x_cs_vendor_id = fields.Many2one('x.cs.vendor', string='Vendor', ondelete='cascade', index=True)
+    # Stored related — enables the flat x_all_line_ids one2many on ComparativeStatement
+    x_cs_id = fields.Many2one(
+        'x.comparative.statement',
+        related='x_cs_vendor_id.x_cs_id',
+        store=True, index=True, readonly=True,
+    )
     # Link to original PR line (for traceability — set during auto-creation)
     x_pr_line_id = fields.Many2one(
         'purchase.order.line', string='PR Line',
         ondelete='set null', copy=False,
         help='Original PR line this quote line was created from.',
     )
-    x_product_id = fields.Many2one('product.product', string='Product', required=True)
+    # required=False at ORM level to avoid ValidationError when the editable
+    # list has a pending empty row during form auto-save (triggered by button clicks).
+    # required="1" is enforced in the view XML for normal UX validation.
+    x_product_id = fields.Many2one('product.product', string='Product', required=False)
     x_uom_id = fields.Many2one('uom.uom', string='UoM', related='x_product_id.uom_id', readonly=True)
-    x_qty = fields.Float(string='Quantity', digits='Product Unit of Measure')
+
+    # ── Quantity: always pulled from the PR line's recommended qty ────────────
+    # store=True so totals can trigger off it; readonly=False allows override if needed.
+    # With store=True the compute recalculates when PR line qtys change, keeping it fresh.
+    x_qty = fields.Float(
+        string='Quantity', digits='Product Unit of Measure',
+        compute='_compute_qty_from_pr', store=True, readonly=False,
+    )
+
+    @api.depends(
+        'x_pr_line_id',
+        'x_pr_line_id.x_recommended_qty',
+        'x_pr_line_id.x_requested_qty',
+        'x_pr_line_id.product_qty',
+    )
+    def _compute_qty_from_pr(self):
+        for line in self:
+            pr = line.x_pr_line_id
+            if pr:
+                # Priority: recommended → requested → product_qty
+                line.x_qty = (
+                    pr.x_recommended_qty
+                    or pr.x_requested_qty
+                    or pr.product_qty
+                    or 1.0
+                )
+            else:
+                # No PR link (manually added line) — default to 1.0
+                # NOTE: cannot read the field being computed; always assign a value
+                line.x_qty = 1.0
+
     x_unit_price = fields.Float(string='Unit Price', digits='Product Price')
     x_total_price = fields.Float(
         string='Total Price', compute='_compute_line_totals', store=True,
@@ -453,3 +856,17 @@ class CSVendorLine(models.Model):
             line.x_total_price = line.x_qty * line.x_unit_price
             line.x_gst_amount = line.x_total_price * (line.x_gst_rate / 100.0)
             line.x_net_price = line.x_total_price + line.x_gst_amount
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        """Silently skip any lines without a product.
+
+        Empty-product lines can appear when the editable list in the CS vendor
+        dialog auto-saves a pending row before the user has selected a product
+        (e.g. clicking a header button triggers an automatic form save in Odoo).
+        Dropping them here prevents a ValidationError and preserves all valid lines.
+        """
+        vals_list = [v for v in vals_list if v.get('x_product_id')]
+        if not vals_list:
+            return self.browse()
+        return super().create(vals_list)

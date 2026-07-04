@@ -72,6 +72,12 @@
                                 <span class="o_stat_text">Sheet</span>
                             </div>
                         </button>
+                        <button name="action_view_ho_advances" type="object"
+                                class="oe_stat_button" icon="fa-university"
+                                invisible="ho_advance_count == 0">
+                            <field name="ho_advance_count"
+                                   widget="statinfo" string="HO Advances"/>
+                        </button>
                     </div>
 
                     <!-- Title -->
@@ -163,8 +169,25 @@
                                    readonly="state != 'draft'"/>
                         </group>
 
-                        <!-- c) Security Withheld -->
-                        <group string="c)  Security Withheld">
+                        <!-- c) HO Advance Recovery -->
+                        <group string="c)  HO Advance by Head Office">
+                            <field name="ho_advance_till_prev_ipc"
+                                   string="HO Advance till Previous IPC"
+                                   readonly="1"/>
+                            <field name="ho_advance_till_this_ipc"
+                                   string="HO Advance till This IPC"
+                                   readonly="1"/>
+                            <field name="ho_advance_this_period"
+                                   string="New HO Advance (This Period)"
+                                   readonly="1"
+                                   class="fw-bold"/>
+                            <field name="ho_advance_recovery"
+                                   string="HO Advance Recovery (this IPC)"
+                                   readonly="state != 'draft'"/>
+                        </group>
+
+                        <!-- d) Security Withheld -->
+                        <group string="d)  Security Withheld">
                             <field name="security_withheld"
                                    string="Security Withheld"
                                    readonly="state != 'draft'"/>
@@ -172,8 +195,8 @@
 
                     </group>
 
-                    <!-- d) Back Charges (auto-populated) -->
-                    <group string="d)  Back Charges (auto-populated for this Subcontractor &amp; Project)">
+                    <!-- e) Back Charges (auto-populated) -->
+                    <group string="e)  Back Charges (auto-populated for this Subcontractor &amp; Project)">
                         <field name="backcharge_line_ids"
                                nolabel="1"
                                readonly="state != 'draft'">
@@ -195,7 +218,7 @@
 
                     <!-- e) Other Deductions & f) Other Additions -->
                     <group>
-                        <group string="e)  Other Deductions">
+                        <group string="f)  Other Deductions">
                             <field name="other_deductions_amount"
                                    string="Amount"
                                    readonly="state != 'draft'"/>
@@ -205,7 +228,7 @@
                                    readonly="state != 'draft'"
                                    required="other_deductions_amount != 0"/>
                         </group>
-                        <group string="f)  Other Additions">
+                        <group string="g)  Other Additions">
                             <field name="other_additions_amount"
                                    string="Amount"
                                    readonly="state != 'draft'"/>

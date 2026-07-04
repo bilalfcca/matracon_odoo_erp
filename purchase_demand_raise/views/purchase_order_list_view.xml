@@ -28,6 +28,7 @@
             <field name="name" position="after">
                 <field name="x_initiator_id" string="Raised By" optional="show"/>
                 <field name="x_project_analytic_account_id" string="Project" optional="show"/>
+                <field name="partner_id" string="Vendor" optional="show"/>
                 <field name="x_procurement_type" string="Procurement Type"
                        widget="badge"
                        decoration-info="x_procurement_type == 'ho_procurement'"
@@ -46,12 +47,14 @@
                        decoration-warning="x_ho_status == 'pending'"
                        decoration-success="x_ho_status == 'approved'"
                        decoration-danger="x_ho_status == 'rejected'"
+                       groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"
                        optional="show"/>
                 <field name="x_ceo_status" string="CEO Status"
                        widget="badge"
                        decoration-warning="x_ceo_status == 'pending'"
                        decoration-success="x_ceo_status == 'approved'"
                        decoration-danger="x_ceo_status == 'rejected'"
+                       groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"
                        optional="show"/>
             </field>
 
@@ -79,6 +82,7 @@
             <field name="name" position="after">
                 <field name="x_initiator_id" string="Raised By" optional="show"/>
                 <field name="x_project_analytic_account_id" string="Project" optional="show"/>
+                <field name="partner_id" string="Vendor" optional="show"/>
                 <field name="x_procurement_type" string="Procurement Type"
                        widget="badge"
                        decoration-info="x_procurement_type == 'ho_procurement'"
@@ -92,21 +96,70 @@
                        decoration-success="x_pr_state == 'po_locked'"
                        decoration-danger="x_pr_state in ('rejected', 'cancelled')"
                        optional="show"/>
+                <!-- HO/CEO Status: not relevant for Site Store (they only have Site Procurement records).
+                     Use groups restriction instead of column_invisible — the KPI dashboard renderer
+                     evaluates column_invisible without row context so field references crash. -->
                 <field name="x_ho_status" string="HO Status"
                        widget="badge"
                        decoration-warning="x_ho_status == 'pending'"
                        decoration-success="x_ho_status == 'approved'"
                        decoration-danger="x_ho_status == 'rejected'"
+                       groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"
                        optional="show"/>
                 <field name="x_ceo_status" string="CEO Status"
                        widget="badge"
                        decoration-warning="x_ceo_status == 'pending'"
                        decoration-success="x_ceo_status == 'approved'"
                        decoration-danger="x_ceo_status == 'rejected'"
+                       groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"
                        optional="show"/>
             </field>
 
         </field>
+    </record>
+
+    <!-- ════════════════════════════════════════════════════════
+         OVERRIDE the standard RFQ list action to exclude
+         alternative RFQs (native Odoo vendor-comparison copies)
+         from the main list — they are managed inside the
+         Comparative Statement, not as standalone RFQ records.
+         ════════════════════════════════════════════════════════ -->
+    <record id="purchase.purchase_rfq" model="ir.actions.act_window">
+        <field name="domain">[('x_is_alternative_rfq', '!=', True)]</field>
+    </record>
+
+    <!-- ════════════════════════════════════════════════════════
+         ROLE-SPECIFIC PR LIST ACTIONS
+         These actions pre-apply search filters so each role
+         lands on its action-needed records by default.
+         Users can remove the filter to see full history.
+         ════════════════════════════════════════════════════════ -->
+
+    <!-- Procurement HO: lands on "Pending HO Approval" by default -->
+    <record id="action_prs_procurement_ho" model="ir.actions.act_window">
+        <field name="name">Purchase Requisitions</field>
+        <field name="res_model">purchase.order</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('x_is_alternative_rfq', '!=', True), ('x_procurement_type', '=', 'ho_procurement')]</field>
+        <field name="context">{'search_default_pending_ho_approval': 1}</field>
+    </record>
+
+    <!-- CEO: lands on "Pending CEO Final" by default -->
+    <record id="action_prs_ceo" model="ir.actions.act_window">
+        <field name="name">Purchase Requisitions</field>
+        <field name="res_model">purchase.order</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('x_is_alternative_rfq', '!=', True), ('x_procurement_type', '=', 'ho_procurement')]</field>
+        <field name="context">{'search_default_ceo_final_review': 1}</field>
+    </record>
+
+    <!-- Head Office (general oversight): lands on "Pending HO Approval" by default -->
+    <record id="action_prs_head_office" model="ir.actions.act_window">
+        <field name="name">Purchase Requisitions</field>
+        <field name="res_model">purchase.order</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('x_is_alternative_rfq', '!=', True), ('x_procurement_type', '=', 'ho_procurement')]</field>
+        <field name="context">{'search_default_pending_ho_approval': 1}</field>
     </record>
 
     <!-- ════════════════════════════════════════════════════════
@@ -126,6 +179,11 @@
                 <field name="x_project_analytic_account_id" string="Project"/>
                 <field name="x_category_id" string="Category"/>
                 <field name="x_procurement_type" string="Procurement Type"/>
+
+                <!-- Toggle to show alternative RFQs (hidden by default via action domain) -->
+                <filter name="show_alternatives"
+                        string="Show Alternative RFQs"
+                        domain="[('x_is_alternative_rfq', '=', True)]"/>
 
                 <separator/>
 

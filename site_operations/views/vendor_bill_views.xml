@@ -7,6 +7,18 @@
         <field name="inherit_id" ref="account.view_move_form"/>
         <field name="arch" type="xml">
 
+            <!-- "Posted" ribbon — visible on vendor bills that are confirmed but
+                 not yet paid/in-payment.  Mirrors what the statusbar shows so
+                 that the printed-doc preview and the form header are in sync.
+                 The standard "Paid" / "In Payment" ribbons stay untouched.
+                 Inserted before the invisible payment_state field so it sits
+                 in the same block as all other ribbon widgets. -->
+            <xpath expr="//field[@name='payment_state']" position="before">
+                <widget name="web_ribbon" title="Posted"
+                        bg_color="text-bg-success"
+                        invisible="move_type != 'in_invoice' or state != 'posted' or payment_state in ('paid', 'in_payment', 'reversed')"/>
+            </xpath>
+
             <xpath expr="//div[@name='button_box']" position="inside">
                 <button name="action_view_liability_sheet"
                         type="object"
@@ -55,12 +67,15 @@
                        options="{'no_create': True}"/>
                 <!-- Bill Copy — mandatory for vendor bills; shown prominently here
                      so it is never missed before posting. -->
+                <!-- Bill Copy is not marked required in the view so the form
+                     can be saved/auto-saved without it.  The server-side
+                     action_post() check enforces the attachment at Confirm
+                     time with a clear UserError message. -->
                 <field name="x_bill_copy"
                        widget="binary"
                        filename="x_bill_copy_filename"
                        string="Bill Copy"
-                       invisible="move_type != 'in_invoice'"
-                       required="move_type == 'in_invoice' and state == 'draft'"/>
+                       invisible="move_type != 'in_invoice'"/>
                 <field name="x_bill_copy_filename" invisible="1"/>
             </xpath>
 
@@ -74,6 +89,169 @@
                     <field name="x_liability_amount_registered" readonly="1" class="oe_inline"/>
                     registered.
                 </div>
+            </xpath>
+
+        </field>
+    </record>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         SITE ACCOUNTANT — simplified vendor bill view
+         •  Hides header fields irrelevant to receipt verification
+            (Due Date, Payment Terms, Payment Reference).
+         •  Hides the product-based "Invoice Lines" tab and the standard
+            "Journal Items" tab; instead shows a site-accountant-only
+            "Invoice Lines" tab that presents the same accounting entries
+            (line_ids) in a clean, read-only list.
+    ═══════════════════════════════════════════════════════════════════ -->
+    <record id="view_vendor_bill_site_accountant_simplify" model="ir.ui.view">
+        <field name="name">account.move.vendor.bill.site.accountant.simplify</field>
+        <field name="model">account.move</field>
+        <field name="inherit_id" ref="account.view_move_form"/>
+        <field name="arch" type="xml">
+
+            <!-- 1. Payment Reference — not relevant for site receipt verification -->
+            <xpath expr="//field[@name='payment_reference']" position="attributes">
+                <attribute name="groups">!site_operations.group_site_accountant</attribute>
+            </xpath>
+
+            <!-- 2. Due Date label div (shared with Payment Terms label) -->
+            <xpath expr="//div[hasclass('o_td_label')][label[@for='invoice_date_due']]" position="attributes">
+                <attribute name="groups">!site_operations.group_site_accountant</attribute>
+            </xpath>
+
+            <!-- 3. Due Date / Payment Terms value div -->
+            <xpath expr="//div[@name='due_date']" position="attributes">
+                <attribute name="groups">!site_operations.group_site_accountant</attribute>
+            </xpath>
+
+            <!-- 4. Standard "Invoice Lines" (product lines) tab — visible to everyone
+                 including site accountants. We keep the purpose-built journal-items
+                 tab (sa_invoice_lines, injected below) as the first tab so it
+                 appears at the front of the tab bar for site accountants.
+                 Restrict the account_id picker in that tab to site-allowed CoA
+                 accounts when the user is a site accountant. -->
+            <xpath expr="//page[@id='invoice_tab']//field[@name='account_id']" position="attributes">
+                <attribute name="domain">['|', ('x_site_ids', '=', False), ('x_site_ids', 'in', [parent.x_user_analytic_id])] if parent.x_user_analytic_id else []</attribute>
+                <attribute name="options">{'no_create': True, 'no_create_edit': True}</attribute>
+            </xpath>
+
+            <!-- 5. Hide the standard "Journal Items" tab from site accountant so they
+                 only see the purpose-built "Invoice Lines" tab injected below. -->
+            <xpath expr="//page[@id='aml_tab']" position="attributes">
+                <attribute name="groups">!site_operations.group_site_accountant</attribute>
+            </xpath>
+
+            <!-- 6. Site-accountant-only "Invoice Lines" tab — shows the same accounting
+                 entries (line_ids) as the Journal Items tab but with a friendlier label.
+                 Editable when the bill is in Draft so accountants can correct accounts
+                 or analytic tags before confirming.  Becomes fully read-only once posted.
+                 Injected before the invoice_tab so it appears first in the tab bar. -->
+            <xpath expr="//page[@id='invoice_tab']" position="before">
+                <page string="Journal Entries"
+                      name="sa_invoice_lines"
+                      groups="site_operations.group_site_accountant">
+                    <!-- readonly on the parent field propagates to all child fields;
+                         individual readonly="1" attributes have been removed so that
+                         draft bills remain editable. -->
+                    <field name="line_ids" readonly="state == 'posted'">
+                        <list string="Invoice Lines"
+                              editable="bottom"
+                              decoration-muted="display_type in ('line_section', 'line_note')"
+                              default_order="sequence, id">
+                            <field name="sequence" widget="handle"/>
+                            <!-- Domain: show only CoA accounts tagged for this site
+                                 via x_site_ids.  parent.x_user_analytic_id is a
+                                 computed field on account.move that resolves to the
+                                 current user's default analytic (their site project).
+                                 Using 'in' on the Many2many x_site_ids field returns
+                                 every account that includes that analytic in its site list. -->
+                            <field name="account_id"
+                                   domain="['|', ('x_site_ids', '=', False), ('x_site_ids', 'in', [parent.x_user_analytic_id])]"
+                                   options="{'no_create': True, 'no_create_edit': True}"/>
+                            <field name="name" widget="section_and_note_text"
+                                   optional="show"/>
+                            <field name="analytic_distribution"
+                                   widget="analytic_distribution"
+                                   groups="analytic.group_analytic_accounting"
+                                   optional="show"
+                                   options="{'account_field': 'account_id'}"/>
+                            <field name="debit" sum="Total Debit"
+                                   invisible="display_type in ('line_section', 'line_subsection', 'line_note')"/>
+                            <field name="credit" sum="Total Credit"
+                                   invisible="display_type in ('line_section', 'line_subsection', 'line_note')"/>
+                            <!-- tax_ids omitted: autosave_many2many_tax_tags widget
+                                 crashes in a readonly context without full parent context. -->
+                            <field name="display_type" column_invisible="1"/>
+                        </list>
+                    </field>
+                </page>
+            </xpath>
+
+        </field>
+    </record>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         CUSTOMER INVOICE — Finance HO form adjustments
+         •  Hides Due Date / Payment Terms (not used in our workflow)
+         •  Journal Entries tab first, Invoice Lines tab second
+         •  Account picker: all CoA (sales + purchase) for HO users;
+            site-restricted for site accountants
+    ═══════════════════════════════════════════════════════════════════ -->
+    <record id="view_customer_invoice_site_ops_form" model="ir.ui.view">
+        <field name="name">account.move.customer.invoice.site.ops.form</field>
+        <field name="model">account.move</field>
+        <field name="inherit_id" ref="account.view_move_form"/>
+        <field name="arch" type="xml">
+
+            <!-- 1. Hide Due Date label for customer invoices -->
+            <xpath expr="//div[hasclass('o_td_label')][label[@for='invoice_date_due']]" position="attributes">
+                <attribute name="invisible">move_type == 'out_invoice'</attribute>
+            </xpath>
+
+            <!-- 2. Hide Due Date / Payment Terms value div for customer invoices -->
+            <xpath expr="//div[@name='due_date']" position="attributes">
+                <attribute name="invisible">move_type == 'out_invoice'</attribute>
+            </xpath>
+
+            <!-- 3. Hide standard Journal Items tab for customer invoices —
+                     our custom Journal Entries tab (below) replaces it as tab 1 -->
+            <xpath expr="//page[@id='aml_tab']" position="attributes">
+                <attribute name="invisible">move_type == 'out_invoice'</attribute>
+            </xpath>
+
+            <!-- 4. Journal Entries tab — first tab for HO users on customer invoices.
+                     Site accountants already get the sa_invoice_lines tab from the
+                     vendor-bill view, so they are excluded here via groups.
+                     Account domain: [] (all CoA) when x_user_analytic_id is False
+                     (= HO user); site-restricted when a site analytic is present. -->
+            <xpath expr="//page[@id='invoice_tab']" position="before">
+                <page string="Journal Entries"
+                      name="customer_journal_entries"
+                      invisible="move_type != 'out_invoice'"
+                      groups="!site_operations.group_site_accountant">
+                    <field name="line_ids" readonly="state == 'posted'">
+                        <list string="Journal Entries"
+                              editable="bottom"
+                              decoration-muted="display_type in ('line_section', 'line_note')"
+                              default_order="sequence, id">
+                            <field name="sequence" widget="handle"/>
+                            <field name="account_id"
+                                   domain="[] if not parent.x_user_analytic_id else ['|', ('x_site_ids', '=', False), ('x_site_ids', 'in', [parent.x_user_analytic_id])]"
+                                   options="{'no_create': True, 'no_create_edit': True}"/>
+                            <field name="name" widget="section_and_note_text" optional="show"/>
+                            <field name="analytic_distribution"
+                                   widget="analytic_distribution"
+                                   groups="analytic.group_analytic_accounting"
+                                   optional="show"
+                                   options="{'account_field': 'account_id'}"/>
+                            <field name="debit" sum="Total Debit"
+                                   invisible="display_type in ('line_section', 'line_subsection', 'line_note')"/>
+                            <field name="credit" sum="Total Credit"
+                                   invisible="display_type in ('line_section', 'line_subsection', 'line_note')"/>
+                            <field name="display_type" column_invisible="1"/>
+                        </list>
+                    </field>
+                </page>
             </xpath>
 
         </field>

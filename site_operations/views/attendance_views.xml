@@ -112,7 +112,11 @@
                                     <field name="day_30" optional="hide"/>
                                     <field name="day_31" optional="hide"/>
                                     <field name="total_display" string="Total" readonly="1"/>
-                                    <field name="x_advance_amount" string="Advance Recovery" optional="show"/>
+                                    <field name="x_advance_outstanding" string="Adv. Outstanding" optional="show" readonly="1"/>
+                                    <field name="x_advance_amount" string="Adv. Recovery" optional="show"/>
+                                    <field name="x_backcharge_outstanding" string="BC Outstanding" optional="show" readonly="1"/>
+                                    <field name="x_backcharge_amount" string="BC Recovery" optional="show"/>
+                                    <field name="x_total_recovery" string="Total Recovery" optional="show" readonly="1"/>
                                 </list>
                             </field>
                         </page>

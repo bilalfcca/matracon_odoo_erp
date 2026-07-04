@@ -8,6 +8,16 @@
         <field name="priority">20</field>
         <field name="arch" type="xml">
 
+            <!-- Payment Type: make readonly so only the relevant option is visible.
+                 When the form is opened from Vendor Payments, payment_type is
+                 'outbound' (Send) and the readonly radio shows just "Send".
+                 When opened from Customer Payments, it shows just "Receive".
+                 Without readonly, both Send/Receive radio buttons are always shown
+                 which confuses users who should not be able to switch types. -->
+            <xpath expr="//field[@name='payment_type']" position="attributes">
+                <attribute name="readonly">1</attribute>
+            </xpath>
+
             <!-- Hide Odoo default payment state bar when using Matracon liability workflow -->
             <xpath expr="//field[@name='state'][@widget='statusbar']" position="attributes">
                 <attribute name="invisible">payment_type == 'outbound' and (x_liability_sheet_id or x_ceo_direct_payment)</attribute>
@@ -138,13 +148,18 @@
                 <attribute name="invisible">partner_type != 'customer' or x_payment_category in ('petty_cash', 'salary')</attribute>
                 <attribute name="required">partner_type == 'customer' and x_payment_category not in ('petty_cash', 'salary')</attribute>
             </xpath>
-            <!-- Vendor field: add our category guard, keep partner_type guard -->
+            <!-- Vendor field: hidden for petty_cash/salary; on WHT payments x_payee_id takes over -->
             <xpath expr="//group[@name='group1']/field[@name='partner_id'][2]" position="attributes">
-                <attribute name="invisible">partner_type != 'supplier' or x_payment_category in ('petty_cash', 'salary')</attribute>
-                <attribute name="required">partner_type == 'supplier' and x_payment_category not in ('petty_cash', 'salary')</attribute>
+                <attribute name="invisible">partner_type != 'supplier' or x_payment_category in ('petty_cash', 'salary') or x_origin_payment_id</attribute>
+                <attribute name="required">partner_type == 'supplier' and x_payment_category not in ('petty_cash', 'salary') and not x_origin_payment_id</attribute>
             </xpath>
 
             <xpath expr="//group[@name='group1']/field[@name='partner_id'][2]" position="after">
+                <!-- WHT companion payment: dedicated Payee field (always editable) -->
+                <field name="x_payee_id"
+                       invisible="not x_origin_payment_id"
+                       options="{'no_quick_create': True}"/>
+
                 <field name="x_liability_sheet_line_id" invisible="1"/>
 
                 <field name="x_gross_approved_amount"
@@ -178,29 +193,45 @@
                        invisible="payment_type != 'outbound'"
                        required="payment_type == 'outbound' and (x_liability_sheet_id or x_payment_category in ('petty_cash', 'salary'))"/>
 
-                <field name="x_source_project_ids"
-                       widget="many2many_tags"
-                       invisible="payment_type != 'outbound' or x_payment_category in ('petty_cash', 'salary') or (x_ceo_direct_payment and x_viewer_is_ceo_only)"
-                       required="payment_type == 'outbound' and x_liability_sheet_id"/>
+                <field name="x_is_ho_advance"
+                       string="HO Advance to Subcontractor"
+                       invisible="payment_type != 'outbound' or x_payment_category in ('salary', 'petty_cash')"/>
+
+                <!-- x_source_project_ids kept in model; entry is via Fund Allocation tab lines only -->
+                <field name="x_source_project_ids" widget="many2many_tags" invisible="1"/>
 
             </xpath>
 
-            <!-- Bank balance — hidden from CEO on direct payments -->
+            <!-- ── Journal: hidden from form — auto-set from first Bank Fund row ──
+                 journal_id is required by Odoo for posting but FO no longer
+                 touches it directly. It is set via
+                 _onchange_bank_allocations_set_journal when the first bank
+                 is added to the Bank Fund tab. -->
+            <xpath expr="//field[@name='journal_id']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+
+            <!-- Source Banks: hidden from form — entry via Bank Fund tab only -->
             <xpath expr="//field[@name='journal_id']" position="after">
                 <field name="x_available_bank_balance"
                        string="Bank Balance"
                        readonly="1"
-                       invisible="not journal_id or (x_ceo_direct_payment and x_viewer_is_ceo_only)"/>
+                       invisible="1"/>
+                <field name="x_source_journal_ids"
+                       widget="many2many_tags"
+                       string="Source Banks"
+                       invisible="1"/>
             </xpath>
 
             <xpath expr="//field[@name='x_available_bank_balance']" position="after">
+                <!-- Header cheque — only when NOT using per-bank allocation lines -->
                 <field name="x_cheque_number"
-                       invisible="payment_type != 'outbound' or not x_is_cheque_payment or (x_ceo_direct_payment and x_viewer_is_ceo_only)"
-                       required="payment_type == 'outbound' and x_is_cheque_payment and x_liability_sheet_id"/>
+                       invisible="payment_type != 'outbound' or not x_is_cheque_payment or (x_ceo_direct_payment and x_viewer_is_ceo_only) or x_bank_allocation_ids"
+                       required="payment_type == 'outbound' and x_is_cheque_payment and x_liability_sheet_id and not x_bank_allocation_ids"/>
                 <button name="action_assign_cheque_number" type="object"
                         string="Auto Assign Cheque No"
                         class="btn-secondary"
-                        invisible="not x_is_cheque_payment or x_cheque_number or (x_ceo_direct_payment and x_viewer_is_ceo_only)"/>
+                        invisible="not x_is_cheque_payment or x_cheque_number or (x_ceo_direct_payment and x_viewer_is_ceo_only) or x_bank_allocation_ids"/>
             </xpath>
 
             <xpath expr="//field[@name='x_ceo_direct_payment']" position="after">
@@ -208,7 +239,7 @@
             </xpath>
 
             <xpath expr="//notebook" position="inside">
-                <!-- Fund Allocation tab — first -->
+                <!-- Fund Allocation tab — project pool tracking -->
                 <page name="fund_allocation_tab"
                       string="Fund Allocation &amp; Tracking"
                       invisible="payment_type != 'outbound' or (x_ceo_direct_payment and x_viewer_is_ceo_only)">
@@ -217,6 +248,30 @@
                             <field name="project_analytic_account_id" string="Source Project"/>
                             <field name="available_balance" string="Available Project Balance" readonly="1"/>
                             <field name="allocation_amount" string="Allocation Amount"/>
+                        </list>
+                    </field>
+                </page>
+
+                <!-- Bank Fund tab — per-bank balance, allocation, and cheque tracking -->
+                <page name="bank_fund_tab"
+                      string="Bank Fund"
+                      invisible="payment_type != 'outbound' or (x_ceo_direct_payment and x_viewer_is_ceo_only)">
+                    <div class="text-muted small mb-2">
+                        Add source banks below. Each bank can have its own cheque number.
+                    </div>
+                    <field name="x_bank_allocation_ids" widget="one2many">
+                        <list string="Bank Fund" editable="bottom">
+                            <field name="journal_id" string="Bank / Journal"
+                                   domain="[('type', 'in', ('bank', 'cash'))]"
+                                   options="{'no_create': True}"/>
+                            <field name="available_balance" string="Available Bank Balance" readonly="1"/>
+                            <field name="allocation_amount" string="Allocation Amount"/>
+                            <field name="x_cheque_number" string="Cheque No."/>
+                            <button name="action_assign_cheque_number"
+                                    type="object"
+                                    string="Auto Assign"
+                                    title="Auto-assign next cheque number from the active series"
+                                    class="btn-secondary btn-sm"/>
                         </list>
                     </field>
                 </page>
@@ -315,6 +370,24 @@
         ]"/>
         <field name="search_view_id" ref="view_ho_payment_search"/>
         <field name="context">{'default_payment_type': 'outbound', 'default_partner_type': 'supplier'}</field>
+    </record>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         Fix 1: Accounting → Customers → Payments
+         Standard action uses search_default_inbound_filter (user can clear it).
+         Override domain to HARD-FILTER inbound only — received payments only.
+         ═══════════════════════════════════════════════════════════════════ -->
+    <record id="account.action_account_payments" model="ir.actions.act_window">
+        <field name="domain">[('payment_type', '=', 'inbound')]</field>
+    </record>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         Fix 2: Accounting → Vendors → Payments
+         Standard action uses search_default_outbound_filter (user can clear it).
+         Override domain to HARD-FILTER outbound only — sent payments only.
+         ═══════════════════════════════════════════════════════════════════ -->
+    <record id="account.action_account_payments_payable" model="ir.actions.act_window">
+        <field name="domain">[('payment_type', '=', 'outbound')]</field>
     </record>
 
 </odoo>

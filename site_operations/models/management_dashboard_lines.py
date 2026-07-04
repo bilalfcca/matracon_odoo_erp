@@ -29,6 +29,9 @@ class ManagementDashboardProjectLine(models.TransientModel):
     ], readonly=True)
     bg_amount = fields.Monetary(readonly=True, currency_field='currency_id')
     petty_cash_balance = fields.Monetary(readonly=True, currency_field='currency_id')
+    inventory_value = fields.Monetary(
+        string='Inventory Value', readonly=True, currency_field='currency_id',
+        help='Site-store inventory value from posted PO vendor bills (excl. tax).')
     contract_value = fields.Monetary(readonly=True, currency_field='currency_id')
     billed_to_client = fields.Monetary(readonly=True, currency_field='currency_id')
     work_completion_pct = fields.Float(string='Work %', digits=(5, 1), readonly=True)
@@ -137,4 +140,22 @@ class ManagementDashboardIpcLine(models.TransientModel):
     total_deductions = fields.Monetary(readonly=True, currency_field='currency_id')
     net_payable = fields.Monetary(readonly=True, currency_field='currency_id')
     state = fields.Char(readonly=True)
+    currency_id = fields.Many2one('res.currency', readonly=True)
+
+
+class ManagementDashboardInventoryLine(models.TransientModel):
+    """Per-project site-store inventory value derived from posted PO vendor bills."""
+    _name = 'x.management.dashboard.inventory.line'
+    _description = 'Management Dashboard Inventory Line'
+    _order = 'inventory_value desc'
+
+    dashboard_id = fields.Many2one(
+        'x.management.dashboard', ondelete='cascade', required=True)
+    project_name = fields.Char(string='Project', readonly=True)
+    analytic_account_id = fields.Many2one(
+        'account.analytic.account', string='Analytic', readonly=True)
+    inventory_value = fields.Monetary(
+        string='Inventory Value', readonly=True, currency_field='currency_id',
+        help='Sum of posted vendor bills from purchase orders (GRN receipts) at cost, excluding tax.')
+    bill_count = fields.Integer(string='No. of Bills', readonly=True)
     currency_id = fields.Many2one('res.currency', readonly=True)

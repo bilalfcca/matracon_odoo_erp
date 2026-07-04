@@ -1,5 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+    <!-- Enable analytic account filter on Partner Ledger
+         filter_analytic = True adds the "Analytic Accounts" selector to the
+         report's filter bar and automatically filters AMLs by analytic_distribution
+         when one or more accounts are chosen. -->
+    <record id="account_reports.partner_ledger_report" model="account.report">
+        <field name="filter_analytic" eval="True"/>
+    </record>
+
     <!-- Partner Ledger: WHT deduction column -->
     <record id="partner_ledger_wht_column" model="account.report.column">
         <field name="name">WHT</field>

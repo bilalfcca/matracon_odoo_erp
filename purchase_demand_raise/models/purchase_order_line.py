@@ -12,6 +12,10 @@ class PurchaseOrderLine(models.Model):
         """When Odoo creates alternative RFQ lines (via native Alternatives feature),
         it copies product_qty but does NOT copy x_requested_qty (which stays 0.0).
         We auto-populate it here so the requested qty is visible on alternatives too.
+
+        Also auto-sets analytic_distribution from the parent PO's project analytic
+        account if not already provided — covers programmatic creation (duplicate,
+        import, CS auto-create) where the onchange does not fire.
         """
         for vals in vals_list:
             if not vals.get('x_requested_qty') and vals.get('product_qty'):
@@ -25,6 +29,15 @@ class PurchaseOrderLine(models.Model):
                 and not line.display_type
             ):
                 line.tax_ids = order.x_quote_tax_ids
+            # Auto-set analytic distribution from the PR's project analytic account
+            if (
+                line.product_id
+                and not line.display_type
+                and not line.analytic_distribution
+                and order.x_project_analytic_account_id
+            ):
+                acc_id = str(order.x_project_analytic_account_id.id)
+                line.analytic_distribution = {acc_id: 100.0}
         return lines
 
     # ── Quantity Fields ───────────────────────────────────────────────────────
@@ -233,6 +246,21 @@ class PurchaseOrderLine(models.Model):
         if self.product_id and self.order_id.x_project_analytic_account_id:
             acc_id = str(self.order_id.x_project_analytic_account_id.id)
             self.analytic_distribution = {acc_id: 100.0}
+
+    # ── Stock move location fix for Site Procurement (no vendor) ─────────────
+    def _prepare_stock_moves(self, picking):
+        """For Site Procurement PRs with no vendor, partner_id is False.
+        The standard method reads partner_id.property_stock_supplier.id directly,
+        which produces False and triggers a 'Missing required value for location_id'
+        ValidationError on stock.move.  We fall back to the picking's own location_id
+        (already set to stock.stock_location_suppliers by our _prepare_picking override).
+        """
+        res = super()._prepare_stock_moves(picking)
+        if not self.order_id.partner_id:
+            for vals in res:
+                if not vals.get('location_id'):
+                    vals['location_id'] = picking.location_id.id
+        return res
 
     # ── Product domain: category filter ──────────────────────────────────────
     @api.onchange('product_id')

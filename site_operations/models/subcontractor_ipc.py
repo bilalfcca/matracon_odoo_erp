@@ -119,6 +119,31 @@ class SubcontractorIPC(models.Model):
         currency_field='currency_id', tracking=True,
         help='Mobilisation advance amount to be recovered in this IPC.')
 
+    # ── HO Advance Recovery ───────────────────────────────────────────────────
+    ho_advance_till_prev_ipc = fields.Monetary(
+        string='HO Advance till Previous IPC',
+        compute='_compute_ho_advance', store=True,
+        currency_field='currency_id', readonly=True,
+        help='Cumulative HO advances confirmed for this sub+project up to '
+             'the date of the previous IPC.')
+    ho_advance_till_this_ipc = fields.Monetary(
+        string='HO Advance till This IPC',
+        compute='_compute_ho_advance', store=True,
+        currency_field='currency_id', readonly=True,
+        help='Cumulative HO advances confirmed for this sub+project up to '
+             'this IPC date.')
+    ho_advance_this_period = fields.Monetary(
+        string='New HO Advance (This Period)',
+        compute='_compute_ho_advance', store=True,
+        currency_field='currency_id', readonly=True,
+        help='HO advances disbursed between the previous IPC and this IPC '
+             '(= till this IPC − till previous IPC). Pre-fills the recovery field.')
+    ho_advance_recovery = fields.Monetary(
+        string='HO Advance Recovery',
+        currency_field='currency_id', tracking=True,
+        help='HO advance amount to be recovered in this IPC. '
+             'Auto-filled from advances in this period; accountant may adjust.')
+
     # ── Back charges (auto-populated from pending records for this sub+project) ─
     backcharge_line_ids = fields.One2many(
         'x.subcontractor.ipc.backcharge.line', 'ipc_id',
@@ -164,6 +189,39 @@ class SubcontractorIPC(models.Model):
         'account.payment', 'x_ipc_id', string='Payments')
     payment_count = fields.Integer(compute='_compute_payment_count')
 
+    # ── HO Advances smart button ──────────────────────────────────────────────
+    ho_advance_count = fields.Integer(
+        string='HO Advances', compute='_compute_ho_advance_count')
+
+    def _compute_ho_advance_count(self):
+        HOAdv = self.env['x.subcontractor.ho.advance'].sudo()
+        for ipc in self:
+            ipc.ho_advance_count = HOAdv.search_count([
+                ('subcontractor_id', '=', ipc.subcontractor_id.id),
+                ('project_analytic_account_id', '=',
+                 ipc.project_analytic_account_id.id),
+                ('state', '=', 'confirmed'),
+            ]) if ipc.subcontractor_id and ipc.project_analytic_account_id else 0
+
+    def action_view_ho_advances(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('HO Advances'),
+            'res_model': 'x.subcontractor.ho.advance',
+            'view_mode': 'list,form',
+            'domain': [
+                ('subcontractor_id', '=', self.subcontractor_id.id),
+                ('project_analytic_account_id', '=',
+                 self.project_analytic_account_id.id),
+            ],
+            'context': {
+                'default_subcontractor_id': self.subcontractor_id.id,
+                'default_project_analytic_account_id':
+                    self.project_analytic_account_id.id,
+            },
+        }
+
     # ── Linked liability sheet (auto on submit) ────────────────────────────────
     liability_sheet_id = fields.Many2one(
         'x.liability.sheet', string='Liability Sheet',
@@ -205,8 +263,48 @@ class SubcontractorIPC(models.Model):
                 ipc.ipc_date_from = False
 
     @api.depends(
+        'subcontractor_id', 'project_analytic_account_id',
+        'ipc_date', 'previous_ipc_id',
+    )
+    def _compute_ho_advance(self):
+        """Sum confirmed HO advances for this sub+project up to each cutoff date."""
+        HOAdv = self.env['x.subcontractor.ho.advance'].sudo()
+        for ipc in self:
+            if not ipc.subcontractor_id or not ipc.project_analytic_account_id:
+                ipc.ho_advance_till_prev_ipc = 0.0
+                ipc.ho_advance_till_this_ipc = 0.0
+                ipc.ho_advance_this_period = 0.0
+                continue
+
+            base_domain = [
+                ('subcontractor_id', '=', ipc.subcontractor_id.id),
+                ('project_analytic_account_id', '=',
+                 ipc.project_analytic_account_id.id),
+                ('state', '=', 'confirmed'),
+            ]
+
+            # Till previous IPC cutoff
+            till_prev = 0.0
+            if ipc.previous_ipc_id and ipc.previous_ipc_id.ipc_date:
+                recs = HOAdv.search(
+                    base_domain + [('advance_date', '<=', ipc.previous_ipc_id.ipc_date)])
+                till_prev = sum(recs.mapped('amount'))
+
+            # Till this IPC cutoff
+            till_this = 0.0
+            if ipc.ipc_date:
+                recs = HOAdv.search(
+                    base_domain + [('advance_date', '<=', ipc.ipc_date)])
+                till_this = sum(recs.mapped('amount'))
+
+            ipc.ho_advance_till_prev_ipc = till_prev
+            ipc.ho_advance_till_this_ipc = till_this
+            ipc.ho_advance_this_period = max(till_this - till_prev, 0.0)
+
+    @api.depends(
         'gross_work_done', 'previous_gross_work_done',
-        'mob_advance_recovery', 'security_withheld',
+        'mob_advance_recovery', 'ho_advance_recovery',
+        'security_withheld',
         'other_deductions_amount', 'other_additions_amount',
         'backcharge_line_ids.amount',
     )
@@ -226,6 +324,7 @@ class SubcontractorIPC(models.Model):
             total_ded = (
                 this_ret
                 + ipc.mob_advance_recovery
+                + ipc.ho_advance_recovery
                 + ipc.security_withheld
                 + bc_total
                 + ipc.other_deductions_amount
@@ -261,6 +360,29 @@ class SubcontractorIPC(models.Model):
     # ─────────────────────────────────────────────────────────────────────────
     # ONCHANGE
     # ─────────────────────────────────────────────────────────────────────────
+
+    @api.onchange('subcontractor_id', 'project_analytic_account_id', 'ipc_date')
+    def _onchange_prefill_ho_advance_recovery(self):
+        """Auto-fill HO Advance Recovery with the difference in this IPC period."""
+        if not (self.subcontractor_id and self.project_analytic_account_id
+                and self.ipc_date):
+            return
+        HOAdv = self.env['x.subcontractor.ho.advance'].sudo()
+        base_domain = [
+            ('subcontractor_id', '=', self.subcontractor_id.id),
+            ('project_analytic_account_id', '=',
+             self.project_analytic_account_id.id),
+            ('state', '=', 'confirmed'),
+        ]
+        till_prev = 0.0
+        if self.previous_ipc_id and self.previous_ipc_id.ipc_date:
+            recs = HOAdv.search(
+                base_domain + [('advance_date', '<=', self.previous_ipc_id.ipc_date)])
+            till_prev = sum(recs.mapped('amount'))
+        recs_this = HOAdv.search(
+            base_domain + [('advance_date', '<=', self.ipc_date)])
+        till_this = sum(recs_this.mapped('amount'))
+        self.ho_advance_recovery = max(till_this - till_prev, 0.0)
 
     @api.onchange('subcontractor_id', 'project_analytic_account_id')
     def _onchange_fetch_backcharges(self):

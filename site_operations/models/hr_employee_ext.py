@@ -1,4 +1,4 @@
-from odoo import models, fields, api
+from odoo import models, fields, api, _
 
 
 class HrEmployeeMatracon(models.Model):
@@ -29,6 +29,18 @@ class HrEmployeeMatracon(models.Model):
         currency_field='currency_id',
         help='Outstanding advance to deduct from payroll.',
     )
+    x_backcharge_balance = fields.Monetary(
+        string='Backcharge Balance',
+        currency_field='currency_id',
+        compute='_compute_backcharge_balance',
+        store=False,
+        help='Total outstanding backcharge amount across all open/partial records.',
+    )
+    x_backcharge_count = fields.Integer(
+        string='Backcharges',
+        compute='_compute_backcharge_balance',
+        store=False,
+    )
     x_wht_rate = fields.Float(
         string='WHT %',
         help='Default withholding tax percentage for salary.',
@@ -42,6 +54,26 @@ class HrEmployeeMatracon(models.Model):
         related='company_id.currency_id',
         depends=['company_id'],
     )
+
+    def _compute_backcharge_balance(self):
+        for emp in self:
+            bcs = self.env['x.employee.backcharge'].sudo().search([
+                ('employee_id', '=', emp.id),
+                ('state', 'in', ('open', 'partial')),
+            ])
+            emp.x_backcharge_balance = sum(bcs.mapped('remaining_amount'))
+            emp.x_backcharge_count = len(bcs)
+
+    def action_view_backcharges(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Employee Backcharges'),
+            'res_model': 'x.employee.backcharge',
+            'view_mode': 'list,form',
+            'domain': [('employee_id', '=', self.id)],
+            'context': {'default_employee_id': self.id},
+        }
 
     @api.model_create_multi
     def create(self, vals_list):

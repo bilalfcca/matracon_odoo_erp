@@ -35,18 +35,52 @@ class AttendanceLine(models.Model):
     employee_id = fields.Many2one(
         'hr.employee', string='Employee', required=True, index=True)
 
-    # Advance recovery override for this specific month.
-    # If set, salary generation uses this value instead of emp.x_advance_balance.
-    x_advance_amount = fields.Monetary(
-        string='Advance Recovery',
-        currency_field='currency_id',
-        help='Advance to recover in this month\'s salary. '
-             'Leave 0 to use employee\'s current advance balance.',
-    )
     currency_id = fields.Many2one(
         'res.currency',
         related='sheet_id.project_analytic_account_id.company_id.currency_id',
         depends=['sheet_id'],
+    )
+
+    # ── Advance recovery ──────────────────────────────────────────────────────
+    x_advance_outstanding = fields.Monetary(
+        string='Advance Outstanding',
+        currency_field='currency_id',
+        compute='_compute_recovery_outstanding',
+        store=False,
+        readonly=True,
+        help='Employee\'s current advance balance (live from system).',
+    )
+    x_advance_amount = fields.Monetary(
+        string='Advance Recovery',
+        currency_field='currency_id',
+        help='Amount of advance to recover this month. '
+             'Auto-filled from employee balance; accountant may adjust.',
+    )
+
+    # ── Backcharge recovery ───────────────────────────────────────────────────
+    x_backcharge_outstanding = fields.Monetary(
+        string='Backcharge Outstanding',
+        currency_field='currency_id',
+        compute='_compute_recovery_outstanding',
+        store=False,
+        readonly=True,
+        help='Sum of all open/partial backcharge remaining amounts (live from system).',
+    )
+    x_backcharge_amount = fields.Monetary(
+        string='Backcharge Recovery',
+        currency_field='currency_id',
+        help='Asset backcharge amount to recover this month. '
+             'Auto-filled; accountant may adjust or set to 0 to skip.',
+    )
+
+    # ── Combined display ──────────────────────────────────────────────────────
+    x_total_recovery = fields.Monetary(
+        string='Total Recovery',
+        currency_field='currency_id',
+        compute='_compute_total_recovery',
+        store=False,
+        readonly=True,
+        help='Total deduction this month: advance + backcharge recovery.',
     )
 
     day_01 = _attendance_day_field(1)
@@ -88,6 +122,41 @@ class AttendanceLine(models.Model):
     paid_days = fields.Integer(compute='_compute_day_counts', store=True)
     total_days = fields.Integer(compute='_compute_day_counts', store=True)
     total_display = fields.Char(compute='_compute_day_counts', store=True)
+
+    @api.depends('employee_id')
+    def _compute_recovery_outstanding(self):
+        """Live outstanding balances read directly from employee / backcharge records."""
+        for line in self:
+            emp = line.employee_id.sudo()
+            line.x_advance_outstanding = emp.x_advance_balance or 0.0
+            if emp.id:
+                bcs = self.env['x.employee.backcharge'].sudo().search([
+                    ('employee_id', '=', emp.id),
+                    ('state', 'in', ('open', 'partial')),
+                ])
+                line.x_backcharge_outstanding = sum(bcs.mapped('remaining_amount'))
+            else:
+                line.x_backcharge_outstanding = 0.0
+
+    @api.depends('x_advance_amount', 'x_backcharge_amount')
+    def _compute_total_recovery(self):
+        for line in self:
+            line.x_total_recovery = (
+                (line.x_advance_amount or 0.0) + (line.x_backcharge_amount or 0.0)
+            )
+
+    @api.onchange('employee_id')
+    def _onchange_employee_fill_recoveries(self):
+        """Auto-fill advance & backcharge recovery amounts from the system."""
+        if not self.employee_id:
+            return
+        emp = self.employee_id.sudo()
+        self.x_advance_amount = emp.x_advance_balance or 0.0
+        bcs = self.env['x.employee.backcharge'].sudo().search([
+            ('employee_id', '=', emp.id),
+            ('state', 'in', ('open', 'partial')),
+        ])
+        self.x_backcharge_amount = sum(bcs.mapped('remaining_amount'))
 
     @api.depends('sheet_id.date_from', 'sheet_id.date_to', *DAY_FIELD_NAMES)
     def _compute_day_counts(self):
@@ -371,9 +440,16 @@ class AttendanceSheet(models.Model):
                 att_line = sheet.line_ids.filtered(
                     lambda l: l.employee_id.id == emp.id)
                 if not att_line:
+                    # Auto-fill recovery amounts from system on first creation
+                    bcs = self.env['x.employee.backcharge'].sudo().search([
+                        ('employee_id', '=', emp.id),
+                        ('state', 'in', ('open', 'partial')),
+                    ])
                     att_line = self.env['x.attendance.line'].create({
                         'sheet_id': sheet.id,
                         'employee_id': emp.id,
+                        'x_advance_amount': emp.x_advance_balance or 0.0,
+                        'x_backcharge_amount': sum(bcs.mapped('remaining_amount')),
                     })
                 else:
                     att_line = att_line[0]
@@ -386,7 +462,7 @@ class AttendanceSheet(models.Model):
                         if code in VALID_CODES:
                             vals[f'day_{day_num:02d}'] = code
 
-                # Write advance recovery override if column present
+                # Advance column — optional override (auto-filled from system if absent)
                 if advance_col is not None and advance_col < len(row):
                     try:
                         adv = float(str(row[advance_col]).replace(',', '') or 0)
@@ -415,7 +491,8 @@ class AttendanceSheet(models.Model):
                     % (len(skipped), '\n'.join(skipped[:20])))
 
     def action_load_employees(self):
-        """Populate lines from project employees."""
+        """Populate lines from project employees, pre-filling recovery amounts."""
+        BackCharge = self.env['x.employee.backcharge'].sudo()
         for sheet in self:
             if sheet.state != 'draft':
                 raise UserError(_('Only draft sheets can be refreshed.'))
@@ -426,9 +503,15 @@ class AttendanceSheet(models.Model):
             existing = {l.employee_id.id: l for l in sheet.line_ids}
             for emp in employees:
                 if emp.id not in existing:
+                    bcs = BackCharge.search([
+                        ('employee_id', '=', emp.id),
+                        ('state', 'in', ('open', 'partial')),
+                    ])
                     self.env['x.attendance.line'].create({
                         'sheet_id': sheet.id,
                         'employee_id': emp.id,
+                        'x_advance_amount': emp.x_advance_balance or 0.0,
+                        'x_backcharge_amount': sum(bcs.mapped('remaining_amount')),
                     })
             sheet.message_post(body=_('Employee list refreshed from project roster.'))
 

@@ -1,6 +1,9 @@
+import logging
 from markupsafe import Markup
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
+
+_logger = logging.getLogger(__name__)
 
 
 class PurchaseOrder(models.Model):
@@ -224,6 +227,7 @@ class PurchaseOrder(models.Model):
         user = self.env.user
         is_site_store = user.has_group('purchase_demand_raise.group_site_store')
         is_ho = user.has_group('purchase_demand_raise.group_procurement_ho')
+        SiteConfig = self.env['x.project.site.config']
         for vals in vals_list:
             if 'x_initiator_id' not in vals:
                 vals['x_initiator_id'] = user.id
@@ -240,7 +244,96 @@ class PurchaseOrder(models.Model):
                     pt = self._matracon_pr_receipt_picking_type()
                     if pt:
                         vals['picking_type_id'] = pt.id
+                # Auto-set site config from user if not already in vals
+                if not vals.get('x_project_site_config_id'):
+                    user_config = user.sudo().x_site_config_id
+                    if user_config:
+                        vals['x_project_site_config_id'] = user_config.id
+
+            # ── Assign site-specific PR sequence ─────────────────────────────
+            # Replaces the generic P00001 Odoo default with P-MCH-0001, P-HO-0001, etc.
+            if vals.get('name', _('New')) in (_('New'), 'New', False, None, '/'):
+                site_config_id = vals.get('x_project_site_config_id')
+                if site_config_id:
+                    config = SiteConfig.browse(site_config_id)
+                    vals['name'] = config._matracon_next_pr_name()
+                else:
+                    vals['name'] = (
+                        self.env['ir.sequence'].next_by_code('purchase.order.ho')
+                        or _('New')
+                    )
         return super().create(vals_list)
+
+    @api.model
+    def _matracon_migrate_pr_names(self):
+        """One-time migration: rename all existing PRs to P-SITE-XXXX format.
+
+        Groups PRs by site (detected via x_project_site_config_id or, as
+        fallback, x_project_analytic_account_id) and by HO Procurement.
+        Assigns sequential names within each group and updates any
+        stock.picking.origin that referenced the old name.
+
+        Call once from a shell/migrate script after upgrading the module.
+        Idempotent: already-renamed records (name starts with 'P-') are skipped.
+        """
+        SiteConfig = self.env['x.project.site.config'].sudo()
+        Picking = self.env['stock.picking'].sudo()
+        IrSeq = self.env['ir.sequence'].sudo()
+
+        all_orders = self.sudo().search([], order='id asc')
+        # Track highest used counter per group so sequences continue correctly
+        site_counters = {}  # site_config.id → next counter
+        ho_counter = 1
+
+        for po in all_orders:
+            # Skip already-renamed records
+            if po.name and po.name.startswith('P-'):
+                continue
+
+            old_name = po.name
+
+            # Detect site config: explicit field, then fall back to analytic account
+            config = po.x_project_site_config_id
+            if not config and po.x_project_analytic_account_id:
+                config = SiteConfig.search([
+                    ('analytic_account_id', '=', po.x_project_analytic_account_id.id),
+                ], limit=1)
+
+            # Use site sequence only for site_procurement; HO procurement → P-HO-
+            if config and po.x_procurement_type == 'site_procurement':
+                cid = config.id
+                wh_code = (
+                    config.warehouse_id.code.strip().upper()
+                    if config.warehouse_id else 'SITE'
+                )
+                counter = site_counters.get(cid, 1)
+                new_name = 'P-%s-%04d' % (wh_code, counter)
+                site_counters[cid] = counter + 1
+                # Bump the ir.sequence so future PRs continue from the right number
+                seq_code = config._matracon_pr_sequence_code()
+                seq = IrSeq.search([('code', '=', seq_code)], limit=1)
+                if seq and seq.number_next <= counter:
+                    seq.write({'number_next': counter + 1})
+            else:
+                new_name = 'P-HO-%04d' % ho_counter
+                ho_counter += 1
+                # Bump HO sequence
+                ho_seq = IrSeq.search([('code', '=', 'purchase.order.ho')], limit=1)
+                if ho_seq and ho_seq.number_next < ho_counter:
+                    ho_seq.write({'number_next': ho_counter})
+
+            # Write new name on the PO
+            po.sudo().write({'name': new_name})
+            _logger.info('Renamed PR %s → %s', old_name, new_name)
+
+            # Update any stock.picking.origin that references the old PO name
+            pickings = Picking.search([('origin', '=', old_name)])
+            if pickings:
+                pickings.write({'origin': new_name})
+                _logger.info(
+                    '  Updated %d picking(s) origin: %s → %s',
+                    len(pickings), old_name, new_name,
+                )
 
     def copy(self, default=None):
         """Duplicate resets the full PR workflow — only products are carried over.
@@ -261,7 +354,7 @@ class PurchaseOrder(models.Model):
         })
         return super().copy(default)
 
-    # ── Default picking_type_id to site user's warehouse ─────────────────────
+    # ── Default picking_type_id and analytic account for site users ──────────
     @api.model
     def default_get(self, fields_list):
         defaults = super().default_get(fields_list)
@@ -271,11 +364,17 @@ class PurchaseOrder(models.Model):
         # PO creating a new RFQ → mark as procurement_ho PR so PR workflow shows immediately
         if is_ho and not is_site_store:
             defaults['x_pr_origin'] = 'procurement_ho'
-        if 'picking_type_id' in fields_list:
-            if is_site_store:
+        if is_site_store:
+            if 'picking_type_id' in fields_list:
                 pt = self._matracon_pr_receipt_picking_type(user)
                 if pt:
                     defaults['picking_type_id'] = pt.id
+            # Auto-populate analytic account so it is visible in the form
+            # BEFORE lines are added — enables _onchange_product_id_analytic on lines.
+            if 'x_project_analytic_account_id' in fields_list:
+                analytic = user.sudo().x_default_analytic_account_id
+                if analytic:
+                    defaults['x_project_analytic_account_id'] = analytic.id
         return defaults
 
     # ── When PO selects a project → auto-fill analytic + warehouse ───────────
@@ -519,6 +618,14 @@ class PurchaseOrder(models.Model):
                 order._ensure_followers()
                 order._schedule_approval_activities()
 
+                # Auto-create a Comparative Statement so HO can start evaluating vendors immediately
+                if not order.x_comparative_statement_id:
+                    cs = self.env['x.comparative.statement'].sudo().create({
+                        'x_purchase_order_id': order.id,
+                        'name': _('CS - %s') % order.name,
+                    })
+                    order.x_comparative_statement_id = cs
+
                 order.message_post(
                     body=Markup('PR <b>%s</b> submitted by <b>%s</b>. Awaiting Procurement HO review and vendor recommendation.') % (order.name, self.env.user.name),
                     subtype_xmlid='mail.mt_log_note',
@@ -530,7 +637,8 @@ class PurchaseOrder(models.Model):
                     ho_partners,
                     Markup('📋 <b>Action Required — Purchase Requisition Submitted</b><br/>'
                            'PR <b>%(pr)s</b> has been raised by <b>%(user)s</b>. '
-                           'Please review, select a vendor, and approve to route to CEO.') % {
+                           'Please open the <b>Comparative Statement</b> on this PR to add vendors, '
+                           'enter quotation prices, and select the recommended vendor.') % {
                         'pr': order.name, 'user': self.env.user.name,
                     }
                 )
@@ -741,6 +849,38 @@ class PurchaseOrder(models.Model):
                            'The Purchase Order is confirmed and materials will be ordered.') % {'pr': order.name}
                 )
 
+            # ── Auto-send PO confirmation email to vendor ─────────────────────
+            if order.partner_id and order.partner_id.email:
+                try:
+                    po_template = self.env.ref(
+                        'purchase_demand_raise.matracon_po_confirmation_email_template',
+                        raise_if_not_found=False,
+                    )
+                    if not po_template:
+                        po_template = self.env.ref(
+                            'purchase.email_template_edi_purchase_done',
+                            raise_if_not_found=False,
+                        )
+                    if po_template:
+                        po_template.with_context(
+                            lang=order.partner_id.lang or 'en_US'
+                        ).send_mail(order.id, force_send=True, raise_exception=False)
+                        order.message_post(
+                            body=Markup(
+                                '📧 Purchase Order confirmation email automatically sent to '
+                                '<b>%(vendor)s</b> (%(email)s).'
+                            ) % {
+                                'vendor': order.partner_id.name,
+                                'email': order.partner_id.email,
+                            },
+                            subtype_xmlid='mail.mt_log_note',
+                        )
+                except Exception as exc:
+                    _logger.warning(
+                        'Failed to auto-send PO confirmation email for %s: %s',
+                        order.name, exc,
+                    )
+
     def action_ceo_final_reject(self):
         """CEO rejects at final stage (or bypass review from submitted)."""
         for order in self:
@@ -807,33 +947,103 @@ class PurchaseOrder(models.Model):
 
         CEO approval sometimes force-sets state to purchase without running
         button_approve(), which is where purchase_stock normally creates receipts.
+
+        Uses direct DB searches (not self.picking_ids computed field) to avoid
+        ORM-cache false-negatives on freshly-created pickings.
         """
+        # Use sudo() so record rules on stock.picking don't hide existing
+        # pickings — the operational warehouse override in
+        # _matracon_sync_user_operational_warehouse() can temporarily set
+        # x_default_warehouse_id to the main company warehouse, which causes
+        # the site-store record rule to hide the receipt picking.
+        Picking = self.env['stock.picking'].sudo()
+
+        def _has_open_incoming(order):
+            """Check for open incoming pickings via direct SQL — bypasses cache."""
+            by_moves = Picking.search_count([
+                ('move_ids.purchase_line_id.order_id', '=', order.id),
+                ('picking_type_id.code', '=', 'incoming'),
+                ('state', 'not in', ('done', 'cancel')),
+            ], limit=1)
+            if by_moves:
+                return True
+            # Also check by origin (covers fallback pickings without stock moves)
+            return bool(Picking.search_count([
+                ('origin', '=', order.name),
+                ('picking_type_id.code', '=', 'incoming'),
+                ('state', 'not in', ('done', 'cancel')),
+            ], limit=1))
+
         for order in self:
             if order.state not in ('purchase', 'done', 'to approve'):
                 continue
-            incoming = order.picking_ids.filtered(
-                lambda p: p.picking_type_code == 'incoming'
-                and p.state not in ('done', 'cancel')
-            )
-            if incoming:
+
+            # Direct DB search — avoids the stored-computed picking_ids field
+            # whose recomputation may be deferred in the same transaction.
+            if _has_open_incoming(order):
                 continue
+
             if order.state == 'to approve' and hasattr(order, 'button_approve'):
                 order.sudo().button_approve()
                 continue
+
             if hasattr(order, '_create_picking'):
                 order.sudo()._create_picking()
+
+            # Verify the picking was actually created.  _create_picking silently
+            # skips when all products are service-type.  As a fallback, create a
+            # minimal receipt picking manually so the site store can still open
+            # the receipt form and register the delivery.
+            if not _has_open_incoming(order) and hasattr(order, '_prepare_picking'):
+                try:
+                    vals = order.sudo()._prepare_picking()
+                    Picking.sudo().create(vals)
+                except Exception:
+                    pass  # Cannot create picking — receipt form unavailable
+
         self.invalidate_recordset(['picking_ids', 'incoming_picking_count'])
 
     def action_view_picking(self):
-        """Open the incoming receipt form (Site Store) — not a list view."""
+        """Open the incoming receipt form (Site Store) — not a list view.
+
+        Uses a direct DB search instead of the computed self.picking_ids to
+        avoid ORM-cache stale reads after picking creation in the same request.
+        """
         self.ensure_one()
         self._matracon_ensure_receipt_pickings()
-        incoming = self.picking_ids.filtered(
-            lambda p: p.picking_type_code == 'incoming'
-        ).sorted(key=lambda p: (p.state in ('done', 'cancel'), p.id))
-        open_pickings = incoming.filtered(lambda p: p.state not in ('done', 'cancel'))
-        picking = open_pickings[:1] or incoming[:1]
+        # Use sudo() so record rules on stock.picking don't hide the receipt.
+        # The site-store record rule uses x_default_warehouse_id which can be
+        # temporarily set to 'My Company' when the site warehouse has no stock.
+        # sudo() bypasses that; the form view itself enforces its own access.
+        Picking = self.env['stock.picking'].sudo()
+        # Primary: search via stock moves (the normal picking path)
+        picking = Picking.search([
+            ('move_ids.purchase_line_id.order_id', '=', self.id),
+            ('picking_type_id.code', '=', 'incoming'),
+            ('state', 'not in', ('done', 'cancel')),
+        ], limit=1, order='id asc')
+        if not picking:
+            # Secondary: search by origin name — covers fallback pickings without moves
+            picking = Picking.search([
+                ('origin', '=', self.name),
+                ('picking_type_id.code', '=', 'incoming'),
+                ('state', 'not in', ('done', 'cancel')),
+            ], limit=1, order='id asc')
+        if not picking:
+            # Also check done receipts (already-received POs — open for review)
+            picking = Picking.search([
+                ('move_ids.purchase_line_id.order_id', '=', self.id),
+                ('picking_type_id.code', '=', 'incoming'),
+            ], limit=1, order='state asc, id asc')
+        if not picking:
+            picking = Picking.search([
+                ('origin', '=', self.name),
+                ('picking_type_id.code', '=', 'incoming'),
+            ], limit=1, order='state asc, id asc')
         if picking:
+            # Plain act_window dict — no path key — keeps URL nested in the PO:
+            #   /odoo/purchase/{po_id}/stock.picking/{picking_id}
+            # exactly as in the staging environment.
             return {
                 'type': 'ir.actions.act_window',
                 'name': _('Receipt'),
@@ -845,17 +1055,52 @@ class PurchaseOrder(models.Model):
             }
         return super().action_view_picking()
 
-    def button_send_rfq(self):
-        """Override: block standard Send RFQ for Site Store & enforce approval gate."""
+    def action_rfq_send(self):
+        """Override Send RFQ to enforce Matracon gates and inject custom template.
+
+        1. Block Site Store users from sending RFQs directly.
+        2. Enforce PR state gate — RFQ can only be sent after Submitted state.
+        3. Swap the default_template_id to our standalone matracon_rfq_email_template
+           so the compose dialog uses the correct formal letter body AND attaches
+           our custom RFQ PDF (blank Unit Price / Tax % / Total columns).
+
+        Why not rely on the data/mail_templates.xml override?
+        The base purchase template is wrapped in <data noupdate="1">, which
+        prevents report_template_ids from being reliably updated on upgrades.
+        Injecting the template ID here bypasses that limitation entirely.
+        """
+        # ── Site Store gate ───────────────────────────────────────────────────
         if self.env.user.has_group('purchase_demand_raise.group_site_store'):
             raise UserError(_('Site Store cannot send RFQs. Please submit the PR for approval.'))
+
+        # ── PR state gate (only for PR documents) ────────────────────────────
         for order in self:
-            if order.x_pr_state not in ('submitted', 'ceo_final', 'po_locked'):
+            if order.x_is_pr_document and order.x_pr_state not in ('submitted', 'ceo_final', 'po_locked'):
                 raise UserError(_(
                     'RFQ cannot be sent at this stage.\n'
                     'Current PR Status: %s'
-                ) % dict(self._fields['x_pr_state'].selection).get(order.x_pr_state, order.x_pr_state))
-        return super().button_send_rfq()
+                ) % dict(self._fields['x_pr_state'].selection).get(
+                    order.x_pr_state, order.x_pr_state
+                ))
+
+        # ── Open the mail compose wizard (super sets default_template_id to
+        #    purchase.email_template_edi_purchase) ──────────────────────────
+        result = super().action_rfq_send()
+
+        # ── Swap template to our standalone Matracon RFQ template ────────────
+        # This ensures the compose dialog uses:
+        #   • Our formal Matracon letter body
+        #   • Our custom RFQ PDF (blank price columns) as attachment
+        # The standalone template has its own ID so noupdate never blocks it.
+        our_template = self.env.ref(
+            'purchase_demand_raise.matracon_rfq_email_template',
+            raise_if_not_found=False,
+        )
+        if our_template:
+            ctx = result.get('context')
+            if isinstance(ctx, dict):
+                ctx['default_template_id'] = our_template.id
+        return result
 
     def button_cancel(self):
         """Override: block cancellation of rejected PR documents (already in terminal state)."""
@@ -953,15 +1198,19 @@ class PurchaseOrder(models.Model):
         # ── Set vendor on PR ──────────────────────────────────────────────────
         self.partner_id = recommended.x_partner_id
 
-        # ── Copy winning vendor prices to PR order lines ─────────────────────
+        # ── Copy winning vendor prices AND quantities to PR order lines ─────────
         for cs_line in recommended.x_line_ids:
             if not cs_line.x_product_id:
                 continue
             pr_line = self.order_line.filtered(
                 lambda l, p=cs_line.x_product_id: l.product_id == p and not l.display_type
             )[:1]
-            if pr_line and cs_line.x_unit_price:
-                pr_line.price_unit = cs_line.x_unit_price
+            if pr_line:
+                if cs_line.x_unit_price:
+                    pr_line.price_unit = cs_line.x_unit_price
+                # Carry the quoted quantity as the recommended quantity on the PR line
+                if cs_line.x_qty and cs_line.x_qty > 0:
+                    pr_line.x_recommended_qty = cs_line.x_qty
 
         # ── Auto-set recommended qty = requested if not set by HO ────────────
         # (CEO will still decide final approved qty per line)
@@ -1019,6 +1268,39 @@ class PurchaseOrder(models.Model):
                 'Please review quantities and give final CEO approval.'
             ) % {'pr': self.name, 'vendor': recommended.x_partner_id.name},
         )
+
+    # ── Override _prepare_picking: Site Procurement has no vendor partner ────
+    def _prepare_picking(self):
+        """For Site Procurement (no vendor), use the generic virtual supplier
+        location instead of partner.property_stock_supplier, which fails when
+        partner_id is False and raises 'You must set a Vendor Location'."""
+        if not self.partner_id:
+            vendor_location = self.env.ref(
+                'stock.stock_location_suppliers', raise_if_not_found=False
+            )
+            if not vendor_location:
+                raise UserError(_(
+                    'Cannot create the receipt picking: no vendor is set and '
+                    'the default "Virtual Locations/Vendors" location could not '
+                    'be found. Please verify your Inventory configuration.'
+                ))
+            # Mirror what super() does for reference_ids but skip the partner check
+            if not self.reference_ids:
+                self.reference_ids = self.reference_ids.create(
+                    self._prepare_reference_vals()
+                )
+            return {
+                'picking_type_id': self.picking_type_id.id,
+                'partner_id': False,
+                'user_id': False,
+                'origin': self.name,
+                'location_dest_id': self._get_destination_location(),
+                'location_id': vendor_location.id,
+                'company_id': self.company_id.id,
+                'state': 'draft',
+                'reference_ids': [(6, 0, self.reference_ids.ids)],
+            }
+        return super()._prepare_picking()
 
     # ── Internal PR Print Report ──────────────────────────────────────────────
     def action_print_pr_internal(self):

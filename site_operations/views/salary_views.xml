@@ -81,6 +81,13 @@
                                     <field name="advance_to_deduct"
                                            string="Advance to Deduct"
                                            optional="show"/>
+                                    <field name="outstanding_backcharge"
+                                           string="Outstanding Backcharge"
+                                           readonly="1"
+                                           optional="show"/>
+                                    <field name="backcharge_to_deduct"
+                                           string="Backcharge to Deduct"
+                                           optional="show"/>
                                     <field name="deductions" readonly="1"/>
                                     <field name="net_payable" readonly="1"/>
                                     <button name="action_open_slip" type="object"
@@ -123,6 +130,12 @@
                         <field name="advance_to_deduct"
                                readonly="1"
                                string="Advance Recovered"/>
+                        <field name="outstanding_backcharge"
+                               readonly="1"
+                               string="Outstanding Backcharge (before deduction)"/>
+                        <field name="backcharge_to_deduct"
+                               readonly="1"
+                               string="Backcharge Recovered (Assets)"/>
                         <field name="deductions" readonly="1"/>
                     </group>
                     <group>

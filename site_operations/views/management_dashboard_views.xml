@@ -164,6 +164,19 @@
                             </div>
                         </div>
 
+                        <div class="col-6 col-md-4 col-xl-2">
+                            <div class="card matracon-mgmt-kpi h-100" style="border-left: 3px solid #fd7e14;">
+                                <div class="card-body py-3">
+                                    <small class="matracon-mgmt-kpi__label">Site Inventory</small>
+                                    <div class="matracon-mgmt-kpi__value" style="color: #fd7e14;">
+                                        <field name="kpi_inventory_value" widget="monetary" nolabel="1" readonly="1"/>
+                                    </div>
+                                    <button name="action_open_inventory_bills" type="object"
+                                            string="View Bills" class="btn btn-sm btn-link p-0"/>
+                                </div>
+                            </div>
+                        </div>
+
                     </div>
 
                     <!-- ══ ATTENDANCE KPI CARDS ══ -->
@@ -333,6 +346,25 @@
                             </div>
                         </div>
 
+                        <!-- ── Inventory by Project ── -->
+                        <div class="card border-0 matracon-dash-card mb-3">
+                            <div class="card-header py-2 px-3 d-flex justify-content-between">
+                                <strong>Site Store Inventory by Project</strong>
+                                <button name="action_open_inventory_bills" type="object"
+                                        string="View All Bills" class="btn btn-sm btn-outline-primary"/>
+                            </div>
+                            <div class="card-body p-0 matracon-dash-table-wrap">
+                                <field name="inventory_line_ids" nolabel="1" readonly="1">
+                                    <list create="false" delete="false" edit="false">
+                                        <field name="project_name" string="Project"/>
+                                        <field name="inventory_value" widget="monetary" sum="Total Inventory"/>
+                                        <field name="bill_count" string="No. of Bills"/>
+                                        <field name="currency_id" column_invisible="1"/>
+                                    </list>
+                                </field>
+                            </div>
+                        </div>
+
                         <div class="card border-0 matracon-dash-card mb-3">
                             <div class="card-header py-2 px-3">
                                 <strong>Subcontractor IPCs</strong>
@@ -378,6 +410,7 @@
                                                decoration-danger="bg_status == 'expired'"/>
                                         <field name="bg_amount" widget="monetary" optional="show"/>
                                         <field name="petty_cash_balance" widget="monetary" optional="hide"/>
+                                        <field name="inventory_value" widget="monetary" string="Inventory" optional="show"/>
                                         <field name="contract_value" widget="monetary" options="{'currency_field': 'currency_id'}" optional="show"/>
                                         <field name="billed_to_client" widget="monetary" options="{'currency_field': 'currency_id'}" optional="show"/>
                                         <field name="work_completion_pct" string="Work %" optional="show"/>

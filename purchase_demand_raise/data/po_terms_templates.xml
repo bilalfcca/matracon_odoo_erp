@@ -58,6 +58,62 @@
         </field>
     </record>
 
+    <!-- ── Template 3: PO Confirmation Letter (CEO formal letter format) ──── -->
+    <record id="po_terms_template_po_confirmation" model="x.po.terms.template">
+        <field name="name">PO Confirmation Letter (CEO)</field>
+        <field name="sequence">5</field>
+        <field name="description">Formal PO confirmation letter signed by CEO (JEHANZEB SAULAT). Use for local/domestic purchase orders.</field>
+        <field name="active">True</field>
+        <field name="content" type="html">
+<p><strong>Sub: Order for the Supply of [Material / Service as per RFQ Reference]</strong></p>
+
+<p>Dear Sir/Madam,</p>
+
+<p>With reference to your quotation and subsequent discussions, we are pleased to confirm the Purchase Order for the supply of the above-mentioned materials/services as per the terms and conditions set out herein.</p>
+
+<h4>1. Scope of Supply</h4>
+<p>As per the attached RFQ and your accepted quotation. All materials shall conform to the relevant standards, specifications, and drawings as agreed between the parties.</p>
+
+<h4>2. Quality Assurance</h4>
+<ul>
+    <li>All materials shall be inspected and approved by Matracon Pakistan (Pvt.) Limited before dispatch and upon delivery at the project site.</li>
+    <li>Any material found defective or not conforming to the agreed specifications shall be removed and replaced at the Vendor's cost.</li>
+    <li>The Vendor shall provide all relevant test certificates, factory test reports, and quality assurance documents.</li>
+</ul>
+
+<h4>3. Delivery</h4>
+<ul>
+    <li>Materials must be delivered to the project site within the agreed delivery period from the date of this Purchase Order.</li>
+    <li>Transportation, loading, and unloading to the project site is the responsibility of the Vendor unless otherwise stated.</li>
+    <li>Risk of loss or damage shall remain with the Vendor until materials are delivered and accepted at the project site.</li>
+    <li>Any delay in delivery shall be subject to penalties as mutually agreed.</li>
+</ul>
+
+<h4>4. Payment Terms</h4>
+<p>Payment shall be made as per the agreed schedule. All payments are subject to deduction of applicable withholding taxes (WHT) as per the Income Tax Ordinance 2001 and other applicable laws of Pakistan.</p>
+
+<h4>5. Warranty / Guarantee</h4>
+<p>The Vendor shall provide warranty as per the quotation / agreed terms commencing from the date of successful delivery and acceptance at the project site.</p>
+
+<h4>6. Price</h4>
+<p>Prices are firm and fixed for the full duration of this Purchase Order. The Vendor confirms that the quoted cost is complete and inclusive of all charges. GST shall be paid separately as per law.</p>
+
+<h4>7. Dispute Resolution</h4>
+<p>Any dispute arising out of or in connection with this Purchase Order shall be resolved through mutual negotiation. If not resolved amicably, the matter shall be referred to the competent courts of Islamabad, Pakistan.</p>
+
+<h4>8. Acknowledgement</h4>
+<p>Please sign and return a copy of this Purchase Order as acknowledgement of acceptance within 48 hours of receipt.</p>
+
+<br/>
+<p>
+    Yours sincerely,<br/><br/>
+    <strong>JEHANZEB SAULAT</strong><br/>
+    Chief Executive Officer<br/>
+    Matracon Pakistan (Pvt.) Limited
+</p>
+        </field>
+    </record>
+
     <!-- ── Template 2: PO without LC ───────────────────────────────────────── -->
     <record id="po_terms_template_without_lc" model="x.po.terms.template">
         <field name="name">PO without LC</field>

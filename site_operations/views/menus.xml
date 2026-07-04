@@ -26,6 +26,19 @@
               sequence="0"
               groups="purchase_demand_raise.group_site_store,purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin"/>
 
+    <!-- ── Single "Purchase Requisitions" menu — visible to all HO roles ────
+         All three groups (Procurement HO, CEO Approval, Head Office, Admin)
+         see exactly the same list, so one entry is sufficient.  A single
+         menuitem is rendered once regardless of how many matching groups
+         the user holds, eliminating the previous duplicate-entry problem.
+    ──────────────────────────────────────────────────────────────────────── -->
+    <menuitem id="menu_prs_procurement_ho"
+              name="Purchase Requisitions"
+              parent="purchase.menu_purchase_root"
+              action="purchase_demand_raise.action_prs_procurement_ho"
+              sequence="5"
+              groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin"/>
+
     <!-- Purchase → Configuration → T&C Templates (Head Office + Admin) -->
     <menuitem id="menu_po_terms_templates"
               name="T&amp;C Templates"
@@ -158,6 +171,13 @@
               sequence="25"
               groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
+    <menuitem id="menu_employee_backcharges"
+              name="Employee Backcharges"
+              parent="hr_attendance.menu_hr_attendance_root"
+              action="site_operations.action_employee_backcharge"
+              sequence="30"
+              groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
     <!-- ── Petty Cash — separate top-level section under Accounting ──────── -->
     <menuitem id="menu_petty_cash_root"
               name="Petty Cash"
@@ -250,6 +270,14 @@
               action="site_operations.action_subcontractor_backcharge"
               sequence="31"
               groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
+    <!-- Accounting → Vendors → HO Advances to Subcontractors -->
+    <menuitem id="menu_subcontractor_ho_advance"
+              name="HO Advances (Subcontractors)"
+              parent="account.menu_finance_payables"
+              action="site_operations.action_subcontractor_ho_advance"
+              sequence="32"
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
     <!-- Accounting → Chart of Accounts (Site Accountant — sees only their site accounts) -->
     <menuitem id="menu_chart_of_accounts_site_accountant"

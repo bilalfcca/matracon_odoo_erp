@@ -5,6 +5,14 @@ from odoo.exceptions import UserError
 class StockPickingPR(models.Model):
     _inherit = 'stock.picking'
 
+    # ── DMR No — auto-generated on creation, never editable ──────────────────
+    x_dmr_no = fields.Char(
+        string='DMR No',
+        copy=False,
+        readonly=True,
+        help='Delivery Material Receipt number — auto-assigned when the receipt is created.',
+    )
+
     # ── Gate Pass Inward No ───────────────────────────────────────────────────
     x_gate_pass_no = fields.Char(
         string='Gate Pass Inward No',
@@ -20,6 +28,22 @@ class StockPickingPR(models.Model):
         help='Weighbridge / weight-slip proof for the delivered material.',
     )
     x_weight_document_filename = fields.Char(string='Weight Document Filename')
+
+    # ── Procurement type mirror — lets the receipt form condition on this ─────
+    x_is_site_procurement = fields.Boolean(
+        string='Is Site Procurement',
+        compute='_compute_is_site_procurement',
+        store=False,
+        help='True when the linked PO is a Site Procurement (no formal vendor required).',
+    )
+
+    @api.depends('purchase_id', 'purchase_id.x_procurement_type')
+    def _compute_is_site_procurement(self):
+        for picking in self:
+            picking.x_is_site_procurement = (
+                bool(picking.purchase_id)
+                and picking.purchase_id.x_procurement_type == 'site_procurement'
+            )
 
     # ── Project — auto-filled from the linked PO, never manually editable ────
     x_project_analytic_account_id = fields.Many2one(
@@ -41,6 +65,45 @@ class StockPickingPR(models.Model):
                 )
             else:
                 picking.x_project_analytic_account_id = False
+
+    # ── Auto-assign DMR on incoming PR receipt creation ───────────────────────
+    @api.model_create_multi
+    def create(self, vals_list):
+        records = super().create(vals_list)
+        for picking in records:
+            if (picking.picking_type_id.code == 'incoming'
+                    and picking.origin
+                    and not picking.x_dmr_no):
+                picking.x_dmr_no = picking._matracon_assign_dmr()
+        return records
+
+    def _matracon_assign_dmr(self):
+        """Return the next DMR number for this picking's site warehouse.
+        Auto-creates the ir.sequence if the site hasn't been set up yet.
+        """
+        self.ensure_one()
+        wh = self.picking_type_id.warehouse_id
+        if wh and wh.code:
+            seq_code = 'x.dmr.%s' % wh.code.strip().lower()
+            prefix = 'DMR-%s-' % wh.code.strip().upper()
+            seq_name = 'DMR — %s' % (wh.name or wh.code)
+        else:
+            seq_code = 'x.dmr'
+            prefix = 'DMR-'
+            seq_name = 'DMR — General'
+
+        IrSeq = self.env['ir.sequence'].sudo()
+        if not IrSeq.search([('code', '=', seq_code)], limit=1):
+            IrSeq.create({
+                'name': seq_name,
+                'code': seq_code,
+                'prefix': prefix,
+                'padding': 4,
+                'number_next': 1,
+                'number_increment': 1,
+                'company_id': self.company_id.id or self.env.company.id,
+            })
+        return IrSeq.next_by_code(seq_code) or '/'
 
     # ── Validate gate: require Gate Pass + Weight Document for PR receipts ────
     def button_validate(self):

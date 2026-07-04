@@ -52,9 +52,12 @@ class SalarySheet(models.Model):
             month = sheet.date_from.strftime('%b %Y') if sheet.date_from else ''
             sheet.name = f'Salary/{proj}/{month}' if proj else f'Salary/{month}'
 
+    total_backcharge = fields.Monetary(compute='_compute_totals', store=True)
+
     @api.depends(
         'line_ids.basic_salary', 'line_ids.allowances',
         'line_ids.deductions', 'line_ids.net_payable',
+        'line_ids.backcharge_to_deduct',
     )
     def _compute_totals(self):
         for sheet in self:
@@ -64,6 +67,7 @@ class SalarySheet(models.Model):
             sheet.total_deductions = sum(sheet.line_ids.mapped('deductions'))
             sheet.total_net = sum(sheet.line_ids.mapped('net_payable'))
             sheet.total_wht = sum(sheet.line_ids.mapped('detail_wht'))
+            sheet.total_backcharge = sum(sheet.line_ids.mapped('backcharge_to_deduct'))
 
     def _compute_wht_certificate_count(self):
         WHTCert = self.env['x.wht.certificate']
@@ -96,11 +100,17 @@ class SalarySheet(models.Model):
                 gross = basic + allowances
                 wht = gross * (emp.x_wht_rate or 0.0) / 100.0
                 eobi = emp.x_eobi_amount or 0.0
-                # Always derive advance from employee's outstanding balance
-                # (manual Excel input is no longer used)
+                # Advance — use amount decided by accountant on attendance line
+                # (auto-filled from emp.x_advance_balance when attendance was loaded)
                 emp_advance_balance = emp.x_advance_balance or 0.0
-                advance = min(emp_advance_balance, gross)
-                deductions = wht + eobi + advance
+                advance = att_line.x_advance_amount or 0.0
+
+                # Backcharge — use amount decided by accountant on attendance line
+                # (auto-filled from open/partial backcharge records when attendance was loaded)
+                emp_backcharge_balance = att_line.x_backcharge_outstanding  # live display
+                backcharge = att_line.x_backcharge_amount or 0.0
+
+                deductions = wht + eobi + advance + backcharge
                 net = max(gross - deductions, 0.0)
                 self.env['x.salary.sheet.line'].create({
                     'sheet_id': sheet.id,
@@ -119,6 +129,9 @@ class SalarySheet(models.Model):
                     # Employee advance tracking
                     'outstanding_advance': round(emp_advance_balance, 2),
                     'advance_to_deduct': round(advance, 2),
+                    # Employee backcharge tracking (separate from advance)
+                    'outstanding_backcharge': round(emp_backcharge_balance, 2),
+                    'backcharge_to_deduct': round(backcharge, 2),
                 })
 
     def action_refresh_from_attendance(self):
@@ -180,10 +193,53 @@ class SalarySheet(models.Model):
                         }
                     )
 
+            # ── Reduce backcharge balances ─────────────────────────────────
+            backcharge_log = []
+            for line in sheet.line_ids:
+                if line.backcharge_to_deduct <= 0:
+                    continue
+                line.detail_backcharge = line.backcharge_to_deduct
+                # Distribute the deduction across open/partial backcharges FIFO
+                to_recover = line.backcharge_to_deduct
+                bcs = self.env['x.employee.backcharge'].sudo().search([
+                    ('employee_id', '=', line.employee_id.id),
+                    ('state', 'in', ('open', 'partial')),
+                ], order='backcharge_date asc, id asc')
+                for bc in bcs:
+                    if to_recover <= 0:
+                        break
+                    deduct = min(bc.remaining_amount, to_recover)
+                    if deduct <= 0:
+                        continue
+                    self.env['x.employee.backcharge.deduction'].sudo().create({
+                        'backcharge_id': bc.id,
+                        'salary_line_id': line.id,
+                        'amount': round(deduct, 2),
+                        'deduction_date': sheet.date_to or fields.Date.today(),
+                    })
+                    # _compute_recovered triggers on deduction_ids → recalculates remaining
+                    bc._compute_recovered()
+                    new_remaining = bc.remaining_amount - deduct
+                    bc.remaining_amount = max(new_remaining, 0.0)
+                    bc.recovered_amount = bc.recovered_amount + deduct
+                    bc.state = 'cleared' if bc.recovered_amount >= bc.backcharge_amount - 0.01 else 'partial'
+                    to_recover -= deduct
+                backcharge_log.append(
+                    _('%(emp)s: backcharge %(sym)s %(amount)s deducted') % {
+                        'emp': line.employee_id.name,
+                        'sym': sheet.currency_id.symbol,
+                        'amount': f'{line.backcharge_to_deduct:,.2f}',
+                    }
+                )
+
             msg = Markup(_('Salary sheet approved by CEO <b>%s</b>.')) % self.env.user.name
             if advance_log:
                 msg += Markup('<br/><b>Advance balances updated:</b><ul>%s</ul>') % Markup(
                     ''.join(f'<li>{entry}</li>' for entry in advance_log)
+                )
+            if backcharge_log:
+                msg += Markup('<br/><b>Backcharge deductions:</b><ul>%s</ul>') % Markup(
+                    ''.join(f'<li>{entry}</li>' for entry in backcharge_log)
                 )
             sheet.message_post(body=msg)
             fo_users = self.env['res.users'].search([
@@ -215,6 +271,7 @@ class SalarySheet(models.Model):
         total_wht = sum(self.line_ids.mapped('detail_wht'))
         total_eobi = sum(self.line_ids.mapped('detail_eobi'))
         total_advance = sum(self.line_ids.mapped('detail_advance'))
+        total_backcharge = sum(self.line_ids.mapped('detail_backcharge'))
         tax_lines = []
         if total_wht:
             tax_lines.append((0, 0, {
@@ -239,6 +296,14 @@ class SalarySheet(models.Model):
                 'effect': 'deduct',
                 'sequence': 30,
                 'x_fixed_amount': round(total_advance, 2),
+            }))
+        if total_backcharge:
+            tax_lines.append((0, 0, {
+                'name': _('Backcharge Recovery (Assets)'),
+                'tax_type': 'other',
+                'effect': 'deduct',
+                'sequence': 40,
+                'x_fixed_amount': round(total_backcharge, 2),
             }))
 
         payment = Payment.create({
@@ -376,6 +441,24 @@ class SalarySheetLine(models.Model):
              'Pre-filled automatically; accountant may reduce for partial recovery. '
              'Cannot exceed Outstanding Advance.')
 
+    # ── Employee Backcharge tracking ──────────────────────────────────────────
+    outstanding_backcharge = fields.Monetary(
+        string='Outstanding Backcharge',
+        currency_field='currency_id',
+        readonly=True,
+        help='Sum of all open/partial backcharge remaining amounts for this '
+             'employee at the time the salary sheet was generated.')
+    backcharge_to_deduct = fields.Monetary(
+        string='Backcharge to Deduct',
+        currency_field='currency_id',
+        help='Asset backcharge amount to recover this month. '
+             'Pre-filled automatically; accountant may set to 0 to skip. '
+             'Separate from salary advance.')
+    detail_backcharge = fields.Monetary(
+        string='Backcharge Recovery',
+        currency_field='currency_id',
+        help='Final backcharge amount actually deducted (set on CEO approval).')
+
     currency_id = fields.Many2one(
         related='sheet_id.currency_id', depends=['sheet_id'])
 
@@ -408,7 +491,14 @@ class SalarySheetLine(models.Model):
         eobi = emp.x_eobi_amount or 0.0
         emp_advance = emp.x_advance_balance or 0.0
         advance = min(emp_advance, gross)
-        deductions = wht + eobi + advance
+        # Backcharge balance from open/partial records
+        bcs = self.env['x.employee.backcharge'].sudo().search([
+            ('employee_id', '=', self.employee_id.id),
+            ('state', 'in', ('open', 'partial')),
+        ])
+        emp_backcharge = sum(bcs.mapped('remaining_amount'))
+        backcharge = emp_backcharge
+        deductions = wht + eobi + advance + backcharge
 
         self.basic_salary = round(basic, 2)
         self.allowances = round(allowances, 2)
@@ -419,6 +509,8 @@ class SalarySheetLine(models.Model):
         self.outstanding_advance = round(emp_advance, 2)
         self.advance_to_deduct = round(advance, 2)
         self.detail_advance = round(advance, 2)
+        self.outstanding_backcharge = round(emp_backcharge, 2)
+        self.backcharge_to_deduct = round(backcharge, 2)
         self.deductions = round(deductions, 2)
         self.net_payable = round(max(gross - deductions, 0.0), 2)
 

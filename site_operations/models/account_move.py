@@ -34,6 +34,7 @@ class AccountMoveSiteOps(models.Model):
         string='Project (Site)',
         tracking=True,
         help='Project for liability sheet and fund tracking.',
+        default=lambda self: self.env.user.x_default_analytic_account_id,
     )
 
     # Non-stored: exposes the current user's site analytic so the invoice-line
@@ -127,6 +128,10 @@ class AccountMoveSiteOps(models.Model):
         moves = super().create(vals_list)
         for move in moves.filtered(lambda m: m.move_type == 'in_invoice'):
             move._ensure_liability_sheet_for_bill(notify=False)
+            # Auto-tag all lines (product + tax + payable) immediately on creation
+            # so draft bills show the project analytic without requiring a manual step.
+            if move.x_project_analytic_account_id and move.line_ids:
+                move._matracon_apply_bill_analytic()
         return moves
 
     def write(self, vals):
@@ -185,6 +190,37 @@ class AccountMoveSiteOps(models.Model):
                 self.x_purchase_order_id.x_project_analytic_account_id)
             self.invoice_origin = self.x_purchase_order_id.name
 
+    @api.onchange('x_project_analytic_account_id')
+    def _onchange_project_analytic_account_fill_lines(self):
+        """When the project is (re-)selected on a vendor bill, immediately tag
+        every existing journal item (product lines, tax lines, payable line)
+        with the new analytic distribution so the Journal Entries tab and the
+        Invoice Lines tab both reflect the correct project in real time."""
+        if self.move_type != 'in_invoice':
+            return
+        dist = (
+            {str(self.x_project_analytic_account_id.id): 100.0}
+            if self.x_project_analytic_account_id else {}
+        )
+        for line in self.line_ids:
+            line.analytic_distribution = dist
+
+    @api.onchange('invoice_line_ids')
+    def _onchange_invoice_line_ids_fill_analytic(self):
+        """When a new product line is added, immediately fill its analytic so
+        the user sees it in the UI while still editing.
+
+        We iterate invoice_line_ids (not line_ids) because at onchange time
+        Odoo's base _onchange_invoice_line_ids has not yet rebuilt the full
+        line_ids; auto-generated tax and payable lines are handled at DB-write
+        time by AccountMoveLineSiteOps.create() further below."""
+        if not self.x_project_analytic_account_id or self.move_type != 'in_invoice':
+            return
+        dist = {str(self.x_project_analytic_account_id.id): 100.0}
+        for line in self.invoice_line_ids:
+            if not line.analytic_distribution:
+                line.analytic_distribution = dist
+
     def _matracon_update_project_billed_amount(self, extra_analytic_ids=()):
         """Recompute x_billed_to_client on every project linked to a customer
         invoice (out_invoice / out_refund) in this recordset.
@@ -238,18 +274,15 @@ class AccountMoveSiteOps(models.Model):
                 'Please upload the physical bill document for: %s'
             ) % names)
 
-        for move in self.filtered(
-            lambda m: m.move_type == 'in_invoice'
-            and m.state != 'posted'
-            and not m.x_source_picking_id
-        ):
-            move._matracon_apply_bill_analytic()
         res = super().action_post()
         for move in self.filtered(
             lambda m: m.move_type == 'in_invoice' and m.state == 'posted'
         ):
-            # Backcharge-generated bills skip liability/balance — picking handles it
+            # Apply project analytic AFTER posting so Odoo's own line recompute
+            # (tax lines, payment-term lines) cannot overwrite the distribution.
+            # Backcharge-generated bills are excluded — their picking sets analytics.
             if not move.x_source_picking_id:
+                move.sudo()._matracon_apply_bill_analytic()
                 move._ensure_liability_sheet_for_bill(notify=True)
                 move._update_project_balance_from_bill()
             if move.x_wht_tax_id:
@@ -410,22 +443,23 @@ class AccountMoveSiteOps(models.Model):
         Tagging the payable line is critical: without it the standard Odoo aged
         payables report cannot filter / group by project, and project_project's
         AML fallback query for x_total_vendor_liability won't match either.
+
+        In Odoo 19 the display_type for product lines is 'product' (not False),
+        so we filter explicitly for 'product' — not with `not l.display_type`.
         """
         self.ensure_one()
         analytic = self.x_project_analytic_account_id
         if not analytic:
             return
         dist = {str(analytic.id): 100.0}
-        # Tag expense/product lines
-        expense_lines = self.invoice_line_ids.filtered(lambda l: not l.display_type)
-        if expense_lines:
-            expense_lines.write({'analytic_distribution': dist})
-        # Also tag the auto-generated payable line so it appears in aged AP by project
-        payable_lines = self.line_ids.filtered(
-            lambda l: l.account_id.account_type == 'liability_payable'
-        )
-        if payable_lines:
-            payable_lines.write({'analytic_distribution': dist})
+        # Tag ALL journal items: product lines, tax lines, payable line.
+        # In Odoo 19 display_type is 'product' for expense lines and 'tax' for
+        # auto-generated tax lines; both must carry the project analytic so that
+        # aged payables, tax reports, and project balance queries all filter
+        # correctly.  'payment_term' lines (receivable/payable counterpart) are
+        # included deliberately so aged-payables by project works too.
+        if self.line_ids:
+            self.line_ids.write({'analytic_distribution': dist})
 
     def _update_project_balance_from_bill(self):
         """Posted vendor bills increase project obligation (vendor liability metric)."""
@@ -558,7 +592,7 @@ class AccountMoveSiteOps(models.Model):
                 po.x_project_analytic_account_id.id
                 if po.x_project_analytic_account_id else False),
             'invoice_origin': po.name,
-            'ref': _('GRN %s') % picking.name,
+            'ref': 'GRN-%s' % picking.name,
             'invoice_line_ids': line_vals,
         })
         accountants = matracon_notify.site_accountants_for_analytic(
@@ -580,3 +614,42 @@ class AccountMoveSiteOps(models.Model):
             'Draft vendor bill <b>%s</b> created for accountant review.'
         )) % (bill.name or _('New')))
         return bill
+
+
+class AccountMoveLineSiteOps(models.Model):
+    """DB-level hook: auto-fill analytic distribution on every vendor bill line.
+
+    Why this is needed:
+    - @api.onchange fires in the browser (virtual record) and is unreliable for
+      auto-generated tax / payable lines because Odoo's base
+      _onchange_invoice_line_ids runs AFTER ours and recreates those lines
+      without our analytic.
+    - Setting the distribution in vals *before* super().create() is the only
+      reliable way to ensure ALL line types (product, tax, payment_term) carry
+      the project analytic from the moment they hit the database, even when
+      Odoo's own accounting recompute creates them automatically.
+    """
+    _inherit = 'account.move.line'
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        # Cache move objects to avoid repeated browses for the same move.
+        move_cache = {}
+        for vals in vals_list:
+            if vals.get('analytic_distribution'):
+                continue  # already set — respect explicit caller value
+            move_id = vals.get('move_id')
+            if not move_id:
+                continue
+            if move_id not in move_cache:
+                move_cache[move_id] = self.env['account.move'].browse(move_id)
+            move = move_cache[move_id]
+            if (
+                move.move_type == 'in_invoice'
+                and move.state == 'draft'
+                and move.x_project_analytic_account_id
+            ):
+                vals['analytic_distribution'] = {
+                    str(move.x_project_analytic_account_id.id): 100.0
+                }
+        return super().create(vals_list)

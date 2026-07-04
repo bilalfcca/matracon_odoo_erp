@@ -30,7 +30,7 @@
                      • HO users (x_user_is_ho=True):  no account_type restriction — full CoA.
                      • Site accountants (x_user_analytic_id set): exclude receivable/payable/
                        off_balance AND restrict to accounts tagged for their site. -->
-                <attribute name="domain">([('company_ids', 'parent_of', company_id)] if parent.x_user_is_ho else [('company_ids', 'parent_of', company_id), ('account_type', 'not in', ('asset_receivable', 'liability_payable', 'off_balance'))]) + ([('x_site_ids', 'in', [parent.x_user_analytic_id])] if parent.x_user_analytic_id else [])</attribute>
+                <attribute name="domain">([('company_ids', 'parent_of', company_id)] if parent.x_user_is_ho else [('company_ids', 'parent_of', company_id), ('account_type', 'not in', ('asset_receivable', 'liability_payable', 'off_balance'))]) + (['|', ('x_site_ids', '=', False), ('x_site_ids', 'in', [parent.x_user_analytic_id])] if parent.x_user_analytic_id else [])</attribute>
                 <!-- Context:
                      • HO users: all search_default_type_* and preferred_account_type → False,
                        so the picker opens with no type pre-filter.
@@ -83,7 +83,7 @@
                            widget="many2many_tags"
                            string="Visible to Sites"
                            options="{'no_create': True}"
-                           placeholder="Leave empty = Head Office only"/>
+                           placeholder="Leave empty = visible to all sites"/>
                 </group>
             </xpath>
         </field>
@@ -100,13 +100,13 @@
         <field name="name">Chart of Accounts</field>
         <field name="res_model">account.account</field>
         <field name="view_mode">list,form</field>
-        <field name="domain">[('x_site_ids', 'in', [user.x_default_analytic_account_id.id])]</field>
+        <field name="domain">['|', ('x_site_ids', '=', False), ('x_site_ids', 'in', [user.x_default_analytic_account_id.id])]</field>
         <field name="context">{'default_x_site_ids': []}</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
-                No accounts assigned to your site yet.
+                No accounts visible to your site yet.
             </p>
-            <p>Ask Head Office to assign accounts to your project in Configuration → Chart of Accounts.</p>
+            <p>Accounts with no site restriction are visible to all sites. Ask Head Office to check Configuration → Chart of Accounts.</p>
         </field>
     </record>
 
@@ -146,7 +146,7 @@
                                widget="many2many_tags"
                                string="Visible to Sites"
                                options="{'no_create': True}"
-                               placeholder="Leave empty = Head Office only"/>
+                               placeholder="Leave empty = visible to all sites"/>
                     </group>
                 </page>
             </xpath>

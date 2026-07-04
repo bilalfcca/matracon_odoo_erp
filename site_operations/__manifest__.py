@@ -31,6 +31,8 @@
         'data/petty_cash_sequence.xml',
         'data/compliance_sequences.xml',
         'data/ipc_sequence.xml',
+        'data/employee_backcharge_sequence.xml',
+        'data/ho_advance_sequence.xml',
         'data/app_visibility_data.xml',
         'views/hr_employee_views.xml',
         'views/attendance_views.xml',
@@ -59,6 +61,8 @@
         'views/cheque_series_views.xml',
         'views/subcontractor_backcharge_views.xml',
         'views/subcontractor_ipc_views.xml',
+        'views/subcontractor_ho_advance_views.xml',
+        'views/employee_backcharge_views.xml',
         'views/material_cost_views.xml',
         'views/menus.xml',
         'report/mif_report.xml',
@@ -90,6 +94,8 @@
             'site_operations/static/src/scss/matracon_hr.scss',
             'site_operations/static/src/scss/matracon_management_dashboard.scss',
             'site_operations/static/src/js/attendance_grid_colors.js',
+            # Real-time thousand-separator formatting for all numeric inputs
+            'site_operations/static/src/js/realtime_thousand_sep.js',
         ],
     },
     'demo': [

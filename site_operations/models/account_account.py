@@ -22,8 +22,9 @@ class AccountJournalSiteOps(models.Model):
         'x_account_journal_site_rel',
         'journal_id', 'analytic_id',
         string='Visible to Sites',
-        help='Sites whose accountants can select this journal (e.g. for petty cash expenses).\n'
-             'Leave empty to restrict to Head Office only.',
+        help='Sites whose accountants can select this journal.\n'
+             'Leave empty = visible to all sites.\n'
+             'Add specific sites to restrict to Head Office + those sites only.',
     )
 
 
@@ -36,7 +37,8 @@ class AccountAccountSiteOps(models.Model):
         'account_id', 'analytic_id',
         string='Visible to Sites',
         help='Projects / sites whose accountants can see and use this account.\n'
-             'Leave empty to restrict visibility to Head Office only.\n'
+             'Leave empty = visible to ALL sites and Head Office (no restriction).\n'
+             'Add specific sites to restrict visibility to Head Office + those sites only.\n'
              'Head Office users always see all accounts regardless of this setting.',
     )
 

@@ -42,6 +42,10 @@
                                         <td class="fw-bold" style="width:40%">Vendor:</td>
                                         <td><t t-esc="o.partner_id.name"/></td>
                                     </tr>
+                                    <tr t-if="o.partner_ref">
+                                        <td class="fw-bold">Vendor Reference:</td>
+                                        <td><t t-esc="o.partner_ref"/></td>
+                                    </tr>
                                     <tr t-if="o.x_project_analytic_account_id">
                                         <td class="fw-bold">Project:</td>
                                         <td><t t-esc="o.x_project_analytic_account_id.name"/></td>
