@@ -182,10 +182,17 @@ class PettyCashRequest(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
+        Analytic = self.env['account.analytic.account']
         for vals in vals_list:
             if vals.get('name', _('New')) == _('New'):
-                vals['name'] = self.env['ir.sequence'].next_by_code(
-                    'x.petty.cash.request') or _('New')
+                # Resolve analytic: related field not in vals, so browse fund
+                analytic_id = vals.get('project_analytic_account_id')
+                if not analytic_id and vals.get('fund_id'):
+                    fund = self.env['x.petty.cash.fund'].browse(vals['fund_id'])
+                    analytic_id = fund.project_analytic_account_id.id
+                site_code = Analytic._matracon_site_code_for_id(analytic_id)
+                vals['name'] = Analytic._matracon_ref_with_site(
+                    'x.petty.cash.request', site_code)
             if not vals.get('fund_id') and vals.get('project_analytic_account_id'):
                 fund = self.env['x.petty.cash.fund'].get_or_create_for_project(
                     self.env['account.analytic.account'].browse(
@@ -431,6 +438,16 @@ class PettyCashExpense(models.Model):
 
     receipt = fields.Binary(string='Receipt / Voucher')
     receipt_filename = fields.Char()
+
+    # Signed voucher — mandatory upload before posting.
+    # Workflow: accountant prints the expense voucher, gets it physically signed,
+    # scans it, and uploads here.  action_post() enforces this.
+    x_signed_voucher = fields.Binary(
+        string='Signed Voucher',
+        attachment=True,
+    )
+    x_signed_voucher_filename = fields.Char(string='Signed Voucher Filename')
+
     state = fields.Selection([
         ('draft', 'Draft'),
         ('posted', 'Posted'),
@@ -470,6 +487,21 @@ class PettyCashExpense(models.Model):
     # ── Onchanges ─────────────────────────────────────────────────────────────
 
     @api.onchange('fund_id')
+    @api.model_create_multi
+    def create(self, vals_list):
+        """Auto-generate x_ref with site-based prefix if not already provided."""
+        Analytic = self.env['account.analytic.account']
+        for vals in vals_list:
+            if not vals.get('x_ref'):
+                analytic_id = vals.get('project_analytic_account_id')
+                if not analytic_id and vals.get('fund_id'):
+                    fund = self.env['x.petty.cash.fund'].browse(vals['fund_id'])
+                    analytic_id = fund.project_analytic_account_id.id
+                site_code = Analytic._matracon_site_code_for_id(analytic_id)
+                vals['x_ref'] = Analytic._matracon_ref_with_site(
+                    'x.petty.cash.expense', site_code)
+        return super().create(vals_list)
+
     def _onchange_fund_fill_accounting(self):
         """Auto-fill petty cash account and cash journal when fund changes."""
         if not self.fund_id:
@@ -499,6 +531,16 @@ class PettyCashExpense(models.Model):
             if expense.is_employee_advance and not expense.employee_id:
                 raise UserError(_(
                     'Please select an Employee before posting this advance.'
+                ))
+            if not expense.x_signed_voucher:
+                raise UserError(_(
+                    'A signed voucher is required before posting.\n\n'
+                    'Please:\n'
+                    '1. Print this expense voucher (Print → Petty Cash Expense Voucher)\n'
+                    '2. Obtain physical signatures from all parties\n'
+                    '3. Scan the signed document and upload it in the '
+                    '"Signed Voucher" field above\n'
+                    '4. Then click Post again.'
                 ))
             balance_before = expense.fund_id.balance
             if balance_before < expense.amount - 0.01:

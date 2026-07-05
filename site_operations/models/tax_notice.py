@@ -178,9 +178,11 @@ class TaxNoticeOrder(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
+        Analytic = self.env['account.analytic.account']
         for vals in vals_list:
             if vals.get('name', _('New')) == _('New'):
-                vals['name'] = self.env['ir.sequence'].next_by_code('x.tax.notice.order') or _('New')
+                # Tax notices are a Head Office compliance document — always HO prefix.
+                vals['name'] = Analytic._matracon_ref_with_site('x.tax.notice.order', 'HO')
         records = super().create(vals_list)
         for rec in records:
             rec._schedule_due_alert()

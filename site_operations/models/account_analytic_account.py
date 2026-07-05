@@ -44,6 +44,49 @@ class AccountAnalyticAccountSiteOps(models.Model):
         self.x_internal_partner_id = partner
         return partner
 
+    def _matracon_site_code(self):
+        """Return the site warehouse code (e.g. 'MCH', 'RWASA', 'STP') for this
+        analytic account, or 'HO' if not linked to any site project config."""
+        self.ensure_one()
+        if not self.id:
+            return 'HO'
+        config = self.env['x.project.site.config'].sudo().search(
+            [('analytic_account_id', '=', self.id)], limit=1)
+        if config and config.warehouse_id and config.warehouse_id.code:
+            return config.warehouse_id.code.strip().upper()
+        # Fallback: analytic code if set (e.g. 'MCH')
+        return (self.code or '').strip().upper() or 'HO'
+
+    @api.model
+    def _matracon_site_code_for_id(self, analytic_id):
+        """Class-level helper: return the site code for an analytic account ID.
+        Returns 'HO' when analytic_id is falsy or no site config is found.
+        """
+        if not analytic_id:
+            return 'HO'
+        return self.browse(analytic_id)._matracon_site_code()
+
+    @api.model
+    def _matracon_ref_with_site(self, seq_code, site_code):
+        """Generate a sequence reference with the site code injected as the
+        second path component, keeping all existing separators intact.
+
+        Examples:
+          seq  'PCR/00001'       + site 'MCH'  → 'PCR/MCH/00001'
+          seq  'EBC/2026/00001'  + site 'MCH'  → 'EBC/MCH/2026/00001'
+          seq  'TN-2026-0001'    + site 'HO'   → 'TN-HO-2026-0001'
+        """
+        seq_val = self.env['ir.sequence'].next_by_code(seq_code)
+        if not seq_val:
+            return '/'
+        if '/' in seq_val:
+            idx = seq_val.index('/')
+            return seq_val[:idx] + '/' + site_code + '/' + seq_val[idx + 1:]
+        if '-' in seq_val:
+            idx = seq_val.index('-')
+            return seq_val[:idx] + '-' + site_code + '-' + seq_val[idx + 1:]
+        return site_code + '/' + seq_val
+
     @api.model_create_multi
     def create(self, vals_list):
         records = super().create(vals_list)

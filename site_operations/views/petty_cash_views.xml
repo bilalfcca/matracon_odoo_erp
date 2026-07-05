@@ -225,6 +225,7 @@
                             <field name="expense_account_id" readonly="state == 'posted'"
                                    string="Expense Account (Debit)"
                                    options="{'no_create': True}"
+                                   domain="[('x_ho_only', '=', False), '|', ('x_site_ids', '=', False), ('x_site_ids', 'in', [project_analytic_account_id])] if project_analytic_account_id else []"
                                    help="Leave blank to use the default expense account for the selected category."/>
                         </group>
                     </group>
@@ -245,10 +246,27 @@
                         <field name="x_balance_after" readonly="1" string="Balance After"/>
                     </group>
 
-                    <group string="Receipt / Voucher">
+                    <!-- Signed voucher — MANDATORY before posting.
+                         Workflow: print the voucher (Print menu), get it physically
+                         signed by all parties, scan it and upload here.
+                         action_post() raises UserError if this is empty. -->
+                    <group string="Signed Voucher (Required before posting)">
+                        <div colspan="2" class="alert alert-warning" role="alert"
+                             invisible="x_signed_voucher or state == 'posted'">
+                            <strong>Action Required:</strong>
+                            Print this voucher, obtain physical signatures, scan it and upload below before posting.
+                        </div>
+                        <field name="x_signed_voucher" widget="binary"
+                               filename="x_signed_voucher_filename"
+                               string="Upload Signed Voucher"
+                               readonly="state == 'posted'"/>
+                        <field name="x_signed_voucher_filename" invisible="1"/>
+                    </group>
+
+                    <group string="Supporting Receipt (Optional)">
                         <field name="receipt" widget="binary"
                                filename="receipt_filename"
-                               string="Upload Receipt"
+                               string="Upload Receipt / Invoice"
                                readonly="state == 'posted'"/>
                         <field name="receipt_filename" invisible="1"/>
                     </group>

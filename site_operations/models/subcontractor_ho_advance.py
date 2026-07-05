@@ -89,10 +89,13 @@ class SubcontractorHOAdvance(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        seq = self.env['ir.sequence'].sudo()
+        Analytic = self.env['account.analytic.account']
         for vals in vals_list:
             if vals.get('name', 'New') == 'New':
-                vals['name'] = seq.next_by_code('x.subcontractor.ho.advance') or 'New'
+                site_code = Analytic._matracon_site_code_for_id(
+                    vals.get('project_analytic_account_id'))
+                vals['name'] = Analytic._matracon_ref_with_site(
+                    'x.subcontractor.ho.advance', site_code)
         return super().create(vals_list)
 
     # ─────────────────────────────────────────────────────────────────────────

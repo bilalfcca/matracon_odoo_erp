@@ -240,9 +240,17 @@ class BankGuarantee(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
+        Analytic = self.env['account.analytic.account']
         for vals in vals_list:
             if vals.get('name', _('New')) == _('New'):
-                vals['name'] = self.env['ir.sequence'].next_by_code('x.bank.guarantee') or _('New')
+                # project_analytic_account_id is related from project_id.account_id —
+                # not in vals directly, so resolve from project_id when available.
+                analytic_id = vals.get('project_analytic_account_id')
+                if not analytic_id and vals.get('project_id'):
+                    project = self.env['project.project'].browse(vals['project_id'])
+                    analytic_id = project.account_id.id
+                site_code = Analytic._matracon_site_code_for_id(analytic_id)
+                vals['name'] = Analytic._matracon_ref_with_site('x.bank.guarantee', site_code)
             if not vals.get('sr_no'):
                 vals['sr_no'] = self.env['ir.sequence'].next_by_code('x.bank.guarantee.sr') or ''
             bank_id = vals.get('bank_id')

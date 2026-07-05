@@ -97,12 +97,11 @@ class WHTCertificate(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
+        Analytic = self.env['account.analytic.account']
         for vals in vals_list:
             if vals.get('name', _('New')) == _('New'):
-                vals['name'] = (
-                    self.env['ir.sequence'].next_by_code('x.wht.certificate')
-                    or _('New')
-                )
+                # WHT certificates are Head Office compliance documents — always HO prefix.
+                vals['name'] = Analytic._matracon_ref_with_site('x.wht.certificate', 'HO')
         return super().create(vals_list)
 
     def action_issue(self):

@@ -133,10 +133,14 @@ class InterprojectTransfer(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        seq = self.env['ir.sequence'].next_by_code('x.interproject.transfer')
+        Analytic = self.env['account.analytic.account']
         for vals in vals_list:
             if vals.get('name', _('New')) == _('New'):
-                vals['name'] = seq or _('New')
+                # Use the source (lending/sending) project as the site prefix.
+                site_code = Analytic._matracon_site_code_for_id(
+                    vals.get('source_analytic_id'))
+                vals['name'] = Analytic._matracon_ref_with_site(
+                    'x.interproject.transfer', site_code)
         return super().create(vals_list)
 
     # ── Actions ───────────────────────────────────────────────────────────

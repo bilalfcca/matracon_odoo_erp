@@ -30,7 +30,7 @@
                      • HO users (x_user_is_ho=True):  no account_type restriction — full CoA.
                      • Site accountants (x_user_analytic_id set): exclude receivable/payable/
                        off_balance AND restrict to accounts tagged for their site. -->
-                <attribute name="domain">([('company_ids', 'parent_of', company_id)] if parent.x_user_is_ho else [('company_ids', 'parent_of', company_id), ('account_type', 'not in', ('asset_receivable', 'liability_payable', 'off_balance'))]) + (['|', ('x_site_ids', '=', False), ('x_site_ids', 'in', [parent.x_user_analytic_id])] if parent.x_user_analytic_id else [])</attribute>
+                <attribute name="domain">([('company_ids', 'parent_of', company_id)] if parent.x_user_is_ho else [('company_ids', 'parent_of', company_id), ('account_type', 'not in', ('asset_receivable', 'liability_payable', 'off_balance')), ('x_ho_only', '=', False)]) + (['|', ('x_site_ids', '=', False), ('x_site_ids', 'in', [parent.x_user_analytic_id])] if parent.x_user_analytic_id else [])</attribute>
                 <!-- Context:
                      • HO users: all search_default_type_* and preferred_account_type → False,
                        so the picker opens with no type pre-filter.

@@ -131,7 +131,7 @@
                  Restrict the account_id picker in that tab to site-allowed CoA
                  accounts when the user is a site accountant. -->
             <xpath expr="//page[@id='invoice_tab']//field[@name='account_id']" position="attributes">
-                <attribute name="domain">['|', ('x_site_ids', '=', False), ('x_site_ids', 'in', [parent.x_user_analytic_id])] if parent.x_user_analytic_id else []</attribute>
+                <attribute name="domain">[('x_ho_only', '=', False), '|', ('x_site_ids', '=', False), ('x_site_ids', 'in', [parent.x_user_analytic_id])] if parent.x_user_analytic_id else []</attribute>
                 <attribute name="options">{'no_create': True, 'no_create_edit': True}</attribute>
             </xpath>
 

@@ -91,15 +91,11 @@ class LiabilitySheet(models.Model):
     @api.depends('project_analytic_account_id', 'date_from', 'date_to')
     def _compute_name(self):
         for sheet in self:
-            proj = (sheet.project_analytic_account_id.code
-                    or sheet.project_analytic_account_id.name
-                    or '')
+            site = (sheet.project_analytic_account_id._matracon_site_code()
+                    if sheet.project_analytic_account_id else 'HO')
             df = sheet.date_from.strftime('%b-%Y') if sheet.date_from else ''
             dt = sheet.date_to.strftime('%b-%Y') if sheet.date_to else ''
-            if proj:
-                sheet.name = f'LS/{proj}/{df}-{dt}'
-            else:
-                sheet.name = f'LS/{df}-{dt}'
+            sheet.name = f'LS/{site}/{df}-{dt}'
 
     @api.depends(
         'line_ids.liability_amount',

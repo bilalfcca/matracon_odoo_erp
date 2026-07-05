@@ -45,12 +45,10 @@ class SalarySheet(models.Model):
     @api.depends('project_analytic_account_id', 'date_from', 'date_to')
     def _compute_name(self):
         for sheet in self:
-            proj = (
-                sheet.project_analytic_account_id.code
-                or sheet.project_analytic_account_id.name or ''
-            )
+            site = (sheet.project_analytic_account_id._matracon_site_code()
+                    if sheet.project_analytic_account_id else 'HO')
             month = sheet.date_from.strftime('%b %Y') if sheet.date_from else ''
-            sheet.name = f'Salary/{proj}/{month}' if proj else f'Salary/{month}'
+            sheet.name = f'Salary/{site}/{month}'
 
     total_backcharge = fields.Monetary(compute='_compute_totals', store=True)
 

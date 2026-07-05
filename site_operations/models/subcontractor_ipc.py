@@ -349,12 +349,13 @@ class SubcontractorIPC(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
+        Analytic = self.env['account.analytic.account']
         for vals in vals_list:
             if vals.get('name', _('New')) == _('New'):
-                vals['name'] = (
-                    self.env['ir.sequence'].next_by_code('x.subcontractor.ipc')
-                    or _('New')
-                )
+                site_code = Analytic._matracon_site_code_for_id(
+                    vals.get('project_analytic_account_id'))
+                vals['name'] = Analytic._matracon_ref_with_site(
+                    'x.subcontractor.ipc', site_code)
         return super().create(vals_list)
 
     # ─────────────────────────────────────────────────────────────────────────
