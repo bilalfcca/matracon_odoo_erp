@@ -132,18 +132,40 @@
                             </div>
                         </div>
 
-                        <!-- ── AUTHORIZATION ── -->
+                        <!-- ── AUTHORIZATION / SIGNATURES ── -->
                         <div class="row mt-5">
+                            <!-- PO Officer -->
                             <div class="col-6 text-center">
-                                <div style="border-top: 1px solid #000; padding-top: 5px; margin-top: 60px;">
-                                    <div class="fw-bold">Procurement HO</div>
-                                    <div class="text-muted small">Authorized Signatory</div>
+                                <div style="min-height:70px; display:flex; align-items:flex-end; justify-content:center; margin-bottom:0;">
+                                    <t t-if="o.company_id.x_po_officer_signature">
+                                        <img t-att-src="image_data_uri(o.company_id.x_po_officer_signature)"
+                                             style="max-height:65px; max-width:200px; object-fit:contain;"/>
+                                    </t>
+                                </div>
+                                <div style="border-top: 1px solid #000; padding-top: 5px;">
+                                    <div class="fw-bold">
+                                        <t t-esc="o.company_id.x_po_officer_name or 'Nasir Swati'"/>
+                                    </div>
+                                    <div class="text-muted small">
+                                        <t t-esc="o.company_id.x_po_officer_title or 'Procurement Officer'"/>
+                                    </div>
                                 </div>
                             </div>
+                            <!-- CEO -->
                             <div class="col-6 text-center">
-                                <div style="border-top: 1px solid #000; padding-top: 5px; margin-top: 60px;">
-                                    <div class="fw-bold">CEO / Director</div>
-                                    <div class="text-muted small">Final Approval</div>
+                                <div style="min-height:70px; display:flex; align-items:flex-end; justify-content:center; margin-bottom:0;">
+                                    <t t-if="o.company_id.x_ceo_signature">
+                                        <img t-att-src="image_data_uri(o.company_id.x_ceo_signature)"
+                                             style="max-height:65px; max-width:200px; object-fit:contain;"/>
+                                    </t>
+                                </div>
+                                <div style="border-top: 1px solid #000; padding-top: 5px;">
+                                    <div class="fw-bold">
+                                        <t t-esc="o.company_id.x_ceo_name or 'Jehanzeb Saulat'"/>
+                                    </div>
+                                    <div class="text-muted small">
+                                        <t t-esc="o.company_id.x_ceo_title or 'Chief Executive Officer'"/>
+                                    </div>
                                 </div>
                             </div>
                         </div>

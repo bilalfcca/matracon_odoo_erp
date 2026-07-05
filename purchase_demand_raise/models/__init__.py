@@ -1,3 +1,4 @@
+from . import res_company
 from . import product_template
 from . import po_terms_template
 from . import project_site_config
