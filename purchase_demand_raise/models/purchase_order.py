@@ -846,7 +846,7 @@ class PurchaseOrder(models.Model):
             order.message_post(
                 body=Markup(
                     '🔒 <b>CEO Final Approval</b> granted by <b>%(user)s</b>.%(bypass)s '
-                    'PO is now locked and confirmed — ready for dispatch to vendor.'
+                    'PO is now locked and confirmed — Purchase Order sent to vendor.'
                 ) % {
                     'user': self.env.user.name,
                     'bypass': Markup('<br/><i>Procurement HO review was bypassed.</i>')
@@ -854,11 +854,28 @@ class PurchaseOrder(models.Model):
                 },
                 subtype_xmlid='mail.mt_log_note',
             )
+
+            # ── Auto-send Purchase Order PDF to vendor ────────────────────────
+            if order.partner_id:
+                po_template = self.env.ref(
+                    'purchase_demand_raise.matracon_po_confirmation_email_template',
+                    raise_if_not_found=False,
+                )
+                if po_template:
+                    try:
+                        po_template.send_mail(order.id, force_send=True)
+                    except Exception as e:
+                        # Never block the approval if email fails
+                        order.message_post(
+                            body=Markup('⚠️ Purchase Order email could not be sent to vendor: %s') % str(e),
+                            subtype_xmlid='mail.mt_log_note',
+                        )
+
             ho_partners = order._get_group_partners('purchase_demand_raise.group_procurement_ho')
             order._notify_partners(
                 ho_partners,
                 Markup('🔒 PO <b>%(pr)s</b> — CEO has given final approval. '
-                       'PO is confirmed. You may now dispatch it to the vendor.') % {'pr': order.name}
+                       'PO is confirmed and Purchase Order has been sent to vendor.') % {'pr': order.name}
             )
             if order.x_initiator_id and order.x_initiator_id.partner_id:
                 order._notify_partners(

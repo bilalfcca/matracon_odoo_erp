@@ -140,8 +140,8 @@
             <!-- ── 2. Standard buttons: hide from Site Store; hide on PR docs when rejected ── -->
             <!-- Send RFQ/PO buttons:
                  [1] always hidden (duplicate from purchase_requisition)
-                 [2] "Send RFQ" (state=sent)  — hidden for Site Store, CEO, locked/rejected PRs
-                 [3] "Send PO"  (state=purchase) — hidden for Site Store, locked/rejected PRs; CEO can see this -->
+                 [2] "Send RFQ" (state=sent)    — hidden for Site Store, CEO, locked/rejected PRs
+                 [3] "Send PO"  (state=purchase) — hidden for Site Store and CEO (auto-sent on CEO approval) -->
             <xpath expr="//header/button[@name='action_rfq_send'][1]" position="attributes">
                 <attribute name="invisible">1</attribute>
             </xpath>
@@ -149,7 +149,7 @@
                 <attribute name="invisible">x_is_site_store or x_is_ceo or x_pr_state == 'po_locked' or (x_is_pr_document and x_pr_state in ('rejected', 'cancelled'))</attribute>
             </xpath>
             <xpath expr="//header/button[@name='action_rfq_send'][3]" position="attributes">
-                <attribute name="invisible">x_is_site_store or x_pr_state == 'po_locked' or (x_is_pr_document and x_pr_state in ('rejected', 'cancelled'))</attribute>
+                <attribute name="invisible">x_is_site_store or x_is_ceo or x_pr_state == 'po_locked' or (x_is_pr_document and x_pr_state in ('rejected', 'cancelled'))</attribute>
             </xpath>
             <!-- Confirm Order:
                  - PR documents: HIDDEN (CEO Final Approve handles confirm)
