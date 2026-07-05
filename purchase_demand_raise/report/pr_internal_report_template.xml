@@ -98,28 +98,27 @@
                             </div>
                         </div>
 
-                        <div class="row mt-3">
-
-                            <!-- Store Keeper Signature -->
+                        <!-- ── Signatures ── -->
+                        <div class="row mt-5">
                             <div class="col-6 text-center">
-                                <div style="border: 1px solid #ccc; border-radius: 4px; padding: 10px; min-height: 100px; margin-bottom: 8px; background: #fafafa;">
+                                <div style="border-top:2px solid #000; margin-top:60px; padding-top:8px;">
+                                    <div style="font-weight:700; font-size:13px;">Prepared By</div>
+                                    <div style="font-size:11px; color:#555; margin-top:2px;">
+                                        Store Keeper
+                                        <t t-if="o.x_initiator_id"> — <t t-esc="o.x_initiator_id.name"/></t>
+                                    </div>
+                                    <div style="font-size:11px; color:#6c757d; margin-top:14px;">Name: ___________________________</div>
+                                    <div style="font-size:11px; color:#6c757d; margin-top:4px;">Date: ___________________________</div>
                                 </div>
-                                <div class="fw-bold">Store Keeper</div>
-                                <div class="text-muted small"><t t-esc="o.x_initiator_id.name or 'Site Store Keeper'"/></div>
-                                <div class="text-muted small mt-1">Date: ______________________</div>
                             </div>
-
-                            <!-- PM Signature -->
                             <div class="col-6 text-center">
-                                <div style="border: 2px solid #000; border-radius: 4px; padding: 10px; min-height: 100px; margin-bottom: 8px; background: #fff9e6;">
-                                    <div class="text-muted small mt-4">PM Signature Required</div>
+                                <div style="border-top:2px solid #000; margin-top:60px; padding-top:8px;">
+                                    <div style="font-weight:700; font-size:13px;">Approved By</div>
+                                    <div style="font-size:11px; color:#555; margin-top:2px;">Project Manager</div>
+                                    <div style="font-size:11px; color:#6c757d; margin-top:14px;">Name: ___________________________</div>
+                                    <div style="font-size:11px; color:#6c757d; margin-top:4px;">Date: ___________________________</div>
                                 </div>
-                                <div class="fw-bold">Project Manager</div>
-                                <div class="text-muted small">Name: ______________________</div>
-                                <div class="text-muted small">Date: ______________________</div>
-                                <div class="text-danger small fw-bold mt-1">⚠ Scan &amp; upload after PM signs, then click Submit PR</div>
                             </div>
-
                         </div>
 
                     </div>

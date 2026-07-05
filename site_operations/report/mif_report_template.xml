@@ -219,26 +219,33 @@
                             </div>
                         </div>
 
-                        <!-- ── Signature Section ── -->
+                        <!-- ── Signatures ── -->
                         <div class="row mt-5">
                             <div class="col-4 text-center">
-                                <div style="border-top: 1px solid #000; margin-top: 40px; padding-top: 8px;">
-                                    <strong>Project Manager Signature</strong>
+                                <div style="border-top:2px solid #000; margin-top:60px; padding-top:8px;">
+                                    <div style="font-weight:700; font-size:13px;">Prepared By</div>
+                                    <div style="font-size:11px; color:#555; margin-top:2px;">Store Keeper</div>
+                                    <div style="font-size:11px; color:#6c757d; margin-top:14px;">Name: _______________________</div>
+                                    <div style="font-size:11px; color:#6c757d; margin-top:4px;">Date: ________________________</div>
                                 </div>
                             </div>
                             <div class="col-4 text-center">
-                                <div style="border-top: 1px solid #000; margin-top: 40px; padding-top: 8px;">
-                                    <strong>Store Keeper Signature</strong>
+                                <div style="border-top:2px solid #000; margin-top:60px; padding-top:8px;">
+                                    <div style="font-weight:700; font-size:13px;">Approved By</div>
+                                    <div style="font-size:11px; color:#555; margin-top:2px;">Project Manager</div>
+                                    <div style="font-size:11px; color:#6c757d; margin-top:14px;">Name: _______________________</div>
+                                    <div style="font-size:11px; color:#6c757d; margin-top:4px;">Date: ________________________</div>
                                 </div>
                             </div>
                             <div class="col-4 text-center">
-                                <div style="border-top: 1px solid #000; margin-top: 40px; padding-top: 8px;">
-                                    <t t-if="picking.x_issue_type == 'subcontractor'">
-                                        <strong>Subcontractor Signature</strong>
-                                    </t>
-                                    <t t-else="">
-                                        <strong>Receiver Signature</strong>
-                                    </t>
+                                <div style="border-top:2px solid #000; margin-top:60px; padding-top:8px;">
+                                    <div style="font-weight:700; font-size:13px;">Received By</div>
+                                    <div style="font-size:11px; color:#555; margin-top:2px;">
+                                        <t t-if="picking.x_issue_type == 'subcontractor'">Subcontractor</t>
+                                        <t t-else="">Employee / Recipient</t>
+                                    </div>
+                                    <div style="font-size:11px; color:#6c757d; margin-top:14px;">Name: _______________________</div>
+                                    <div style="font-size:11px; color:#6c757d; margin-top:4px;">Date: ________________________</div>
                                 </div>
                             </div>
                         </div>
@@ -378,20 +385,29 @@
                         </div>
 
                         <!-- ── Signatures ── -->
-                        <div class="row mt-4">
+                        <div class="row mt-5">
                             <div class="col-4 text-center">
-                                <div style="border-top: 1px solid #000; margin-top: 40px; padding-top: 8px;">
-                                    <strong>Issued By (Store Keeper)</strong>
+                                <div style="border-top:2px solid #000; margin-top:60px; padding-top:8px;">
+                                    <div style="font-weight:700; font-size:13px;">Prepared By</div>
+                                    <div style="font-size:11px; color:#555; margin-top:2px;">Store Keeper</div>
+                                    <div style="font-size:11px; color:#6c757d; margin-top:14px;">Name: _______________________</div>
+                                    <div style="font-size:11px; color:#6c757d; margin-top:4px;">Date: ________________________</div>
                                 </div>
                             </div>
                             <div class="col-4 text-center">
-                                <div style="border-top: 1px solid #000; margin-top: 40px; padding-top: 8px;">
-                                    <strong>Project Manager</strong>
+                                <div style="border-top:2px solid #000; margin-top:60px; padding-top:8px;">
+                                    <div style="font-weight:700; font-size:13px;">Approved By</div>
+                                    <div style="font-size:11px; color:#555; margin-top:2px;">Project Manager</div>
+                                    <div style="font-size:11px; color:#6c757d; margin-top:14px;">Name: _______________________</div>
+                                    <div style="font-size:11px; color:#6c757d; margin-top:4px;">Date: ________________________</div>
                                 </div>
                             </div>
                             <div class="col-4 text-center">
-                                <div style="border-top: 1px solid #000; margin-top: 40px; padding-top: 8px;">
-                                    <strong>Security Guard</strong>
+                                <div style="border-top:2px solid #000; margin-top:60px; padding-top:8px;">
+                                    <div style="font-weight:700; font-size:13px;">Security Guard</div>
+                                    <div style="font-size:11px; color:#555; margin-top:2px;">Gate</div>
+                                    <div style="font-size:11px; color:#6c757d; margin-top:14px;">Name: _______________________</div>
+                                    <div style="font-size:11px; color:#6c757d; margin-top:4px;">Date: ________________________</div>
                                 </div>
                             </div>
                         </div>
@@ -544,19 +560,20 @@
 
                         <!-- ── Signatures ── -->
                         <div class="row mt-5">
-                            <div class="col-4 text-center">
-                                <div style="border-top: 1px solid #000; margin-top: 60px; padding-top: 8px;">
-                                    <strong>Site Accountant</strong>
+                            <div class="col-6 text-center">
+                                <div style="border-top:2px solid #000; margin-top:60px; padding-top:8px;">
+                                    <div style="font-weight:700; font-size:13px;">Prepared By</div>
+                                    <div style="font-size:11px; color:#555; margin-top:2px;">Site Accountant</div>
+                                    <div style="font-size:11px; color:#6c757d; margin-top:14px;">Name: ___________________________</div>
+                                    <div style="font-size:11px; color:#6c757d; margin-top:4px;">Date: ___________________________</div>
                                 </div>
                             </div>
-                            <div class="col-4 text-center">
-                                <div style="border-top: 1px solid #000; margin-top: 60px; padding-top: 8px;">
-                                    <strong>Project Manager</strong>
-                                </div>
-                            </div>
-                            <div class="col-4 text-center">
-                                <div style="border-top: 1px solid #000; margin-top: 60px; padding-top: 8px;">
-                                    <strong>CEO / Approver</strong>
+                            <div class="col-6 text-center">
+                                <div style="border-top:2px solid #000; margin-top:60px; padding-top:8px;">
+                                    <div style="font-weight:700; font-size:13px;">Approved By</div>
+                                    <div style="font-size:11px; color:#555; margin-top:2px;">Project Manager</div>
+                                    <div style="font-size:11px; color:#6c757d; margin-top:14px;">Name: ___________________________</div>
+                                    <div style="font-size:11px; color:#6c757d; margin-top:4px;">Date: ___________________________</div>
                                 </div>
                             </div>
                         </div>

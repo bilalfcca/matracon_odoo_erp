@@ -91,21 +91,30 @@
                             <p><t t-esc="o.note"/></p>
                         </div>
 
-                        <!-- Signature Block -->
+                        <!-- ── Signatures ── -->
                         <div class="row mt-5">
                             <div class="col-4 text-center">
-                                <div class="border-top pt-2 mt-5">
-                                    <strong>Issued By</strong>
+                                <div style="border-top:2px solid #000; margin-top:60px; padding-top:8px;">
+                                    <div style="font-weight:700; font-size:13px;">Prepared By</div>
+                                    <div style="font-size:11px; color:#555; margin-top:2px;">Store Keeper (Source)</div>
+                                    <div style="font-size:11px; color:#6c757d; margin-top:14px;">Name: _______________________</div>
+                                    <div style="font-size:11px; color:#6c757d; margin-top:4px;">Date: ________________________</div>
                                 </div>
                             </div>
                             <div class="col-4 text-center">
-                                <div class="border-top pt-2 mt-5">
-                                    <strong>Received By</strong>
+                                <div style="border-top:2px solid #000; margin-top:60px; padding-top:8px;">
+                                    <div style="font-weight:700; font-size:13px;">Approved By</div>
+                                    <div style="font-size:11px; color:#555; margin-top:2px;">Project Manager</div>
+                                    <div style="font-size:11px; color:#6c757d; margin-top:14px;">Name: _______________________</div>
+                                    <div style="font-size:11px; color:#6c757d; margin-top:4px;">Date: ________________________</div>
                                 </div>
                             </div>
                             <div class="col-4 text-center">
-                                <div class="border-top pt-2 mt-5">
-                                    <strong>Approved By</strong>
+                                <div style="border-top:2px solid #000; margin-top:60px; padding-top:8px;">
+                                    <div style="font-weight:700; font-size:13px;">Received By</div>
+                                    <div style="font-size:11px; color:#555; margin-top:2px;">Store Keeper (Destination)</div>
+                                    <div style="font-size:11px; color:#6c757d; margin-top:14px;">Name: _______________________</div>
+                                    <div style="font-size:11px; color:#6c757d; margin-top:4px;">Date: ________________________</div>
                                 </div>
                             </div>
                         </div>

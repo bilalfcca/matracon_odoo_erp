@@ -160,36 +160,34 @@
 
                         <!-- ── Signature Block ── -->
                         <div class="row mt-5">
-                            <div class="col-4 text-center">
-                                <div style="border-top:1px solid #000; padding-top:4px; margin-top:40px;">
-                                    <div style="font-weight:600;">Prepared By</div>
-                                    <div style="font-size:11px; color:#555;">Site Accountant</div>
+                            <div class="col-6 text-center">
+                                <div style="border-top:2px solid #000; margin-top:60px; padding-top:8px;">
+                                    <div style="font-weight:700; font-size:13px;">Prepared By</div>
+                                    <div style="font-size:11px; color:#555; margin-top:2px;">Site Accountant</div>
+                                    <div style="font-size:11px; color:#6c757d; margin-top:14px;">Name: ___________________________</div>
+                                    <div style="font-size:11px; color:#6c757d; margin-top:4px;">Date: ___________________________</div>
                                 </div>
                             </div>
-                            <div class="col-4 text-center">
+                            <div class="col-6 text-center">
                                 <t t-if="sheet.pm_is_signed">
-                                    <div style="border-top:2px solid #198754; padding-top:4px; margin-top:40px;">
-                                        <div style="font-weight:600; color:#198754;">
-                                            ✓ <t t-esc="sheet.pm_id.name or 'Project Manager'"/>
+                                    <div style="border-top:2px solid #198754; margin-top:60px; padding-top:8px;">
+                                        <div style="font-weight:700; font-size:13px; color:#198754;">✓ Approved By</div>
+                                        <div style="font-size:11px; color:#198754; margin-top:2px;">
+                                            <t t-esc="sheet.pm_id.name or 'Project Manager'"/> — Project Manager
                                         </div>
-                                        <div style="font-size:11px; color:#555;">Project Manager</div>
-                                        <div style="font-size:10px; color:#6c757d;">
+                                        <div style="font-size:10px; color:#6c757d; margin-top:8px;">
                                             Signed: <t t-esc="sheet.pm_signature_date.strftime('%d-%b-%Y %H:%M') if sheet.pm_signature_date else ''"/>
                                         </div>
                                     </div>
                                 </t>
                                 <t t-else="">
-                                    <div style="border-top:1px solid #000; padding-top:4px; margin-top:40px;">
-                                        <div style="font-weight:600;">Project Manager</div>
-                                        <div style="font-size:11px; color:#aaa;">(Not Yet Signed)</div>
+                                    <div style="border-top:2px solid #000; margin-top:60px; padding-top:8px;">
+                                        <div style="font-weight:700; font-size:13px;">Approved By</div>
+                                        <div style="font-size:11px; color:#555; margin-top:2px;">Project Manager</div>
+                                        <div style="font-size:11px; color:#6c757d; margin-top:14px;">Name: ___________________________</div>
+                                        <div style="font-size:11px; color:#6c757d; margin-top:4px;">Date: ___________________________</div>
                                     </div>
                                 </t>
-                            </div>
-                            <div class="col-4 text-center">
-                                <div style="border-top:1px solid #000; padding-top:4px; margin-top:40px;">
-                                    <div style="font-weight:600;">Approved By</div>
-                                    <div style="font-size:11px; color:#555;">CEO</div>
-                                </div>
                             </div>
                         </div>
 
