@@ -883,6 +883,13 @@ class AccountPaymentSiteOps(models.Model):
             'company_id': self.company_id.id,
             'line_ids': [(0, 0, v) for v in line_vals],
             'origin_payment_id': self.id,
+            # Stamp the project so site accountant ir.rule includes this WHT/retention
+            # entry in Partner Ledger (reducing the correct AP balance for the vendor).
+            'x_project_analytic_account_id': (
+                self.x_destination_project_id.id
+                or self.x_fund_project_id.id
+                or False
+            ),
         })
         move.action_post()
         self.x_tax_deduction_move_id = move.id
@@ -1064,6 +1071,13 @@ class AccountPaymentSiteOps(models.Model):
         analytic = self.x_destination_project_id or self.x_fund_project_id
         if not analytic or not self.move_id:
             return
+        # Stamp x_project_analytic_account_id on the payment journal entry so
+        # that the ir.rule for site accountants (which scopes by this field)
+        # continues to show the payment in Partner Ledger / Aged reports.
+        if not self.move_id.x_project_analytic_account_id:
+            self.move_id.sudo().write(
+                {'x_project_analytic_account_id': analytic.id}
+            )
         dist = self._analytic_distribution_for_account(analytic)
         lines = self.move_id.line_ids.filtered(
             lambda l: l.account_id.account_type in (

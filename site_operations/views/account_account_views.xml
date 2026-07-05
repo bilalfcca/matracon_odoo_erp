@@ -59,11 +59,12 @@
     </record>
 
     <!-- ══════════════════════════════════════════════════════════════════════
-         2.  account.account form: x_site_ids field + hide Balance for sites
-             - Balance stat button is hidden from site accountants (no balance
-               figures should be visible to sites — they are confidential).
-             - x_site_ids Many2many is shown to HO/admin so they can control
-               which sites can see each account when creating/editing accounts.
+         2.  account.account form: site visibility fields + site balance button
+             - x_ho_only: checkbox to mark an account as Head-Office-Only
+             - x_site_ids: which sites can see this account (empty = all)
+             - Standard Balance stat button is hidden from site accountants and
+               replaced by a Site Balance button that shows only their project's
+               balance and opens only their project's journal items.
     ══════════════════════════════════════════════════════════════════════════ -->
     <record id="view_account_form_site_ops" model="ir.ui.view">
         <field name="name">account.account.form.site.ops</field>
@@ -71,19 +72,46 @@
         <field name="inherit_id" ref="account.view_account_form"/>
         <field name="arch" type="xml">
 
-            <!-- Hide the Balance stat button from site accountants -->
-            <xpath expr="//button[@name='account.action_move_line_select']" position="attributes">
-                <attribute name="groups">account.group_account_readonly</attribute>
+            <!-- Expose user-context flags so view logic can reference them -->
+            <xpath expr="//sheet" position="before">
+                <field name="x_user_is_site_accountant" invisible="1"/>
+                <field name="x_site_balance" invisible="1"/>
             </xpath>
 
-            <!-- Add Visible to Sites field inside the Accounting tab, below the existing groups -->
+            <!-- Standard Balance button: keep for HO users, hide from site accountants
+                 (the global balance is not meaningful / could be misleading for a site). -->
+            <xpath expr="//button[@name='account.action_move_line_select']" position="attributes">
+                <attribute name="groups">account.group_account_readonly</attribute>
+                <attribute name="invisible">x_user_is_site_accountant</attribute>
+            </xpath>
+
+            <!-- Site Balance button: only for site accountants.
+                 Shows the balance from posted move lines tagged to their project only.
+                 Clicking through opens journal items pre-filtered to the same scope. -->
+            <xpath expr="//button[@name='account.action_move_line_select']" position="after">
+                <button name="action_open_site_journal_items"
+                        type="object"
+                        class="oe_stat_button"
+                        icon="fa-bars"
+                        invisible="not x_user_is_site_accountant">
+                    <field name="x_site_balance" widget="statinfo" string="Site Balance"/>
+                </button>
+            </xpath>
+
+            <!-- Add Site Visibility section inside the Accounting tab -->
             <xpath expr="//page[@name='accounting']//group[last()]" position="after">
                 <group string="Site Visibility" groups="account.group_account_manager">
+                    <!-- Head Office Only flag — when checked, no site accountant
+                         can see this account regardless of x_site_ids below. -->
+                    <field name="x_ho_only" string="Head Office Only"/>
+                    <!-- Per-site visibility — hidden when HO-Only is checked since
+                         it becomes irrelevant once the account is fully restricted. -->
                     <field name="x_site_ids"
                            widget="many2many_tags"
                            string="Visible to Sites"
                            options="{'no_create': True}"
-                           placeholder="Leave empty = visible to all sites"/>
+                           placeholder="Leave empty = visible to all sites"
+                           invisible="x_ho_only"/>
                 </group>
             </xpath>
         </field>
@@ -105,7 +133,15 @@
         <field name="code">
 analytic_id = env.user.x_default_analytic_account_id.id
 if analytic_id:
-    domain = ['|', ('x_site_ids', '=', False), ('x_site_ids', 'in', [analytic_id])]
+    # Exclude accounts flagged as Head Office Only (x_ho_only=True) AND
+    # restrict to accounts that are either untagged (empty x_site_ids = all sites)
+    # or explicitly tagged with this site's analytic account.
+    domain = [
+        ('x_ho_only', '=', False),
+        '|',
+        ('x_site_ids', '=', False),
+        ('x_site_ids', 'in', [analytic_id]),
+    ]
 else:
     domain = []
 action = {
@@ -133,6 +169,10 @@ action = {
         <field name="inherit_id" ref="account.view_account_list"/>
         <field name="arch" type="xml">
             <xpath expr="//list" position="inside">
+                <field name="x_ho_only"
+                       string="HO Only"
+                       optional="hide"
+                       groups="account.group_account_manager"/>
                 <field name="x_site_ids"
                        widget="many2many_tags"
                        string="Visible to Sites"

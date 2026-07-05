@@ -103,15 +103,17 @@
         ════════════════════════════════════════════════════════════════════ -->
 
         <!-- Vendor Bills / Invoices / Journal Entries:
-             Site Accountant sees records tagged to their project, plus any
-             untagged entries (system-generated reconciliation / tax lines). -->
+             Site Accountant sees ONLY records tagged to their own project.
+             No untagged (= False) entries are allowed — those belong to HO
+             or to other cost centres and must not appear in site reporting.
+             Payment journal entries are stamped by _matracon_tag_payment_move_analytic
+             so they are included here. WHT/retention deduction entries are also
+             stamped at creation so they reduce the correct AP balance in
+             Partner Ledger. -->
         <record id="rule_account_move_site_accountant" model="ir.rule">
-            <field name="name">Account Move: Site Accountant own project</field>
+            <field name="name">Account Move: Site Accountant own project only</field>
             <field name="model_id" ref="account.model_account_move"/>
-            <field name="domain_force">['|',
-                ('x_project_analytic_account_id', '=', user.x_default_analytic_account_id.id),
-                ('x_project_analytic_account_id', '=', False)
-            ]</field>
+            <field name="domain_force">[('x_project_analytic_account_id', '=', user.x_default_analytic_account_id.id)]</field>
             <field name="groups" eval="[(4, ref('site_operations.group_site_accountant'))]"/>
             <field name="perm_read" eval="True"/>
             <field name="perm_write" eval="True"/>
@@ -120,19 +122,16 @@
         </record>
 
         <!-- Journal Entry Lines (account.move.line):
-             Site Accountant sees lines that belong to their project's moves,
-             OR lines on untagged moves (system-generated reconciliation / tax
-             entries that have no project stamp).
-             Without this rule the Partner Ledger, Aged Payables, and Aged
-             Receivables reports — which query account.move.line directly —
-             would return cross-project data. -->
+             Site Accountant sees lines that belong ONLY to their project's moves.
+             This is the critical rule for Partner Ledger, Aged Payables, and Aged
+             Receivables — which query account.move.line directly.
+             Payment moves are stamped with x_project_analytic_account_id so
+             payments show up correctly in the partner ledger without leaking
+             other sites' or HO's data. -->
         <record id="rule_account_move_line_site_accountant" model="ir.rule">
-            <field name="name">Account Move Line: Site Accountant own project</field>
+            <field name="name">Account Move Line: Site Accountant own project only</field>
             <field name="model_id" ref="account.model_account_move_line"/>
-            <field name="domain_force">['|',
-                ('move_id.x_project_analytic_account_id', '=', user.x_default_analytic_account_id.id),
-                ('move_id.x_project_analytic_account_id', '=', False)
-            ]</field>
+            <field name="domain_force">[('move_id.x_project_analytic_account_id', '=', user.x_default_analytic_account_id.id)]</field>
             <field name="groups" eval="[(4, ref('site_operations.group_site_accountant'))]"/>
             <field name="perm_read" eval="True"/>
             <field name="perm_write" eval="True"/>
