@@ -226,17 +226,11 @@
 
                 <!-- Add to Liability Sheet — Site Procurement only -->
                 <div invisible="x_procurement_type != 'site_procurement' or (not x_is_pr_document and not x_is_site_store)"
-                     style="margin-top: 4px; margin-bottom: 4px;">
-                    <div style="display:flex; align-items:center; gap:6px;">
-                        <field name="x_add_to_liability_sheet"
-                               nolabel="1"
-                               readonly="x_pr_state not in ('draft')"/>
-                        <strong>Add to Liability Sheet?</strong>
-                    </div>
-                    <div class="text-muted" style="font-size:0.83em; margin-left:1.6em; margin-top:2px; line-height:1.5;">
-                        <b>✓ Checked</b> → after GRN, a <b>Vendor Bill</b> is created (payment goes to Liability Sheet).<br/>
-                        <b>✗ Unchecked</b> → after GRN, a <b>Petty Cash Expense</b> is created instead.
-                    </div>
+                     style="display:flex; align-items:center; gap:6px; margin-top:4px; margin-bottom:4px;">
+                    <field name="x_add_to_liability_sheet"
+                           nolabel="1"
+                           readonly="x_pr_state not in ('draft')"/>
+                    <span>Add this Supplier to Liability Sheet?</span>
                 </div>
 
                 <!-- Category: HO Procurement only; locked once submitted/rejected -->
