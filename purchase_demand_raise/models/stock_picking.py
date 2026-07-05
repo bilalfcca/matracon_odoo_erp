@@ -105,23 +105,18 @@ class StockPickingPR(models.Model):
             })
         return IrSeq.next_by_code(seq_code) or '/'
 
-    # ── Validate gate: require Gate Pass + Weight Document for PR receipts ────
+    # ── Validate gate: require Weight Document for PR receipts ────────────────
     def button_validate(self):
-        """Block validation until Gate Pass Inward No and Weight Document are
-        provided for incoming receipts that come from a PR document."""
+        """Block validation until Weight Document is provided for incoming
+        receipts that come from a PR document. Gate Pass Inward No is optional."""
         for picking in self:
             if (picking.picking_type_code == 'incoming'
                     and picking.purchase_id
                     and picking.purchase_id.x_is_pr_document):
-                missing = []
-                if not picking.x_gate_pass_no:
-                    missing.append(_('Gate Pass Inward No'))
                 if not picking.x_weight_document:
-                    missing.append(_('Weight Document'))
-                if missing:
                     raise UserError(_(
-                        'Please complete the following required field(s) before validating:\n\n• %s'
-                    ) % '\n• '.join(missing))
+                        'Please upload the Weight Document before validating the receipt.'
+                    ))
         res = super().button_validate()
         self._matracon_after_receipt_validated()
         return res
