@@ -141,50 +141,47 @@
                 <attribute name="groups">!site_operations.group_site_accountant</attribute>
             </xpath>
 
-            <!-- 6. Site-accountant-only "Invoice Lines" tab — shows the same accounting
-                 entries (line_ids) as the Journal Items tab but with a friendlier label.
-                 Editable when the bill is in Draft so accountants can correct accounts
-                 or analytic tags before confirming.  Becomes fully read-only once posted.
-                 Injected before the invoice_tab so it appears first in the tab bar.
-                 The payment_term line (auto-managed payable line) is excluded from the
-                 domain so site accountants cannot accidentally edit it, which would
-                 trigger the "_check_payable_receivable" constraint. -->
+            <!-- 6. Site-accountant-only "Journal Entries" tab.
+                 Shows ALL lines including the auto-managed Account Payable row.
+                 • account_id / name on payment_term row: readonly (don't change the account)
+                 • debit / credit on payment_term row: editable so the Odoo onchange
+                   response CAN update them in real-time without being blocked by the
+                   client's readonly guard — the _onchange_line_ids_balance_preview
+                   handler always resets them to the correct computed balance.
+                 • analytic_distribution: always readonly here; auto-filled from project
+                   via _onchange_project_fill_analytic_on_lines. -->
             <xpath expr="//page[@id='invoice_tab']" position="before">
                 <page string="Journal Entries"
                       name="sa_invoice_lines"
                       groups="site_operations.group_site_accountant">
-                    <!-- readonly on the parent field propagates to all child fields;
-                         individual readonly="1" attributes have been removed so that
-                         draft bills remain editable. -->
                     <field name="line_ids"
                            readonly="state == 'posted'"
-                           domain="[('display_type', 'not in', ('payment_term',))]">
+                           domain="[]">
                         <list string="Invoice Lines"
                               editable="bottom"
-                              decoration-muted="display_type in ('line_section', 'line_note')"
+                              decoration-muted="display_type in ('line_section', 'line_note') or display_type == 'payment_term'"
                               default_order="sequence, id">
-                            <field name="sequence" widget="handle"/>
-                            <!-- Domain: show only CoA accounts tagged for this site
-                                 via x_site_ids.  Payable/receivable account types are
-                                 excluded to prevent accidentally assigning a payable
-                                 account to a product/expense line, which fires the
-                                 "_check_payable_receivable" constraint on posting. -->
+                            <field name="sequence" widget="handle"
+                                   invisible="display_type == 'payment_term'"/>
                             <field name="account_id"
                                    domain="['&amp;', ('account_type', 'not in', ['liability_payable', 'asset_receivable']), '|', ('x_site_ids', '=', False), ('x_site_ids', 'in', [parent.x_user_analytic_id])]"
+                                   readonly="display_type == 'payment_term'"
                                    options="{'no_create': True, 'no_create_edit': True}"/>
                             <field name="name" widget="section_and_note_text"
+                                   readonly="display_type == 'payment_term'"
                                    optional="show"/>
+                            <!-- analytic: always visible, always readonly in this tab;
+                                 auto-filled from x_project_analytic_account_id via onchange. -->
                             <field name="analytic_distribution"
                                    widget="analytic_distribution"
-                                   groups="analytic.group_analytic_accounting"
-                                   optional="show"
+                                   readonly="1"
                                    options="{'account_field': 'account_id'}"/>
+                            <!-- debit / credit: NOT readonly on payment_term rows so
+                                 the onchange response can update them freely. -->
                             <field name="debit" sum="Total Debit"
                                    invisible="display_type in ('line_section', 'line_subsection', 'line_note')"/>
                             <field name="credit" sum="Total Credit"
                                    invisible="display_type in ('line_section', 'line_subsection', 'line_note')"/>
-                            <!-- tax_ids omitted: autosave_many2many_tax_tags widget
-                                 crashes in a readonly context without full parent context. -->
                             <field name="display_type" column_invisible="1"/>
                         </list>
                     </field>
@@ -224,15 +221,11 @@
             </xpath>
 
             <!-- 4. Journal Entries tab — first tab for HO users on customer invoices.
-                     Site accountants already get the sa_invoice_lines tab from the
-                     vendor-bill view, so they are excluded here via groups.
-                     Account domain: [] (all CoA) when x_user_analytic_id is False
-                     (= HO user); site-restricted when a site analytic is present.
-                     The payment_term line (auto-managed receivable line) is excluded
-                     from the domain to prevent accidentally editing it, which would
-                     trigger the "_check_payable_receivable" constraint on posting.
-                     Payable/receivable account types are also excluded from the
-                     account picker for the same reason. -->
+                     Shows ALL journal lines including the auto-managed Account Receivable
+                     (payment_term) line so the running balance is always visible.
+                     • account_id / name on payment_term row: readonly (don't change account)
+                     • debit / credit: NOT readonly on payment_term rows so onchange can update
+                     • analytic_distribution: always visible, always readonly; auto-filled via onchange -->
             <xpath expr="//page[@id='invoice_tab']" position="before">
                 <page string="Journal Entries"
                       name="customer_journal_entries"
@@ -240,21 +233,27 @@
                       groups="!site_operations.group_site_accountant">
                     <field name="line_ids"
                            readonly="state == 'posted'"
-                           domain="[('display_type', 'not in', ('payment_term',))]">
+                           domain="[]">
                         <list string="Journal Entries"
                               editable="bottom"
-                              decoration-muted="display_type in ('line_section', 'line_note')"
+                              decoration-muted="display_type in ('line_section', 'line_note') or display_type == 'payment_term'"
                               default_order="sequence, id">
-                            <field name="sequence" widget="handle"/>
+                            <field name="sequence" widget="handle"
+                                   invisible="display_type == 'payment_term'"/>
                             <field name="account_id"
                                    domain="['&amp;', ('account_type', 'not in', ['liability_payable', 'asset_receivable']), '|', ('x_site_ids', '=', False), ('x_site_ids', 'in', [parent.x_user_analytic_id])] if parent.x_user_analytic_id else [('account_type', 'not in', ['liability_payable', 'asset_receivable'])]"
+                                   readonly="display_type == 'payment_term'"
                                    options="{'no_create': True, 'no_create_edit': True}"/>
-                            <field name="name" widget="section_and_note_text" optional="show"/>
+                            <field name="name" widget="section_and_note_text"
+                                   readonly="display_type == 'payment_term'"
+                                   optional="show"/>
+                            <!-- analytic: always visible, always readonly; auto-filled from project -->
                             <field name="analytic_distribution"
                                    widget="analytic_distribution"
-                                   groups="analytic.group_analytic_accounting"
-                                   optional="show"
+                                   readonly="1"
                                    options="{'account_field': 'account_id'}"/>
+                            <!-- debit / credit: NOT readonly on payment_term rows so the
+                                 onchange response is accepted by the client. -->
                             <field name="debit" sum="Total Debit"
                                    invisible="display_type in ('line_section', 'line_subsection', 'line_note')"/>
                             <field name="credit" sum="Total Credit"

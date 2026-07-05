@@ -250,12 +250,28 @@ class AccountMoveSiteOps(models.Model):
 
     def action_post(self):
         # ── Auto-fill invoice_date_due so payment-term lines always carry a date ──
-        # The due date field is hidden from site accountants in the vendor-bill form.
-        # Odoo's compute defaults to today(), but as a safeguard we ensure
-        # invoice_date_due is always populated before posting so the payment_term
-        # line's date_maturity is never NULL, avoiding constraint errors.
+        # Due dates are hidden in the UI for both site accountants (vendor bills)
+        # and all users (customer invoices).  Ensure the field is always populated
+        # before posting so Odoo's posting flow can set date_maturity on the
+        # payment_term line correctly.
         for move in self.filtered(lambda m: m.is_invoice() and not m.invoice_date_due):
             move.invoice_date_due = move.invoice_date or fields.Date.context_today(self)
+
+        # ── For customer invoices: also stamp date_maturity on any existing
+        #    payment_term lines that still have no due date (draft state can
+        #    create these when invoice_payment_term_id is cleared) so the
+        #    Odoo posting flow does not encounter a NULL date_maturity. ──────
+        for move in self.filtered(lambda m: m.move_type == 'out_invoice'):
+            due = (
+                move.invoice_date_due
+                or move.invoice_date
+                or fields.Date.context_today(self)
+            )
+            pt_lines = move.line_ids.filtered(
+                lambda l: l.display_type == 'payment_term' and not l.date_maturity
+            )
+            if pt_lines:
+                pt_lines.write({'date_maturity': due})
 
         # ── Bill Copy mandatory for vendor bills (not system-generated backcharges) ──
         # Skip during module installation / demo-data loading so that Odoo's own
@@ -318,6 +334,83 @@ class AccountMoveSiteOps(models.Model):
         # even though the invoices are no longer 'posted'.
         self._matracon_update_project_billed_amount(extra_analytic_ids=pre_analytics)
         return res
+
+    # ── Customer-invoice sequence: include project/site code ─────────────────
+
+    def _get_starting_sequence(self):
+        """Include the project analytic account's code in the customer invoice
+        sequence so invoices are numbered per-site like other documents.
+
+        Standard:       INV/2026/00000
+        With project:   INV/MCH/2026/00000   (MCH = project code / first word of name)
+
+        Vendor bills, refunds and other move types are unaffected.
+        """
+        seq = super()._get_starting_sequence()
+        if self.move_type == 'out_invoice' and self.x_project_analytic_account_id:
+            project = self.x_project_analytic_account_id
+            # Prefer the analytic account's short code; fall back to first word of name
+            raw = (project.code.strip() if project.code else project.name.split()[0])
+            site_code = raw.upper()[:8].replace(' ', '-')
+            # "INV/2026/00000" → ["INV", "2026", "00000"] → "INV/MCH/2026/00000"
+            parts = seq.split('/')
+            parts.insert(1, site_code)
+            seq = '/'.join(parts)
+        return seq
+
+    # ── Real-time Journal Entries balance: keep payable/receivable in sync ───
+
+    @api.onchange('line_ids')
+    def _onchange_line_ids_balance_preview(self):
+        """Recompute the payment_term (payable/receivable) line in real-time
+        as the user edits journal entries in the custom Journal Entries tab.
+
+        Odoo normally rebuilds the payment_term line only when the ORM saves
+        the record (_sync_dynamic_lines inside write).  By handling
+        ``@api.onchange('line_ids')`` we update the line's balance in-memory
+        so the user sees the running balance without having to click Save first.
+
+        We set ``balance`` directly (positive = debit side, negative = credit
+        side) rather than writing ``debit`` / ``credit`` independently.
+        ``balance`` is stored and directly settable on account.move.line in
+        Odoo 19 — the ``_compute_debit_credit`` computed fields derive from it,
+        so this is the canonical, side-effect-free way to push a value.
+
+        Only runs for draft invoices with exactly one payment_term line
+        (the common case when no complex payment-term schedule is in use).
+        """
+        if not self.is_invoice(include_receipts=True) or self.state != 'draft':
+            return
+        term_lines = self.line_ids.filtered(lambda l: l.display_type == 'payment_term')
+        if len(term_lines) != 1:
+            return   # multi-instalment terms: leave Odoo to handle on save
+        other_lines = self.line_ids.filtered(lambda l: l.display_type != 'payment_term')
+        total_debit  = sum(l.debit  or 0.0 for l in other_lines)
+        total_credit = sum(l.credit or 0.0 for l in other_lines)
+        # Journal must balance: debit_total == credit_total.
+        # term_balance = other_credit - other_debit
+        #   positive → debit side  (receivable on customer invoice)
+        #   negative → credit side (payable on vendor bill)
+        term_lines[0].balance = total_credit - total_debit
+
+    @api.onchange('x_project_analytic_account_id')
+    def _onchange_project_fill_analytic_on_lines(self):
+        """Auto-fill analytic_distribution on product/tax journal lines when
+        the project analytic account is selected or changed.
+
+        This keeps the Journal Entries tab's analytic column in sync without
+        the user having to set it manually on each line.  The field is readonly
+        in those tabs, so this onchange is the only way it gets populated.
+        Only applies to draft invoices; readonly lines in posted state are
+        handled by the ORM via the inverse at confirmation time.
+        """
+        if not self.x_project_analytic_account_id or not self.is_invoice():
+            # If project is cleared, leave existing distributions intact
+            return
+        project_id = str(self.x_project_analytic_account_id.id)
+        for line in self.line_ids:
+            if line.display_type in ('product', 'tax'):
+                line.analytic_distribution = {project_id: 100.0}
 
     def _ensure_liability_sheet_for_bill(self, notify=True):
         """Create/update liability sheet for this vendor bill.
