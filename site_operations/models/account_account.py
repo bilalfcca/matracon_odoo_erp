@@ -95,9 +95,10 @@ class AccountAccountSiteOps(models.Model):
             for account in self:
                 account.x_site_balance = by_account.get(account.id, 0.0)
         else:
-            # HO / admin: expose the standard global balance as fallback
+            # HO / admin: x_user_is_site_accountant is False so the Site Balance
+            # button is hidden — no need to compute a meaningful value here.
             for account in self:
-                account.x_site_balance = account.balance
+                account.x_site_balance = 0.0
 
     def action_open_site_journal_items(self):
         """Open journal items filtered to the current user's site project.
