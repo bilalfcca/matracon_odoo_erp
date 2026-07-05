@@ -8,6 +8,9 @@
         <record id="partner_tag_vendor" model="res.partner.category">
             <field name="name">Vendor</field>
         </record>
+        <record id="partner_tag_local_supplier" model="res.partner.category">
+            <field name="name">Local Supplier</field>
+        </record>
         <!-- MCH - BAHAWALNAGAR -->
         <record id="site_config_mch" model="x.project.site.config">
             <field name="name">MCH - BAHAWALNAGAR</field>
