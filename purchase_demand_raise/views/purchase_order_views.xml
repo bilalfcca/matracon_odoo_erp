@@ -215,11 +215,21 @@
                        invisible="not x_is_pr_document and not x_is_site_store"
                        readonly="x_pr_state not in ('draft')"/>
 
-                <!-- Vendor (info only) — Site Procurement only -->
-                <field name="x_site_vendor_name"
-                       placeholder="Vendor name for reference…"
+                <!-- Local Supplier (Many2one) — Site Procurement only -->
+                <field name="x_site_vendor_id"
+                       string="Local Supplier"
+                       placeholder="Select or create local supplier…"
                        invisible="x_procurement_type != 'site_procurement' or (not x_is_pr_document and not x_is_site_store)"
-                       readonly="x_pr_state not in ('draft')"/>
+                       readonly="x_pr_state not in ('draft')"
+                       context="{'site_procurement_vendor': True}"
+                       options="{'no_quick_create': True}"/>
+
+                <!-- Add to Liability Sheet — Site Procurement only -->
+                <field name="x_add_to_liability_sheet"
+                       string="Add to Liability Sheet?"
+                       invisible="x_procurement_type != 'site_procurement' or (not x_is_pr_document and not x_is_site_store)"
+                       readonly="x_pr_state not in ('draft')"
+                       help="Yes → GRN creates a Vendor Bill (liability). No → GRN creates a Petty Cash Expense."/>
 
                 <!-- Category: HO Procurement only; locked once submitted/rejected -->
                 <field name="x_category_id"
@@ -236,15 +246,23 @@
                        readonly="x_pr_state != 'draft'"
                        required="x_is_ho and not x_is_site_store and x_pr_state == 'draft'"/>
 
-                <!-- PM Signed PR: site store attaches before submit; locked after; visible on alternatives as read-only -->
-                <!-- Hidden for HO — they raise PRs without a PM-signed document -->
+                <!-- PM Signed PR — Site Store: upload field with instructional label -->
                 <field name="x_pm_signed_pr"
                        widget="binary"
                        filename="x_pm_signed_pr_filename"
                        string="PM Signed PR (Attach before Submit)"
-                       invisible="x_is_ho or (not x_is_pr_document and not x_is_site_store and not x_is_alternative_rfq)"
+                       groups="purchase_demand_raise.group_site_store"
+                       invisible="not x_is_pr_document and not x_is_site_store and not x_is_alternative_rfq"
                        readonly="x_pr_state != 'draft' or x_is_alternative_rfq"
                        help="Scan of the PM-signed printed PR. Must be attached before you can submit."/>
+                <!-- PM Signed PR — HO/CEO/Head Office: read-only view, neutral label, no instructions -->
+                <field name="x_pm_signed_pr"
+                       widget="binary"
+                       filename="x_pm_signed_pr_filename"
+                       string="PM Signed Document"
+                       groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"
+                       invisible="not x_pm_signed_pr or (not x_is_pr_document and not x_is_alternative_rfq)"
+                       readonly="1"/>
                 <field name="x_pm_signed_pr_filename" invisible="1"/>
 
                 <!-- Raised By -->
@@ -497,6 +515,26 @@
         <field name="inherit_id" ref="purchase.purchase_order_form"/>
         <field name="priority">20</field>
         <field name="arch" type="xml">
+
+            <!-- ── "Request for Quotation" span → "Purchase Requisition" for PR docs ──
+                 The standard span shows "Request for Quotation" when state in ('draft','sent').
+                 For PR documents and Site Store users we replace it with "Purchase Requisition". -->
+            <xpath expr="//span[@class='o_form_label'][contains(., 'Request for Quotation')]" position="attributes">
+                <attribute name="invisible">state not in ('draft', 'sent') or x_is_pr_document or x_is_site_store</attribute>
+            </xpath>
+            <xpath expr="//span[@class='o_form_label'][contains(., 'Request for Quotation')]" position="after">
+                <span class="o_form_label"
+                      invisible="state not in ('draft', 'sent') or (not x_is_pr_document and not x_is_site_store)">Purchase Requisition </span>
+            </xpath>
+
+            <!-- ── Hide "Ask Confirmation" receipt reminder for Site Store ──
+                 Site Procurement has no formal vendor email — this checkbox is irrelevant. -->
+            <xpath expr="//label[@for='receipt_reminder_email']" position="attributes">
+                <attribute name="invisible">x_is_site_store</attribute>
+            </xpath>
+            <xpath expr="//div[@name='reminder']" position="attributes">
+                <attribute name="invisible">x_is_site_store</attribute>
+            </xpath>
 
             <!-- Deliver To (picking_type_id):
                  - Site Store, 1 site  → auto-filled, readonly

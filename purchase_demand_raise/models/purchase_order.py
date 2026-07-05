@@ -51,10 +51,28 @@ class PurchaseOrder(models.Model):
        help='HO Procurement: full approval chain (Site Store → HO → CEO → PO).\n'
             'Site Procurement: PM-approved, skip HO/CEO — receipt triggers petty cash expense.')
 
-    # ── Vendor (info only — Site Procurement) ────────────────────────────────
+    # ── Vendor (info only — Site Procurement, legacy Char kept for migration) ──
     x_site_vendor_name = fields.Char(
         string='Vendor (Info)',
-        help='Vendor name for reference only. Does not affect the procurement workflow.',
+        help='Legacy text field — replaced by x_site_vendor_id.',
+    )
+
+    # ── Local Supplier (Site Procurement) ────────────────────────────────────
+    x_site_vendor_id = fields.Many2one(
+        'res.partner',
+        string='Local Supplier',
+        domain="[('category_id.name', '=', 'Local Supplier')]",
+        tracking=True,
+        help='Local supplier for Site Procurement. Must be tagged "Local Supplier" in Contacts.',
+    )
+
+    # ── Add to Liability Sheet (Site Procurement) ─────────────────────────────
+    x_add_to_liability_sheet = fields.Boolean(
+        string='Add to Liability Sheet?',
+        default=False,
+        tracking=True,
+        help='If enabled, validating the GRN will create a draft Vendor Bill (liability) '
+             'instead of a Petty Cash Expense.',
     )
 
     # ── Category ─────────────────────────────────────────────────────────────

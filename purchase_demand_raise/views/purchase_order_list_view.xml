@@ -119,13 +119,21 @@
     </record>
 
     <!-- ════════════════════════════════════════════════════════
-         OVERRIDE the standard RFQ list action to exclude
-         alternative RFQs (native Odoo vendor-comparison copies)
-         from the main list — they are managed inside the
-         Comparative Statement, not as standalone RFQ records.
+         OVERRIDE the standard RFQ list action:
+         - Rename to "Purchase Requisitions" (our terminology)
+         - Exclude alternative RFQs (managed inside Comparative Statement)
          ════════════════════════════════════════════════════════ -->
     <record id="purchase.purchase_rfq" model="ir.actions.act_window">
+        <field name="name">Purchase Requisitions</field>
         <field name="domain">[('x_is_alternative_rfq', '!=', True)]</field>
+    </record>
+
+    <!-- ════════════════════════════════════════════════════════
+         OVERRIDE the standard Purchase Orders action:
+         - Restrict to PO Locked (CEO-approved, ready to dispatch)
+         ════════════════════════════════════════════════════════ -->
+    <record id="purchase.purchase_form_action" model="ir.actions.act_window">
+        <field name="domain">[('state', '=', 'purchase'), ('x_pr_state', '=', 'po_locked')]</field>
     </record>
 
     <!-- ════════════════════════════════════════════════════════

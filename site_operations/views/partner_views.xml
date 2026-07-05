@@ -10,6 +10,14 @@
         <field name="inherit_id" ref="base.view_partner_form"/>
         <field name="arch" type="xml">
 
+            <!-- ── When opened from Site Procurement (x_site_vendor_id create),
+                 make Tags (category_id) required so Site Store MUST add
+                 the "Local Supplier" tag before saving. ── -->
+            <field name="category_id" position="attributes">
+                <attribute name="required">context.get('site_procurement_vendor', False)</attribute>
+                <attribute name="help">Tag this contact. When creating from Site Procurement, the "Local Supplier" tag is required.</attribute>
+            </field>
+
             <xpath expr="//div[@name='button_box']" position="inside">
                 <button name="action_view_material_issuances"
                         type="object"
