@@ -119,25 +119,34 @@
                         invisible="x_is_alternative_rfq or x_pr_state != 'po_locked' or (state in ('purchase', 'done') and incoming_picking_count != 0)"
                         groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
-                <!-- Single RFQ print (no prices) -->
+                <!-- Print RFQ — HO/Head Office only; CEO sees Print PO instead -->
                 <button name="action_print_rfq_no_price"
                         string="Print RFQ"
                         type="object"
                         class="btn-secondary"
-                        invisible="x_is_site_store or state in ('purchase', 'done') or (x_is_pr_document and x_pr_state in ('rejected', 'cancelled'))"
+                        invisible="x_is_site_store or x_is_ceo or state in ('purchase', 'done') or (x_is_pr_document and x_pr_state in ('rejected', 'cancelled'))"
                         groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
+                <!-- Print PO — CEO only; uses the Final PO report (heading: PURCHASE ORDER) -->
+                <button name="%(purchase_demand_raise.action_report_final_po)d"
+                        type="action"
+                        string="Print PO"
+                        class="btn-secondary"
+                        invisible="x_pr_state in ('draft', 'rejected', 'cancelled')"
+                        groups="purchase_demand_raise.group_ceo_approval"/>
 
             </xpath>
 
             <!-- ── 2. Standard buttons: hide from Site Store; hide on PR docs when rejected ── -->
-            <!-- Send RFQ buttons: [1] is always hidden (duplicate from purchase_requisition).
-                 Keep only [2] (the standard purchase module button without amount).
-                 Hidden for Site Store, locked POs, and rejected/cancelled PR docs. -->
+            <!-- Send RFQ/PO buttons:
+                 [1] always hidden (duplicate from purchase_requisition)
+                 [2] "Send RFQ" (state=sent)  — hidden for Site Store, CEO, locked/rejected PRs
+                 [3] "Send PO"  (state=purchase) — hidden for Site Store, locked/rejected PRs; CEO can see this -->
             <xpath expr="//header/button[@name='action_rfq_send'][1]" position="attributes">
                 <attribute name="invisible">1</attribute>
             </xpath>
             <xpath expr="//header/button[@name='action_rfq_send'][2]" position="attributes">
-                <attribute name="invisible">x_is_site_store or x_pr_state == 'po_locked' or (x_is_pr_document and x_pr_state in ('rejected', 'cancelled'))</attribute>
+                <attribute name="invisible">x_is_site_store or x_is_ceo or x_pr_state == 'po_locked' or (x_is_pr_document and x_pr_state in ('rejected', 'cancelled'))</attribute>
             </xpath>
             <xpath expr="//header/button[@name='action_rfq_send'][3]" position="attributes">
                 <attribute name="invisible">x_is_site_store or x_pr_state == 'po_locked' or (x_is_pr_document and x_pr_state in ('rejected', 'cancelled'))</attribute>
@@ -529,13 +538,12 @@
                       invisible="state not in ('draft', 'sent') or (not x_is_pr_document and not x_is_site_store)">Purchase Requisition </span>
             </xpath>
 
-            <!-- ── Hide "Ask Confirmation" receipt reminder for Site Store ──
-                 Site Procurement has no formal vendor email — this checkbox is irrelevant. -->
+            <!-- ── Hide "Ask Confirmation" receipt reminder for ALL users ── -->
             <xpath expr="//label[@for='receipt_reminder_email']" position="attributes">
-                <attribute name="invisible">x_is_site_store</attribute>
+                <attribute name="invisible">1</attribute>
             </xpath>
             <xpath expr="//div[@name='reminder']" position="attributes">
-                <attribute name="invisible">x_is_site_store</attribute>
+                <attribute name="invisible">1</attribute>
             </xpath>
 
             <!-- Deliver To (picking_type_id):
