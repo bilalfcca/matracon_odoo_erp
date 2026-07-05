@@ -39,3 +39,6 @@ access_po_terms_template_ceo,x.po.terms.template ceo,model_x_po_terms_template,p
 access_po_terms_template_ho,x.po.terms.template ho,model_x_po_terms_template,purchase_demand_raise.group_head_office,1,1,1,1
 access_po_terms_template_matracon_admin,x.po.terms.template matracon admin,model_x_po_terms_template,purchase_demand_raise.group_matracon_admin,1,1,1,1
 access_po_terms_template_admin,x.po.terms.template admin,model_x_po_terms_template,base.group_system,1,1,1,1
+access_po_sig_config_manager,x.po.signature.config manager,model_x_po_signature_config,purchase.group_purchase_manager,1,1,1,1
+access_po_sig_config_admin,x.po.signature.config admin,model_x_po_signature_config,base.group_system,1,1,1,1
+access_po_sig_config_read,x.po.signature.config read,model_x_po_signature_config,purchase.group_purchase_user,1,0,0,0

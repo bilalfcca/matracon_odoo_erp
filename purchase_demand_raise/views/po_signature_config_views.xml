@@ -1,45 +1,57 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <!-- ════════════════════════════════════════════════════════════════
-         PO SIGNATURE CONFIGURATION
-         Opens the current company record to manage signature images
-         printed on Purchase Order PDFs.
+         PO SIGNATURE CONFIGURATION  (x.po.signature.config)
          Accessible via: Purchase → Configuration → PO Signatures
     ════════════════════════════════════════════════════════════════ -->
 
-    <!-- Standalone company form — shows only PO signature fields -->
-    <record id="view_company_po_signatures_form" model="ir.ui.view">
-        <field name="name">res.company.po.signatures.form</field>
-        <field name="model">res.company</field>
+    <record id="view_po_signature_config_form" model="ir.ui.view">
+        <field name="name">x.po.signature.config.form</field>
+        <field name="model">x.po.signature.config</field>
         <field name="arch" type="xml">
             <form string="PO Signature Configuration">
                 <sheet>
                     <div class="oe_title">
-                        <h1><field name="name" readonly="1"/></h1>
+                        <h1>PO Signature Configuration</h1>
                     </div>
 
                     <div class="alert alert-info" role="alert" style="margin-bottom:16px;">
                         <i class="fa fa-info-circle me-2"/>
-                        The names below are rendered in a signature-style font on the
-                        <strong>Purchase Order PDF</strong> sent to vendors after CEO approval.
+                        These signatures appear on the <strong>Purchase Order PDF</strong> sent to vendors after CEO approval.<br/>
+                        <strong>Image uploaded?</strong> &#8594; image is used. &#160;
+                        <strong>No image?</strong> &#8594; name is rendered in signature font automatically.
                     </div>
 
                     <div class="row">
                         <!-- PO Officer -->
                         <div class="col-6">
-                            <h5 class="fw-bold border-bottom pb-2 mb-3">PO Officer</h5>
+                            <h5 class="fw-bold border-bottom pb-2 mb-3">
+                                <i class="fa fa-pen me-1"/> PO Officer
+                            </h5>
                             <group>
                                 <field name="x_po_officer_name" string="Full Name"/>
-                                <field name="x_po_officer_title" string="Title / Designation"/>
+                                <field name="x_po_officer_title" string="Designation"/>
+                                <field name="x_po_officer_signature"
+                                       string="Signature Image"
+                                       widget="image"
+                                       options="{'size': [260, 120]}"
+                                       help="Optional. PNG with transparent background recommended (height ~120px)."/>
                             </group>
                         </div>
 
                         <!-- CEO -->
                         <div class="col-6">
-                            <h5 class="fw-bold border-bottom pb-2 mb-3">CEO</h5>
+                            <h5 class="fw-bold border-bottom pb-2 mb-3">
+                                <i class="fa fa-pen me-1"/> CEO
+                            </h5>
                             <group>
                                 <field name="x_ceo_name" string="Full Name"/>
-                                <field name="x_ceo_title" string="Title / Designation"/>
+                                <field name="x_ceo_title" string="Designation"/>
+                                <field name="x_ceo_signature"
+                                       string="Signature Image"
+                                       widget="image"
+                                       options="{'size': [260, 120]}"
+                                       help="Optional. PNG with transparent background recommended (height ~120px)."/>
                             </group>
                         </div>
                     </div>
@@ -48,20 +60,33 @@
         </field>
     </record>
 
-    <!-- Action: opens current company in signature config view -->
-    <record id="action_po_signature_config" model="ir.actions.act_window">
+    <!-- Delete the old act_window action (replaced by server action) -->
+    <delete model="ir.actions.act_window" search="[('res_model','=','res.company'),('name','=','PO Signatures')]"/>
+
+    <!-- Server action: fetch-or-create config for current company, then open it -->
+    <record id="action_po_signature_config_srv" model="ir.actions.server">
         <field name="name">PO Signatures</field>
-        <field name="res_model">res.company</field>
-        <field name="view_mode">form</field>
-        <field name="view_id" ref="view_company_po_signatures_form"/>
-        <field name="target">current</field>
+        <field name="model_id" ref="model_x_po_signature_config"/>
+        <field name="state">code</field>
+        <field name="code">
+config = env['x.po.signature.config'].get_or_create_for_company()
+action = {
+    'type': 'ir.actions.act_window',
+    'name': 'PO Signatures',
+    'res_model': 'x.po.signature.config',
+    'view_mode': 'form',
+    'res_id': config.id,
+    'target': 'current',
+    'views': [(env.ref('purchase_demand_raise.view_po_signature_config_form').id, 'form')],
+}
+        </field>
     </record>
 
     <!-- Menu under Purchase → Configuration -->
     <menuitem id="menu_po_signature_config"
               name="PO Signatures"
               parent="purchase.menu_purchase_config"
-              action="action_po_signature_config"
+              action="action_po_signature_config_srv"
               sequence="55"
               groups="purchase.group_purchase_manager,base.group_erp_manager"/>
 
