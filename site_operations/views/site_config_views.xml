@@ -10,6 +10,14 @@
                 <field name="project_id" readonly="1"/>
             </field>
 
+            <!-- Petty Cash Account — added by site_operations after the field is defined -->
+            <field name="warehouse_id" position="after">
+                <field name="x_petty_cash_account_id"
+                       string="Petty Cash Account (Cash in Hand)"
+                       options="{'no_create': True}"
+                       help="The GL account for this site's petty cash (e.g. Cash in Hand — RWASA). Once set here, it auto-fills on all petty cash expenses, HO fund releases, and site cash-out entries for this project."/>
+            </field>
+
             <button name="action_view_users" position="after">
                 <button name="action_open_project"
                         type="object"

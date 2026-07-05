@@ -12,6 +12,9 @@
                         <field name="project_analytic_account_id"
                                readonly="1"
                                invisible="is_ho_fund"/>
+                        <field name="x_petty_cash_account_id"
+                               options="{'no_create': True}"
+                               help="The Cash in Hand account for this fund. Set here or via the Site Project Configuration."/>
                         <field name="balance" readonly="1"/>
                         <field name="total_released" readonly="1"/>
                         <field name="total_expensed" readonly="1"/>
@@ -32,8 +35,11 @@
                             <field name="expense_ids">
                                 <list editable="bottom">
                                     <field name="expense_date"/>
+                                    <field name="x_ref"/>
                                     <field name="name"/>
                                     <field name="amount"/>
+                                    <field name="x_balance_before"/>
+                                    <field name="x_balance_after"/>
                                     <field name="state" widget="badge"/>
                                 </list>
                             </field>
@@ -171,9 +177,18 @@
                                    force_save="1"/>
                         </group>
                         <group string="Expense Details">
+                            <!-- Reference: auto-filled from source (e.g. Site Procurement — MCH|N00003) -->
+                            <field name="x_ref"
+                                   string="Reference"
+                                   placeholder="e.g. Site Procurement — MCH|N00003"
+                                   readonly="state == 'posted'"/>
                             <field name="expense_date" readonly="state == 'posted'"/>
-                            <field name="name" string="Description" readonly="state == 'posted'"/>
+                            <!-- Description: what the expense is for (user enters this) -->
+                            <field name="name" string="Description"
+                                   placeholder="What is this expense for?"
+                                   readonly="state == 'posted'"/>
                             <field name="amount" readonly="state == 'posted'"/>
+                            <field name="category" readonly="state == 'posted'"/>
                             <field name="currency_id" invisible="1"/>
                             <field name="is_employee_advance" readonly="state == 'posted'"/>
                             <field name="employee_id"
@@ -186,20 +201,34 @@
                                    string="Current Outstanding Balance"/>
                         </group>
                     </group>
+
                     <group string="Accounting">
                         <group string="Credit (Cash Out)">
-                            <field name="journal_id" readonly="state == 'posted'"
-                                   domain="[('type', '=', 'cash'), '|', ('x_site_ids', '=', False), ('x_site_ids', 'in', [project_analytic_account_id])] if project_analytic_account_id else [('type', '=', 'cash')]"
-                                   string="Cash Journal (Credit)"
-                                   help="Site-specific cash journal — the Cash-in-Hand account will be credited."/>
+                            <!-- Site accountants: readonly (configured at site level, cannot override) -->
+                            <field name="x_petty_cash_account_id"
+                                   string="Petty Cash Account (Credit)"
+                                   readonly="1"
+                                   options="{'no_create': True}"
+                                   groups="site_operations.group_site_accountant"
+                                   help="Cash in Hand account — configured at site level."/>
+                            <!-- HO / Finance: editable in case override needed -->
+                            <field name="x_petty_cash_account_id"
+                                   string="Petty Cash Account (Credit)"
+                                   readonly="state == 'posted'"
+                                   options="{'no_create': True}"
+                                   groups="!site_operations.group_site_accountant"
+                                   help="Cash in Hand account — auto-filled from project configuration."/>
+                            <!-- journal_id is used internally only; not shown to users -->
+                            <field name="journal_id" invisible="1"/>
                         </group>
                         <group string="Debit (Expense)">
                             <field name="expense_account_id" readonly="state == 'posted'"
                                    string="Expense Account (Debit)"
                                    options="{'no_create': True}"
-                                   help="Leave blank to use the default expense account."/>
+                                   help="Leave blank to use the default expense account for the selected category."/>
                         </group>
                     </group>
+
                     <group string="Site Procurement Reference"
                            invisible="not x_purchase_order_id">
                         <field name="x_purchase_order_id" readonly="1"
@@ -209,6 +238,13 @@
                                string="Material Receipt"
                                options="{'no_open': False}"/>
                     </group>
+
+                    <!-- Balance snapshot (visible after posting) -->
+                    <group string="Balance" invisible="state == 'draft'">
+                        <field name="x_balance_before" readonly="1" string="Balance Before"/>
+                        <field name="x_balance_after" readonly="1" string="Balance After"/>
+                    </group>
+
                     <group string="Receipt / Voucher">
                         <field name="receipt" widget="binary"
                                filename="receipt_filename"
@@ -222,16 +258,25 @@
         </field>
     </record>
 
+    <!-- List view with reference and running balance columns -->
     <record id="view_petty_cash_expense_list" model="ir.ui.view">
         <field name="name">x.petty.cash.expense.list</field>
         <field name="model">x.petty.cash.expense</field>
         <field name="arch" type="xml">
-            <list>
+            <list default_group_by="expense_date">
                 <field name="expense_date"/>
-                <field name="name"/>
-                <field name="project_analytic_account_id"/>
+                <field name="x_ref" string="Reference"/>
+                <field name="name" string="Description"/>
+                <field name="project_analytic_account_id" string="Project" optional="show"/>
+                <field name="category" optional="show"/>
                 <field name="amount"/>
-                <field name="state" widget="badge"/>
+                <field name="currency_id" invisible="1"/>
+                <!-- Opening/Closing balance per row — first of day = opening, last = closing -->
+                <field name="x_balance_before" string="Balance Before" optional="show"/>
+                <field name="x_balance_after" string="Balance After"/>
+                <field name="state" widget="badge"
+                       decoration-success="state == 'posted'"
+                       decoration-muted="state == 'draft'"/>
             </list>
         </field>
     </record>

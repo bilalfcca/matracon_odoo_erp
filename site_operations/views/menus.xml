@@ -283,7 +283,7 @@
     <menuitem id="menu_chart_of_accounts_site_accountant"
               name="Chart of Accounts"
               parent="account.menu_finance"
-              action="site_operations.action_coa_site_accountant"
+              action="site_operations.action_coa_site_accountant_server"
               sequence="34"
               groups="site_operations.group_site_accountant"/>
 

@@ -47,5 +47,26 @@
             <field name="domain_force">[(1, '=', 1)]</field>
         </record>
 
+        <!-- Purchase Order Lines: same analytic scope as the parent PO.
+             Without this rule the Purchase Analysis pivot/graph (which queries
+             purchase.order.line directly) would show all sites' lines. -->
+        <record id="rule_purchase_order_line_site_store" model="ir.rule">
+            <field name="name">Purchase Order Line: Site Store restricted to own project</field>
+            <field name="model_id" ref="purchase.model_purchase_order_line"/>
+            <field name="groups" eval="[(4, ref('purchase_demand_raise.group_site_store'))]"/>
+            <field name="domain_force">[('order_id.x_project_analytic_account_id', '=', user.x_default_analytic_account_id.id)]</field>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <record id="rule_purchase_order_line_admin" model="ir.rule">
+            <field name="name">Purchase Order Line: Administrators see all</field>
+            <field name="model_id" ref="purchase.model_purchase_order_line"/>
+            <field name="groups" eval="[(4, ref('base.group_system'))]"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+        </record>
+
     </data>
 </odoo>

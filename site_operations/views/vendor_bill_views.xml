@@ -159,25 +159,20 @@
                            domain="[]">
                         <list string="Invoice Lines"
                               editable="bottom"
-                              decoration-muted="display_type in ('line_section', 'line_note') or display_type == 'payment_term'"
+                              decoration-muted="display_type in ('line_section', 'line_note')"
                               default_order="sequence, id">
-                            <field name="sequence" widget="handle"
-                                   invisible="display_type == 'payment_term'"/>
+                            <field name="sequence" widget="handle"/>
+                            <!-- All accounts allowed — user chooses every line themselves,
+                                 including the last (AP/AR) row. Site restriction kept. -->
                             <field name="account_id"
-                                   domain="['&amp;', ('account_type', 'not in', ['liability_payable', 'asset_receivable']), '|', ('x_site_ids', '=', False), ('x_site_ids', 'in', [parent.x_user_analytic_id])]"
-                                   readonly="display_type == 'payment_term'"
+                                   domain="['|', ('x_site_ids', '=', False), ('x_site_ids', 'in', [parent.x_user_analytic_id])]"
                                    options="{'no_create': True, 'no_create_edit': True}"/>
                             <field name="name" widget="section_and_note_text"
-                                   readonly="display_type == 'payment_term'"
                                    optional="show"/>
-                            <!-- analytic: always visible, always readonly in this tab;
-                                 auto-filled from x_project_analytic_account_id via onchange. -->
                             <field name="analytic_distribution"
                                    widget="analytic_distribution"
                                    readonly="1"
                                    options="{'account_field': 'account_id'}"/>
-                            <!-- debit / credit: NOT readonly on payment_term rows so
-                                 the onchange response can update them freely. -->
                             <field name="debit" sum="Total Debit"
                                    invisible="display_type in ('line_section', 'line_subsection', 'line_note')"/>
                             <field name="credit" sum="Total Credit"
@@ -236,24 +231,19 @@
                            domain="[]">
                         <list string="Journal Entries"
                               editable="bottom"
-                              decoration-muted="display_type in ('line_section', 'line_note') or display_type == 'payment_term'"
+                              decoration-muted="display_type in ('line_section', 'line_note')"
                               default_order="sequence, id">
-                            <field name="sequence" widget="handle"
-                                   invisible="display_type == 'payment_term'"/>
+                            <field name="sequence" widget="handle"/>
+                            <!-- All accounts allowed — user chooses every line themselves. -->
                             <field name="account_id"
-                                   domain="['&amp;', ('account_type', 'not in', ['liability_payable', 'asset_receivable']), '|', ('x_site_ids', '=', False), ('x_site_ids', 'in', [parent.x_user_analytic_id])] if parent.x_user_analytic_id else [('account_type', 'not in', ['liability_payable', 'asset_receivable'])]"
-                                   readonly="display_type == 'payment_term'"
+                                   domain="['|', ('x_site_ids', '=', False), ('x_site_ids', 'in', [parent.x_user_analytic_id])] if parent.x_user_analytic_id else []"
                                    options="{'no_create': True, 'no_create_edit': True}"/>
                             <field name="name" widget="section_and_note_text"
-                                   readonly="display_type == 'payment_term'"
                                    optional="show"/>
-                            <!-- analytic: always visible, always readonly; auto-filled from project -->
                             <field name="analytic_distribution"
                                    widget="analytic_distribution"
                                    readonly="1"
                                    options="{'account_field': 'account_id'}"/>
-                            <!-- debit / credit: NOT readonly on payment_term rows so the
-                                 onchange response is accepted by the client. -->
                             <field name="debit" sum="Total Debit"
                                    invisible="display_type in ('line_section', 'line_subsection', 'line_note')"/>
                             <field name="credit" sum="Total Credit"

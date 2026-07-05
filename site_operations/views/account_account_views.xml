@@ -91,22 +91,34 @@
 
     <!-- ══════════════════════════════════════════════════════════════════════
          3.  Dedicated Chart of Accounts action for site accountants.
-             Uses a dynamic domain so only accounts tagged with the user's
-             analytic account (project) are shown.  Bill lines / payments
-             can still read any account without an access error because no
-             global ir.rule restricts account.account reads.
+             Uses an ir.actions.server to compute the domain server-side.
+             NOTE: ir.actions.act_window domains are pre-processed client-side
+             in Odoo 19 by JavaScript evaluateExpr, which does NOT have access
+             to the `user` record — only `uid` (integer). So we use a server
+             action that has full access to env.user and returns a concrete
+             domain list (no further client-side evaluation needed).
     ══════════════════════════════════════════════════════════════════════════ -->
-    <record id="action_coa_site_accountant" model="ir.actions.act_window">
-        <field name="name">Chart of Accounts</field>
-        <field name="res_model">account.account</field>
-        <field name="view_mode">list,form</field>
-        <field name="domain">['|', ('x_site_ids', '=', False), ('x_site_ids', 'in', [user.x_default_analytic_account_id.id])]</field>
-        <field name="context">{'default_x_site_ids': []}</field>
-        <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">
-                No accounts visible to your site yet.
-            </p>
-            <p>Accounts with no site restriction are visible to all sites. Ask Head Office to check Configuration → Chart of Accounts.</p>
+    <record id="action_coa_site_accountant_server" model="ir.actions.server">
+        <field name="name">Chart of Accounts (Site)</field>
+        <field name="model_id" ref="account.model_account_account"/>
+        <field name="state">code</field>
+        <field name="code">
+analytic_id = env.user.x_default_analytic_account_id.id
+if analytic_id:
+    domain = ['|', ('x_site_ids', '=', False), ('x_site_ids', 'in', [analytic_id])]
+else:
+    domain = []
+action = {
+    'type': 'ir.actions.act_window',
+    'name': 'Chart of Accounts',
+    'res_model': 'account.account',
+    'view_mode': 'list,form',
+    'domain': domain,
+    'context': {'default_x_site_ids': []},
+    'help': '&lt;p class="o_view_nocontent_smiling_face"&gt;No accounts visible to your site yet.&lt;/p&gt;'
+            '&lt;p&gt;Accounts with no site restriction are visible to all sites. '
+            'Ask Head Office to check Configuration &amp;rarr; Chart of Accounts.&lt;/p&gt;',
+}
         </field>
     </record>
 

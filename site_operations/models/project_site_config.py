@@ -19,6 +19,16 @@ class ProjectSiteConfigProjectLink(models.Model):
         help='Linked native project record — financial dashboard and fund balances.',
     )
 
+    # ── Petty Cash Account ────────────────────────────────────────────────────
+    x_petty_cash_account_id = fields.Many2one(
+        'account.account',
+        string='Petty Cash Account',
+        help='The "Cash in Hand" GL account for this site\'s petty cash '
+             '(e.g. Cash in Hand — RWASA). '
+             'Set once here and it auto-fills on all petty cash expenses, '
+             'fund releases, and site cash-out entries for this project.',
+    )
+
     x_site_accountant_ids = fields.Many2many(
         'res.users',
         'x_project_site_accountant_rel',

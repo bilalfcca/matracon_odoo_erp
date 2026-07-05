@@ -358,59 +358,10 @@ class AccountMoveSiteOps(models.Model):
             seq = '/'.join(parts)
         return seq
 
-    # ── Real-time Journal Entries balance: keep payable/receivable in sync ───
-
-    @api.onchange('line_ids')
-    def _onchange_line_ids_balance_preview(self):
-        """Recompute the payment_term (payable/receivable) line in real-time
-        as the user edits journal entries in the custom Journal Entries tab.
-
-        Odoo normally rebuilds the payment_term line only when the ORM saves
-        the record (_sync_dynamic_lines inside write).  By handling
-        ``@api.onchange('line_ids')`` we update the line's balance in-memory
-        so the user sees the running balance without having to click Save first.
-
-        We set ``balance`` directly (positive = debit side, negative = credit
-        side) rather than writing ``debit`` / ``credit`` independently.
-        ``balance`` is stored and directly settable on account.move.line in
-        Odoo 19 — the ``_compute_debit_credit`` computed fields derive from it,
-        so this is the canonical, side-effect-free way to push a value.
-
-        Only runs for draft invoices with exactly one payment_term line
-        (the common case when no complex payment-term schedule is in use).
-        """
-        if not self.is_invoice(include_receipts=True) or self.state != 'draft':
-            return
-        term_lines = self.line_ids.filtered(lambda l: l.display_type == 'payment_term')
-        if len(term_lines) != 1:
-            return   # multi-instalment terms: leave Odoo to handle on save
-        other_lines = self.line_ids.filtered(lambda l: l.display_type != 'payment_term')
-        total_debit  = sum(l.debit  or 0.0 for l in other_lines)
-        total_credit = sum(l.credit or 0.0 for l in other_lines)
-        # Journal must balance: debit_total == credit_total.
-        # term_balance = other_credit - other_debit
-        #   positive → debit side  (receivable on customer invoice)
-        #   negative → credit side (payable on vendor bill)
-        term_lines[0].balance = total_credit - total_debit
-
-    @api.onchange('x_project_analytic_account_id')
-    def _onchange_project_fill_analytic_on_lines(self):
-        """Auto-fill analytic_distribution on product/tax journal lines when
-        the project analytic account is selected or changed.
-
-        This keeps the Journal Entries tab's analytic column in sync without
-        the user having to set it manually on each line.  The field is readonly
-        in those tabs, so this onchange is the only way it gets populated.
-        Only applies to draft invoices; readonly lines in posted state are
-        handled by the ORM via the inverse at confirmation time.
-        """
-        if not self.x_project_analytic_account_id or not self.is_invoice():
-            # If project is cleared, leave existing distributions intact
-            return
-        project_id = str(self.x_project_analytic_account_id.id)
-        for line in self.line_ids:
-            if line.display_type in ('product', 'tax'):
-                line.analytic_distribution = {project_id: 100.0}
+    # (Real-time last-row balance is handled by the onchange on account.move.line
+    #  itself — see account_move_line.py _onchange_amount_rebalance_last_row.
+    #  A line-level onchange fires immediately when the user edits any debit/credit
+    #  cell, whereas a parent @api.onchange('line_ids') only fires on row add/remove.)
 
     def _ensure_liability_sheet_for_bill(self, notify=True):
         """Create/update liability sheet for this vendor bill.

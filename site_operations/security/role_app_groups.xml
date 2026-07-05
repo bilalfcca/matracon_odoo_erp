@@ -50,11 +50,16 @@
 
         <!-- Site Accountant: Accounting + Attendance only (NO Employees, NO Payroll) -->
         <!-- hr_attendance.group_hr_attendance_officer transitively implies hr.group_hr_user -->
-        <!-- so employees are accessible in attendance lines without seeing the HR app -->
+        <!-- so employees are accessible in attendance lines without seeing the HR app. -->
+        <!-- group_account_readonly (not just group_account_invoice) is required so that
+             standard reporting menus — Partner Ledger, Aged Payables/Receivables,
+             Balance Sheet, Trial Balance — are visible.  group_account_readonly implies
+             group_account_invoice, so billing access is preserved.  ir.rule record rules
+             still scope the actual data to this site's analytic account only. -->
         <record id="group_site_accountant" model="res.groups">
             <field name="implied_ids" eval="[
                 (6, 0, [
-                    ref('account.group_account_invoice'),
+                    ref('account.group_account_readonly'),
                     ref('hr_attendance.group_hr_attendance_officer'),
                     ref('group_mtr_app_accounting'),
                     ref('group_mtr_app_attendance'),
