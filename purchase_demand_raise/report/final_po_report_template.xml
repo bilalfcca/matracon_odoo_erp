@@ -133,14 +133,17 @@
                         </div>
 
                         <!-- ── AUTHORIZATION / SIGNATURES ── -->
+                        <style>
+                            @import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&amp;display=swap');
+                            .matracon-sig { font-family: 'Dancing Script', cursive; font-size: 26px; color: #1a237e; line-height: 1.1; }
+                        </style>
                         <div class="row mt-5">
                             <!-- PO Officer -->
                             <div class="col-6 text-center">
-                                <div style="min-height:70px; display:flex; align-items:flex-end; justify-content:center; margin-bottom:0;">
-                                    <t t-if="o.company_id.x_po_officer_signature">
-                                        <img t-att-src="image_data_uri(o.company_id.x_po_officer_signature)"
-                                             style="max-height:65px; max-width:200px; object-fit:contain;"/>
-                                    </t>
+                                <div style="min-height:48px; display:flex; align-items:flex-end; justify-content:center; padding-bottom:4px;">
+                                    <span class="matracon-sig">
+                                        <t t-esc="o.company_id.x_po_officer_name or 'Nasir Swati'"/>
+                                    </span>
                                 </div>
                                 <div style="border-top: 1px solid #000; padding-top: 5px;">
                                     <div class="fw-bold">
@@ -153,11 +156,10 @@
                             </div>
                             <!-- CEO -->
                             <div class="col-6 text-center">
-                                <div style="min-height:70px; display:flex; align-items:flex-end; justify-content:center; margin-bottom:0;">
-                                    <t t-if="o.company_id.x_ceo_signature">
-                                        <img t-att-src="image_data_uri(o.company_id.x_ceo_signature)"
-                                             style="max-height:65px; max-width:200px; object-fit:contain;"/>
-                                    </t>
+                                <div style="min-height:48px; display:flex; align-items:flex-end; justify-content:center; padding-bottom:4px;">
+                                    <span class="matracon-sig">
+                                        <t t-esc="o.company_id.x_ceo_name or 'Jehanzeb Saulat'"/>
+                                    </span>
                                 </div>
                                 <div style="border-top: 1px solid #000; padding-top: 5px;">
                                     <div class="fw-bold">

@@ -20,37 +20,26 @@
 
                     <div class="alert alert-info" role="alert" style="margin-bottom:16px;">
                         <i class="fa fa-info-circle me-2"/>
-                        Upload the digitized signature images below. They will appear on the
+                        The names below are rendered in a signature-style font on the
                         <strong>Purchase Order PDF</strong> sent to vendors after CEO approval.
-                        Recommended: PNG with transparent background, height ~150 px.
                     </div>
 
                     <div class="row">
                         <!-- PO Officer -->
                         <div class="col-6">
-                            <h5 class="fw-bold border-bottom pb-2 mb-3">PO Officer Signature</h5>
+                            <h5 class="fw-bold border-bottom pb-2 mb-3">PO Officer</h5>
                             <group>
                                 <field name="x_po_officer_name" string="Full Name"/>
                                 <field name="x_po_officer_title" string="Title / Designation"/>
-                                <field name="x_po_officer_signature"
-                                       string="Signature Image"
-                                       widget="image"
-                                       options="{'size': [240, 120]}"
-                                       help="PNG with transparent background recommended."/>
                             </group>
                         </div>
 
                         <!-- CEO -->
                         <div class="col-6">
-                            <h5 class="fw-bold border-bottom pb-2 mb-3">CEO Signature</h5>
+                            <h5 class="fw-bold border-bottom pb-2 mb-3">CEO</h5>
                             <group>
                                 <field name="x_ceo_name" string="Full Name"/>
                                 <field name="x_ceo_title" string="Title / Designation"/>
-                                <field name="x_ceo_signature"
-                                       string="Signature Image"
-                                       widget="image"
-                                       options="{'size': [240, 120]}"
-                                       help="PNG with transparent background recommended."/>
                             </group>
                         </div>
                     </div>
