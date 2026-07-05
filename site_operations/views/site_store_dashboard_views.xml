@@ -148,6 +148,8 @@
                                               decoration-warning="x_pr_state == 'draft'"
                                               decoration-success="x_pr_state in ('submitted', 'po_locked')">
                                             <field name="name" string="Reference"/>
+                                            <field name="x_category_id" string="Category" optional="show"/>
+                                            <field name="x_first_product_name" string="Product" optional="show"/>
                                             <field name="date_order" string="Date"/>
                                             <field name="x_pr_state" string="Status" widget="badge"/>
                                             <field name="x_project_analytic_account_id" string="Project" optional="hide"/>

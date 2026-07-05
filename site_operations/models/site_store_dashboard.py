@@ -149,10 +149,17 @@ class SiteStoreDashboard(models.TransientModel):
             receipt_domain.append(
                 ('purchase_id.x_project_analytic_account_id', '=', analytic.id))
         pending_receipts = Picking.search(receipt_domain, limit=20)
+        # Arrivals Today: match on picking's scheduled_date OR the linked PO's
+        # date_planned (expected arrival). Both dates should agree when set properly,
+        # but using an OR makes the count robust when one diverges from the other.
+        today_start = fields.Datetime.to_datetime(today)
+        today_end = fields.Datetime.to_datetime(today + timedelta(days=1))
         arrivals_today = Picking.search(receipt_domain + [
-            ('scheduled_date', '>=', fields.Datetime.to_datetime(today)),
-            ('scheduled_date', '<',
-             fields.Datetime.to_datetime(today + timedelta(days=1))),
+            '|',
+            '&', ('scheduled_date', '>=', today_start),
+                 ('scheduled_date', '<', today_end),
+            '&', ('purchase_id.date_planned', '>=', today_start),
+                 ('purchase_id.date_planned', '<', today_end),
         ])
         partial_receipts = pending_receipts.filtered(
             lambda p: any(m.product_uom_qty > m.quantity for m in p.move_ids if m.product_id)

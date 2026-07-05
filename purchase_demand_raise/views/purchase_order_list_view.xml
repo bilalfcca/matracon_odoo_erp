@@ -9,13 +9,27 @@
         <field name="inherit_id" ref="purchase.purchase_order_tree"/>
         <field name="arch" type="xml">
 
-            <!-- Hide standard Buyer column (replaced by Raised By) -->
+            <!-- Hide standard columns replaced by our custom ones -->
             <field name="user_id" position="attributes">
                 <attribute name="column_invisible">1</attribute>
             </field>
-
-            <!-- Hide standard Status column (we use x_pr_state) -->
             <field name="state" position="attributes">
+                <attribute name="column_invisible">1</attribute>
+            </field>
+            <!-- Base partner_id — hidden because we inject our own after name -->
+            <field name="partner_id" position="attributes">
+                <attribute name="column_invisible">1</attribute>
+            </field>
+            <!-- Order Deadline (date_order) — not relevant in our PR workflow -->
+            <field name="date_order" position="attributes">
+                <attribute name="column_invisible">1</attribute>
+            </field>
+            <!-- Approval date — not needed in list -->
+            <field name="date_approve" position="attributes">
+                <attribute name="column_invisible">1</attribute>
+            </field>
+            <!-- Activities — not needed -->
+            <field name="activity_ids" position="attributes">
                 <attribute name="column_invisible">1</attribute>
             </field>
 
@@ -35,6 +49,7 @@
                        decoration-warning="x_procurement_type == 'site_procurement'"
                        optional="show"/>
                 <field name="x_category_id" string="Category" optional="show"/>
+                <field name="x_first_product_name" string="Product" optional="show"/>
                 <field name="x_pr_state" string="PR Status"
                        widget="badge"
                        decoration-info="x_pr_state == 'draft'"
@@ -74,6 +89,22 @@
             <field name="state" position="attributes">
                 <attribute name="column_invisible">1</attribute>
             </field>
+            <!-- Base partner_id — hidden (we inject our own after name) -->
+            <field name="partner_id" position="attributes">
+                <attribute name="column_invisible">1</attribute>
+            </field>
+            <!-- Order Deadline — not needed -->
+            <field name="date_order" position="attributes">
+                <attribute name="column_invisible">1</attribute>
+            </field>
+            <!-- Approval date — not needed -->
+            <field name="date_approve" position="attributes">
+                <attribute name="column_invisible">1</attribute>
+            </field>
+            <!-- Activities — not needed -->
+            <field name="activity_ids" position="attributes">
+                <attribute name="column_invisible">1</attribute>
+            </field>
             <!-- Hide monetary Total from Site Store users -->
             <field name="amount_total" position="attributes">
                 <attribute name="groups">!purchase_demand_raise.group_site_store</attribute>
@@ -89,6 +120,7 @@
                        decoration-warning="x_procurement_type == 'site_procurement'"
                        optional="show"/>
                 <field name="x_category_id" string="Category" optional="show"/>
+                <field name="x_first_product_name" string="Product" optional="show"/>
                 <field name="x_pr_state" string="PR Status"
                        widget="badge"
                        decoration-info="x_pr_state == 'draft'"

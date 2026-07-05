@@ -115,6 +115,21 @@ class PurchaseOrder(models.Model):
     # ── Rejection Reason ──────────────────────────────────────────────────────
     x_rejection_reason = fields.Text(string='Rejection Reason', copy=False)
 
+    # ── First product (for list views / dashboard) ───────────────────────────────
+    x_first_product_name = fields.Char(
+        string='Product',
+        compute='_compute_first_product_name',
+        help='Name of the first order line product. Used in list and dashboard views.',
+    )
+
+    @api.depends('order_line', 'order_line.product_id')
+    def _compute_first_product_name(self):
+        for order in self:
+            first_line = order.order_line[:1]
+            order.x_first_product_name = (
+                first_line.product_id.display_name if first_line and first_line.product_id else ''
+            )
+
     # ── PR Document flag ─────────────────────────────────────────────────────────
     # Computed (stored) so it recomputes for ALL existing records on module update.
     # Logic: any record that has a category set, has a PM doc, or has progressed
