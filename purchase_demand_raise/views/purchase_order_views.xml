@@ -226,11 +226,11 @@
 
                 <!-- Add to Liability Sheet — Site Procurement only -->
                 <div invisible="x_procurement_type != 'site_procurement' or (not x_is_pr_document and not x_is_site_store)"
-                     style="display:flex; align-items:center; gap:6px; margin-top:4px; margin-bottom:4px;">
+                     style="display:flex; align-items:center; gap:6px; margin-top:4px; margin-bottom:4px; white-space:nowrap;">
+                    <span>Add this Supplier to Liability Sheet?</span>
                     <field name="x_add_to_liability_sheet"
                            nolabel="1"
                            readonly="x_pr_state not in ('draft')"/>
-                    <span>Add this Supplier to Liability Sheet?</span>
                 </div>
 
                 <!-- Category: HO Procurement only; locked once submitted/rejected -->
