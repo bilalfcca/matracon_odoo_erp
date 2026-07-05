@@ -143,12 +143,14 @@
 
             <!-- 6. Site-accountant-only "Journal Entries" tab.
                  Shows ALL lines including the auto-managed Account Payable row.
-                 • account_id / name on payment_term row: readonly (don't change the account)
-                 • debit / credit on payment_term row: editable so the Odoo onchange
-                   response CAN update them in real-time without being blocked by the
-                   client's readonly guard — the _onchange_line_ids_balance_preview
-                   handler always resets them to the correct computed balance.
-                 • analytic_distribution: always readonly here; auto-filled from project
+                 • delete="0" on the list prevents the user from deleting rows —
+                   especially the auto-managed payable line which Odoo guards with
+                   "You cannot delete a payable/receivable line …".  Odoo's own
+                   internal _recompute_payment_terms_lines() bypasses that guard via
+                   the no_check_recompute context, so server-side onchanges still work.
+                 • account_id / name / debit / credit: editable so the Odoo onchange
+                   response CAN update them in real-time.
+                 • analytic_distribution: always readonly; auto-filled from project
                    via _onchange_project_fill_analytic_on_lines. -->
             <xpath expr="//page[@id='invoice_tab']" position="before">
                 <page string="Journal Entries"
@@ -159,6 +161,7 @@
                            domain="[]">
                         <list string="Invoice Lines"
                               editable="bottom"
+                              delete="0"
                               decoration-muted="display_type in ('line_section', 'line_note')"
                               default_order="sequence, id">
                             <field name="sequence" widget="handle"/>
@@ -231,6 +234,7 @@
                            domain="[]">
                         <list string="Journal Entries"
                               editable="bottom"
+                              delete="0"
                               decoration-muted="display_type in ('line_section', 'line_note')"
                               default_order="sequence, id">
                             <field name="sequence" widget="handle"/>
