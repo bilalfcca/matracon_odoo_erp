@@ -553,7 +553,7 @@ class AccountMoveSiteOps(models.Model):
 
         payable_lines = self.line_ids.filtered(
             lambda l: (
-                l.account_id.account_type in ('liability_payable', 'liability_current')
+                l.account_id.account_type == 'liability_payable'
                 and l.partner_id
                 and l.analytic_distribution
             )
@@ -604,7 +604,7 @@ class AccountMoveSiteOps(models.Model):
                 candidate = AML.search([
                     ('partner_id', '=', partner_id),
                     ('move_id.state', '=', 'posted'),
-                    ('account_id.account_type', 'in', ['liability_payable', 'liability_current']),
+                    ('account_id.account_type', '=', 'liability_payable'),
                 ]).filtered(_in_project)
 
                 opening_lines = candidate.filtered(
