@@ -58,3 +58,17 @@ class ResPartnerSiteOps(models.Model):
                         'Contact "%s": Category (Tag) is required. '
                         'Please add "Subcontractor" or another tag.'
                     ) % (partner.name or ''))
+
+    @api.constrains('category_id', 'x_description')
+    def _check_description_required_for_vendor(self):
+        """Vendor / Subcontractor / Local Supplier partners must have a description
+        so that liability sheet lines are auto-labelled meaningfully."""
+        REQUIRED_TAGS = {'Vendor', 'Subcontractor', 'Local Supplier'}
+        for partner in self:
+            tag_names = set(partner.category_id.mapped('name'))
+            if tag_names & REQUIRED_TAGS and not (partner.x_description or '').strip():
+                raise ValidationError(_(
+                    'Contact "%s": Description is required for Vendor / Subcontractor '
+                    'partners (e.g. "Cement Supplier", "Labour Contractor"). '
+                    'Please fill in the Description field before saving.'
+                ) % (partner.name or ''))

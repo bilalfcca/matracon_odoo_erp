@@ -629,7 +629,9 @@ class AccountMoveSiteOps(models.Model):
                     partner_rec = self.env['res.partner'].browse(partner_id)
                     sheet.write({'line_ids': [(0, 0, {
                         'partner_id': partner_id,
-                        'description': partner_rec.name,
+                        'description': (
+                            partner_rec.x_description or partner_rec.name or ''
+                        ).strip(),
                         'opening_balance': round(opening, 2),
                         'new_liability': round(new_liab, 2),
                     })]})

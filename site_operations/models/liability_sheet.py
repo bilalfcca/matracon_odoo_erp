@@ -434,9 +434,17 @@ class LiabilitySheet(models.Model):
                 )
                 new_liab = sum(l.credit - l.debit for l in period_lines)
 
+                # Always sync description from the contact's x_description so
+                # liability sheet lines stay labelled correctly without manual effort.
+                partner_desc = (
+                    line.partner_id.x_description
+                    or line.partner_id.name
+                    or ''
+                ).strip()
                 line.write({
                     'opening_balance': round(opening, 2),
                     'new_liability': round(new_liab, 2),
+                    'description': partner_desc,
                 })
 
             # ── 2. Auto-discover partners in the ledger not yet on the sheet ──
@@ -481,8 +489,12 @@ class LiabilitySheet(models.Model):
                     new_liab = sum(l.credit - l.debit for l in period_lines)
 
                     if opening > 0 or new_liab != 0:
+                        partner = self.env['res.partner'].browse(partner_id)
                         sheet.sudo().write({'line_ids': [(0, 0, {
                             'partner_id': partner_id,
+                            'description': (
+                                partner.x_description or partner.name or ''
+                            ).strip(),
                             'opening_balance': round(opening, 2),
                             'new_liability': round(new_liab, 2),
                         })]})
