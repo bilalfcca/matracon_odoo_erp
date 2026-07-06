@@ -37,6 +37,10 @@ class LiabilitySheet(models.Model):
     name = fields.Char(
         string='Reference', compute='_compute_name', store=True, readonly=True)
 
+    x_sequence_no = fields.Char(
+        string='Sequence No', copy=False, readonly=True,
+        help='Auto-assigned sequential number used in the reference (e.g. 001).')
+
     # Journal entry created on approval (appears in partner ledger)
     account_move_id = fields.Many2one(
         'account.move', string='Journal Entry', readonly=True,
@@ -88,14 +92,29 @@ class LiabilitySheet(models.Model):
     # COMPUTE
     # ─────────────────────────────────────────────────────────────────────────
 
-    @api.depends('project_analytic_account_id', 'date_from', 'date_to')
+    # ── Role flag (used in form to toggle group label visibility) ─────────────
+    x_is_site_accountant = fields.Boolean(compute='_compute_role_flag_sheet', store=False)
+
+    def _compute_role_flag_sheet(self):
+        is_sa = self.env.user.has_group('site_operations.group_site_accountant')
+        for sheet in self:
+            sheet.x_is_site_accountant = is_sa
+
+    @api.depends('project_analytic_account_id', 'x_sequence_no')
     def _compute_name(self):
         for sheet in self:
-            site = (sheet.project_analytic_account_id._matracon_site_code()
-                    if sheet.project_analytic_account_id else 'HO')
-            df = sheet.date_from.strftime('%b-%Y') if sheet.date_from else ''
-            dt = sheet.date_to.strftime('%b-%Y') if sheet.date_to else ''
-            sheet.name = f'LS/{site}/{df}-{dt}'
+            if sheet.project_analytic_account_id:
+                # Prefer analytic account code (e.g. MCH-BHW); fall back to warehouse code
+                site = (
+                    sheet.project_analytic_account_id.code
+                    or sheet.project_analytic_account_id._matracon_site_code()
+                    or 'HO'
+                )
+                site = site.strip().upper()
+            else:
+                site = 'HO'
+            seq = sheet.x_sequence_no or 'NEW'
+            sheet.name = f'LS/{site}/{seq}'
 
     @api.depends(
         'line_ids.liability_amount',
@@ -109,6 +128,19 @@ class LiabilitySheet(models.Model):
             sheet.total_recommended = sum(sheet.line_ids.mapped('recommended_amount'))
             sheet.total_approved = sum(sheet.line_ids.mapped('approved_amount'))
             sheet.total_paid = sum(sheet.line_ids.mapped('paid_amount'))
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # CRUD
+    # ─────────────────────────────────────────────────────────────────────────
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        records = super().create(vals_list)
+        for record in records:
+            if not record.x_sequence_no:
+                seq = self.env['ir.sequence'].next_by_code('x.liability.sheet') or '001'
+                record.x_sequence_no = seq
+        return records
 
     # ─────────────────────────────────────────────────────────────────────────
     # ACTIONS / WORKFLOW
@@ -163,15 +195,8 @@ class LiabilitySheet(models.Model):
             unapproved = lines.filtered(lambda l: l.approved_amount <= 0)
             if unapproved:
                 raise UserError(_(
-                    'Set CEO approval (Full / % / Manual) for all recommended lines '
-                    'before approving: %s'
+                    'Enter an Approved Amount for all recommended lines before approving: %s'
                 ) % ', '.join(unapproved.mapped('partner_id.display_name')))
-            over = lines.filtered(
-                lambda l: l.approved_amount > l.recommended_amount + 0.01)
-            if over:
-                raise UserError(_(
-                    'Approved amount cannot exceed recommended amount.'
-                ))
             sheet.line_ids.write({'is_locked': True})
             payments = sheet._create_ceo_payment_drafts()
             sheet.state = 'approved'
@@ -426,6 +451,7 @@ class LiabilitySheetLine(models.Model):
         string='Total Liability',
         compute='_compute_liability_amount', store=True)
 
+    # Recommended: entered manually by Site Accountant
     recommended_amount = fields.Float(string='Recommended Amount')
 
     payment_id = fields.Many2one(
@@ -433,19 +459,8 @@ class LiabilitySheetLine(models.Model):
 
     x_is_ceo = fields.Boolean(compute='_compute_role_flags')
 
-    decision = fields.Selection([
-        ('full', 'Full'),
-        ('manual', 'Manual'),
-        ('25', '25%'),
-        ('50', '50%'),
-        ('75', '75%'),
-    ], string='CEO Decision', default='full')
-    approved_pct = fields.Float(
-        string='Approved %', compute='_compute_approved_pct', store=False)
-    approved_amount = fields.Float(
-        string='Approved Amount',
-        compute='_compute_approved_amount',
-        store=True, readonly=False)
+    # Approved: entered manually by CEO — no auto-compute, no percentage/decision helpers
+    approved_amount = fields.Float(string='Approved Amount')
 
     remarks = fields.Text(string='Remarks')
     paid_amount = fields.Float(string='Paid Amount')
@@ -466,26 +481,6 @@ class LiabilitySheetLine(models.Model):
         for line in self:
             line.liability_amount = line.opening_balance + line.new_liability
 
-    @api.depends('decision', 'recommended_amount', 'approved_amount')
-    def _compute_approved_pct(self):
-        for line in self:
-            if line.recommended_amount:
-                line.approved_pct = (
-                    (line.approved_amount / line.recommended_amount) * 100.0)
-            else:
-                line.approved_pct = 0.0
-
-    @api.depends('decision', 'recommended_amount')
-    def _compute_approved_amount(self):
-        pct_map = {'25': 0.25, '50': 0.50, '75': 0.75}
-        for line in self:
-            if line.is_locked:
-                continue
-            if line.decision == 'full':
-                line.approved_amount = line.recommended_amount
-            elif line.decision in pct_map:
-                line.approved_amount = line.recommended_amount * pct_map[line.decision]
-
     @api.depends('liability_amount', 'paid_amount')
     def _compute_balance(self):
         for line in self:
@@ -495,28 +490,20 @@ class LiabilitySheetLine(models.Model):
     # ONCHANGE
     # ─────────────────────────────────────────────────────────────────────────
 
-    @api.onchange('decision', 'recommended_amount')
-    def _onchange_decision(self):
-        pct_map = {'25': 0.25, '50': 0.50, '75': 0.75}
-        if self.decision == 'full':
-            self.approved_amount = self.recommended_amount
-        elif self.decision in pct_map:
-            self.approved_amount = self.recommended_amount * pct_map[self.decision]
-
-    @api.onchange('approved_amount')
-    def _onchange_approved_amount(self):
-        if not self.recommended_amount:
+    @api.onchange('partner_id')
+    def _onchange_partner_description(self):
+        """Auto-fill description as 'Tag (partner description)' when partner is selected."""
+        if not self.partner_id:
             return
-        pct_map = {'25': 0.25, '50': 0.50, '75': 0.75}
-        for key, pct in pct_map.items():
-            expected = self.recommended_amount * pct
-            if abs(self.approved_amount - expected) < 0.01:
-                self.decision = key
-                return
-        if abs(self.approved_amount - self.recommended_amount) < 0.01:
-            self.decision = 'full'
-            return
-        self.decision = 'manual'
+        tags = self.partner_id.category_id
+        tag_name = tags[0].name if tags else ''
+        partner_desc = (self.partner_id.x_description or '').strip()
+        if tag_name and partner_desc:
+            self.description = f'{tag_name} ({partner_desc})'
+        elif tag_name:
+            self.description = tag_name
+        elif partner_desc:
+            self.description = partner_desc
 
     def write(self, vals):
         user = self.env.user
@@ -526,9 +513,9 @@ class LiabilitySheetLine(models.Model):
             or user.has_group('base.group_system')
         )
         if not can_approve:
-            blocked = {'approved_amount', 'decision', 'is_locked'} & set(vals)
+            blocked = {'approved_amount', 'is_locked'} & set(vals)
             if blocked:
                 raise UserError(_(
-                    'Only the CEO can set approval decisions and approved amounts.'
+                    'Only the CEO can set approved amounts.'
                 ))
         return super().write(vals)

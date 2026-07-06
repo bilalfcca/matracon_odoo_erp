@@ -19,6 +19,24 @@ class ProjectSiteConfigProjectLink(models.Model):
         help='Linked native project record — financial dashboard and fund balances.',
     )
 
+    # ── Issue Locations (auto-created under site warehouse) ───────────────────
+    x_employee_location_id = fields.Many2one(
+        'stock.location',
+        string='Employee Issue Location',
+        readonly=True,
+        copy=False,
+        help='Auto-created under the site warehouse view location. '
+             'Materials issued to employees are tracked here (e.g. MCH/Employees).',
+    )
+    x_subcontractor_location_id = fields.Many2one(
+        'stock.location',
+        string='Subcontractor Issue Location',
+        readonly=True,
+        copy=False,
+        help='Auto-created under the site warehouse view location. '
+             'Materials issued to subcontractors are tracked here (e.g. MCH/Subcontractor).',
+    )
+
     # ── Petty Cash Account ────────────────────────────────────────────────────
     x_petty_cash_account_id = fields.Many2one(
         'account.account',
@@ -56,6 +74,9 @@ class ProjectSiteConfigProjectLink(models.Model):
         for record in records.filtered(lambda c: not c.warehouse_id):
             record._matracon_ensure_warehouse_for_config()
         for record in records:
+            # Ensure issue locations exist (idempotent — skips if already set)
+            if record.warehouse_id:
+                record._matracon_ensure_site_issue_locations()
             if record.site_user_ids:
                 record._assign_users(record.site_user_ids)
             if record.x_site_accountant_ids:
@@ -298,6 +319,7 @@ class ProjectSiteConfigProjectLink(models.Model):
         self.ensure_one()
         if self.warehouse_id:
             self._matracon_sync_user_operational_warehouse()
+            self._matracon_ensure_site_issue_locations()
             return self.warehouse_id
         Warehouse = self.env['stock.warehouse'].sudo()
         company = self.env.company
@@ -318,4 +340,53 @@ class ProjectSiteConfigProjectLink(models.Model):
             })
         self.sudo().write({'warehouse_id': wh.id})
         self._matracon_sync_user_operational_warehouse()
+        self._matracon_ensure_site_issue_locations()
         return wh
+
+    def _matracon_ensure_site_issue_locations(self):
+        """Create/link Employee and Subcontractor virtual locations under the site warehouse.
+
+        Called on create and whenever a warehouse is linked.  Safe to call multiple
+        times — only creates a location when the field is still empty.
+        """
+        self.ensure_one()
+        if not self.warehouse_id or not self.warehouse_id.view_location_id:
+            return
+        view_loc = self.warehouse_id.view_location_id
+        Location = self.env['stock.location'].sudo()
+        write_vals = {}
+
+        # ── Employee location ─────────────────────────────────────────────────
+        if not self.x_employee_location_id:
+            emp_loc = Location.with_context(active_test=False).search([
+                ('name', '=', 'Employees'),
+                ('location_id', '=', view_loc.id),
+            ], limit=1)
+            if not emp_loc:
+                emp_loc = Location.create({
+                    'name': 'Employees',
+                    'location_id': view_loc.id,
+                    'usage': 'internal',
+                })
+            elif not emp_loc.active:
+                emp_loc.write({'active': True})
+            write_vals['x_employee_location_id'] = emp_loc.id
+
+        # ── Subcontractor location ────────────────────────────────────────────
+        if not self.x_subcontractor_location_id:
+            sub_loc = Location.with_context(active_test=False).search([
+                ('name', '=', 'Subcontractor'),
+                ('location_id', '=', view_loc.id),
+            ], limit=1)
+            if not sub_loc:
+                sub_loc = Location.create({
+                    'name': 'Subcontractor',
+                    'location_id': view_loc.id,
+                    'usage': 'internal',
+                })
+            elif not sub_loc.active:
+                sub_loc.write({'active': True})
+            write_vals['x_subcontractor_location_id'] = sub_loc.id
+
+        if write_vals:
+            self.sudo().write(write_vals)

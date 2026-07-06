@@ -6,9 +6,6 @@ from markupsafe import Markup
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
 
-RETENTION_PCT = 5.0 / 100.0
-
-
 class SubcontractorIPCBackchargeLine(models.Model):
     _name = 'x.subcontractor.ipc.backcharge.line'
     _description = 'IPC Back Charge Line'
@@ -25,10 +22,16 @@ class SubcontractorIPCBackchargeLine(models.Model):
     date = fields.Date(
         string='Date', related='backcharge_id.date')
     amount = fields.Monetary(
-        string='Amount', related='backcharge_id.amount',
+        string='Amount',
+        compute='_compute_backcharge_amount', store=True,
         currency_field='currency_id')
     currency_id = fields.Many2one(
-        'res.currency', related='ipc_id.currency_id')
+        'res.currency', related='ipc_id.currency_id', store=True)
+
+    @api.depends('backcharge_id', 'backcharge_id.amount')
+    def _compute_backcharge_amount(self):
+        for line in self:
+            line.amount = line.backcharge_id.amount if line.backcharge_id else 0.0
 
 
 class SubcontractorIPC(models.Model):
@@ -52,7 +55,8 @@ class SubcontractorIPC(models.Model):
         tracking=True)
     project_analytic_account_id = fields.Many2one(
         'account.analytic.account', string='Project',
-        required=True, tracking=True)
+        required=True, tracking=True,
+        default=lambda self: self.env.user.sudo().x_default_analytic_account_id)
     ipc_date = fields.Date(
         string='IPC Date', default=fields.Date.context_today, required=True)
     currency_id = fields.Many2one(
@@ -62,6 +66,11 @@ class SubcontractorIPC(models.Model):
         ('submitted', 'Submitted'),
         ('paid', 'Paid'),
     ], default='draft', tracking=True, string='Status')
+
+    # ── Retention percentage (default 5%, editable per IPC) ──────────────────
+    retention_pct = fields.Float(
+        string='Retention %', default=5.0, digits=(5, 2), tracking=True,
+        help='Retention percentage applied to gross work done. Default 5%.')
 
     # ── IPC Document (mandatory before submission) ────────────────────────────
     ipc_document = fields.Binary(
@@ -303,6 +312,7 @@ class SubcontractorIPC(models.Model):
 
     @api.depends(
         'gross_work_done', 'previous_gross_work_done',
+        'retention_pct',
         'mob_advance_recovery', 'ho_advance_recovery',
         'security_withheld',
         'other_deductions_amount', 'other_additions_amount',
@@ -312,8 +322,9 @@ class SubcontractorIPC(models.Model):
         for ipc in self:
             this_gross = max(
                 ipc.gross_work_done - ipc.previous_gross_work_done, 0.0)
-            total_ret = ipc.gross_work_done * RETENTION_PCT
-            prev_ret = ipc.previous_gross_work_done * RETENTION_PCT
+            pct = (ipc.retention_pct or 5.0) / 100.0
+            total_ret = ipc.gross_work_done * pct
+            prev_ret = ipc.previous_gross_work_done * pct
             this_ret = total_ret - prev_ret
 
             bc_total = sum(
@@ -354,9 +365,36 @@ class SubcontractorIPC(models.Model):
             if vals.get('name', _('New')) == _('New'):
                 site_code = Analytic._matracon_site_code_for_id(
                     vals.get('project_analytic_account_id'))
-                vals['name'] = Analytic._matracon_ref_with_site(
+                seq_ref = Analytic._matracon_ref_with_site(
                     'x.subcontractor.ipc', site_code)
-        return super().create(vals_list)
+                # Embed ipc_number in the reference: IPC/MCH/1/2026/0001
+                ipc_num = vals.get('ipc_number')
+                if ipc_num:
+                    parts = seq_ref.split('/')
+                    parts.insert(2, str(ipc_num))
+                    vals['name'] = '/'.join(parts)
+                else:
+                    vals['name'] = seq_ref
+
+        ipcs = super().create(vals_list)
+
+        # Auto-link pending backcharges not already in the One2many
+        for ipc in ipcs:
+            if not ipc.subcontractor_id or not ipc.project_analytic_account_id:
+                continue
+            already_linked = ipc.backcharge_line_ids.mapped('backcharge_id').ids
+            pending = self.env['x.subcontractor.backcharge'].search([
+                ('subcontractor_id', '=', ipc.subcontractor_id.id),
+                ('project_analytic_account_id', '=',
+                 ipc.project_analytic_account_id.id),
+                ('state', '=', 'pending'),
+                ('id', 'not in', already_linked),
+            ])
+            if pending:
+                ipc.write({'backcharge_line_ids': [
+                    (0, 0, {'backcharge_id': bc.id}) for bc in pending
+                ]})
+        return ipcs
 
     # ─────────────────────────────────────────────────────────────────────────
     # ONCHANGE
@@ -400,6 +438,42 @@ class SubcontractorIPC(models.Model):
         new_lines = [(0, 0, {'backcharge_id': bc.id}) for bc in pending_bc]
         # Replace lines — start fresh so we don't double-add on sub/project change
         self.backcharge_line_ids = [(5, 0, 0)] + new_lines
+
+    def action_refresh_backcharges(self):
+        """Append any pending back charges not yet linked to this IPC."""
+        self.ensure_one()
+        if not self.subcontractor_id or not self.project_analytic_account_id:
+            return {
+                'type': 'ir.actions.client', 'tag': 'display_notification',
+                'params': {
+                    'type': 'warning',
+                    'message': _('Please set Subcontractor and Project first.'),
+                    'sticky': False,
+                },
+            }
+        already_linked = self.backcharge_line_ids.mapped('backcharge_id').ids
+        pending = self.env['x.subcontractor.backcharge'].search([
+            ('subcontractor_id', '=', self.subcontractor_id.id),
+            ('project_analytic_account_id', '=',
+             self.project_analytic_account_id.id),
+            ('state', '=', 'pending'),
+            ('id', 'not in', already_linked),
+        ])
+        if pending:
+            self.write({'backcharge_line_ids': [
+                (0, 0, {'backcharge_id': bc.id}) for bc in pending
+            ]})
+        return {
+            'type': 'ir.actions.client', 'tag': 'display_notification',
+            'params': {
+                'type': 'success' if pending else 'info',
+                'message': (
+                    _('%d backcharge(s) added.') % len(pending)
+                    if pending else _('No new pending backcharges found.')
+                ),
+                'sticky': False,
+            },
+        }
 
     # ─────────────────────────────────────────────────────────────────────────
     # WORKFLOW ACTIONS

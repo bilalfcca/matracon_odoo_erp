@@ -34,25 +34,47 @@ class MaterialCostConsumption(models.Model):
 
     @api.model
     def action_refresh_report(self):
-        """Rebuild the material cost report from stock moves."""
-        self.search([]).unlink()
+        """Rebuild the material cost report from stock moves.
+
+        Site store users: only their own project's rows are deleted and rebuilt.
+        Admin / Finance HO: all rows are rebuilt.
+        All write operations use sudo() so site_store needs only read access.
+        """
+        user_sudo = self.env.user.sudo()
+        is_site_store = self.env.user.has_group('purchase_demand_raise.group_site_store')
+
+        if is_site_store:
+            # Determine which analytic account(s) belong to this site
+            site_analytic_ids = list(filter(None, [
+                user_sudo.x_default_analytic_account_id.id,
+                user_sudo.x_site_config_id.project_analytic_account_id.id
+                if user_sudo.x_site_config_id else None,
+            ]))
+            # Delete only this site's cost rows (sudo bypasses read-only ACL)
+            self.sudo().search([
+                ('project_analytic_account_id', 'in', site_analytic_ids)
+            ]).unlink()
+            project_domain = [('picking_id.x_issuance_project_id', 'in', site_analytic_ids)]
+        else:
+            self.sudo().search([]).unlink()
+            project_domain = []
 
         StockMove = self.env['stock.move'].sudo()
+        base_domain = [
+            ('state', '=', 'done'),
+            ('picking_id.x_transfer_purpose', '=', 'material_issuance'),
+            ('picking_id.x_issuance_project_id', '!=', False),
+        ]
+
         # Issuances: done moves on material issuance pickings (not returns)
         # x_issuance_project_id is the analytic field on site_operations stock.picking
-        issuance_moves = StockMove.search([
-            ('state', '=', 'done'),
-            ('picking_id.x_transfer_purpose', '=', 'material_issuance'),
-            ('picking_id.x_is_return_transfer', '=', False),
-            ('picking_id.x_issuance_project_id', '!=', False),
-        ])
+        issuance_moves = StockMove.search(
+            base_domain + [('picking_id.x_is_return_transfer', '=', False)] + project_domain
+        )
         # Returns: return picking moves (same purpose, is_return_transfer=True)
-        return_moves = StockMove.search([
-            ('state', '=', 'done'),
-            ('picking_id.x_transfer_purpose', '=', 'material_issuance'),
-            ('picking_id.x_is_return_transfer', '=', True),
-            ('picking_id.x_issuance_project_id', '!=', False),
-        ])
+        return_moves = StockMove.search(
+            base_domain + [('picking_id.x_is_return_transfer', '=', True)] + project_domain
+        )
 
         # Aggregate by project + product
         data = {}
@@ -88,7 +110,7 @@ class MaterialCostConsumption(models.Model):
             records.append(entry)
 
         if records:
-            self.create(records)
+            self.sudo().create(records)
 
         return {
             'type': 'ir.actions.act_window',

@@ -66,7 +66,7 @@ class StockPickingSiteOps(models.Model):
     # ── Returns ───────────────────────────────────────────────────────────────
     x_is_return_transfer = fields.Boolean(string='Is Return', default=False)
     x_original_issuance_id = fields.Many2one(
-        'stock.picking', string='Original Issuance', readonly=True)
+        'stock.picking', string='Original Issuance')
     x_return_type = fields.Selection([
         ('normal', 'Normal Return'),
         ('damaged', 'Damaged / Lost'),
@@ -142,6 +142,16 @@ class StockPickingSiteOps(models.Model):
         string='Site WH View Location',
     )
 
+    # ── Backcharge records auto-created on return validation ─────────────────
+    x_employee_backcharge_id = fields.Many2one(
+        'x.employee.backcharge', string='Employee Backcharge',
+        readonly=True, copy=False,
+        help='Auto-created when return with damage is validated for an employee.')
+    x_sub_backcharge_id = fields.Many2one(
+        'x.subcontractor.backcharge', string='Subcontractor Backcharge',
+        readonly=True, copy=False,
+        help='Auto-created when return with damage is validated for a subcontractor.')
+
     # ── Smart button counts ───────────────────────────────────────────────────
     x_return_count = fields.Integer(
         string='Return Transfers', compute='_compute_x_return_count', store=False)
@@ -149,6 +159,10 @@ class StockPickingSiteOps(models.Model):
         string='Backcharge Entries', compute='_compute_entry_counts', store=False)
     x_interproject_entry_count = fields.Integer(
         string='Inter-Project Entries', compute='_compute_entry_counts', store=False)
+    x_employee_backcharge_count = fields.Integer(
+        compute='_compute_return_backcharge_counts', store=False)
+    x_sub_backcharge_count = fields.Integer(
+        compute='_compute_return_backcharge_counts', store=False)
 
     # ─────────────────────────────────────────────────────────────────────────
     # COMPUTE
@@ -294,13 +308,29 @@ class StockPickingSiteOps(models.Model):
                     if warehouse and warehouse.lot_stock_id:
                         res['location_id'] = warehouse.lot_stock_id.id
 
-            if res.get('x_transfer_purpose') == 'material_issuance' and not res.get('location_dest_id'):
-                customer_loc = self.env['stock.location'].search([
-                    ('usage', '=', 'customer'),
-                    ('company_id', 'in', [False, self.env.company.id]),
-                ], limit=1)
-                if customer_loc:
-                    res['location_dest_id'] = customer_loc.id
+            if res.get('x_transfer_purpose') == 'material_issuance':
+                if not res.get('x_is_return_transfer'):
+                    # Forward issuance: destination = Employees or Subcontractor
+                    # Always force-set (picking type default for internal = stock loc)
+                    issue_loc_id = self._matracon_site_issue_location_id(res)
+                    if issue_loc_id:
+                        res['location_dest_id'] = issue_loc_id
+                    elif not res.get('location_dest_id'):
+                        # Fallback to generic customer location only if nothing else was set
+                        customer_loc = self.env['stock.location'].search([
+                            ('usage', '=', 'customer'),
+                            ('company_id', 'in', [False, self.env.company.id]),
+                        ], limit=1)
+                        if customer_loc:
+                            res['location_dest_id'] = customer_loc.id
+                else:
+                    # Return: source = issue location (Employees/Sub), dest = site stock
+                    issue_loc_id = self._matracon_site_issue_location_id(res)
+                    stock_loc_id = self._matracon_site_stock_location_id(res)
+                    if issue_loc_id:
+                        res['location_id'] = issue_loc_id
+                    if stock_loc_id:
+                        res['location_dest_id'] = stock_loc_id
             res.setdefault('x_generate_gate_pass', True)
             # Assets never get auto-backcharge on issuance; only consumables do
             if (res.get('x_issue_type') == 'subcontractor'
@@ -334,10 +364,122 @@ class StockPickingSiteOps(models.Model):
         """Refresh outstanding materials summary live in the form."""
         self._compute_outstanding_materials()
 
+    @api.onchange('x_contact_id', 'x_issue_type')
+    def _onchange_return_auto_load(self):
+        """Auto-load outstanding items when Contact + Issue Type are set on a return.
+
+        No button click needed — selecting the contact immediately populates all
+        outstanding issued items for that contact on this project/type.
+        Locations are automatically reversed (from issuance dest → back to site stock).
+        """
+        if not self.x_is_return_transfer:
+            return
+        if not self.x_contact_id or not self.x_issue_type:
+            # Clear lines when contact is removed
+            self.move_ids = [(5, 0, 0)]
+            return
+
+        # Resolve project — use user default if not explicitly set
+        project = self.x_issuance_project_id
+        if not project:
+            user = self.env.user
+            if hasattr(user, 'x_default_analytic_account_id') and user.x_default_analytic_account_id:
+                project = user.x_default_analytic_account_id
+        if not project:
+            return
+
+        # ── Find all done issuances for this contact/project/type ─────────────
+        domain = [
+            ('x_transfer_purpose', '=', 'material_issuance'),
+            ('x_contact_id', '=', self.x_contact_id.id),
+            ('x_issuance_project_id', '=', project.id),
+            ('x_issue_type', '=', self.x_issue_type),
+            ('state', '=', 'done'),
+            ('x_is_return_transfer', '=', False),
+        ]
+        if self.x_inventory_type:
+            domain.append(('x_inventory_type', '=', self.x_inventory_type))
+        issuances = self.env['stock.picking'].sudo().search(domain, order='scheduled_date desc')
+        if not issuances:
+            self.move_ids = [(5, 0, 0)]
+            return
+
+        # ── Set return locations from site config (not reversing old issuance) ──
+        # Always use the canonical site locations so old issuances with wrong
+        # destination don't propagate the error into returns.
+        ref = issuances[0]
+        self.picking_type_id = ref.picking_type_id
+
+        issue_loc = self._get_site_issue_location()   # MCH/Employees or MCH/Subcontractor
+        stock_loc = self._get_site_stock_location()    # MCH/Stock
+
+        if issue_loc and stock_loc:
+            src_loc = issue_loc   # return FROM employees/sub
+            dest_loc = stock_loc  # return TO stock
+        else:
+            # Fallback: reverse original issuance locations
+            src_loc = ref.location_dest_id
+            dest_loc = ref.location_id
+
+        self.location_id = src_loc
+        self.location_dest_id = dest_loc
+
+        # ── Aggregate total issued per product ────────────────────────────────
+        issued_data = {}
+        for iss in issuances:
+            for move in iss.move_ids.filtered(lambda m: m.state == 'done' and m.product_id):
+                key = (move.product_id.id, move.product_uom.id)
+                if key not in issued_data:
+                    issued_data[key] = {
+                        'product': move.product_id,
+                        'uom': move.product_uom,
+                        'qty': 0.0,
+                    }
+                issued_data[key]['qty'] += move.quantity
+
+        # ── Aggregate previously returned (done returns for this contact) ──────
+        prev_returns = self.env['stock.picking'].sudo().search([
+            ('x_is_return_transfer', '=', True),
+            ('x_contact_id', '=', self.x_contact_id.id),
+            ('x_issuance_project_id', '=', project.id),
+            ('x_issue_type', '=', self.x_issue_type),
+            ('state', '=', 'done'),
+        ])
+        returned_data = {}
+        for ret in prev_returns:
+            for move in ret.move_ids.filtered(lambda m: m.state == 'done' and m.product_id):
+                pid = move.product_id.id
+                returned_data[pid] = returned_data.get(pid, 0.0) + move.quantity
+
+        # ── Build move commands for outstanding items ──────────────────────────
+        new_line_cmds = [(5, 0, 0)]  # clear existing
+
+        for (pid, uid), data in issued_data.items():
+            total_issued = data['qty']
+            already_returned = returned_data.get(pid, 0.0)
+            outstanding = total_issued - already_returned
+            if outstanding > 0.001:
+                new_line_cmds.append((0, 0, {
+                    'product_id': pid,
+                    'product_uom_qty': outstanding,
+                    'quantity': outstanding,
+                    'product_uom': uid,
+                    'location_id': src_loc.id,
+                    'location_dest_id': dest_loc.id,
+                    'x_unit_cost': data['product'].standard_price,
+                    'x_issued_qty': total_issued,
+                    'x_prev_returned_qty': already_returned,
+                    'x_outstanding_return_qty': outstanding,
+                }))
+
+        self.move_ids = new_line_cmds
+
     @api.onchange('x_issuance_project_id', 'x_transfer_purpose')
     def _onchange_issuance_project_location(self):
-        """Set source location from site warehouse when project is known."""
-        if self.x_transfer_purpose != 'material_issuance':
+        """Set source location from site warehouse when project is known.
+        Also refreshes the destination to match the current issue type.
+        """
+        if self.x_transfer_purpose != 'material_issuance' or self.x_is_return_transfer:
             return
         loc = self._get_site_stock_location()
         if loc:
@@ -345,11 +487,20 @@ class StockPickingSiteOps(models.Model):
             warehouse = self._get_site_warehouse()
             if warehouse and warehouse.int_type_id:
                 self.picking_type_id = warehouse.int_type_id
+        # Also update destination to site-specific issue location
+        issue_loc = self._get_site_issue_location()
+        if issue_loc:
+            self.location_dest_id = issue_loc
 
     @api.onchange('picking_type_id', 'x_transfer_purpose')
     def _onchange_site_ops_picking_type(self):
         """Ensure source/dest locations are set for material issuance forms."""
         if self.x_transfer_purpose not in ('material_issuance', 'site_to_site'):
+            return
+        if self.x_is_return_transfer:
+            # Locations for returns are set by _onchange_return_auto_load
+            if not self.scheduled_date:
+                self.scheduled_date = fields.Datetime.now()
             return
         if self.x_transfer_purpose == 'material_issuance':
             loc = self._get_site_stock_location()
@@ -366,18 +517,41 @@ class StockPickingSiteOps(models.Model):
 
     @api.onchange('x_contact_id', 'x_issue_type')
     def _onchange_contact_destination(self):
-        """Set delivery destination for material issuance."""
-        if self.x_transfer_purpose != 'material_issuance':
+        """Set delivery destination for material issuance based on issue type and contact.
+        Returns skip this — their locations are managed by _onchange_return_auto_load.
+        """
+        if self.x_transfer_purpose != 'material_issuance' or self.x_is_return_transfer:
             return
-        if self.x_contact_id and self.x_contact_id.property_stock_customer:
-            self.location_dest_id = self.x_contact_id.property_stock_customer
-        elif not self.location_dest_id:
-            customer_loc = self.env['stock.location'].search([
-                ('usage', '=', 'customer'),
-                ('company_id', 'in', [False, self.env.company.id]),
+
+        # 1st priority: site-specific issue location (Employees / Subcontractor)
+        loc = self._get_site_issue_location()
+        if loc:
+            self.location_dest_id = loc
+            return
+
+        # 2nd priority: type-specific virtual location (name-based fallback)
+        loc = False
+        if self.x_issue_type == 'normal':
+            loc = self.env['stock.location'].search([
+                ('usage', 'in', ('customer', 'internal')),
+                ('name', 'ilike', 'employee'),
             ], limit=1)
-            if customer_loc:
-                self.location_dest_id = customer_loc
+        elif self.x_issue_type == 'subcontractor':
+            loc = self.env['stock.location'].search([
+                ('usage', 'in', ('customer', 'internal')),
+                ('name', 'ilike', 'subcontractor'),
+            ], limit=1)
+        if loc:
+            self.location_dest_id = loc
+            return
+
+        # 3rd priority: generic customer location (last resort fallback)
+        customer_loc = self.env['stock.location'].search([
+            ('usage', '=', 'customer'),
+            ('company_id', 'in', [False, self.env.company.id]),
+        ], limit=1)
+        if customer_loc:
+            self.location_dest_id = customer_loc
 
     @api.onchange('x_dest_project_id', 'x_transfer_purpose')
     def _onchange_site_to_site_locations(self):
@@ -406,6 +580,50 @@ class StockPickingSiteOps(models.Model):
             return self.env['x.project.site.config']
         return self.env['x.project.site.config'].sudo().search(
             [('analytic_account_id', '=', analytic_account.id)], limit=1)
+
+    def _get_site_issue_location(self, issue_type=None):
+        """Return the site-specific issue location (Employees or Subcontractor).
+
+        Lazily creates the locations if they don't exist yet on the site config,
+        then re-reads the record from DB so cached-empty values are refreshed.
+        """
+        self.ensure_one()
+        config = self._get_site_config_for_analytic(self.x_issuance_project_id)
+        if not config:
+            return self.env['stock.location']
+        # Lazy-ensure locations exist (idempotent, no-op after first run)
+        if not config.x_employee_location_id or not config.x_subcontractor_location_id:
+            config._matracon_ensure_site_issue_locations()
+            # Invalidate ORM cache so the just-written location ids are visible
+            config.invalidate_recordset(['x_employee_location_id', 'x_subcontractor_location_id'])
+        iss_type = issue_type or self.x_issue_type or 'normal'
+        if iss_type == 'subcontractor':
+            return config.x_subcontractor_location_id
+        return config.x_employee_location_id
+
+    @api.model
+    def _matracon_site_issue_location_id(self, vals=None):
+        """Resolve the site issue location id for use in default_get / create."""
+        vals = vals or {}
+        analytic_id = vals.get('x_issuance_project_id')
+        issue_type = vals.get('x_issue_type', 'normal')
+        config = None
+        if analytic_id:
+            config = self.env['x.project.site.config'].sudo().search(
+                [('analytic_account_id', '=', analytic_id)], limit=1)
+        if not config:
+            user = self.env.user
+            if hasattr(user, 'x_site_config_id') and user.x_site_config_id:
+                config = user.x_site_config_id.sudo()
+        if not config:
+            return False
+        # Lazy-ensure locations exist; invalidate cache so new ids are visible
+        if not config.x_employee_location_id or not config.x_subcontractor_location_id:
+            config._matracon_ensure_site_issue_locations()
+            config.invalidate_recordset(['x_employee_location_id', 'x_subcontractor_location_id'])
+        if issue_type == 'subcontractor':
+            return config.x_subcontractor_location_id.id or False
+        return config.x_employee_location_id.id or False
 
     def _get_outstanding_qty(self, product, contact, project, exclude_picking=None):
         """Qty still outstanding for product/contact on this project."""
@@ -469,7 +687,8 @@ class StockPickingSiteOps(models.Model):
                                             pt.default_location_src_id.id if pt.default_location_src_id else False)
                         vals.setdefault('location_dest_id',
                                         pt.default_location_dest_id.id if pt.default_location_dest_id else False)
-                if vals.get('x_transfer_purpose') == 'material_issuance':
+                if (vals.get('x_transfer_purpose') == 'material_issuance'
+                        and not vals.get('x_is_return_transfer')):
                     site_loc_id = self._matracon_site_stock_location_id(vals)
                     if site_loc_id:
                         vals['location_id'] = site_loc_id
@@ -485,13 +704,20 @@ class StockPickingSiteOps(models.Model):
                         if warehouse and warehouse.lot_stock_id:
                             vals['location_id'] = warehouse.lot_stock_id.id
 
-                if vals.get('x_transfer_purpose') == 'material_issuance' and not vals.get('location_dest_id'):
-                    customer_loc = self.env['stock.location'].search([
-                        ('usage', '=', 'customer'),
-                        ('company_id', 'in', [False, self.env.company.id]),
-                    ], limit=1)
-                    if customer_loc:
-                        vals['location_dest_id'] = customer_loc.id
+                if (vals.get('x_transfer_purpose') == 'material_issuance'
+                        and not vals.get('x_is_return_transfer')):
+                    # Always force site-specific destination — overrides picking type default
+                    issue_loc_id = self._matracon_site_issue_location_id(vals)
+                    if issue_loc_id:
+                        vals['location_dest_id'] = issue_loc_id
+                    elif not vals.get('location_dest_id'):
+                        # Fallback to generic customer location
+                        customer_loc = self.env['stock.location'].search([
+                            ('usage', '=', 'customer'),
+                            ('company_id', 'in', [False, self.env.company.id]),
+                        ], limit=1)
+                        if customer_loc:
+                            vals['location_dest_id'] = customer_loc.id
                 if (vals.get('x_transfer_purpose') == 'site_to_site'
                         and not vals.get('x_is_dest_receipt')
                         and vals.get('x_dest_project_id')
@@ -504,6 +730,43 @@ class StockPickingSiteOps(models.Model):
     # ─────────────────────────────────────────────────────────────────────────
     # COMPUTE METHODS
     # ─────────────────────────────────────────────────────────────────────────
+
+    @api.depends(
+        'picking_type_id', 'partner_id',
+        'x_transfer_purpose', 'x_issue_type',
+        'x_issuance_project_id', 'x_is_return_transfer',
+    )
+    def _compute_location_id(self):
+        """Extend base compute — for material issuances use site-specific locations.
+
+        Base Odoo sets both locations to the picking type's defaults whenever
+        picking_type_id changes.  For internal picking types that means both
+        location_id and location_dest_id become the site stock (e.g. MCH/Stock).
+        We override here so that:
+          • Forward issuance → source = site stock, dest = Employees / Subcontractor
+          • Return           → source = Employees / Subcontractor, dest = site stock
+        """
+        super()._compute_location_id()
+        for picking in self:
+            if picking.x_transfer_purpose != 'material_issuance':
+                continue
+            if picking.state in ('done', 'cancel') or picking.return_id:
+                continue
+            if not picking.x_is_return_transfer:
+                # Forward issuance: destination must be the issue location
+                issue_loc = picking._get_site_issue_location()
+                if issue_loc:
+                    picking.location_dest_id = issue_loc
+                stock_loc = picking._get_site_stock_location()
+                if stock_loc:
+                    picking.location_id = stock_loc
+            else:
+                # Return: source = issue location (Employees/Sub), dest = site stock
+                issue_loc = picking._get_site_issue_location()
+                stock_loc = picking._get_site_stock_location()
+                if issue_loc and stock_loc:
+                    picking.location_id = issue_loc
+                    picking.location_dest_id = stock_loc
 
     @api.depends('move_ids.x_line_backcharge_amount')
     def _compute_backcharge_amount(self):
@@ -574,8 +837,20 @@ class StockPickingSiteOps(models.Model):
                     '<th style="padding:4px 8px; text-align:left;">UoM</th>'
                     '</tr></thead><tbody>'
                 )
+                PREVIEW_ROWS = 2
+                visible = lines[:PREVIEW_ROWS]
+                hidden_count = len(lines) - PREVIEW_ROWS
+                body = ''.join(visible)
+                if hidden_count > 0:
+                    body += (
+                        '<tr><td colspan="3" style="padding:4px 8px; '
+                        'color:#6c757d; font-style:italic; '
+                        'border-top:1px dashed #dee2e6;">'
+                        f'+ {hidden_count} more item(s) — see <b>Site Operations</b> tab for full list'
+                        '</td></tr>'
+                    )
                 pick.x_outstanding_materials_html = (
-                    header + ''.join(lines) + '</tbody></table>'
+                    header + body + '</tbody></table>'
                 )
             else:
                 pick.x_outstanding_materials_html = (
@@ -638,6 +913,11 @@ class StockPickingSiteOps(models.Model):
             pick.x_interproject_entry_count = (
                 1 if pick.x_interproject_entry_id else 0
             )
+
+    def _compute_return_backcharge_counts(self):
+        for pick in self:
+            pick.x_employee_backcharge_count = 1 if pick.x_employee_backcharge_id else 0
+            pick.x_sub_backcharge_count = 1 if pick.x_sub_backcharge_id else 0
 
     # ─────────────────────────────────────────────────────────────────────────
     # SITE-TO-SITE APPROVAL
@@ -714,6 +994,35 @@ class StockPickingSiteOps(models.Model):
 
     def button_validate(self):
         for pick in self:
+            if pick.x_transfer_purpose == 'material_issuance':
+                # ── Contact is mandatory for both issuances and returns ────────
+                if not pick.x_contact_id:
+                    raise UserError(_(
+                        'Issuance Contact is required.\n\n'
+                        'Please select the employee or subcontractor '
+                        'before validating.'
+                    ))
+                # ── Demand must not exceed available stock (issuances only) ───
+                if not pick.x_is_return_transfer:
+                    for move in pick.move_ids.filtered(
+                        lambda m: m.product_id and m.product_uom_qty > 0
+                    ):
+                        avail = move.product_id.with_context(
+                            location=pick.location_id.id
+                        ).qty_available
+                        if move.product_uom_qty > avail + 0.001:
+                            raise UserError(_(
+                                'Insufficient stock for "%(product)s".\n\n'
+                                'Demanded: %(demand).2f %(uom)s\n'
+                                'Available at %(loc)s: %(avail).2f %(uom)s\n\n'
+                                'Please adjust the quantity or replenish stock first.'
+                            ) % {
+                                'product': move.product_id.display_name,
+                                'demand': move.product_uom_qty,
+                                'uom': move.product_uom.name,
+                                'loc': pick.location_id.display_name,
+                                'avail': avail,
+                            })
             if pick.x_transfer_purpose == 'material_issuance' and not pick.x_is_return_transfer:
                 pick._check_duplicate_asset_issuance()
             if (pick.x_transfer_purpose == 'site_to_site'
@@ -793,43 +1102,238 @@ class StockPickingSiteOps(models.Model):
             move.location_dest_id = scrap_loc
 
     def _check_return_quantities(self):
-        """Prevent returning more than was originally issued (minus previous returns)."""
+        """Prevent returning more than was issued minus previous returns.
+
+        Works without an original issuance reference — validates against ALL
+        done issuances for this contact/project/type.
+        """
         self.ensure_one()
-        orig = self.x_original_issuance_id
-        if not orig:
+        if not self.x_is_return_transfer:
+            return
+        if not self.x_contact_id or not self.x_issuance_project_id:
             return
 
-        # Previous done returns for the same original (excluding self)
-        prev_returns = self.search([
-            ('x_original_issuance_id', '=', orig.id),
-            ('state', '=', 'done'),
-            ('id', '!=', self._origin.id if self._origin else self.id),
-        ])
+        existing_id = (
+            self._origin.id
+            if hasattr(self, '_origin') and self._origin and isinstance(self._origin.id, int)
+            else (self.id if isinstance(self.id, int) else False)
+        )
 
-        for move in self.move_ids:
-            issued = sum(
-                m.quantity for m in orig.move_ids
-                if m.product_id == move.product_id and m.state == 'done'
-            )
-            already_returned = sum(
-                m.quantity for ret in prev_returns
-                for m in ret.move_ids
-                if m.product_id == move.product_id
-            )
-            outstanding = issued - already_returned
-            if move.quantity > outstanding + 0.001:
+        # ── Total issued per product for this contact/project/type ────────────
+        iss_domain = [
+            ('x_transfer_purpose', '=', 'material_issuance'),
+            ('x_contact_id', '=', self.x_contact_id.id),
+            ('x_issuance_project_id', '=', self.x_issuance_project_id.id),
+            ('state', '=', 'done'),
+            ('x_is_return_transfer', '=', False),
+        ]
+        if self.x_issue_type:
+            iss_domain.append(('x_issue_type', '=', self.x_issue_type))
+        if self.x_inventory_type:
+            iss_domain.append(('x_inventory_type', '=', self.x_inventory_type))
+        issuances = self.search(iss_domain)
+
+        issued_by_product = {}
+        for iss in issuances:
+            for move in iss.move_ids.filtered(lambda m: m.state == 'done' and m.product_id):
+                pid = move.product_id.id
+                issued_by_product[pid] = issued_by_product.get(pid, 0.0) + move.quantity
+
+        # ── Total already returned per product (excluding self) ───────────────
+        ret_domain = [
+            ('x_is_return_transfer', '=', True),
+            ('x_contact_id', '=', self.x_contact_id.id),
+            ('x_issuance_project_id', '=', self.x_issuance_project_id.id),
+            ('state', '=', 'done'),
+        ]
+        if existing_id:
+            ret_domain.append(('id', '!=', existing_id))
+        prev_returns = self.search(ret_domain)
+
+        returned_by_product = {}
+        for ret in prev_returns:
+            for move in ret.move_ids.filtered(lambda m: m.state == 'done' and m.product_id):
+                pid = move.product_id.id
+                returned_by_product[pid] = returned_by_product.get(pid, 0.0) + move.quantity
+
+        # ── Validate each return line ─────────────────────────────────────────
+        for move in self.move_ids.filtered(lambda m: m.product_id):
+            pid = move.product_id.id
+            total_issued = issued_by_product.get(pid, 0.0)
+            already_returned = returned_by_product.get(pid, 0.0)
+            outstanding = max(total_issued - already_returned, 0.0)
+            return_qty = move.quantity or move.product_uom_qty
+            if return_qty > outstanding + 0.001:
                 raise UserError(_(
-                    'Cannot return %(qty).2f %(uom)s of "%(product)s".\n'
-                    'Originally issued: %(issued).2f — Already returned: %(ret).2f — '
-                    'Outstanding: %(out).2f'
+                    'Return quantity exceeds outstanding for "%(product)s".\n\n'
+                    'Total Issued: %(issued).2f %(uom)s\n'
+                    'Previously Returned: %(ret).2f %(uom)s\n'
+                    'Outstanding: %(out).2f %(uom)s\n'
+                    'You are trying to return: %(qty).2f %(uom)s'
                 ) % {
-                    'qty': move.quantity,
-                    'uom': move.product_uom.name,
                     'product': move.product_id.display_name,
-                    'issued': issued,
+                    'issued': total_issued,
                     'ret': already_returned,
                     'out': outstanding,
+                    'qty': return_qty,
+                    'uom': move.product_uom.name,
                 })
+
+    def action_load_return_lines(self):
+        """Load all outstanding issued items for this contact/project/type.
+
+        Called from the "Load Outstanding Items" button on the return form.
+        No need to select the original issuance — the system finds all relevant
+        issuances from the selected Contact, Issue Type, Inventory Type and Project.
+        """
+        self.ensure_one()
+        if not self.x_contact_id:
+            raise UserError(_('Please select an Issuance Contact first.'))
+        if not self.x_issuance_project_id:
+            raise UserError(_('Please select a Project first.'))
+        if not self.x_issue_type:
+            raise UserError(_('Please select an Issue Type (Normal or Subcontractor).'))
+        if not self.x_inventory_type:
+            raise UserError(_('Please select an Inventory Type (Asset or Consumable).'))
+
+        # ── Find all done issuances for this contact/project/type ─────────────
+        domain = [
+            ('x_transfer_purpose', '=', 'material_issuance'),
+            ('x_contact_id', '=', self.x_contact_id.id),
+            ('x_issuance_project_id', '=', self.x_issuance_project_id.id),
+            ('x_issue_type', '=', self.x_issue_type),
+            ('x_inventory_type', '=', self.x_inventory_type),
+            ('state', '=', 'done'),
+            ('x_is_return_transfer', '=', False),
+        ]
+        issuances = self.search(domain, order='scheduled_date desc')
+        if not issuances:
+            raise UserError(_(
+                'No issued materials found for %(contact)s on project %(project)s '
+                '(%(type)s / %(inv)s).\n\n'
+                'Make sure materials have been issued and validated first.'
+            ) % {
+                'contact': self.x_contact_id.name,
+                'project': self.x_issuance_project_id.display_name,
+                'type': dict(self.fields_get(['x_issue_type'])['x_issue_type']['selection']
+                             ).get(self.x_issue_type, self.x_issue_type),
+                'inv': dict(self.fields_get(['x_inventory_type'])['x_inventory_type']['selection']
+                            ).get(self.x_inventory_type, self.x_inventory_type),
+            })
+
+        # ── Set picking type and locations ────────────────────────────────────
+        # Use canonical site locations so old issuances with wrong dest don't
+        # corrupt returns. Source = employee/sub location, dest = site stock.
+        ref = issuances[0]
+        issue_loc = self._get_site_issue_location()   # MCH/Employees or MCH/Subcontractor
+        stock_loc = self._get_site_stock_location()    # MCH/Stock
+
+        if issue_loc and stock_loc:
+            src_loc_id = issue_loc.id
+            dest_loc_id = stock_loc.id
+        else:
+            src_loc_id = ref.location_dest_id.id
+            dest_loc_id = ref.location_id.id
+
+        # Write picking_type_id FIRST — the base stock.picking.write() resets
+        # location_id and location_dest_id to the picking type's defaults whenever
+        # picking_type_id changes.  After this write, _compute_location_id fires
+        # and (via our override) sets the correct site locations for a return.
+        self.write({
+            'x_is_return_transfer': True,
+            'x_transfer_purpose': 'material_issuance',
+            'picking_type_id': ref.picking_type_id.id,
+        })
+        # Write locations separately so no picking_type_id-triggered override runs.
+        # This is belt-and-suspenders on top of our _compute_location_id override.
+        self.write({
+            'location_id': src_loc_id,
+            'location_dest_id': dest_loc_id,
+        })
+
+        # ── Remove any existing draft lines ───────────────────────────────────
+        self.move_ids.filtered(lambda m: m.state == 'draft').sudo().unlink()
+
+        # ── Aggregate total issued qty per product ────────────────────────────
+        issued_data = {}   # key=(product_id, uom_id) → {'product': ..., 'uom': ..., 'qty': ...}
+        for iss in issuances:
+            for move in iss.move_ids.filtered(lambda m: m.state == 'done' and m.product_id):
+                key = (move.product_id.id, move.product_uom.id)
+                if key not in issued_data:
+                    issued_data[key] = {
+                        'product': move.product_id,
+                        'uom': move.product_uom,
+                        'qty': 0.0,
+                    }
+                issued_data[key]['qty'] += move.quantity
+
+        # ── Aggregate previously returned qty per product ─────────────────────
+        existing_id = (
+            self._origin.id
+            if hasattr(self, '_origin') and self._origin and isinstance(self._origin.id, int)
+            else (self.id if isinstance(self.id, int) else False)
+        )
+        prev_return_domain = [
+            ('x_is_return_transfer', '=', True),
+            ('x_contact_id', '=', self.x_contact_id.id),
+            ('x_issuance_project_id', '=', self.x_issuance_project_id.id),
+            ('x_issue_type', '=', self.x_issue_type),
+            ('x_inventory_type', '=', self.x_inventory_type),
+            ('state', '=', 'done'),
+        ]
+        if existing_id:
+            prev_return_domain.append(('id', '!=', existing_id))
+        prev_returns = self.search(prev_return_domain)
+
+        returned_data = {}
+        for ret in prev_returns:
+            for move in ret.move_ids.filtered(lambda m: m.state == 'done' and m.product_id):
+                key = (move.product_id.id, move.product_uom.id)
+                returned_data[key] = returned_data.get(key, 0.0) + move.quantity
+
+        # ── Create lines for each product with outstanding qty ────────────────
+        new_moves = []
+        # src_loc_id / dest_loc_id already resolved above from site config
+
+        for key, data in issued_data.items():
+            pid, uid = key
+            total_issued = data['qty']
+            already_returned = returned_data.get(key, 0.0)
+            outstanding = total_issued - already_returned
+            if outstanding > 0.001:
+                new_moves.append({
+                    'picking_id': self.id,
+                    'product_id': pid,
+                    'product_uom_qty': outstanding,
+                    'quantity': outstanding,
+                    'product_uom': uid,
+                    'location_id': src_loc_id,
+                    'location_dest_id': dest_loc_id,
+                    'x_unit_cost': data['product'].standard_price,
+                    # Context columns shown in the operations table
+                    'x_issued_qty': total_issued,
+                    'x_prev_returned_qty': already_returned,
+                    'x_outstanding_return_qty': outstanding,
+                })
+
+        if not new_moves:
+            raise UserError(_(
+                'No outstanding items to return for %(contact)s.\n\n'
+                'All previously issued quantities have already been returned.'
+            ) % {'contact': self.x_contact_id.name})
+
+        self.env['stock.move'].sudo().create(new_moves)
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'type': 'success',
+                'message': _(
+                    '%(count)d product(s) loaded with outstanding quantities for %(contact)s.'
+                ) % {'count': len(new_moves), 'contact': self.x_contact_id.name},
+                'sticky': False,
+            },
+        }
 
     def _post_validate_material_issuance(self):
         """Post backcharge journal + liability sheet only for subcontractor + consumable + backcharge."""
@@ -927,6 +1431,93 @@ class StockPickingSiteOps(models.Model):
                 and not self.x_damage_backcharge_entry_id
                 and orig.x_inventory_type != 'asset'):
             self._post_validate_damage_backcharge(orig)
+
+        # ── Create x.employee.backcharge for normal-issue returns with damage ─
+        if (orig.x_issue_type == 'normal'
+                and self.x_contact_id
+                and not self.x_employee_backcharge_id):
+            damage_amount = 0.0
+            if self.x_return_type == 'damaged':
+                damage_amount = sum(self.move_ids.mapped('x_damage_amount'))
+                if not damage_amount and orig.x_inventory_type == 'asset':
+                    damage_amount = sum(
+                        m.quantity * m.product_id.standard_price
+                        for m in self.move_ids if m.state == 'done')
+            elif (orig.x_inventory_type == 'asset'
+                    and self.x_return_backcharge_applicable
+                    and self.x_return_backcharge_amount):
+                damage_amount = self.x_return_backcharge_amount
+            if damage_amount > 0:
+                employee = self.env['hr.employee'].search([
+                    '|',
+                    ('work_contact_id', '=', self.x_contact_id.id),
+                    ('address_id', '=', self.x_contact_id.id),
+                ], limit=1)
+                if not employee:
+                    employee = self.env['hr.employee'].search([
+                        ('name', 'ilike', self.x_contact_id.name),
+                    ], limit=1)
+                if employee:
+                    products_desc = ', '.join(
+                        m.product_id.display_name
+                        for m in self.move_ids if m.product_id
+                    )
+                    bc = self.env['x.employee.backcharge'].sudo().create({
+                        'employee_id': employee.id,
+                        'project_analytic_account_id': (
+                            self.x_issuance_project_id.id
+                            if self.x_issuance_project_id else False),
+                        'description': _('Return from %(ref)s — %(products)s') % {
+                            'ref': self.name,
+                            'products': products_desc[:200],
+                        },
+                        'backcharge_amount': damage_amount,
+                        'backcharge_date': fields.Date.context_today(self),
+                        'issue_date': (orig.scheduled_date.date()
+                                       if orig.scheduled_date else False),
+                        'notes': self.x_return_remarks or '',
+                    })
+                    self.x_employee_backcharge_id = bc
+                    self.message_post(
+                        body=Markup(_(
+                            'Employee Backcharge <b>%s</b> (%.2f) created for %s.'
+                        )) % (bc.name, damage_amount, employee.name)
+                    )
+
+        # ── Create x.subcontractor.backcharge for sub returns with damage ─────
+        if (orig.x_issue_type == 'subcontractor'
+                and self.x_contact_id
+                and not self.x_sub_backcharge_id):
+            damage_amount = 0.0
+            if self.x_return_type == 'damaged':
+                damage_amount = sum(self.move_ids.mapped('x_damage_amount'))
+                if not damage_amount and orig.x_inventory_type == 'asset':
+                    damage_amount = sum(
+                        m.quantity * m.product_id.standard_price
+                        for m in self.move_ids if m.state == 'done')
+            elif (orig.x_inventory_type == 'asset'
+                    and self.x_return_backcharge_applicable
+                    and self.x_return_backcharge_amount):
+                damage_amount = self.x_return_backcharge_amount
+            if damage_amount > 0 and self.x_issuance_project_id:
+                products_desc = ', '.join(
+                    m.product_id.display_name for m in self.move_ids if m.product_id)
+                bc = self.env['x.subcontractor.backcharge'].sudo().create({
+                    'subcontractor_id': self.x_contact_id.id,
+                    'project_analytic_account_id': self.x_issuance_project_id.id,
+                    'description': _('Material Return %(ref)s — %(products)s') % {
+                        'ref': self.name,
+                        'products': products_desc[:200],
+                    },
+                    'amount': damage_amount,
+                    'date': fields.Date.context_today(self),
+                })
+                self.x_sub_backcharge_id = bc
+                self.message_post(
+                    body=Markup(_(
+                        'Subcontractor Backcharge <b>%s</b> (%.2f) created.'
+                    )) % (bc.name, damage_amount)
+                )
 
     def _post_validate_damage_backcharge(self, original):
         """Separate damage backcharge for incomplete / damaged asset returns."""
@@ -1403,6 +1994,37 @@ class StockPickingSiteOps(models.Model):
             'res_model': 'stock.picking',
             'view_mode': 'list,form',
             'domain': [('x_original_issuance_id', '=', self.id)],
+            'context': {
+                'default_x_is_return_transfer': True,
+                'default_x_transfer_purpose': 'material_issuance',
+                'default_x_original_issuance_id': self.id,
+            },
+        }
+
+    def action_view_employee_backcharge(self):
+        """Open the employee backcharge linked to this return."""
+        self.ensure_one()
+        if not self.x_employee_backcharge_id:
+            return False
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Employee Backcharge'),
+            'res_model': 'x.employee.backcharge',
+            'view_mode': 'form',
+            'res_id': self.x_employee_backcharge_id.id,
+        }
+
+    def action_view_sub_backcharge(self):
+        """Open the subcontractor backcharge linked to this return."""
+        self.ensure_one()
+        if not self.x_sub_backcharge_id:
+            return False
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Subcontractor Backcharge'),
+            'res_model': 'x.subcontractor.backcharge',
+            'view_mode': 'form',
+            'res_id': self.x_sub_backcharge_id.id,
         }
 
     def action_view_backcharge_entries(self):

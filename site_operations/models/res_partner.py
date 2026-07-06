@@ -7,6 +7,12 @@ class ResPartnerSiteOps(models.Model):
 
     x_cnic = fields.Char(string='CNIC', tracking=True)
 
+    x_description = fields.Char(
+        string='Description',
+        help='Brief description of this contact (e.g. "Cement Supplier", "Labour Contractor"). '
+             'Appears on Liability Sheet lines as "Tag (Description)".'
+    )
+
     x_is_project_entity = fields.Boolean(
         string='Internal Project Entity',
         default=False,

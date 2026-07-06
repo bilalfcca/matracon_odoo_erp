@@ -65,7 +65,7 @@
                                 <div class="card-body py-3">
                                     <small class="matracon-mgmt-kpi__label">Total Liabilities</small>
                                     <div class="matracon-mgmt-kpi__value text-danger">
-                                        <field name="kpi_total_liabilities" widget="monetary" nolabel="1" readonly="1"/>
+                                        <field name="kpi_total_liabilities" widget="kpi_amount" nolabel="1" readonly="1"/>
                                     </div>
                                     <button name="action_open_liability_sheets" type="object"
                                             string="View All" class="btn btn-sm btn-link p-0"/>
@@ -78,7 +78,7 @@
                                 <div class="card-body py-3">
                                     <small class="matracon-mgmt-kpi__label">Payments Made</small>
                                     <div class="matracon-mgmt-kpi__value">
-                                        <field name="kpi_payments_made" widget="monetary" nolabel="1" readonly="1"/>
+                                        <field name="kpi_payments_made" widget="kpi_amount" nolabel="1" readonly="1"/>
                                     </div>
                                     <button name="action_open_payments_made" type="object"
                                             string="View All" class="btn btn-sm btn-link p-0"/>
@@ -91,7 +91,7 @@
                                 <div class="card-body py-3">
                                     <small class="matracon-mgmt-kpi__label">Payments Received</small>
                                     <div class="matracon-mgmt-kpi__value">
-                                        <field name="kpi_payments_received" widget="monetary" nolabel="1" readonly="1"/>
+                                        <field name="kpi_payments_received" widget="kpi_amount" nolabel="1" readonly="1"/>
                                     </div>
                                     <button name="action_open_payments_received" type="object"
                                             string="View All" class="btn btn-sm btn-link p-0"/>
@@ -104,7 +104,7 @@
                                 <div class="card-body py-3">
                                     <small class="matracon-mgmt-kpi__label">Net Balance</small>
                                     <div class="matracon-mgmt-kpi__value">
-                                        <field name="kpi_net_balance" widget="monetary" nolabel="1" readonly="1"/>
+                                        <field name="kpi_net_balance" widget="kpi_amount" nolabel="1" readonly="1"/>
                                     </div>
                                     <button name="action_open_project_financial_overview" type="object"
                                             string="Projects" class="btn btn-sm btn-link p-0 text-white"/>
@@ -117,7 +117,7 @@
                                 <div class="card-body py-3">
                                     <small class="matracon-mgmt-kpi__label">Bank Balance</small>
                                     <div class="matracon-mgmt-kpi__value">
-                                        <field name="kpi_bank_balance" widget="monetary" nolabel="1" readonly="1"/>
+                                        <field name="kpi_bank_balance" widget="kpi_amount" nolabel="1" readonly="1"/>
                                     </div>
                                     <button name="action_open_bank_journals" type="object"
                                             string="View Banks" class="btn btn-sm btn-link p-0"/>
@@ -130,7 +130,7 @@
                                 <div class="card-body py-3">
                                     <small class="matracon-mgmt-kpi__label">Project Available</small>
                                     <div class="matracon-mgmt-kpi__value">
-                                        <field name="kpi_project_available" widget="monetary" nolabel="1" readonly="1"/>
+                                        <field name="kpi_project_available" widget="kpi_amount" nolabel="1" readonly="1"/>
                                     </div>
                                     <button name="action_open_project_financial_overview" type="object"
                                             string="View All" class="btn btn-sm btn-link p-0"/>
@@ -143,7 +143,7 @@
                                 <div class="card-body py-3">
                                     <small class="matracon-mgmt-kpi__label">Petty Cash</small>
                                     <div class="matracon-mgmt-kpi__value">
-                                        <field name="kpi_petty_cash" widget="monetary" nolabel="1" readonly="1"/>
+                                        <field name="kpi_petty_cash" widget="kpi_amount" nolabel="1" readonly="1"/>
                                     </div>
                                     <button name="action_open_petty_cash" type="object"
                                             string="View All" class="btn btn-sm btn-link p-0"/>
@@ -156,7 +156,7 @@
                                 <div class="card-body py-3">
                                     <small class="matracon-mgmt-kpi__label">BG Utilized</small>
                                     <div class="matracon-mgmt-kpi__value">
-                                        <field name="kpi_bg_utilized" widget="monetary" nolabel="1" readonly="1"/>
+                                        <field name="kpi_bg_utilized" widget="kpi_amount" nolabel="1" readonly="1"/>
                                     </div>
                                     <button name="action_open_bank_guarantees" type="object"
                                             string="View BGs" class="btn btn-sm btn-link p-0"/>
@@ -169,7 +169,7 @@
                                 <div class="card-body py-3">
                                     <small class="matracon-mgmt-kpi__label">Site Inventory</small>
                                     <div class="matracon-mgmt-kpi__value" style="color: #fd7e14;">
-                                        <field name="kpi_inventory_value" widget="monetary" nolabel="1" readonly="1"/>
+                                        <field name="kpi_inventory_value" widget="kpi_amount" nolabel="1" readonly="1"/>
                                     </div>
                                     <button name="action_open_inventory_bills" type="object"
                                             string="View Bills" class="btn btn-sm btn-link p-0"/>

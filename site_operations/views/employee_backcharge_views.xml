@@ -29,7 +29,7 @@
                     <group>
                         <group string="Employee">
                             <field name="employee_id"/>
-                            <field name="project_analytic_account_id" string="Site Project"/>
+                            <field name="project_analytic_account_id" string="Site Project" readonly="1"/>
                         </group>
                         <group string="Amounts">
                             <field name="currency_id" invisible="1"/>

@@ -1,4 +1,4 @@
-from odoo import models, fields, api
+from odoo import models, fields, api, _
 
 
 class StockMoveSiteOps(models.Model):
@@ -95,6 +95,35 @@ class StockMoveSiteOps(models.Model):
         string='Damage Charge',
         help='Backcharge for damaged / incomplete asset returns.')
 
+    # ── Return context columns (set by action_load_return_lines) ─────────────
+    x_issued_qty = fields.Float(
+        string='Total Issued',
+        readonly=True,
+        digits='Product Unit of Measure',
+        help='Total quantity issued to this contact across all previous issuances.')
+    x_prev_returned_qty = fields.Float(
+        string='Prev Returned',
+        readonly=True,
+        digits='Product Unit of Measure',
+        help='Quantity already returned before this return transfer.')
+    x_outstanding_return_qty = fields.Float(
+        string='Outstanding',
+        readonly=True,
+        digits='Product Unit of Measure',
+        help='Still outstanding = Total Issued − Previously Returned.')
+
+    x_asset_value = fields.Float(
+        string='Asset Value',
+        compute='_compute_x_asset_value',
+        store=False,
+        help='Estimated value: Done qty × product standard cost (shown on asset returns).')
+
+    @api.depends('product_uom_qty', 'quantity', 'product_id.standard_price')
+    def _compute_x_asset_value(self):
+        for move in self:
+            qty = move.quantity or move.product_uom_qty or 0.0
+            move.x_asset_value = qty * (move.product_id.standard_price or 0.0)
+
     @api.depends('x_unit_cost', 'product_uom_qty')
     def _compute_line_backcharge(self):
         for move in self:
@@ -116,3 +145,22 @@ class StockMoveSiteOps(models.Model):
     def _onchange_qty_cost(self):
         if self.x_unit_cost:
             self.x_line_backcharge_amount = self.x_unit_cost * self.product_uom_qty
+
+    @api.onchange('product_uom_qty')
+    def _onchange_return_qty_check(self):
+        """Warn immediately when Returning Now exceeds Outstanding."""
+        if not self.x_outstanding_return_qty:
+            return
+        if self.product_uom_qty > self.x_outstanding_return_qty + 0.001:
+            return {
+                'warning': {
+                    'title': _('Quantity Exceeds Outstanding'),
+                    'message': _(
+                        '"Returning Now" (%(qty)s) cannot exceed "Outstanding" (%(out)s) for %(product)s.'
+                    ) % {
+                        'qty': self.product_uom_qty,
+                        'out': self.x_outstanding_return_qty,
+                        'product': self.product_id.display_name if self.product_id else '',
+                    },
+                }
+            }

@@ -790,7 +790,12 @@ class ManagementDashboard(models.TransientModel):
                 'ipc_name': ipc.name,
                 'subcontractor_name': ipc.subcontractor_id.name or '',
                 'project_name': ipc.project_analytic_account_id.name or '',
-                'period': ipc.period,
+                'period': (
+                    '%s – %s' % (
+                        ipc.ipc_date_from.strftime('%d-%b-%Y') if ipc.ipc_date_from else '?',
+                        ipc.ipc_date.strftime('%d-%b-%Y') if ipc.ipc_date else '?',
+                    ) if (ipc.ipc_date_from or ipc.ipc_date) else ''
+                ),
                 'ipc_date': ipc.ipc_date,
                 'gross_work_done': ipc.gross_work_done,
                 'total_deductions': ipc.total_deductions,

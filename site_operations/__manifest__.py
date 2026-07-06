@@ -96,6 +96,8 @@
             'site_operations/static/src/js/attendance_grid_colors.js',
             # Real-time thousand-separator formatting for all numeric inputs
             'site_operations/static/src/js/realtime_thousand_sep.js',
+            # KPI amount widget: no currency sign, millions/K shorthand
+            'site_operations/static/src/js/kpi_amount_widget.js',
         ],
     },
     'demo': [

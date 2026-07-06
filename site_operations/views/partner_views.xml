@@ -18,6 +18,14 @@
                 <attribute name="help">Tag this contact. When creating from Site Procurement, the "Local Supplier" tag is required.</attribute>
             </field>
 
+            <!-- ── Description field — shown on Liability Sheet lines as "Tag (Description)" ── -->
+            <field name="category_id" position="after">
+                <field name="x_description"
+                       string="Description"
+                       placeholder="e.g. Cement Supplier, Labour Contractor"
+                       help="Brief description. Appears on Liability Sheet lines as Tag (Description)."/>
+            </field>
+
             <xpath expr="//div[@name='button_box']" position="inside">
                 <button name="action_view_material_issuances"
                         type="object"

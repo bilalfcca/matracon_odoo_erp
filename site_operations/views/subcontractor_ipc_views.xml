@@ -99,7 +99,7 @@
                             <field name="subcontractor_id"
                                    readonly="state != 'draft'"/>
                             <field name="project_analytic_account_id"
-                                   readonly="state != 'draft'"/>
+                                   readonly="1"/>
                             <field name="ipc_date"
                                    string="IPC Date (Period To)"
                                    readonly="state != 'draft'"/>
@@ -149,15 +149,21 @@
                     <group string="Deductions">
 
                         <!-- a) Retention Money -->
-                        <group string="a)  Retention Money @ 5%">
+                        <group string="a)  Retention Money">
+                            <field name="retention_pct"
+                                   string="Retention Rate (%)"
+                                   readonly="state != 'draft'"
+                                   widget="float"
+                                   options="{'type': 'number'}"
+                                   help="Retention percentage deducted from each IPC. Default 5%."/>
                             <field name="total_retention_cumulative"
-                                   string="Total Retention @5% up to this IPC"
+                                   string="Total Retention up to this IPC"
                                    readonly="1"/>
                             <field name="previous_retention_amount"
                                    string="Already Retained up to Previous IPC"
                                    readonly="1"/>
                             <field name="retention_amount"
-                                   string="To be Retained this IPC"
+                                   string="To be Retained in this IPC"
                                    readonly="1"
                                    class="fw-bold"/>
                         </group>
@@ -197,6 +203,12 @@
 
                     <!-- e) Back Charges (auto-populated) -->
                     <group string="e)  Back Charges (auto-populated for this Subcontractor &amp; Project)">
+                        <div class="mb-2" invisible="state != 'draft'">
+                            <button name="action_refresh_backcharges"
+                                    type="object"
+                                    string="↺  Refresh Backcharges"
+                                    class="btn btn-sm btn-secondary"/>
+                        </div>
                         <field name="backcharge_line_ids"
                                nolabel="1"
                                readonly="state != 'draft'">

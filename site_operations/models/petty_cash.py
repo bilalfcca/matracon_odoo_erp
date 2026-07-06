@@ -486,7 +486,6 @@ class PettyCashExpense(models.Model):
 
     # ── Onchanges ─────────────────────────────────────────────────────────────
 
-    @api.onchange('fund_id')
     @api.model_create_multi
     def create(self, vals_list):
         """Auto-generate x_ref with site-based prefix if not already provided."""
@@ -502,6 +501,7 @@ class PettyCashExpense(models.Model):
                     'x.petty.cash.expense', site_code)
         return super().create(vals_list)
 
+    @api.onchange('fund_id')
     def _onchange_fund_fill_accounting(self):
         """Auto-fill petty cash account and cash journal when fund changes."""
         if not self.fund_id:

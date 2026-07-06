@@ -63,6 +63,13 @@
               sequence="25"
               groups="purchase_demand_raise.group_site_store,purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
+    <menuitem id="menu_material_return"
+              name="Material Return"
+              parent="stock.menu_stock_transfers"
+              action="site_operations.action_material_return"
+              sequence="26"
+              groups="purchase_demand_raise.group_site_store,purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
     <menuitem id="menu_site_to_site_transfers"
               name="Site-to-Site Transfers"
               parent="stock.menu_stock_transfers"
@@ -70,12 +77,64 @@
               sequence="26"
               groups="purchase_demand_raise.group_site_store,purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
-    <!-- Inventory → Products (read-only browse for Site Store users) -->
-    <menuitem id="menu_site_store_products"
-              name="Products"
-              parent="stock.menu_stock_inventory_control"
-              action="stock.product_template_action_product"
-              sequence="1"
+
+    <!-- ── Inventory → Reports (Site Store Reporting Hub) ───────────────────
+         A dedicated Reports section under Inventory for site store users.
+         Sequence 97 sits just before the standard manager Reporting (99).
+    ──────────────────────────────────────────────────────────────────────── -->
+    <menuitem id="menu_inventory_site_reports"
+              name="Reports"
+              parent="stock.menu_stock_root"
+              sequence="97"
+              groups="purchase_demand_raise.group_site_store,purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
+    <menuitem id="menu_site_report_stock_movements"
+              name="Stock Movements"
+              parent="site_operations.menu_inventory_site_reports"
+              action="site_operations.action_site_store_stock_movements"
+              sequence="10"
+              groups="purchase_demand_raise.group_site_store,purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
+    <menuitem id="menu_site_report_current_stock"
+              name="Current Stock"
+              parent="site_operations.menu_inventory_site_reports"
+              action="site_operations.action_site_store_current_stock"
+              sequence="20"
+              groups="purchase_demand_raise.group_site_store,purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
+    <menuitem id="menu_site_report_issuances"
+              name="Material Issuances"
+              parent="site_operations.menu_inventory_site_reports"
+              action="site_operations.action_material_issuance_only"
+              sequence="30"
+              groups="purchase_demand_raise.group_site_store,purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
+    <menuitem id="menu_site_report_returns"
+              name="Material Returns"
+              parent="site_operations.menu_inventory_site_reports"
+              action="site_operations.action_material_return"
+              sequence="40"
+              groups="purchase_demand_raise.group_site_store,purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
+    <menuitem id="menu_site_report_employee_backcharges"
+              name="Employee Backcharges"
+              parent="site_operations.menu_inventory_site_reports"
+              action="site_operations.action_employee_backcharge"
+              sequence="50"
+              groups="purchase_demand_raise.group_site_store,purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
+    <menuitem id="menu_site_report_sub_backcharges"
+              name="Subcontractor Backcharges"
+              parent="site_operations.menu_inventory_site_reports"
+              action="site_operations.action_subcontractor_backcharge"
+              sequence="60"
+              groups="purchase_demand_raise.group_site_store,purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
+    <menuitem id="menu_site_report_material_cost"
+              name="Material Cost Consumption"
+              parent="site_operations.menu_inventory_site_reports"
+              action="site_operations.action_material_cost_report"
+              sequence="70"
               groups="purchase_demand_raise.group_site_store,purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
     <!-- Inventory → Reporting → S2S Material Transfer Register -->

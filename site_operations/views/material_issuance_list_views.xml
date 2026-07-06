@@ -152,19 +152,118 @@
         <field name="search_view_id" ref="view_material_issuance_search"/>
     </record>
 
-    <!-- ── Window Action: Material Issuance Only ─────────────────────────── -->
+    <!-- ── Window Action: Material Issuance Only (excludes returns) ─────────── -->
     <record id="action_material_issuance_only" model="ir.actions.act_window">
         <field name="name">Material Issuance</field>
         <field name="res_model">stock.picking</field>
         <field name="view_mode">list,form</field>
-        <field name="domain">[('x_transfer_purpose', '=', 'material_issuance')]</field>
-        <field name="context">{'default_x_transfer_purpose': 'material_issuance'}</field>
+        <field name="domain">[('x_transfer_purpose', '=', 'material_issuance'), ('x_is_return_transfer', '=', False)]</field>
+        <field name="context">{'default_x_transfer_purpose': 'material_issuance', 'default_x_is_return_transfer': False}</field>
         <field name="view_ids" eval="[
             (5, 0, 0),
             (0, 0, {'view_mode': 'list', 'view_id': ref('view_material_issuance_list')}),
             (0, 0, {'view_mode': 'form', 'view_id': ref('stock.view_picking_form')}),
         ]"/>
         <field name="search_view_id" ref="view_material_issuance_search"/>
+    </record>
+
+    <!-- ── List View: Material Returns ───────────────────────────────────── -->
+    <record id="view_material_return_list" model="ir.ui.view">
+        <field name="name">stock.picking.material.return.list</field>
+        <field name="model">stock.picking</field>
+        <field name="arch" type="xml">
+            <list string="Material Returns"
+                  decoration-danger="state == 'cancel'"
+                  decoration-muted="state == 'draft'"
+                  decoration-warning="state in ('waiting', 'confirmed', 'assigned')">
+                <field name="name" string="Reference"/>
+                <field name="x_original_issuance_id" string="Original Issuance"/>
+                <field name="x_contact_id" string="Returned By"/>
+                <field name="x_issuance_project_id" string="Project" optional="show"/>
+                <field name="x_return_type" string="Return Type" optional="show" widget="badge"/>
+                <field name="x_inventory_type" string="Type" optional="show" widget="badge"/>
+                <field name="state" string="Status" widget="badge"
+                       decoration-success="state == 'done'"
+                       decoration-danger="state == 'cancel'"
+                       decoration-muted="state == 'draft'"
+                       decoration-warning="state in ('waiting', 'confirmed', 'assigned')"/>
+                <field name="x_employee_backcharge_id" string="Employee BC" optional="show"/>
+                <field name="x_sub_backcharge_id" string="Sub BC" optional="show"/>
+                <field name="x_return_backcharge_amount" string="Backcharge Amt" optional="show"/>
+                <field name="scheduled_date" string="Date" optional="show"/>
+                <field name="x_is_return_transfer" column_invisible="True"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ── Search View: Material Returns ─────────────────────────────────── -->
+    <record id="view_material_return_search" model="ir.ui.view">
+        <field name="name">stock.picking.material.return.search</field>
+        <field name="model">stock.picking</field>
+        <field name="arch" type="xml">
+            <search string="Search Returns">
+                <field name="name" string="Reference"/>
+                <field name="x_contact_id" string="Returned By"/>
+                <field name="x_original_issuance_id" string="Original Issuance"/>
+                <field name="x_issuance_project_id" string="Project"/>
+                <separator/>
+                <filter name="filter_done" string="Done" domain="[('state', '=', 'done')]"/>
+                <filter name="filter_draft" string="Draft" domain="[('state', '=', 'draft')]"/>
+                <filter name="filter_asset" string="Asset" domain="[('x_inventory_type', '=', 'asset')]"/>
+                <filter name="filter_consumable" string="Consumable" domain="[('x_inventory_type', '=', 'consumable')]"/>
+                <filter name="filter_damaged" string="Damaged" domain="[('x_return_type', '=', 'damaged')]"/>
+                <filter name="filter_backcharged" string="With Backcharge"
+                        domain="[('x_return_backcharge_applicable', '=', True)]"/>
+                <separator/>
+                <filter name="group_by_project" string="Group by Project"
+                        context="{'group_by': 'x_issuance_project_id'}"/>
+                <filter name="group_by_contact" string="Group by Contact"
+                        context="{'group_by': 'x_contact_id'}"/>
+                <filter name="group_by_type" string="Group by Type"
+                        context="{'group_by': 'x_inventory_type'}"/>
+            </search>
+        </field>
+    </record>
+
+    <!-- ── Window Action: Material Returns ───────────────────────────────── -->
+    <record id="action_material_return" model="ir.actions.act_window">
+        <field name="name">Material Returns</field>
+        <field name="res_model">stock.picking</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('x_transfer_purpose', '=', 'material_issuance'), ('x_is_return_transfer', '=', True)]</field>
+        <field name="context">{
+            'default_x_is_return_transfer': True,
+            'default_x_transfer_purpose': 'material_issuance'
+        }</field>
+        <field name="view_ids" eval="[
+            (5, 0, 0),
+            (0, 0, {'view_mode': 'list', 'view_id': ref('view_material_return_list')}),
+            (0, 0, {'view_mode': 'form', 'view_id': ref('stock.view_picking_form')}),
+        ]"/>
+        <field name="search_view_id" ref="view_material_return_search"/>
+    </record>
+
+    <!-- ── Window Actions: Site Store Reporting ─────────────────────────── -->
+
+    <!-- Stock Movements: all done moves scoped to user's warehouse via record rule -->
+    <record id="action_site_store_stock_movements" model="ir.actions.act_window">
+        <field name="name">Stock Movements</field>
+        <field name="res_model">stock.move</field>
+        <field name="view_mode">list,pivot,graph</field>
+        <field name="domain">[('state', '=', 'done')]</field>
+        <field name="context">{
+            'search_default_groupby_product': 0,
+            'group_by': [],
+        }</field>
+    </record>
+
+    <!-- Current Stock: on-hand quantities at internal locations -->
+    <record id="action_site_store_current_stock" model="ir.actions.act_window">
+        <field name="name">Current Stock</field>
+        <field name="res_model">stock.quant</field>
+        <field name="view_mode">list,pivot,graph</field>
+        <field name="domain">[('location_id.usage', '=', 'internal')]</field>
+        <field name="context">{}</field>
     </record>
 
     <!-- ── Window Action: Site-to-Site Transfers Only ────────────────────── -->

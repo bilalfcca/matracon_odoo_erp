@@ -67,6 +67,10 @@
                 </header>
 
                 <sheet>
+                    <!-- Sheet totals label + stat buttons -->
+                    <div class="mb-1" style="font-size:11px; font-weight:600; text-transform:uppercase; color:#6c757d; letter-spacing:0.5px;">
+                        This Sheet Totals
+                    </div>
                     <div class="oe_button_box" name="button_box">
                         <button name="action_view_payments"
                                 type="object"
@@ -97,16 +101,18 @@
                         </button>
                     </div>
 
+                    <field name="x_is_site_accountant" invisible="1"/>
+
                     <div class="oe_title">
                         <h1>
-                            <field name="name" readonly="1" placeholder="LS/PROJECT/Mon-YYYY-Mon-YYYY"/>
+                            <field name="name" readonly="1" placeholder="LS/PROJECT/001"/>
                         </h1>
                     </div>
 
                     <group name="header_fields">
                         <group name="left">
                             <field name="project_analytic_account_id"
-                                   readonly="state not in ['draft']"/>
+                                   readonly="1"/>
                             <field name="date_from"
                                    readonly="state not in ['draft']"/>
                             <field name="date_to"
@@ -114,13 +120,24 @@
                         </group>
                     </group>
 
-                    <!-- PM physical signature upload (no PM user field — PM has no license) -->
+                    <!-- PM physical signature — title differs by role -->
+                    <!-- Site Accountant sees the "(Required before Submit)" reminder -->
                     <group string="PM Signed Document (Required before Submit)"
-                           invisible="state == 'paid'">
+                           invisible="state == 'paid' or not x_is_site_accountant">
                         <field name="pm_signed_sheet"
                                widget="binary"
                                filename="pm_signed_sheet_filename"
                                string="Upload PM Signed Copy"
+                               readonly="state not in ['draft']"/>
+                        <field name="pm_signed_sheet_filename" invisible="1"/>
+                    </group>
+                    <!-- Finance / CEO / others see the plain label -->
+                    <group string="PM Signed Document"
+                           invisible="state == 'paid' or x_is_site_accountant">
+                        <field name="pm_signed_sheet"
+                               widget="binary"
+                               filename="pm_signed_sheet_filename"
+                               string="PM Signed Copy"
                                readonly="state not in ['draft']"/>
                         <field name="pm_signed_sheet_filename" invisible="1"/>
                     </group>
@@ -139,12 +156,10 @@
                                     <field name="liability_amount" readonly="1"/>
                                     <field name="recommended_amount"
                                            readonly="parent.state != 'draft'"/>
-                                    <field name="decision"
-                                           readonly="parent.state != 'submitted' or is_locked or not x_is_ceo"/>
+                                    <!-- Approved: manually entered by CEO only; hidden from site accountant -->
                                     <field name="approved_amount"
+                                           column_invisible="parent.x_is_site_accountant and parent.state == 'draft'"
                                            readonly="parent.state != 'submitted' or is_locked or not x_is_ceo"/>
-                                    <field name="approved_pct" optional="show" readonly="1"/>
-                                    <field name="remarks" optional="show"/>
                                     <field name="paid_amount" readonly="1" optional="show"/>
                                     <field name="balance" readonly="1" optional="show"/>
                                     <field name="payment_id" optional="hide" readonly="1"/>

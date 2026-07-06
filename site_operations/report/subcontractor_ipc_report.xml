@@ -128,7 +128,7 @@
                                 <tr>
                                     <td></td>
                                     <td style="padding-left:24px;">
-                                        a. Total Retention Money @5.0% up to this IPC
+                                        a. Total Retention Money @<t t-esc="ipc.retention_pct"/>% up to this IPC
                                     </td>
                                     <td class="text-end">
                                         <t t-esc="ipc.total_retention_cumulative"

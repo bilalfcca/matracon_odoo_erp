@@ -41,7 +41,7 @@
                             <field name="subcontractor_id"
                                    readonly="state == 'processed'"/>
                             <field name="project_analytic_account_id"
-                                   readonly="state == 'processed'"/>
+                                   readonly="1"/>
                             <field name="date"
                                    readonly="state == 'processed'"/>
                             <field name="currency_id" invisible="1"/>
