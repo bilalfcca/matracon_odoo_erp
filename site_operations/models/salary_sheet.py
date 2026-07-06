@@ -37,7 +37,7 @@ class SalarySheet(models.Model):
     total_allowances = fields.Monetary(compute='_compute_totals', store=True)
     total_deductions = fields.Monetary(compute='_compute_totals', store=True)
     total_net = fields.Monetary(compute='_compute_totals', store=True)
-    total_wht = fields.Monetary(compute='_compute_totals', store=False)
+    total_wht = fields.Monetary(compute='_compute_totals', store=True)
     currency_id = fields.Many2one(
         'res.currency', default=lambda self: self.env.company.currency_id)
     wht_certificate_count = fields.Integer(compute='_compute_wht_certificate_count')
