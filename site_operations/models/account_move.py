@@ -313,6 +313,17 @@ class AccountMoveSiteOps(models.Model):
                 move._create_fbr_wht_payment_draft()
         # Recompute project billed amount for any customer invoices just posted
         self._matracon_update_project_billed_amount()
+
+        # Auto-sync liability sheets for direct journal entries (MISC etc.) that
+        # carry payable lines with analytic distribution.  Vendor bills are already
+        # handled above; backcharge-generated entries are excluded via x_source_picking_id.
+        for move in self.filtered(
+            lambda m: m.move_type == 'entry'
+            and m.state == 'posted'
+            and not m.x_source_picking_id
+        ):
+            move._ensure_liability_from_journal_entry()
+
         return res
 
     def button_draft(self):
@@ -526,6 +537,102 @@ class AccountMoveSiteOps(models.Model):
                 'x_total_vendor_liability', 'x_available_balance',
                 'x_funds_received', 'x_total_spent',
             ])
+
+    def _ensure_liability_from_journal_entry(self):
+        """Auto-create or update the liability sheet when a direct journal entry
+        (move_type='entry', e.g. MISC) is posted that has payable lines with
+        analytic_distribution set.
+
+        Unlike vendor bills (which populate x_project_analytic_account_id on the
+        move header), plain journal entries only carry the project via the line-level
+        analytic_distribution JSON field.  This method reads that field, finds/creates
+        the matching liability sheet for the entry's month, and computes accurate
+        opening and period amounts from the full partner ledger.
+        """
+        self.ensure_one()
+
+        payable_lines = self.line_ids.filtered(
+            lambda l: (
+                l.account_id.account_type == 'liability_payable'
+                and l.partner_id
+                and l.analytic_distribution
+            )
+        )
+        if not payable_lines:
+            return
+
+        entry_date = self.date or fields.Date.today()
+        month_start = entry_date.replace(day=1)
+        month_end = (month_start + relativedelta(months=1)) - relativedelta(days=1)
+        LiabilitySheet = self.env['x.liability.sheet'].sudo()
+        AML = self.env['account.move.line'].sudo()
+
+        # Collect {analytic_id: set(partner_ids)} from the payable lines
+        analytic_partners = {}
+        for aml in payable_lines:
+            for analytic_id_str in (aml.analytic_distribution or {}):
+                aid = int(analytic_id_str)
+                analytic_partners.setdefault(aid, set()).add(aml.partner_id.id)
+
+        for analytic_id, partner_ids in analytic_partners.items():
+            analytic = self.env['account.analytic.account'].sudo().browse(analytic_id)
+            if not analytic.exists():
+                continue
+
+            # Find or create the draft/submitted liability sheet for this month + project
+            sheet = LiabilitySheet.search([
+                ('project_analytic_account_id', '=', analytic_id),
+                ('date_from', '=', month_start),
+                ('state', 'in', ['draft', 'submitted']),
+            ], limit=1)
+            if not sheet:
+                sheet = LiabilitySheet.create({
+                    'project_analytic_account_id': analytic_id,
+                    'date_from': month_start,
+                    'date_to': month_end,
+                })
+
+            str_analytic_id = str(analytic_id)
+
+            def _in_project(l, _aid=analytic_id, _said=str_analytic_id):
+                if l.move_id.x_project_analytic_account_id.id == _aid:
+                    return True
+                return _said in (l.analytic_distribution or {})
+
+            for partner_id in partner_ids:
+                # Compute accurate amounts from the full partner ledger
+                candidate = AML.search([
+                    ('partner_id', '=', partner_id),
+                    ('move_id.state', '=', 'posted'),
+                    ('account_id.account_type', '=', 'liability_payable'),
+                ]).filtered(_in_project)
+
+                opening_lines = candidate.filtered(
+                    lambda l: l.move_id.date < sheet.date_from and not l.reconciled
+                )
+                opening = max(0.0, sum(l.credit - l.debit for l in opening_lines))
+
+                period_lines = candidate.filtered(
+                    lambda l: sheet.date_from <= l.move_id.date <= sheet.date_to
+                )
+                new_liab = sum(l.credit - l.debit for l in period_lines)
+
+                existing_line = sheet.line_ids.filtered(
+                    lambda l: l.partner_id.id == partner_id
+                )
+                if existing_line:
+                    existing_line[0].write({
+                        'opening_balance': round(opening, 2),
+                        'new_liability': round(new_liab, 2),
+                    })
+                else:
+                    partner_rec = self.env['res.partner'].browse(partner_id)
+                    sheet.write({'line_ids': [(0, 0, {
+                        'partner_id': partner_id,
+                        'description': partner_rec.name,
+                        'opening_balance': round(opening, 2),
+                        'new_liability': round(new_liab, 2),
+                    })]})
 
     def _create_fbr_wht_payment_draft(self):
         """Draft outbound payment to FBR when WHT is set on vendor bill."""

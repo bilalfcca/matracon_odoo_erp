@@ -382,45 +382,110 @@ class LiabilitySheet(models.Model):
 
     def action_refresh_from_ledger(self):
         """Pull opening_balance and new_liability from actual partner ledger entries,
-        scoped to this liability sheet's project so totals are never mixed across sites."""
+        scoped to this liability sheet's project so totals are never mixed across sites.
+
+        Works for both vendor bills (x_project_analytic_account_id on the move header)
+        and direct journal entries (analytic_distribution on the individual payable line).
+        Also auto-adds lines for partners found in the ledger but not yet on the sheet.
+        """
         AML = self.env['account.move.line'].sudo()
         for sheet in self:
+            analytic_id = (
+                sheet.project_analytic_account_id.id
+                if sheet.project_analytic_account_id else None
+            )
+            str_analytic_id = str(analytic_id) if analytic_id else None
+
+            def _in_project(aml_line, _aid=analytic_id, _said=str_analytic_id):
+                """True when this line belongs to the sheet's analytic project.
+
+                Checks the move-level field (vendor bills) AND the line-level
+                analytic_distribution (direct MISC journal entries).
+                """
+                if not _aid:
+                    return True  # no analytic filter — include everything
+                if aml_line.move_id.x_project_analytic_account_id.id == _aid:
+                    return True
+                return _said in (aml_line.analytic_distribution or {})
+
+            # ── 1. Refresh amounts on already-existing lines ──────────────────
             for line in sheet.line_ids:
                 if not line.partner_id:
                     continue
 
-                base_domain = [
+                # Fetch all posted payable lines for this partner, then filter
+                # by project in Python so both move-level and line-level analytics
+                # are honoured (ORM domain cannot query inside JSON fields).
+                all_lines = AML.search([
                     ('partner_id', '=', line.partner_id.id),
                     ('move_id.state', '=', 'posted'),
                     ('account_id.account_type', '=', 'liability_payable'),
-                ]
+                ]).filtered(_in_project)
 
-                # Scope to this sheet's project so figures from other sites are excluded.
-                if sheet.project_analytic_account_id:
-                    base_domain.append(
-                        ('move_id.x_project_analytic_account_id', '=',
-                         sheet.project_analytic_account_id.id)
-                    )
-
-                # Use move_id.date (always set on every journal entry and vendor bill)
-                # instead of invoice_date which is NULL on plain journal entries
-                # such as backcharge entries, causing those amounts to be missed.
-                opening_lines = AML.search(base_domain + [
-                    ('move_id.date', '<', sheet.date_from),
-                    ('reconciled', '=', False),
-                ])
+                # Use move_id.date: always set on journal entries; invoice_date is
+                # NULL on plain journal entries and would cause amounts to be missed.
+                opening_lines = all_lines.filtered(
+                    lambda l: l.move_id.date < sheet.date_from and not l.reconciled
+                )
                 opening = max(0.0, sum(l.credit - l.debit for l in opening_lines))
 
-                period_lines = AML.search(base_domain + [
-                    ('move_id.date', '>=', sheet.date_from),
-                    ('move_id.date', '<=', sheet.date_to),
-                ])
+                period_lines = all_lines.filtered(
+                    lambda l: sheet.date_from <= l.move_id.date <= sheet.date_to
+                )
                 new_liab = sum(l.credit - l.debit for l in period_lines)
 
                 line.write({
                     'opening_balance': round(opening, 2),
                     'new_liability': round(new_liab, 2),
                 })
+
+            # ── 2. Auto-discover partners in the ledger not yet on the sheet ──
+            # Uses raw SQL so we can leverage PostgreSQL's native JSONB '?' key-
+            # existence operator to match analytic_distribution without loading
+            # every move line into the ORM.
+            if analytic_id:
+                existing_partner_ids = sheet.line_ids.mapped('partner_id').ids or [0]
+                self.env.cr.execute("""
+                    SELECT DISTINCT aml.partner_id
+                    FROM account_move_line aml
+                    JOIN account_move     am  ON am.id  = aml.move_id
+                    JOIN account_account  aa  ON aa.id  = aml.account_id
+                    WHERE am.state = 'posted'
+                      AND aa.account_type = 'liability_payable'
+                      AND aml.partner_id IS NOT NULL
+                      AND aml.partner_id != ALL(%s)
+                      AND am.date <= %s
+                      AND (
+                          am.x_project_analytic_account_id = %s
+                          OR (aml.analytic_distribution IS NOT NULL
+                              AND aml.analytic_distribution ? %s)
+                      )
+                """, [existing_partner_ids, sheet.date_to, analytic_id, str_analytic_id])
+                new_partner_ids = [row[0] for row in self.env.cr.fetchall()]
+
+                for partner_id in new_partner_ids:
+                    all_lines = AML.search([
+                        ('partner_id', '=', partner_id),
+                        ('move_id.state', '=', 'posted'),
+                        ('account_id.account_type', '=', 'liability_payable'),
+                    ]).filtered(_in_project)
+
+                    opening_lines = all_lines.filtered(
+                        lambda l: l.move_id.date < sheet.date_from and not l.reconciled
+                    )
+                    opening = max(0.0, sum(l.credit - l.debit for l in opening_lines))
+
+                    period_lines = all_lines.filtered(
+                        lambda l: sheet.date_from <= l.move_id.date <= sheet.date_to
+                    )
+                    new_liab = sum(l.credit - l.debit for l in period_lines)
+
+                    if opening > 0 or new_liab != 0:
+                        sheet.sudo().write({'line_ids': [(0, 0, {
+                            'partner_id': partner_id,
+                            'opening_balance': round(opening, 2),
+                            'new_liability': round(new_liab, 2),
+                        })]})
 
             sheet.message_post(
                 body=Markup(_('Liability amounts refreshed from partner ledger by <b>%s</b>.'))
