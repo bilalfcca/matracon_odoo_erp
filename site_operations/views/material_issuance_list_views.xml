@@ -238,7 +238,7 @@
         <field name="view_ids" eval="[
             (5, 0, 0),
             (0, 0, {'view_mode': 'list', 'view_id': ref('view_material_return_list')}),
-            (0, 0, {'view_mode': 'form', 'view_id': ref('stock.view_picking_form')}),
+            (0, 0, {'view_mode': 'form', 'view_id': ref('view_material_return_form')}),
         ]"/>
         <field name="search_view_id" ref="view_material_return_search"/>
     </record>

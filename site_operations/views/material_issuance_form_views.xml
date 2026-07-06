@@ -366,10 +366,12 @@
                        column_invisible="not parent.x_is_return_transfer"/>
             </xpath>
 
-            <!-- Demand → "Returning Now" label on returns; hidden other fields -->
+            <!-- Rename "Demand" → "Quantity" on the issuance form.
+                 The return form (view_material_return_form, mode=primary) applies its
+                 own arch AFTER extension views and relabels this to "Returning Now". -->
             <xpath expr="//field[@name='move_ids']/list/field[@name='product_uom_qty']"
                    position="attributes">
-                <attribute name="string">Returning Now</attribute>
+                <attribute name="string">Quantity</attribute>
             </xpath>
 
             <!-- After Demand: backcharge for issuances; nothing extra for returns -->
@@ -394,6 +396,27 @@
                        column_invisible="parent.x_inventory_type != 'asset' or not parent.x_is_return_transfer"/>
             </xpath>
 
+        </field>
+    </record>
+
+    <!-- ════════════════════════════════════════════════════════════════════
+         Material Return Form (primary mode)
+         Opens only when action_material_return explicitly selects this view.
+         All extension views of stock.view_picking_form (including the override
+         above) still apply — they show/hide columns via x_is_return_transfer.
+         This primary view's arch then re-labels product_uom_qty "Returning Now",
+         overriding the "Quantity" set by the extension view above.
+    ════════════════════════════════════════════════════════════════════════ -->
+    <record id="view_material_return_form" model="ir.ui.view">
+        <field name="name">stock.picking.material.return.form</field>
+        <field name="model">stock.picking</field>
+        <field name="inherit_id" ref="stock.view_picking_form"/>
+        <field name="mode">primary</field>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='move_ids']/list/field[@name='product_uom_qty']"
+                   position="attributes">
+                <attribute name="string">Returning Now</attribute>
+            </xpath>
         </field>
     </record>
 </odoo>
