@@ -14,6 +14,7 @@
                 (6, 0, [
                     ref('purchase.group_purchase_user'),
                     ref('stock.group_stock_user'),
+                    ref('base.group_allow_export'),
                     ref('group_mtr_app_purchase'),
                     ref('group_mtr_app_inventory'),
                 ])
@@ -28,6 +29,7 @@
                     ref('purchase.group_purchase_manager'),
                     ref('stock.group_stock_manager'),
                     ref('base.group_partner_manager'),
+                    ref('base.group_allow_export'),
                     ref('group_mtr_app_purchase'),
                     ref('group_mtr_app_inventory'),
                     ref('group_mtr_app_contacts'),
@@ -42,6 +44,7 @@
                     ref('purchase.group_purchase_manager'),
                     ref('account.group_account_readonly'),
                     ref('account.group_account_invoice'),
+                    ref('base.group_allow_export'),
                     ref('group_mtr_app_purchase'),
                     ref('group_mtr_app_accounting'),
                 ])
@@ -61,6 +64,7 @@
                 (6, 0, [
                     ref('account.group_account_readonly'),
                     ref('hr_attendance.group_hr_attendance_officer'),
+                    ref('base.group_allow_export'),
                     ref('group_mtr_app_accounting'),
                     ref('group_mtr_app_attendance'),
                 ])
@@ -74,6 +78,7 @@
                     ref('account.group_account_manager'),
                     ref('hr.group_hr_manager'),
                     ref('hr_attendance.group_hr_attendance_officer'),
+                    ref('base.group_allow_export'),
                     ref('group_mtr_app_accounting'),
                     ref('group_mtr_app_hr'),
                     ref('group_mtr_app_attendance'),
@@ -95,6 +100,7 @@
                     ref('account.group_account_manager'),
                     ref('project.group_project_manager'),
                     ref('base.group_partner_manager'),
+                    ref('base.group_allow_export'),
                     ref('group_mtr_app_purchase'),
                     ref('group_mtr_app_inventory'),
                     ref('group_mtr_app_accounting'),

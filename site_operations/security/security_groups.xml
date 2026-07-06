@@ -14,5 +14,19 @@
             <field name="privilege_id" ref="purchase_demand_raise.res_groups_privilege_demand_raise"/>
             <field name="comment">Finance Head Office — vendor payments, payroll, HR, compliance.</field>
         </record>
+
+        <!-- ══════════════════════════════════════════════════════════════
+             EXPORT PERMISSION — Head Office has no entry in role_app_groups.xml
+             so its implied_ids are not replaced there; we add group_allow_export
+             here via Command.link (append-only).
+             All other roles get group_allow_export inside the (6,0,[...]) lists
+             in role_app_groups.xml (which runs after this file and does a
+             full replace, so additions here would be overwritten anyway).
+        ══════════════════════════════════════════════════════════════ -->
+
+        <!-- Head Office gets export -->
+        <record id="purchase_demand_raise.group_head_office" model="res.groups">
+            <field name="implied_ids" eval="[Command.link(ref('base.group_allow_export'))]"/>
+        </record>
     </data>
 </odoo>
