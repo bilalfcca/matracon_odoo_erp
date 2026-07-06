@@ -181,19 +181,17 @@
              plus MI/S2S moves tagged to their project (source or destination).
              Moves without a picking (inventory adjustments) are filtered by
              their source location's warehouse. -->
-        <!-- Stock Move: Site Store sees moves in their warehouse or project.
-             Uses BOTH x_default_warehouse_id (operational) AND
-             x_site_config_id.warehouse_id (static site WH) to stay robust when
-             _matracon_sync_user_operational_warehouse overrides the default WH. -->
+        <!-- Stock Move: Site Store sees moves in their site warehouse or project.
+             Anchored exclusively to x_site_config_id.warehouse_id to avoid leaking
+             main-WH demo moves when x_default_warehouse_id falls back to WH. -->
         <record id="rule_stock_move_site_store" model="ir.rule">
             <field name="name">Stock Move: Site Store sees own warehouse &amp; project</field>
             <field name="model_id" ref="stock.model_stock_move"/>
-            <field name="domain_force">['|', '|', '|', '|',
-                ('picking_id.picking_type_id.warehouse_id', '=', user.x_default_warehouse_id.id),
+            <field name="domain_force">['|', '|', '|',
                 ('picking_id.picking_type_id.warehouse_id', '=', user.x_site_config_id.warehouse_id.id),
                 ('picking_id.x_issuance_project_id', '=', user.x_default_analytic_account_id.id),
                 ('picking_id.x_dest_project_id', '=', user.x_default_analytic_account_id.id),
-                ('location_id.warehouse_id', '=', user.x_default_warehouse_id.id)
+                ('location_id.warehouse_id', '=', user.x_site_config_id.warehouse_id.id)
             ]</field>
             <field name="groups" eval="[(4, ref('purchase_demand_raise.group_site_store'))]"/>
             <field name="perm_read" eval="True"/>
@@ -206,12 +204,11 @@
         <record id="rule_stock_move_line_site_store" model="ir.rule">
             <field name="name">Stock Move Line: Site Store sees own warehouse &amp; project</field>
             <field name="model_id" ref="stock.model_stock_move_line"/>
-            <field name="domain_force">['|', '|', '|', '|',
-                ('move_id.picking_id.picking_type_id.warehouse_id', '=', user.x_default_warehouse_id.id),
+            <field name="domain_force">['|', '|', '|',
                 ('move_id.picking_id.picking_type_id.warehouse_id', '=', user.x_site_config_id.warehouse_id.id),
                 ('move_id.picking_id.x_issuance_project_id', '=', user.x_default_analytic_account_id.id),
                 ('move_id.picking_id.x_dest_project_id', '=', user.x_default_analytic_account_id.id),
-                ('location_id.warehouse_id', '=', user.x_default_warehouse_id.id)
+                ('location_id.warehouse_id', '=', user.x_site_config_id.warehouse_id.id)
             ]</field>
             <field name="groups" eval="[(4, ref('purchase_demand_raise.group_site_store'))]"/>
             <field name="perm_read" eval="True"/>
@@ -227,14 +224,16 @@
              warehouse has no stock.  We therefore also check x_site_config_id.warehouse_id
              (the static site warehouse that never changes) so receipt pickings created
              against the site warehouse remain visible regardless of the operational override. -->
+        <!-- Stock Picking: Site Store sees own site warehouse (receipts/deliveries) plus
+             material-issuance/site-to-site pickings for their project analytic account.
+             Always anchored to x_site_config_id.warehouse_id — NOT x_default_warehouse_id
+             which may fall back to the main WH when the site warehouse has no demo stock. -->
         <record id="rule_material_issuance_site_store" model="ir.rule">
             <field name="name">Stock Picking: Site Store sees own warehouse &amp; project</field>
             <field name="model_id" ref="stock.model_stock_picking"/>
             <field name="domain_force">['|',
                 '&amp;',
                 ('x_transfer_purpose', 'not in', ['material_issuance', 'site_to_site']),
-                '|',
-                ('picking_type_id.warehouse_id', '=', user.x_default_warehouse_id.id),
                 ('picking_type_id.warehouse_id', '=', user.x_site_config_id.warehouse_id.id),
                 '|',
                 ('x_issuance_project_id', '=', user.x_default_analytic_account_id.id),
@@ -247,11 +246,11 @@
             <field name="perm_unlink" eval="False"/>
         </record>
 
-        <!-- Stock Quant (on-hand inventory): Site Store sees only their warehouse -->
+        <!-- Stock Quant (on-hand inventory): Site Store sees only their site warehouse -->
         <record id="rule_stock_quant_site_store" model="ir.rule">
             <field name="name">Stock Quant: Site Store sees own warehouse</field>
             <field name="model_id" ref="stock.model_stock_quant"/>
-            <field name="domain_force">[('location_id.warehouse_id', '=', user.x_default_warehouse_id.id)]</field>
+            <field name="domain_force">[('location_id.warehouse_id', '=', user.x_site_config_id.warehouse_id.id)]</field>
             <field name="groups" eval="[(4, ref('purchase_demand_raise.group_site_store'))]"/>
             <field name="perm_read" eval="True"/>
             <field name="perm_write" eval="True"/>
@@ -259,16 +258,11 @@
             <field name="perm_unlink" eval="False"/>
         </record>
 
-        <!-- Stock Warehouse: Site Store sees only their own warehouse.
-             This prevents the warehouse dropdown in Forecasted Report / inventory
-             views from leaking other sites' warehouse names. -->
+        <!-- Stock Warehouse: Site Store sees only their own site warehouse. -->
         <record id="rule_stock_warehouse_site_store" model="ir.rule">
             <field name="name">Stock Warehouse: Site Store sees own warehouse only</field>
             <field name="model_id" ref="stock.model_stock_warehouse"/>
-            <field name="domain_force">['|',
-                ('id', '=', user.x_site_config_id.warehouse_id.id),
-                ('id', '=', user.x_default_warehouse_id.id)
-            ]</field>
+            <field name="domain_force">[('id', '=', user.x_site_config_id.warehouse_id.id)]</field>
             <field name="groups" eval="[(4, ref('purchase_demand_raise.group_site_store'))]"/>
             <field name="perm_read" eval="True"/>
             <field name="perm_write" eval="False"/>
@@ -276,15 +270,13 @@
             <field name="perm_unlink" eval="False"/>
         </record>
 
-        <!-- Stock Location: Site Store sees locations in their site warehouse OR
-             default warehouse (kept in sync with the picking rule which allows
-             pickings from both), plus all virtual/system locations (no warehouse). -->
+        <!-- Stock Location: Site Store sees their site warehouse locations plus
+             all virtual/system locations (no warehouse — Vendors, Customers, Transit). -->
         <record id="rule_stock_location_site_store" model="ir.rule">
             <field name="name">Stock Location: Site Store sees own warehouse locations</field>
             <field name="model_id" ref="stock.model_stock_location"/>
-            <field name="domain_force">['|', '|',
+            <field name="domain_force">['|',
                 ('warehouse_id', '=', user.x_site_config_id.warehouse_id.id),
-                ('warehouse_id', '=', user.x_default_warehouse_id.id),
                 ('warehouse_id', '=', False)
             ]</field>
             <field name="groups" eval="[(4, ref('purchase_demand_raise.group_site_store'))]"/>
