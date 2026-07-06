@@ -419,7 +419,7 @@ class LiabilitySheet(models.Model):
                 all_lines = AML.search([
                     ('partner_id', '=', line.partner_id.id),
                     ('move_id.state', '=', 'posted'),
-                    ('account_id.account_type', '=', 'liability_payable'),
+                    ('account_id.account_type', 'in', ['liability_payable', 'liability_current']),
                 ]).filtered(_in_project)
 
                 # Use move_id.date: always set on journal entries; invoice_date is
@@ -451,7 +451,7 @@ class LiabilitySheet(models.Model):
                     JOIN account_move     am  ON am.id  = aml.move_id
                     JOIN account_account  aa  ON aa.id  = aml.account_id
                     WHERE am.state = 'posted'
-                      AND aa.account_type = 'liability_payable'
+                      AND aa.account_type IN ('liability_payable', 'liability_current')
                       AND aml.partner_id IS NOT NULL
                       AND aml.partner_id != ALL(%s)
                       AND am.date <= %s
@@ -467,7 +467,7 @@ class LiabilitySheet(models.Model):
                     all_lines = AML.search([
                         ('partner_id', '=', partner_id),
                         ('move_id.state', '=', 'posted'),
-                        ('account_id.account_type', '=', 'liability_payable'),
+                        ('account_id.account_type', 'in', ['liability_payable', 'liability_current']),
                     ]).filtered(_in_project)
 
                     opening_lines = all_lines.filtered(
