@@ -104,6 +104,25 @@
                         <field name="payment_id" readonly="1"/>
                         <field name="currency_id" invisible="1"/>
                     </group>
+
+                    <!-- PM-signed document — MANDATORY before submitting.
+                         Workflow: print this request, get it physically signed
+                         by the Project Manager, scan/photograph it and upload here.
+                         action_submit() raises UserError if this is empty. -->
+                    <group string="PM Signed Document (Required before submitting)">
+                        <div colspan="2" class="alert alert-warning" role="alert"
+                             invisible="x_pm_signed_document or state != 'draft'">
+                            <strong>Action Required:</strong>
+                            Print this request, obtain the Project Manager's signature,
+                            scan it and upload the signed copy below before submitting.
+                        </div>
+                        <field name="x_pm_signed_document"
+                               widget="binary"
+                               filename="x_pm_signed_document_filename"
+                               string="Upload PM Signed Document"
+                               readonly="state != 'draft'"/>
+                        <field name="x_pm_signed_document_filename" invisible="1"/>
+                    </group>
                 </sheet>
                 <chatter/>
             </form>

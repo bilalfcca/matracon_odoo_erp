@@ -165,6 +165,20 @@ class PettyCashRequest(models.Model):
     currency_id = fields.Many2one(
         'res.currency', default=lambda self: self.env.company.currency_id)
 
+    # PM-signed document — mandatory before submitting to Finance HO.
+    # Workflow: print the petty cash request, get it physically signed by the
+    # Project Manager, scan/photograph it and upload here.  action_submit()
+    # raises UserError if this is empty.
+    x_pm_signed_document = fields.Binary(
+        string='PM Signed Document',
+        attachment=True,
+        copy=False,
+    )
+    x_pm_signed_document_filename = fields.Char(
+        string='PM Signed Document Filename',
+        copy=False,
+    )
+
     @api.model
     def default_get(self, fields_list):
         res = super().default_get(fields_list)
@@ -246,6 +260,12 @@ class PettyCashRequest(models.Model):
         for req in self:
             if req.requested_amount <= 0:
                 raise UserError(_('Enter a valid requested amount.'))
+            if not req.x_pm_signed_document:
+                raise UserError(_(
+                    'A PM-signed document is required before submitting.\n'
+                    'Please print this request, get it signed by the Project Manager, '
+                    'scan it, and upload it in the "PM Signed Document" field.'
+                ))
             req.state = 'submitted'
             req.message_post(body=_('Petty cash request submitted to Finance HO.'))
             fo_users = self.env['res.users'].search([
