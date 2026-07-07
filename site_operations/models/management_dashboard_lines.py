@@ -35,7 +35,7 @@ class ManagementDashboardProjectLine(models.TransientModel):
     contract_value = fields.Monetary(readonly=True, currency_field='currency_id')
     billed_to_client = fields.Monetary(readonly=True, currency_field='currency_id')
     work_completion_pct = fields.Float(string='Work %', digits=(5, 1), readonly=True)
-    financial_completion_pct = fields.Float(string='Financial %', digits=(5, 1), readonly=True)
+    financial_completion_pct = fields.Float(string='Financial %', digits=(16, 6), readonly=True)
     remaining_work_value = fields.Monetary(readonly=True, currency_field='currency_id')
     currency_id = fields.Many2one('res.currency', readonly=True)
 
