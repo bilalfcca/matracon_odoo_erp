@@ -93,7 +93,7 @@ class ProjectProjectMatracon(models.Model):
     x_financial_completion_pct = fields.Float(
         string='Financial Completion %',
         compute='_compute_financial_completion_pct',
-        digits=(16, 6),
+        digits=(16, 4),
         store=True,
         help='Auto: Billed to Client ÷ Contract Value × 100.',
     )
