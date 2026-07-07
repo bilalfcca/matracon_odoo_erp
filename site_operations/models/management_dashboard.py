@@ -659,46 +659,18 @@ class ManagementDashboard(models.TransientModel):
 
         bank_total, bank_line_vals = self._bank_balances()
 
-        # ── Period-override: when a date range is active, replace lifetime KPIs ──
-        # with values derived from vendor bills whose invoice_date falls in the
-        # selected period, so that custom / monthly / quarterly / yearly filters
-        # produce visibly different results for every financial metric.
+        # ── Period KPI for net balance ────────────────────────────────────────────
+        # Cash-flow KPIs (payments received/made) respect the date filter.
+        # Liabilities are CURRENT outstanding obligations — they reflect the
+        # liability sheets regardless of the period selected, so we never
+        # override vendor_liability / sub_liability with a bill-date query.
         if date_from or date_to:
-            _pd = [('move_type', '=', 'in_invoice'), ('state', '=', 'posted')]
-            if analytics:
-                _pd.append(('x_project_analytic_account_id', 'in', analytics.ids))
-            if date_from:
-                _pd.append(('invoice_date', '>=', date_from))
-            if date_to:
-                _pd.append(('invoice_date', '<=', date_to))
-            _pbills = self.env['account.move'].sudo().search(_pd)
-
-            vendor_liability = sum(
-                b.amount_total for b in _pbills
-                if not self._is_subcontractor(b.partner_id))
-            sub_liability = sum(
-                b.amount_total for b in _pbills
-                if self._is_subcontractor(b.partner_id))
-            total_liabilities = vendor_liability + sub_liability
-
-            # Period net cashflow (inflows minus outflows)
             kpi_net_balance = payments_received - payments_made
-
-            # Liability partner breakdown from bills (replaces sheet-based lines)
-            vendor_lines, sub_lines = self._liability_lines_from_bills(_pbills)
-
-            # Update per-project total_liability in project summary lines
-            _bt = {}
-            for _b in _pbills:
-                _aid = _b.x_project_analytic_account_id.id
-                if _aid:
-                    _bt[_aid] = _bt.get(_aid, 0.0) + _b.amount_total
-            for _pv in project_line_vals:
-                _pv['total_liability'] = _bt.get(_pv.get('analytic_account_id'), 0.0)
         else:
-            # Lifetime/current-state mode
             kpi_net_balance = funds_received - total_spent_lifetime
-            vendor_lines, sub_lines = self._liability_lines_for_analytics(analytics)
+
+        # Liability partner breakdown always from open liability sheets
+        vendor_lines, sub_lines = self._liability_lines_for_analytics(analytics)
 
         facilities = self.env['x.bank.guarantee.facility'].sudo().search([])
         bg_total_facility = sum(facilities.mapped('total_limit'))
