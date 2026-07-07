@@ -273,16 +273,20 @@ class ProjectSiteConfigProjectLink(models.Model):
         ]))
 
     def _matracon_operational_warehouse_for_config(self, company):
-        """Site warehouse when it holds stock; otherwise company main WH (demo/migration)."""
+        """Always return the site's own warehouse.
+
+        The previous fallback to the main company WH when the site warehouse had
+        no stock caused cascading security errors: record rules scope stock.location
+        reads to the site warehouse only, so reading the main WH's lot_stock_id
+        (location) raised an Access Denied for site-store users.  Returning the
+        site warehouse unconditionally is correct — an empty warehouse shows zero
+        stock rather than leaking another site's inventory.
+        """
         self.ensure_one()
-        site_wh = self.warehouse_id
-        main_wh = self._matracon_main_operational_warehouse(company)
-        if site_wh and self._matracon_site_warehouse_has_stock(site_wh):
-            return site_wh
-        return main_wh or site_wh
+        return self.warehouse_id or self._matracon_main_operational_warehouse(company)
 
     def _matracon_sync_user_operational_warehouse(self):
-        """Keep receive/issue/on-hand on the warehouse that actually holds stock."""
+        """Keep x_default_warehouse_id aligned with the site's own warehouse."""
         company = self.env.company
         for config in self:
             op_wh = config._matracon_operational_warehouse_for_config(company)
