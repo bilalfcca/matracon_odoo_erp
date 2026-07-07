@@ -9,11 +9,6 @@
                 <header>
                     <field name="state" widget="statusbar"
                            statusbar_visible="draft,submitted,approved,paid"/>
-                    <!-- ── Import Lines ── -->
-                    <button name="action_open_import" type="object"
-                            string="Import Lines" class="btn-secondary"
-                            invisible="state != 'draft'"
-                            groups="site_operations.group_site_accountant,purchase_demand_raise.group_matracon_admin"/>
                     <!-- ── Refresh from Attendance ── -->
                     <button name="action_refresh_from_attendance" type="object"
                             string="Refresh from Attendance" class="btn-secondary"

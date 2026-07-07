@@ -80,19 +80,19 @@
 
                         <!-- Payroll Lines Table -->
                         <table class="table table-sm table-bordered" style="font-size:11px;">
-                            <thead style="background:#1E40AF;color:#fff;">
-                                <tr>
-                                    <th class="text-center" style="width:4%;">#</th>
-                                    <th style="width:18%;">Employee</th>
-                                    <th class="text-center" style="width:7%;">Paid Days</th>
-                                    <th class="text-end" style="width:10%;">Monthly Basic</th>
-                                    <th class="text-end" style="width:10%;">Basic (Days)</th>
-                                    <th class="text-end" style="width:9%;">Allowances</th>
-                                    <th class="text-end" style="width:7%;">WHT</th>
-                                    <th class="text-end" style="width:7%;">EOBI</th>
-                                    <th class="text-end" style="width:8%;">Advance</th>
-                                    <th class="text-end" style="width:8%;">Deductions</th>
-                                    <th class="text-end" style="width:10%;">Net Payable</th>
+                            <thead>
+                                <tr style="background:#1E40AF;">
+                                    <th class="text-center" style="width:4%;color:#fff;">#</th>
+                                    <th style="width:18%;color:#fff;">Employee</th>
+                                    <th class="text-center" style="width:7%;color:#fff;">Paid Days</th>
+                                    <th class="text-end" style="width:10%;color:#fff;">Monthly Basic</th>
+                                    <th class="text-end" style="width:10%;color:#fff;">Basic (Days)</th>
+                                    <th class="text-end" style="width:9%;color:#fff;">Allowances</th>
+                                    <th class="text-end" style="width:7%;color:#fff;">WHT</th>
+                                    <th class="text-end" style="width:7%;color:#fff;">EOBI</th>
+                                    <th class="text-end" style="width:8%;color:#fff;">Advance</th>
+                                    <th class="text-end" style="width:8%;color:#fff;">Deductions</th>
+                                    <th class="text-end" style="width:10%;color:#fff;">Net Payable</th>
                                 </tr>
                             </thead>
                             <tbody>
