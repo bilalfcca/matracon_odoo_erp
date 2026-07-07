@@ -142,22 +142,17 @@
 
                         <!-- Signature Lines -->
                         <div class="row mt-5 pt-4">
-                            <div class="col-4 text-center">
-                                <div style="border-top:1px solid #000;padding-top:6px;margin-top:50px;">
+                            <div class="col-5 text-center">
+                                <div style="border-top:1px solid #000;padding-top:6px;margin-top:60px;">
                                     <strong>Prepared By</strong><br/>
                                     <small style="color:#6B7280;">Site Accountant</small>
                                 </div>
                             </div>
-                            <div class="col-4 text-center">
-                                <div style="border-top:1px solid #000;padding-top:6px;margin-top:50px;">
-                                    <strong>Verified By</strong><br/>
-                                    <small style="color:#6B7280;">Project Manager</small>
-                                </div>
-                            </div>
-                            <div class="col-4 text-center">
-                                <div style="border-top:1px solid #000;padding-top:6px;margin-top:50px;">
+                            <div class="col-2"/>
+                            <div class="col-5 text-center">
+                                <div style="border-top:1px solid #000;padding-top:6px;margin-top:60px;">
                                     <strong>Approved By</strong><br/>
-                                    <small style="color:#6B7280;">CEO / Management</small>
+                                    <small style="color:#6B7280;">Project Manager</small>
                                 </div>
                             </div>
                         </div>
