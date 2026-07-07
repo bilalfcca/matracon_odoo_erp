@@ -151,7 +151,7 @@ class SubcontractorHOAdvance(models.Model):
             'x_destination_project_id': self.project_analytic_account_id.id,
             'x_payment_category': 'vendor',
             'x_ceo_approval_state': 'pending',
-            'ref': _('HO Advance — %s — %s') % (
+            'memo': _('HO Advance — %s — %s') % (
                 self.subcontractor_id.name, self.name),
         })
         self.payment_id = payment.id
