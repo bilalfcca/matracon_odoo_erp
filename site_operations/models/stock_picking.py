@@ -1336,7 +1336,14 @@ class StockPickingSiteOps(models.Model):
         }
 
     def _post_validate_material_issuance(self):
-        """Post backcharge journal + liability sheet only for subcontractor + consumable + backcharge."""
+        """Create a pending backcharge record for subcontractor consumable issuance.
+
+        No journal entry or liability sheet update is made at this stage.
+        Accounting is deferred to IPC submission — that is the correct point
+        to recognise the liability reduction against the subcontractor.
+        The IPC's "Refresh Backcharges" action will pick up all pending records
+        for the same sub + project and include them in section E (Back Charges).
+        """
         self.ensure_one()
         if self.x_is_return_transfer:
             return
@@ -1345,7 +1352,10 @@ class StockPickingSiteOps(models.Model):
             return
         if self.x_issue_type != 'subcontractor' or not self.x_backcharge_applicable:
             return
-        if not self.x_contact_id or self.x_backcharge_refund_entry_id:
+        # Guard: already created a backcharge record for this issuance
+        if not self.x_contact_id or self.x_sub_backcharge_id:
+            return
+        if not self.x_issuance_project_id:
             return
 
         amount = sum(
@@ -1359,17 +1369,26 @@ class StockPickingSiteOps(models.Model):
         if not amount:
             return
 
-        entry = self._create_issuance_journal_entry(amount, is_return=False)
-        if not entry:
-            return
-        self.x_backcharge_refund_entry_id = entry
+        products_desc = ', '.join(
+            m.product_id.display_name for m in self.move_ids if m.product_id)
+        bc = self.env['x.subcontractor.backcharge'].sudo().create({
+            'subcontractor_id': self.x_contact_id.id,
+            'project_analytic_account_id': self.x_issuance_project_id.id,
+            'description': _('Material Issuance %(ref)s — %(products)s') % {
+                'ref': self.name,
+                'products': products_desc[:200],
+            },
+            'amount': amount,
+            'date': fields.Date.context_today(self),
+        })
+        self.x_sub_backcharge_id = bc
         self.message_post(
             body=Markup(_(
-                'Vendor Credit Note <b>%s</b> (%.2f) created — '
-                'backcharge deducted from subcontractor payable.'
-            )) % (entry.name, amount)
+                'Subcontractor Backcharge <b>%s</b> (%.2f) created — '
+                'pending IPC processing. Liability sheet will be updated when '
+                'an IPC is submitted for this subcontractor.'
+            )) % (bc.name, amount)
         )
-        self._auto_update_liability_sheet(amount)
 
     def _post_validate_return(self):
         """Reverse backcharge on subcontractor returns; post damage charges if needed."""
@@ -1378,35 +1397,72 @@ class StockPickingSiteOps(models.Model):
         if not orig:
             return
 
-        # ── Consumable return: reverse the original backcharge pro-rata ───────
+        # ── Consumable return: adjust or cancel the pending backcharge ─────────
+        # NEW FLOW (issuance used new backcharge-record approach):
+        #   reduce or delete the pending x.subcontractor.backcharge so it is no
+        #   longer picked up by "Refresh Backcharges" on IPC creation.
+        # LEGACY FLOW (issuance already created a journal entry — old behaviour):
+        #   reverse the journal entry so accounting stays consistent.
         if (orig.x_issue_type == 'subcontractor'
                 and orig.x_backcharge_applicable
-                and orig.x_inventory_type != 'asset'
-                and not self.x_return_backcharge_entry_id):
-            orig_amount = sum(
-                m.quantity * m.x_unit_cost
-                for m in orig.move_ids
-                if m.state == 'done' and m.x_unit_cost > 0
-            ) or orig.x_backcharge_amount
+                and orig.x_inventory_type != 'asset'):
+            pending_bc = orig.x_sub_backcharge_id
 
-            orig_qty = sum(
-                m.quantity for m in orig.move_ids if m.state == 'done') or 1.0
-            ret_qty = sum(m.quantity for m in self.move_ids if m.state == 'done')
-            proportion = ret_qty / orig_qty
-            adj_amount = round(orig_amount * proportion, 2)
-
-            if adj_amount > 0:
-                entry = self._create_issuance_journal_entry(
-                    adj_amount, is_return=True, original=orig)
-                if entry:
-                    self.x_return_backcharge_entry_id = entry
+            if pending_bc and pending_bc.state == 'pending':
+                # ── New flow: adjust the pending backcharge record ────────────
+                orig_qty = sum(
+                    m.quantity for m in orig.move_ids if m.state == 'done') or 1.0
+                ret_qty = sum(m.quantity for m in self.move_ids if m.state == 'done')
+                proportion = min(ret_qty / orig_qty, 1.0)
+                adj_amount = round(pending_bc.amount * proportion, 2)
+                new_amount = round(max(pending_bc.amount - adj_amount, 0.0), 2)
+                if new_amount <= 0.01:
+                    bc_name = pending_bc.name
+                    pending_bc.sudo().unlink()
+                    orig.x_sub_backcharge_id = False
                     self.message_post(
                         body=Markup(_(
-                            'Vendor Bill <b>%s</b> (%.2f) created — '
-                            'returned materials added back to subcontractor payable.'
-                        )) % (entry.name, adj_amount)
+                            'Pending backcharge <b>%s</b> cancelled — '
+                            'all issued materials have been returned.'
+                        )) % bc_name
                     )
-                    self._auto_adjust_liability_sheet_on_return(adj_amount, orig)
+                else:
+                    pending_bc.sudo().write({'amount': new_amount})
+                    self.message_post(
+                        body=Markup(_(
+                            'Pending backcharge <b>%s</b> reduced by %.2f '
+                            'to %.2f — partial return (%.0f%% returned).'
+                        )) % (pending_bc.name, adj_amount, new_amount,
+                               proportion * 100)
+                    )
+
+            elif orig.x_backcharge_refund_entry_id and not self.x_return_backcharge_entry_id:
+                # ── Legacy flow: original issuance created a journal entry ─────
+                # Reverse it so accounting stays balanced with old records.
+                orig_amount = sum(
+                    m.quantity * m.x_unit_cost
+                    for m in orig.move_ids
+                    if m.state == 'done' and m.x_unit_cost > 0
+                ) or orig.x_backcharge_amount
+                orig_qty = sum(
+                    m.quantity for m in orig.move_ids if m.state == 'done') or 1.0
+                ret_qty = sum(m.quantity for m in self.move_ids if m.state == 'done')
+                proportion = ret_qty / orig_qty
+                adj_amount = round(orig_amount * proportion, 2)
+                if adj_amount > 0:
+                    entry = self._create_issuance_journal_entry(
+                        adj_amount, is_return=True, original=orig)
+                    if entry:
+                        self.x_return_backcharge_entry_id = entry
+                        self.message_post(
+                            body=Markup(_(
+                                'Vendor Bill <b>%s</b> (%.2f) created — '
+                                'returned materials added back to subcontractor '
+                                'payable (legacy flow).'
+                            )) % (entry.name, adj_amount)
+                        )
+                        self._auto_adjust_liability_sheet_on_return(
+                            adj_amount, orig)
 
         # ── Asset return: manual backcharge amount entered by user ────────────
         if (orig.x_inventory_type == 'asset'
