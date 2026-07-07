@@ -74,6 +74,7 @@
         'report/cheque_report_template.xml',
         'report/liability_sheet_report.xml',
         'report/liability_sheet_template.xml',
+        'report/salary_sheet_report.xml',
         'report/salary_slip_report.xml',
         'report/employee_card_report.xml',
         'report/employee_card_template.xml',

@@ -9,7 +9,7 @@
                 <header>
                     <field name="state" widget="statusbar"
                            statusbar_visible="draft,submitted,approved,paid"/>
-                    <!-- ── Import ── -->
+                    <!-- ── Import Lines ── -->
                     <button name="action_open_import" type="object"
                             string="Import Lines" class="btn-secondary"
                             invisible="state != 'draft'"
@@ -19,22 +19,18 @@
                             string="Refresh from Attendance" class="btn-secondary"
                             invisible="state != 'draft'"
                             groups="site_operations.group_site_accountant"/>
-                    <!-- ── Signatures ── -->
-                    <button name="action_sign_pm" type="object"
-                            string="Sign as PM"
+                    <!-- ── Download for physical signing ── -->
+                    <button name="action_download_pdf" type="object"
+                            string="Download for Signing"
                             class="btn-secondary"
-                            invisible="state != 'draft' or pm_signed"
-                            groups="purchase_demand_raise.group_head_office,purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_matracon_admin"/>
-                    <button name="action_sign_accountant" type="object"
-                            string="Sign as SA"
-                            class="btn-secondary"
-                            invisible="state != 'draft' or accountant_signed"
+                            invisible="state != 'draft'"
                             groups="site_operations.group_site_accountant,purchase_demand_raise.group_matracon_admin"/>
-                    <!-- ── Submit ── -->
+                    <!-- ── Submit — only shown when signed doc is uploaded ── -->
                     <button name="action_submit" type="object"
                             string="Submit for CEO Approval" class="btn-primary"
-                            invisible="state != 'draft'"
+                            invisible="state != 'draft' or not signed_sheet"
                             groups="site_operations.group_site_accountant"/>
+                    <!-- ── CEO Approval ── -->
                     <button name="action_ceo_approve" type="object"
                             string="Approve" class="btn-success"
                             invisible="state != 'submitted'"
@@ -48,6 +44,11 @@
                             class="btn-secondary"
                             invisible="state not in ('approved', 'paid') or total_wht == 0"
                             groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"/>
+                    <!-- ── Download PDF for non-draft states ── -->
+                    <button name="action_download_pdf" type="object"
+                            string="⬇ Download PDF"
+                            class="btn-secondary"
+                            invisible="state == 'draft'"/>
                 </header>
                 <sheet>
                     <div class="oe_button_box" name="button_box">
@@ -83,24 +84,29 @@
                         <field name="currency_id" invisible="1"/>
                     </group>
 
-                    <!-- ── Signatures ───────────────────────────────────── -->
-                    <group string="Signatures" name="matracon_signatures">
-                        <group string="Project Manager">
-                            <field name="pm_signed" readonly="1"
-                                   widget="boolean_toggle"/>
-                            <field name="pm_signed_by" readonly="1"
-                                   invisible="not pm_signed"/>
-                            <field name="pm_signed_date" readonly="1"
-                                   invisible="not pm_signed"/>
-                        </group>
-                        <group string="Site Accountant">
-                            <field name="accountant_signed" readonly="1"
-                                   widget="boolean_toggle"/>
-                            <field name="accountant_signed_by" readonly="1"
-                                   invisible="not accountant_signed"/>
-                            <field name="accountant_signed_date" readonly="1"
-                                   invisible="not accountant_signed"/>
-                        </group>
+                    <!-- ── Signed Document upload (required before Submit) ── -->
+                    <group string="Signed Salary Sheet (Required before Submit)"
+                           invisible="state not in ('draft',) or signed_sheet"
+                           name="matracon_signed_upload_pending">
+                        <div class="alert alert-warning" role="alert" colspan="2">
+                            Download the sheet → get it signed by PM &amp; Site Accountant → upload the signed copy here. The <b>Submit for CEO Approval</b> button appears once uploaded.
+                        </div>
+                        <field name="signed_sheet"
+                               widget="binary"
+                               filename="signed_sheet_filename"
+                               string="Upload Signed Copy"
+                               readonly="state != 'draft'"/>
+                        <field name="signed_sheet_filename" invisible="1"/>
+                    </group>
+                    <group string="Signed Salary Sheet"
+                           invisible="not signed_sheet"
+                           name="matracon_signed_upload_done">
+                        <field name="signed_sheet"
+                               widget="binary"
+                               filename="signed_sheet_filename"
+                               string="Signed Copy"
+                               readonly="state != 'draft'"/>
+                        <field name="signed_sheet_filename" invisible="1"/>
                     </group>
 
                     <notebook>
