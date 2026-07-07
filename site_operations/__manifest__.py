@@ -37,6 +37,7 @@
         'views/hr_employee_views.xml',
         'views/attendance_views.xml',
         'views/salary_views.xml',
+        'views/salary_import_wizard.xml',
         'views/petty_cash_views.xml',
         'views/bank_guarantee_views.xml',
         'views/tax_notice_views.xml',

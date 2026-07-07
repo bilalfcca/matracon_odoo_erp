@@ -1,4 +1,7 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_account_move_site_accountant,account.move.site.accountant,account.model_account_move,site_operations.group_site_accountant,1,1,1,0
+access_account_move_line_site_accountant,account.move.line.site.accountant,account.model_account_move_line,site_operations.group_site_accountant,1,1,1,0
+access_stock_lot_site_accountant,stock.lot.site.accountant,stock.model_stock_lot,site_operations.group_site_accountant,1,0,0,0
 access_liability_sheet_site_accountant,liability.sheet.site.accountant,model_x_liability_sheet,site_operations.group_site_accountant,1,1,1,0
 access_liability_sheet_ceo,liability.sheet.ceo,model_x_liability_sheet,purchase_demand_raise.group_ceo_approval,1,1,0,0
 access_liability_sheet_finance_ho,liability.sheet.finance.ho,model_x_liability_sheet,site_operations.group_finance_ho,1,1,1,0
@@ -201,3 +204,7 @@ access_employee_backcharge_site_store,employee.backcharge.site.store,model_x_emp
 access_employee_backcharge_deduction_site_store,employee.backcharge.deduction.site.store,model_x_employee_backcharge_deduction,purchase_demand_raise.group_site_store,1,0,0,0
 access_subcontractor_backcharge_site_store,subcontractor.backcharge.site.store,model_x_subcontractor_backcharge,purchase_demand_raise.group_site_store,1,0,0,0
 access_material_cost_report_site_store,material.cost.report.site.store,model_x_material_cost_report,purchase_demand_raise.group_site_store,1,0,0,0
+access_salary_sheet_import_site_accountant,salary.sheet.import.site.accountant,model_x_salary_sheet_import,site_operations.group_site_accountant,1,1,1,1
+access_salary_sheet_import_finance_ho,salary.sheet.import.finance.ho,model_x_salary_sheet_import,site_operations.group_finance_ho,1,1,1,1
+access_salary_sheet_import_head_office,salary.sheet.import.head.office,model_x_salary_sheet_import,purchase_demand_raise.group_head_office,1,1,1,1
+access_salary_sheet_import_admin,salary.sheet.import.admin,model_x_salary_sheet_import,purchase_demand_raise.group_matracon_admin,1,1,1,1

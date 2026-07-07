@@ -42,6 +42,28 @@ class SalarySheet(models.Model):
         'res.currency', default=lambda self: self.env.company.currency_id)
     wht_certificate_count = fields.Integer(compute='_compute_wht_certificate_count')
 
+    # ── Mandatory Signatures (PM + Site Accountant) ───────────────────────────
+    pm_signed = fields.Boolean(
+        string='PM Signed', default=False, tracking=True,
+        help='Project Manager has reviewed and signed this salary sheet.',
+    )
+    pm_signed_by = fields.Many2one(
+        'res.users', string='Signed by (PM)', readonly=True, copy=False,
+    )
+    pm_signed_date = fields.Datetime(
+        string='PM Signature Date', readonly=True, copy=False,
+    )
+    accountant_signed = fields.Boolean(
+        string='Accountant Signed', default=False, tracking=True,
+        help='Site Accountant has reviewed and signed this salary sheet.',
+    )
+    accountant_signed_by = fields.Many2one(
+        'res.users', string='Signed by (Accountant)', readonly=True, copy=False,
+    )
+    accountant_signed_date = fields.Datetime(
+        string='Accountant Signature Date', readonly=True, copy=False,
+    )
+
     @api.depends('project_analytic_account_id', 'date_from', 'date_to')
     def _compute_name(self):
         for sheet in self:
@@ -139,10 +161,67 @@ class SalarySheet(models.Model):
             sheet.line_ids.sudo().unlink()
             sheet._generate_lines_from_attendance()
 
+    def action_open_import(self):
+        """Open the salary lines import wizard."""
+        self.ensure_one()
+        if self.state != 'draft':
+            raise UserError(_('Only draft salary sheets can have lines imported.'))
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Import Salary Lines'),
+            'res_model': 'x.salary.sheet.import',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {'default_sheet_id': self.id},
+        }
+
+    def action_sign_pm(self):
+        """Mark the salary sheet as signed by the Project Manager."""
+        for sheet in self:
+            if sheet.state != 'draft':
+                raise UserError(_('Only draft salary sheets can be signed.'))
+            if sheet.pm_signed:
+                raise UserError(_(
+                    'This salary sheet has already been signed as PM by %s.'
+                ) % (sheet.pm_signed_by.name or ''))
+            sheet.pm_signed = True
+            sheet.pm_signed_by = self.env.user.id
+            sheet.pm_signed_date = fields.Datetime.now()
+            sheet.message_post(
+                body=Markup(_('Signed as <b>Project Manager</b> by <b>%s</b>.'))
+                % self.env.user.name)
+
+    def action_sign_accountant(self):
+        """Mark the salary sheet as signed by the Site Accountant."""
+        for sheet in self:
+            if sheet.state != 'draft':
+                raise UserError(_('Only draft salary sheets can be signed.'))
+            if sheet.accountant_signed:
+                raise UserError(_(
+                    'This salary sheet has already been signed as Site Accountant by %s.'
+                ) % (sheet.accountant_signed_by.name or ''))
+            sheet.accountant_signed = True
+            sheet.accountant_signed_by = self.env.user.id
+            sheet.accountant_signed_date = fields.Datetime.now()
+            sheet.message_post(
+                body=Markup(_('Signed as <b>Site Accountant</b> by <b>%s</b>.'))
+                % self.env.user.name)
+
     def action_submit(self):
         for sheet in self:
             if not sheet.line_ids:
                 raise UserError(_('Generate salary lines before submitting.'))
+            # ── Mandatory signatures ─────────────────────────────────────────
+            if not sheet.pm_signed:
+                raise UserError(_(
+                    'The Project Manager must sign this salary sheet before it '
+                    'can be submitted for CEO approval.\n\n'
+                    'Ask the PM to click "Sign as PM".'))
+            if not sheet.accountant_signed:
+                raise UserError(_(
+                    'The Site Accountant must sign this salary sheet before it '
+                    'can be submitted for CEO approval.\n\n'
+                    'Ask the Site Accountant to click "Sign as SA".'))
             sheet.state = 'submitted'
             sheet.message_post(
                 body=Markup(_('Salary sheet submitted by <b>%s</b>.')) % self.env.user.name)

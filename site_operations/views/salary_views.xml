@@ -9,10 +9,28 @@
                 <header>
                     <field name="state" widget="statusbar"
                            statusbar_visible="draft,submitted,approved,paid"/>
+                    <!-- ── Import ── -->
+                    <button name="action_open_import" type="object"
+                            string="Import Lines" class="btn-secondary"
+                            invisible="state != 'draft'"
+                            groups="site_operations.group_site_accountant,purchase_demand_raise.group_matracon_admin"/>
+                    <!-- ── Refresh from Attendance ── -->
                     <button name="action_refresh_from_attendance" type="object"
                             string="Refresh from Attendance" class="btn-secondary"
                             invisible="state != 'draft'"
                             groups="site_operations.group_site_accountant"/>
+                    <!-- ── Signatures ── -->
+                    <button name="action_sign_pm" type="object"
+                            string="Sign as PM"
+                            class="btn-secondary"
+                            invisible="state != 'draft' or pm_signed"
+                            groups="purchase_demand_raise.group_head_office,purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_matracon_admin"/>
+                    <button name="action_sign_accountant" type="object"
+                            string="Sign as SA"
+                            class="btn-secondary"
+                            invisible="state != 'draft' or accountant_signed"
+                            groups="site_operations.group_site_accountant,purchase_demand_raise.group_matracon_admin"/>
+                    <!-- ── Submit ── -->
                     <button name="action_submit" type="object"
                             string="Submit for CEO Approval" class="btn-primary"
                             invisible="state != 'draft'"
@@ -64,6 +82,27 @@
                         <field name="attendance_sheet_id" readonly="1"/>
                         <field name="currency_id" invisible="1"/>
                     </group>
+
+                    <!-- ── Signatures ───────────────────────────────────── -->
+                    <group string="Signatures" name="matracon_signatures">
+                        <group string="Project Manager">
+                            <field name="pm_signed" readonly="1"
+                                   widget="boolean_toggle"/>
+                            <field name="pm_signed_by" readonly="1"
+                                   invisible="not pm_signed"/>
+                            <field name="pm_signed_date" readonly="1"
+                                   invisible="not pm_signed"/>
+                        </group>
+                        <group string="Site Accountant">
+                            <field name="accountant_signed" readonly="1"
+                                   widget="boolean_toggle"/>
+                            <field name="accountant_signed_by" readonly="1"
+                                   invisible="not accountant_signed"/>
+                            <field name="accountant_signed_date" readonly="1"
+                                   invisible="not accountant_signed"/>
+                        </group>
+                    </group>
+
                     <notebook>
                         <page string="Payroll Lines">
                             <field name="line_ids" readonly="state != 'draft'">
