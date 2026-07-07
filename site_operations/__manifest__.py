@@ -98,6 +98,8 @@
             'site_operations/static/src/js/realtime_thousand_sep.js',
             # KPI amount widget: no currency sign, millions/K shorthand
             'site_operations/static/src/js/kpi_amount_widget.js',
+            # Progress bar widget: shows precise decimals instead of rounding to "0"
+            'site_operations/static/src/js/matracon_progress_bar.js',
         ],
     },
     'demo': [

@@ -915,9 +915,7 @@ class AccountPaymentSiteOps(models.Model):
                 payment.x_liability_sheet_id.action_finalize_if_fully_paid()
 
     def _validate_ceo_payment_approval(self):
-        for payment in self.filtered(
-            lambda p: p.x_payment_category in ('salary', 'petty_cash')
-        ):
+        for payment in self:
             # Petty cash: CEO approved at request level — skip payment-level check.
             if payment.x_petty_cash_request_id:
                 continue
@@ -926,8 +924,10 @@ class AccountPaymentSiteOps(models.Model):
                 continue
             if payment.x_ceo_approval_state == 'pending':
                 raise UserError(_(
-                    'CEO approval is required before posting this %s payment.'
-                ) % payment.x_payment_category)
+                    'CEO approval is required before posting this payment.\n\n'
+                    'Payment "%s" is awaiting CEO approval. '
+                    'Ask the CEO to approve it before posting.'
+                ) % (payment.name or payment.x_payment_category))
 
     def _matracon_update_petty_cash_on_post(self):
         for payment in self.filtered(

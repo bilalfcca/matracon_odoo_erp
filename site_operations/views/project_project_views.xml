@@ -60,7 +60,7 @@
                     <!-- Single progress bar: Billed ÷ Contract × 100 % -->
                     <field name="x_financial_completion_pct"
                            string="Financial Progress (Billed ÷ Contract)"
-                           widget="progressbar"
+                           widget="matracon_progressbar"
                            options="{'max_value': 100, 'edit_max_value': false}"
                            readonly="1"
                            colspan="2"/>
