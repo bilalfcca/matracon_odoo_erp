@@ -51,24 +51,13 @@
                     <field name="x_site_accountant_user_ids" widget="many2many_tags"/>
                 </group>
                 <group string="Contract &amp; Progress" name="matracon_contract_progress">
-                    <!-- Left: amounts — Right: progress percentages -->
                     <group>
                         <field name="x_contract_value"/>
                         <field name="x_billed_to_client" readonly="1"
                                help="Auto: sum of posted Customer Invoices linked to this project."/>
                     </group>
-                    <group>
-                        <field name="x_work_completion_pct" string="Work Completion %"
-                               widget="percentage"/>
-                        <!-- Shown as a plain number so the exact value is always visible
-                             (the progressbar below rounds tiny values to "0 %" in its text). -->
-                        <field name="x_financial_completion_pct"
-                               string="Financial Progress %"
-                               readonly="1"/>
-                    </group>
-                    <!-- Full-width visual bar — fill accurately reflects Billed ÷ Contract.
-                         Note: the bar's own text rounds to 0 for very small percentages
-                         (e.g. < 0.5%); the exact value is shown in the right column above. -->
+                    <group/>
+                    <!-- Single progress bar: Billed ÷ Contract × 100 % -->
                     <field name="x_financial_completion_pct"
                            string="Financial Progress (Billed ÷ Contract)"
                            widget="progressbar"

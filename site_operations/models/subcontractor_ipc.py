@@ -131,19 +131,19 @@ class SubcontractorIPC(models.Model):
     # ── HO Advance Recovery ───────────────────────────────────────────────────
     ho_advance_till_prev_ipc = fields.Monetary(
         string='HO Advance till Previous IPC',
-        compute='_compute_ho_advance', store=True,
+        compute='_compute_ho_advance', store=False,
         currency_field='currency_id', readonly=True,
         help='Cumulative HO advances confirmed for this sub+project up to '
              'the date of the previous IPC.')
     ho_advance_till_this_ipc = fields.Monetary(
         string='HO Advance till This IPC',
-        compute='_compute_ho_advance', store=True,
+        compute='_compute_ho_advance', store=False,
         currency_field='currency_id', readonly=True,
         help='Cumulative HO advances confirmed for this sub+project up to '
              'this IPC date.')
     ho_advance_this_period = fields.Monetary(
         string='New HO Advance (This Period)',
-        compute='_compute_ho_advance', store=True,
+        compute='_compute_ho_advance', store=False,
         currency_field='currency_id', readonly=True,
         help='HO advances disbursed between the previous IPC and this IPC '
              '(= till this IPC − till previous IPC). Pre-fills the recovery field.')

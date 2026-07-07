@@ -187,6 +187,14 @@ class SubcontractorHOAdvance(models.Model):
                 raise UserError(_('Only draft advances can be confirmed.'))
             if rec.amount <= 0:
                 raise UserError(_('Advance amount must be greater than zero.'))
+            # Block confirmation until CEO approves the linked payment.
+            if (rec.payment_id
+                    and rec.payment_id.x_ceo_approval_state == 'pending'):
+                raise UserError(_(
+                    'CEO approval is required before confirming this advance.\n\n'
+                    'Payment "%s" is still awaiting CEO approval. '
+                    'Ask the CEO to approve it first.'
+                ) % (rec.payment_id.name or _('(draft)')))
             rec.state = 'confirmed'
             rec.message_post(
                 body=_('Advance <b>%s</b> confirmed — %s %s to %s.') % (
