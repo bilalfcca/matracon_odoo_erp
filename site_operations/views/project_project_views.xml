@@ -16,7 +16,7 @@
                 <field name="x_contract_value" string="Contract Value" sum="Total Contract" optional="show"/>
                 <field name="x_billed_to_client" string="Billed to Client" sum="Total Billed" optional="show"/>
                 <field name="x_financial_completion_pct" string="Financial %" optional="show"/>
-                <field name="x_remaining_work_value" string="Project Progress" sum="Total Progress" optional="show"/>
+                <field name="x_remaining_work_value" string="Remaining to Bill" sum="Total Remaining" optional="show"/>
                 <field name="x_funds_received" string="Funds Received" sum="Total Received"/>
                 <field name="x_total_spent" string="Total Spent" sum="Total Spent"/>
                 <field name="x_available_balance" string="Available Balance" sum="Total Available"/>
@@ -51,13 +51,23 @@
                     <field name="x_site_accountant_user_ids" widget="many2many_tags"/>
                 </group>
                 <group string="Contract &amp; Progress" name="matracon_contract_progress">
-                    <field name="x_contract_value"/>
-                    <field name="x_billed_to_client" readonly="1"
-                           help="Auto-calculated from posted Customer Invoices linked to this project."/>
-                    <field name="x_work_completion_pct" widget="percentage"/>
-                    <field name="x_financial_completion_pct" readonly="1" widget="percentage"/>
-                    <field name="x_remaining_work_value" readonly="1"
-                           string="Project Progress"/>
+                    <!-- Left: amounts — Right: manual work % -->
+                    <group>
+                        <field name="x_contract_value"/>
+                        <field name="x_billed_to_client" readonly="1"
+                               help="Auto: sum of posted Customer Invoices linked to this project."/>
+                    </group>
+                    <group>
+                        <field name="x_work_completion_pct" string="Work Completion %"
+                               widget="percentage"/>
+                    </group>
+                    <!-- Full-width visual bar: Billed ÷ Contract × 100 % -->
+                    <field name="x_financial_completion_pct"
+                           string="Financial Progress (Billed ÷ Contract)"
+                           widget="progressbar"
+                           options="{'max_value': 100, 'edit_max_value': false}"
+                           readonly="1"
+                           colspan="2"/>
                 </group>
             </xpath>
         </field>

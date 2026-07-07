@@ -98,11 +98,11 @@ class ProjectProjectMatracon(models.Model):
         help='Auto: Billed to Client ÷ Contract Value × 100.',
     )
     x_remaining_work_value = fields.Monetary(
-        string='Project Progress',
+        string='Remaining to Bill',
         compute='_compute_financial_completion_pct',
         currency_field='currency_id',
         store=True,
-        help='Auto: Contract Value − Billed to Client (amount remaining to bill).',
+        help='Auto: Contract Value − Billed to Client (amount still left to invoice).',
     )
 
     currency_id = fields.Many2one(
