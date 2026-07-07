@@ -298,7 +298,15 @@ class AccountMoveSiteOps(models.Model):
                 'Please upload the physical bill document for: %s'
             ) % names)
 
-        res = super().action_post()
+        # Site accountants have group_account_readonly (for Partner Ledger /
+        # reporting menus) but Odoo's action_post() hard-checks group_account_invoice.
+        # These are mutually exclusive Odoo 19 privilege levels; we cannot grant both.
+        # Run the parent call via sudo() for site accountants — our bill copy check
+        # above already validated business rules; sudo() only bypasses the group gate.
+        if self.env.user.has_group('site_operations.group_site_accountant'):
+            res = super(AccountMoveSiteOps, self.sudo()).action_post()
+        else:
+            res = super().action_post()
         for move in self.filtered(
             lambda m: m.move_type == 'in_invoice' and m.state == 'posted'
         ):
