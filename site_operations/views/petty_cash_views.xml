@@ -308,7 +308,7 @@
         <field name="name">x.petty.cash.expense.list</field>
         <field name="model">x.petty.cash.expense</field>
         <field name="arch" type="xml">
-            <list default_group_by="expense_date">
+            <list>
                 <field name="expense_date"/>
                 <field name="x_ref" string="Reference"/>
                 <field name="name" string="Description"/>
@@ -326,16 +326,73 @@
         </field>
     </record>
 
+    <record id="view_petty_cash_request_search" model="ir.ui.view">
+        <field name="name">x.petty.cash.request.search</field>
+        <field name="model">x.petty.cash.request</field>
+        <field name="arch" type="xml">
+            <search string="Search Petty Cash Requests">
+                <field name="name"/>
+                <field name="project_analytic_account_id" string="Project"/>
+                <field name="fund_id"/>
+                <separator/>
+                <filter name="filter_draft" string="Draft"
+                        domain="[('state', '=', 'draft')]"/>
+                <filter name="filter_submitted" string="Submitted"
+                        domain="[('state', '=', 'submitted')]"/>
+                <filter name="filter_approved" string="CEO Approved"
+                        domain="[('state', '=', 'ceo_approved')]"/>
+                <filter name="filter_released" string="Released"
+                        domain="[('state', '=', 'released')]"/>
+                <filter name="filter_confirmed" string="Confirmed"
+                        domain="[('state', '=', 'confirmed')]"/>
+                <separator/>
+                <filter name="group_by_project" string="By Project"
+                        context="{'group_by': 'project_analytic_account_id'}"/>
+                <filter name="group_by_state" string="By Status"
+                        context="{'group_by': 'state'}"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="view_petty_cash_expense_search" model="ir.ui.view">
+        <field name="name">x.petty.cash.expense.search</field>
+        <field name="model">x.petty.cash.expense</field>
+        <field name="arch" type="xml">
+            <search string="Search Petty Cash Expenses">
+                <field name="name" string="Description"/>
+                <field name="x_ref" string="Reference"/>
+                <field name="project_analytic_account_id" string="Project"/>
+                <field name="fund_id"/>
+                <separator/>
+                <filter name="filter_draft" string="Draft"
+                        domain="[('state', '=', 'draft')]"/>
+                <filter name="filter_posted" string="Posted"
+                        domain="[('state', '=', 'posted')]"/>
+                <separator/>
+                <filter name="group_by_project" string="By Project"
+                        context="{'group_by': 'project_analytic_account_id'}"/>
+                <filter name="group_by_date" string="By Date"
+                        context="{'group_by': 'expense_date:month'}"/>
+                <filter name="group_by_category" string="By Category"
+                        context="{'group_by': 'category'}"/>
+            </search>
+        </field>
+    </record>
+
     <record id="action_petty_cash_request" model="ir.actions.act_window">
         <field name="name">Petty Cash Requests</field>
         <field name="res_model">x.petty.cash.request</field>
         <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_petty_cash_request_search"/>
+        <field name="context">{'search_default_group_by_project': 1}</field>
     </record>
 
     <record id="action_petty_cash_expense" model="ir.actions.act_window">
         <field name="name">Petty Cash Expenses</field>
         <field name="res_model">x.petty.cash.expense</field>
         <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_petty_cash_expense_search"/>
+        <field name="context">{'search_default_group_by_project': 1}</field>
     </record>
 
     <record id="action_petty_cash_fund" model="ir.actions.act_window">
