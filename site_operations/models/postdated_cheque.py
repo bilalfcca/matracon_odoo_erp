@@ -92,3 +92,13 @@ class PostdatedCheque(models.Model):
         return self.env.ref(
             'site_operations.action_report_postdated_cheque'
         ).report_action(self)
+
+    def unlink(self):
+        for rec in self:
+            if rec.state != 'pending':
+                raise UserError(_('Only pending (uncleared) cheques can be deleted.'))
+        return super().unlink()
+
+    def action_delete_draft(self):
+        self.unlink()
+        return {'type': 'ir.actions.act_window_close'}

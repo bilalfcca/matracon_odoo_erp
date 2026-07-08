@@ -120,6 +120,10 @@
                             icon="fa-print"/>
                     <field name="state" widget="statusbar"
                            statusbar_visible="draft,pending,active,locked,released"/>
+                    <button name="action_delete_draft" type="object"
+                            string="Delete" class="btn-danger"
+                            invisible="state != 'draft'"
+                            confirm="This bank guarantee will be permanently deleted. Are you sure?"/>
                 </header>
                 <sheet>
                     <widget name="web_ribbon" title="Validated" bg_color="text-bg-success"

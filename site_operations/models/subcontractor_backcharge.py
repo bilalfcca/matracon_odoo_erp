@@ -62,3 +62,13 @@ class SubcontractorBackcharge(models.Model):
                     'and cannot be modified.'
                 ) % (bc.name, bc.ipc_id.name))
         return super().write(vals)
+
+    def unlink(self):
+        for rec in self:
+            if rec.state != 'pending':
+                raise UserError(_('Only pending backcharges can be deleted.'))
+        return super().unlink()
+
+    def action_delete_draft(self):
+        self.unlink()
+        return {'type': 'ir.actions.act_window_close'}

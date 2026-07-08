@@ -231,3 +231,13 @@ class SubcontractorHOAdvance(models.Model):
                  self.project_analytic_account_id.id),
             ],
         }
+
+    def unlink(self):
+        for rec in self:
+            if rec.state != 'draft':
+                raise UserError(_('Only draft HO Advances can be deleted.'))
+        return super().unlink()
+
+    def action_delete_draft(self):
+        self.unlink()
+        return {'type': 'ir.actions.act_window_close'}

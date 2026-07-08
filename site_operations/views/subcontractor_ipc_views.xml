@@ -53,6 +53,10 @@
                             icon="fa-print"/>
                     <field name="state" widget="statusbar"
                            statusbar_visible="draft,submitted,paid"/>
+                    <button name="action_delete_draft" type="object"
+                            string="Delete" class="btn-danger"
+                            invisible="state != 'draft'"
+                            confirm="This IPC will be permanently deleted. Are you sure?"/>
                 </header>
 
                 <sheet>

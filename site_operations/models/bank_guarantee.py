@@ -426,6 +426,16 @@ class BankGuarantee(models.Model):
             'site_operations.action_report_bank_guarantee'
         ).report_action(self)
 
+    def unlink(self):
+        for rec in self:
+            if rec.state != 'draft':
+                raise UserError(_('Only draft bank guarantees can be deleted.'))
+        return super().unlink()
+
+    def action_delete_draft(self):
+        self.unlink()
+        return {'type': 'ir.actions.act_window_close'}
+
 
 class BankGuaranteeAmendment(models.Model):
     _name = 'x.bank.guarantee.amendment'

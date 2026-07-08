@@ -33,6 +33,10 @@
                             groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"/>
                     <field name="state" widget="statusbar"
                            statusbar_visible="draft,confirmed"/>
+                    <button name="action_delete_draft" type="object"
+                            string="Delete" class="btn-danger"
+                            invisible="state != 'draft'"
+                            confirm="This HO Advance will be permanently deleted. Are you sure?"/>
                 </header>
 
                 <sheet>

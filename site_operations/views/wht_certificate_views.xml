@@ -39,6 +39,10 @@
                             invisible="state != 'issued'"/>
                     <field name="state" widget="statusbar"
                            statusbar_visible="draft,issued"/>
+                    <button name="action_delete_draft" type="object"
+                            string="Delete" class="btn-danger"
+                            invisible="state != 'draft'"
+                            confirm="This WHT certificate will be permanently deleted. Are you sure?"/>
                 </header>
                 <sheet>
                     <div class="oe_title">

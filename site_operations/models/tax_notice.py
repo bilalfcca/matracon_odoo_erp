@@ -320,6 +320,16 @@ class TaxNoticeOrder(models.Model):
             'site_operations.action_report_tax_notice'
         ).report_action(self)
 
+    def unlink(self):
+        for rec in self:
+            if rec.state != 'draft':
+                raise UserError(_('Only draft tax notices can be deleted.'))
+        return super().unlink()
+
+    def action_delete_draft(self):
+        self.unlink()
+        return {'type': 'ir.actions.act_window_close'}
+
 
 class TaxNoticePaymentLine(models.Model):
     _name = 'x.tax.notice.payment.line'

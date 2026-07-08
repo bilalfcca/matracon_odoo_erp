@@ -74,6 +74,10 @@
                     <button name="action_print_petty_cash_request" type="object"
                             string="Print Report" class="btn-secondary"
                             icon="fa-print"/>
+                    <button name="action_delete_draft" type="object"
+                            string="Delete" class="btn-danger"
+                            invisible="state != 'draft'"
+                            confirm="This petty cash request will be permanently deleted. Are you sure?"/>
                 </header>
                 <sheet>
                     <div class="oe_button_box" name="button_box">

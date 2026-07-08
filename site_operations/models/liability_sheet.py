@@ -504,6 +504,16 @@ class LiabilitySheet(models.Model):
                 % self.env.user.name
             )
 
+    def unlink(self):
+        for rec in self:
+            if rec.state != 'draft':
+                raise UserError(_('Only draft liability sheets can be deleted.'))
+        return super().unlink()
+
+    def action_delete_draft(self):
+        self.unlink()
+        return {'type': 'ir.actions.act_window_close'}
+
 
 class LiabilitySheetLine(models.Model):
     _name = 'x.liability.sheet.line'

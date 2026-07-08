@@ -51,6 +51,10 @@
                             icon="fa-print"/>
                     <field name="state" widget="statusbar"
                            statusbar_visible="pending,cleared,bounced,cancelled"/>
+                    <button name="action_delete_draft" type="object"
+                            string="Delete" class="btn-danger"
+                            invisible="state != 'pending'"
+                            confirm="This post-dated cheque will be permanently deleted. Are you sure?"/>
                 </header>
                 <sheet>
                     <group>
