@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="action_report_interproject_transfer" model="ir.actions.report">
+        <field name="name">Inter-Project Transfer</field>
+        <field name="model">x.interproject.transfer</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">site_operations.report_interproject_transfer_document</field>
+        <field name="report_file">site_operations.report_interproject_transfer_document</field>
+        <field name="print_report_name">'IPT - ' + (object.name or '')</field>
+        <field name="binding_model_id" ref="model_x_interproject_transfer"/>
+        <field name="binding_type">report</field>
+    </record>
+
+    <template id="report_interproject_transfer_document">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="ipt">
+                <t t-call="web.external_layout">
+                    <div class="page">
+                        <div class="row mb-3 text-center">
+                            <div class="col-12">
+                                <h3 style="font-weight:700;">INTER-PROJECT TRANSFER</h3>
+                                <h5 style="color:#555;"><t t-esc="ipt.name"/></h5>
+                            </div>
+                        </div>
+                        <table class="table table-sm table-borderless" style="font-size:13px;">
+                            <tr>
+                                <td style="width:28%;font-weight:600;">Date</td>
+                                <td><t t-esc="ipt.date.strftime('%d %b %Y') if ipt.date else '-'"/></td>
+                                <td style="width:28%;font-weight:600;">Transfer Type</td>
+                                <td style="text-transform:capitalize;">
+                                    <t t-esc="dict(ipt._fields['transfer_type'].selection).get(ipt.transfer_type, ipt.transfer_type or '-')"/>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="font-weight:600;">Source Project</td>
+                                <td><t t-esc="ipt.source_analytic_id.name or '-'"/></td>
+                                <td style="font-weight:600;">Destination Project</td>
+                                <td><t t-esc="ipt.dest_analytic_id.name or '-'"/></td>
+                            </tr>
+                            <tr t-if="ipt.vendor_id">
+                                <td style="font-weight:600;">Vendor</td>
+                                <td><t t-esc="ipt.vendor_id.name"/></td>
+                                <td></td><td></td>
+                            </tr>
+                            <tr>
+                                <td style="font-weight:600;">Status</td>
+                                <td class="fw-bold" style="text-transform:capitalize;">
+                                    <t t-esc="dict(ipt._fields['state'].selection).get(ipt.state, ipt.state)"/>
+                                </td>
+                                <td style="font-weight:600;">Settlement Date</td>
+                                <td><t t-esc="ipt.settlement_date.strftime('%d %b %Y') if ipt.settlement_date else 'Pending'"/></td>
+                            </tr>
+                        </table>
+
+                        <div class="text-center my-3 p-3 bg-light rounded border">
+                            <div class="text-muted small text-uppercase fw-bold">Transfer Amount</div>
+                            <div class="fs-3 fw-bold">
+                                <t t-esc="ipt.currency_id.symbol"/>
+                                <t t-esc="'{:,.2f}'.format(ipt.amount)"/>
+                            </div>
+                        </div>
+
+                        <t t-if="ipt.notes">
+                            <div class="p-3 border rounded" style="font-size:13px;">
+                                <strong>Notes:</strong><br/><t t-esc="ipt.notes"/>
+                            </div>
+                        </t>
+                        <t t-if="ipt.settlement_note">
+                            <div class="p-3 border rounded mt-2" style="font-size:13px;">
+                                <strong>Settlement Note:</strong><br/><t t-esc="ipt.settlement_note"/>
+                            </div>
+                        </t>
+
+                        <div class="row mt-5">
+                            <div class="col-4 text-center">
+                                <div style="border-top:1px solid #000;padding-top:4px;margin-top:40px;">Source Project — Site Accountant</div>
+                            </div>
+                            <div class="col-4 text-center">
+                                <div style="border-top:1px solid #000;padding-top:4px;margin-top:40px;">Finance Officer</div>
+                            </div>
+                            <div class="col-4 text-center">
+                                <div style="border-top:1px solid #000;padding-top:4px;margin-top:40px;">Destination Project — Site Accountant</div>
+                            </div>
+                        </div>
+                        <p class="text-muted small mt-3">System-generated — Matracon Pakistan Pvt. Ltd.</p>
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+
+</odoo>

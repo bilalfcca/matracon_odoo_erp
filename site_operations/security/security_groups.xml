@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <!-- ── Site Accountant ── -->
+        <record id="group_site_accountant" model="res.groups">
+            <field name="name">Site Accountant</field>
+            <field name="privilege_id" ref="purchase_demand_raise.res_groups_privilege_demand_raise"/>
+            <field name="comment">Site Accountants — vendor bills, liability sheets, petty cash, attendance registry.</field>
+        </record>
+
+        <!-- ── Finance Officer (FO) ── -->
+        <record id="group_finance_ho" model="res.groups">
+            <field name="name">Finance Officer (FO)</field>
+            <field name="privilege_id" ref="purchase_demand_raise.res_groups_privilege_demand_raise"/>
+            <field name="comment">Finance Head Office — vendor payments, payroll, HR, compliance.</field>
+        </record>
+
+        <!-- ══════════════════════════════════════════════════════════════
+             EXPORT PERMISSION — Head Office has no entry in role_app_groups.xml
+             so its implied_ids are not replaced there; we add group_allow_export
+             here via Command.link (append-only).
+             All other roles get group_allow_export inside the (6,0,[...]) lists
+             in role_app_groups.xml (which runs after this file and does a
+             full replace, so additions here would be overwritten anyway).
+        ══════════════════════════════════════════════════════════════ -->
+
+        <!-- Head Office gets export -->
+        <record id="purchase_demand_raise.group_head_office" model="res.groups">
+            <field name="implied_ids" eval="[Command.link(ref('base.group_allow_export'))]"/>
+        </record>
+    </data>
+</odoo>

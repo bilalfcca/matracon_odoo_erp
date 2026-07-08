@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!-- ── Head Office — P-HO-0001 ─────────────────────────────────── -->
+        <record id="seq_purchase_order_ho" model="ir.sequence">
+            <field name="name">Purchase Requisition — Head Office</field>
+            <field name="code">purchase.order.ho</field>
+            <field name="prefix">P-HO-</field>
+            <field name="padding">4</field>
+            <field name="number_next">1</field>
+            <field name="number_increment">1</field>
+            <field name="company_id" ref="base.main_company"/>
+        </record>
+
+        <!-- ── MCH Site — P-MCH-0001 ────────────────────────────────────── -->
+        <record id="seq_purchase_order_mch" model="ir.sequence">
+            <field name="name">Purchase Requisition — MCH Bahawalnagar</field>
+            <field name="code">purchase.order.mch</field>
+            <field name="prefix">P-MCH-</field>
+            <field name="padding">4</field>
+            <field name="number_next">1</field>
+            <field name="number_increment">1</field>
+            <field name="company_id" ref="base.main_company"/>
+        </record>
+
+        <!-- ── RWASA Site — P-RWASA-0001 ────────────────────────────────── -->
+        <record id="seq_purchase_order_rwasa" model="ir.sequence">
+            <field name="name">Purchase Requisition — RWASA</field>
+            <field name="code">purchase.order.rwasa</field>
+            <field name="prefix">P-RWASA-</field>
+            <field name="padding">4</field>
+            <field name="number_next">1</field>
+            <field name="number_increment">1</field>
+            <field name="company_id" ref="base.main_company"/>
+        </record>
+
+        <!-- ── STP Site — P-STP-0001 ────────────────────────────────────── -->
+        <record id="seq_purchase_order_stp" model="ir.sequence">
+            <field name="name">Purchase Requisition — STP Mardan</field>
+            <field name="code">purchase.order.stp</field>
+            <field name="prefix">P-STP-</field>
+            <field name="padding">4</field>
+            <field name="number_next">1</field>
+            <field name="number_increment">1</field>
+            <field name="company_id" ref="base.main_company"/>
+        </record>
+
+        <!-- ══════════════════════════════════════════════════════════════════
+             DMR (Delivery Material Receipt) sequences — one per site warehouse.
+             New sites auto-create their own sequence on first receipt.
+        ════════════════════════════════════════════════════════════════════ -->
+
+        <record id="seq_dmr_mch" model="ir.sequence">
+            <field name="name">DMR — MCH Bahawalnagar</field>
+            <field name="code">x.dmr.mch</field>
+            <field name="prefix">DMR-MCH-</field>
+            <field name="padding">4</field>
+            <field name="number_next">1</field>
+            <field name="number_increment">1</field>
+            <field name="company_id" ref="base.main_company"/>
+        </record>
+
+        <record id="seq_dmr_rwasa" model="ir.sequence">
+            <field name="name">DMR — RWASA</field>
+            <field name="code">x.dmr.rwasa</field>
+            <field name="prefix">DMR-RWASA-</field>
+            <field name="padding">4</field>
+            <field name="number_next">1</field>
+            <field name="number_increment">1</field>
+            <field name="company_id" ref="base.main_company"/>
+        </record>
+
+        <record id="seq_dmr_stp" model="ir.sequence">
+            <field name="name">DMR — STP Mardan</field>
+            <field name="code">x.dmr.stp</field>
+            <field name="prefix">DMR-STP-</field>
+            <field name="padding">4</field>
+            <field name="number_next">1</field>
+            <field name="number_increment">1</field>
+            <field name="company_id" ref="base.main_company"/>
+        </record>
+
+        <!-- Fallback for any site not yet configured -->
+        <record id="seq_dmr_default" model="ir.sequence">
+            <field name="name">DMR — General</field>
+            <field name="code">x.dmr</field>
+            <field name="prefix">DMR-</field>
+            <field name="padding">4</field>
+            <field name="number_next">1</field>
+            <field name="number_increment">1</field>
+            <field name="company_id" ref="base.main_company"/>
+        </record>
+
+    </data>
+</odoo>

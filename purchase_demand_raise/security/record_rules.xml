@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="0">
+
+        <delete model="ir.rule" search="[('name', '=', 'Purchase Order: Site Store sees own PRs only')]"/>
+
+        <record id="rule_po_site_store_project" model="ir.rule">
+            <field name="name">Purchase Order: Site Store restricted to own project</field>
+            <field name="model_id" ref="purchase.model_purchase_order"/>
+            <field name="groups" eval="[(4, ref('purchase_demand_raise.group_site_store'))]"/>
+            <field name="domain_force">[('x_project_analytic_account_id', '=', user.x_default_analytic_account_id.id)]</field>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <!-- ── Procurement HO / CEO / Head Office — HO Procurement, non-draft ──
+             Site Procurement is internal to site store and never visible to HO/CEO.
+             Draft PRs (site store hasn't submitted yet) are also hidden — they have
+             no action pending at HO level.  Once submitted the HO/CEO can see the
+             record and act; after they act it remains visible in their history.
+             Individual role-specific list actions (in views/purchase_order_list_view.xml)
+             pre-apply filters so each role lands on its own action-needed records. -->
+        <record id="rule_po_procurement_ho_all" model="ir.rule">
+            <field name="name">Purchase Order: HO/CEO see HO Procurement submitted or above</field>
+            <field name="model_id" ref="purchase.model_purchase_order"/>
+            <field name="groups" eval="[
+                (4, ref('purchase_demand_raise.group_procurement_ho')),
+                (4, ref('purchase_demand_raise.group_ceo_approval')),
+                (4, ref('purchase_demand_raise.group_head_office')),
+            ]"/>
+            <field name="domain_force">['&amp;',
+                ('x_procurement_type', '=', 'ho_procurement'),
+                ('x_pr_state', 'not in', ['draft'])
+            ]</field>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <record id="rule_po_admin_all" model="ir.rule">
+            <field name="name">Purchase Order: Administrators see all</field>
+            <field name="model_id" ref="purchase.model_purchase_order"/>
+            <field name="groups" eval="[(4, ref('base.group_system'))]"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+        </record>
+
+        <!-- Purchase Order Lines: same analytic scope as the parent PO.
+             Without this rule the Purchase Analysis pivot/graph (which queries
+             purchase.order.line directly) would show all sites' lines. -->
+        <record id="rule_purchase_order_line_site_store" model="ir.rule">
+            <field name="name">Purchase Order Line: Site Store restricted to own project</field>
+            <field name="model_id" ref="purchase.model_purchase_order_line"/>
+            <field name="groups" eval="[(4, ref('purchase_demand_raise.group_site_store'))]"/>
+            <field name="domain_force">[('order_id.x_project_analytic_account_id', '=', user.x_default_analytic_account_id.id)]</field>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <record id="rule_purchase_order_line_admin" model="ir.rule">
+            <field name="name">Purchase Order Line: Administrators see all</field>
+            <field name="model_id" ref="purchase.model_purchase_order_line"/>
+            <field name="groups" eval="[(4, ref('base.group_system'))]"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+        </record>
+
+    </data>
+</odoo>

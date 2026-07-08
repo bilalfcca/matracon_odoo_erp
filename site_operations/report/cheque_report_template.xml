@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="report_cheque_document">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="o">
+                <div class="page" style="font-family: Arial, sans-serif; font-size: 11pt; border: 2px solid #333; padding: 16px;">
+
+                    <!-- ── Header: Logo + Bank name + Cheque No + Date ────── -->
+                    <div class="row align-items-center mb-3">
+                        <!-- Company logo -->
+                        <div class="col-3">
+                            <img t-if="o.company_id.logo"
+                                 t-att-src="image_data_uri(o.company_id.logo)"
+                                 style="max-height: 56px; max-width: 140px; object-fit: contain;"/>
+                        </div>
+                        <!-- Bank name -->
+                        <div class="col-4">
+                            <strong style="font-size: 12pt;">
+                                <t t-esc="o.journal_id.bank_id.name or o.journal_id.name"/>
+                            </strong>
+                        </div>
+                        <!-- Cheque No + Date -->
+                        <div class="col-5 text-end">
+                            <div>
+                                <strong>Cheque No:</strong>
+                                <span class="ms-1"><t t-esc="o.x_cheque_number or ''"/></span>
+                            </div>
+                            <div>
+                                <strong>Date:</strong>
+                                <span class="ms-1">
+                                    <t t-esc="o.date" t-options='{"widget": "date"}'/>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr style="border-color: #333; margin: 4px 0 12px 0;"/>
+
+                    <!-- ── Pay to ─────────────────────────────────────────── -->
+                    <div class="row mb-3">
+                        <div class="col-12">
+                            <strong>Pay to:</strong>
+                            <span style="border-bottom: 1px solid #333; min-width: 400px;
+                                         display: inline-block; margin-left: 8px; padding-bottom: 2px;">
+                                <t t-esc="o.partner_id.name or ''"/>
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- ── Amount in words + currency ────────────────────── -->
+                    <div class="row mb-2">
+                        <div class="col-10">
+                            <strong>Amount:</strong>
+                            <span style="border-bottom: 1px solid #333; min-width: 300px;
+                                         display: inline-block; margin-left: 8px; padding-bottom: 2px;">
+                                <t t-esc="o.currency_id.amount_to_text(o.amount)"/>
+                            </span>
+                        </div>
+                        <div class="col-2 text-end">
+                            <strong><t t-esc="o.currency_id.name"/></strong>
+                        </div>
+                    </div>
+
+                    <!-- ── Amount in figures ──────────────────────────────── -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <strong><t t-esc="o.currency_id.name"/>:</strong>
+                            <span class="ms-1">
+                                <t t-esc="o.currency_id.symbol"/>&#160;<t t-esc="'%,.2f' % o.amount"/>
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- ── Signature Row ──────────────────────────────────── -->
+                    <div class="row mt-5">
+                        <div class="col-4 text-center">
+                            <div style="border-top: 1px solid #333; margin-top: 36px; padding-top: 5px;">
+                                <strong>Prepared by</strong>
+                            </div>
+                        </div>
+                        <div class="col-4 text-center">
+                            <div style="border-top: 1px solid #333; margin-top: 36px; padding-top: 5px;">
+                                <strong>Approved by</strong>
+                            </div>
+                        </div>
+                        <div class="col-4 text-center">
+                            <div style="border-top: 1px solid #333; margin-top: 36px; padding-top: 5px;">
+                                <strong>Received by</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </t>
+        </t>
+    </template>
+</odoo>

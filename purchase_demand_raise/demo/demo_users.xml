@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <!-- Demo user: Site Store for MCH -->
+        <record id="demo_site_store_mch" model="res.users">
+            <field name="name">Test - Site Store MCH</field>
+            <field name="login">site.store.mch@test.com</field>
+            <field name="password">admin</field>
+            <field name="group_ids" eval="[(4, ref('purchase_demand_raise.group_site_store')), (4, ref('base.group_user'))]"/>
+        </record>
+
+        <!-- Demo user: Site Store for RWASA -->
+        <record id="demo_site_store_rwasa" model="res.users">
+            <field name="name">Test - Site Store RWASA</field>
+            <field name="login">site.store.rwasa@test.com</field>
+            <field name="password">admin</field>
+            <field name="group_ids" eval="[(4, ref('purchase_demand_raise.group_site_store')), (4, ref('base.group_user'))]"/>
+        </record>
+
+        <!-- Demo user: Procurement HO -->
+        <record id="demo_procurement_ho" model="res.users">
+            <field name="name">Test - Procurement HO</field>
+            <field name="login">procurement.ho@test.com</field>
+            <field name="password">admin</field>
+            <field name="group_ids" eval="[(4, ref('purchase_demand_raise.group_procurement_ho')), (4, ref('purchase_demand_raise.group_head_office')), (4, ref('base.group_user'))]"/>
+        </record>
+
+        <!-- Demo user: CEO -->
+        <record id="demo_ceo" model="res.users">
+            <field name="name">Test - CEO</field>
+            <field name="login">ceo@test.com</field>
+            <field name="password">admin</field>
+            <field name="group_ids" eval="[(4, ref('purchase_demand_raise.group_ceo_approval')), (4, ref('purchase_demand_raise.group_head_office')), (4, ref('base.group_user'))]"/>
+        </record>
+
+        <!-- Demo user: Site Store for STP Mardan -->
+        <record id="demo_site_store_stp" model="res.users">
+            <field name="name">Test - Site Store STP Mardan</field>
+            <field name="login">site.store.stp@test.com</field>
+            <field name="password">admin</field>
+            <field name="group_ids" eval="[(4, ref('purchase_demand_raise.group_site_store')), (4, ref('base.group_user'))]"/>
+        </record>
+    </data>
+</odoo>

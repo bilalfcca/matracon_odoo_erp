@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="action_report_tax_notice" model="ir.actions.report">
+        <field name="name">Tax Notice</field>
+        <field name="model">x.tax.notice.order</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">site_operations.report_tax_notice_document</field>
+        <field name="report_file">site_operations.report_tax_notice_document</field>
+        <field name="print_report_name">'Tax Notice - ' + (object.name or '')</field>
+        <field name="binding_model_id" ref="model_x_tax_notice_order"/>
+        <field name="binding_type">report</field>
+    </record>
+
+    <template id="report_tax_notice_document">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="notice">
+                <t t-call="web.external_layout">
+                    <div class="page">
+                        <div class="row mb-3 text-center">
+                            <div class="col-12">
+                                <h3 style="font-weight:700;">TAX NOTICE</h3>
+                                <h5 style="color:#555;"><t t-esc="notice.name"/></h5>
+                            </div>
+                        </div>
+                        <table class="table table-sm table-borderless" style="font-size:13px;">
+                            <tr>
+                                <td style="width:28%;font-weight:600;">Reference No.</td>
+                                <td><t t-esc="notice.ref_no or '-'"/></td>
+                                <td style="width:28%;font-weight:600;">Tax Year</td>
+                                <td><t t-esc="notice.tax_year or '-'"/></td>
+                            </tr>
+                            <tr>
+                                <td style="font-weight:600;">Taxpayer</td>
+                                <td><t t-esc="notice.taxpayer_name or '-'"/></td>
+                                <td style="font-weight:600;">Notice Section</td>
+                                <td><t t-esc="notice.notice_section or '-'"/></td>
+                            </tr>
+                            <tr>
+                                <td style="font-weight:600;">Document Date</td>
+                                <td><t t-esc="notice.document_date.strftime('%d %b %Y') if notice.document_date else '-'"/></td>
+                                <td style="font-weight:600;">Due Date</td>
+                                <td><t t-esc="notice.due_date.strftime('%d %b %Y') if notice.due_date else '-'"/></td>
+                            </tr>
+                            <tr>
+                                <td style="font-weight:600;">Status</td>
+                                <td class="fw-bold" style="text-transform:capitalize;">
+                                    <t t-esc="dict(notice._fields['state'].selection).get(notice.state, notice.state)"/>
+                                </td>
+                                <td style="font-weight:600;">Case Status</td>
+                                <td style="text-transform:capitalize;">
+                                    <t t-esc="dict(notice._fields['case_status'].selection).get(notice.case_status, notice.case_status or '-')"/>
+                                </td>
+                            </tr>
+                        </table>
+
+                        <t t-if="notice.description">
+                            <div class="mt-2 p-3 border rounded" style="font-size:13px;">
+                                <strong>Description:</strong><br/>
+                                <t t-esc="notice.description"/>
+                            </div>
+                        </t>
+
+                        <h5 class="mt-4 bg-light p-2">Financial Summary</h5>
+                        <table class="table table-sm table-bordered" style="font-size:13px;">
+                            <tr>
+                                <td style="font-weight:600;">Notice Amount</td>
+                                <td class="text-end">
+                                    <t t-esc="notice.currency_id.symbol"/>
+                                    <t t-esc="'{:,.2f}'.format(notice.liability_notice_amount)"/>
+                                </td>
+                                <td style="font-weight:600;">Tax Ordered</td>
+                                <td class="text-end">
+                                    <t t-esc="notice.currency_id.symbol"/>
+                                    <t t-esc="'{:,.2f}'.format(notice.tax_ordered_amount)"/>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="font-weight:600;">Paid (Official)</td>
+                                <td class="text-end">
+                                    <t t-esc="notice.currency_id.symbol"/>
+                                    <t t-esc="'{:,.2f}'.format(notice.paid_officially)"/>
+                                </td>
+                                <td style="font-weight:600;">Paid (Unofficial)</td>
+                                <td class="text-end">
+                                    <t t-esc="notice.currency_id.symbol"/>
+                                    <t t-esc="'{:,.2f}'.format(notice.paid_unofficially)"/>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="font-weight:600;">Consultant Fee</td>
+                                <td class="text-end">
+                                    <t t-esc="notice.currency_id.symbol"/>
+                                    <t t-esc="'{:,.2f}'.format(notice.consultant_fee)"/>
+                                </td>
+                                <td style="font-weight:600; color:#dc3545;">Remaining Liability</td>
+                                <td class="text-end fw-bold" style="color:#dc3545;">
+                                    <t t-esc="notice.currency_id.symbol"/>
+                                    <t t-esc="'{:,.2f}'.format(notice.remaining_liability)"/>
+                                </td>
+                            </tr>
+                        </table>
+
+                        <t t-if="notice.auditor_remarks">
+                            <div class="mt-2 p-3 border rounded" style="font-size:12px; color:#555;">
+                                <strong>Auditor Remarks:</strong> <t t-esc="notice.auditor_remarks"/>
+                            </div>
+                        </t>
+                        <p class="text-muted small mt-3">System-generated — Matracon Pakistan Pvt. Ltd.</p>
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+
+</odoo>

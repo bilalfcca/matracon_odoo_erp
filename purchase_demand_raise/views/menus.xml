@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Menus that reference Matracon Admin live in site_operations (see views/menus.xml). -->
+
+    <!-- Override standard "Requests for Quotation" menu item name -->
+    <record id="purchase.menu_purchase_rfq" model="ir.ui.menu">
+        <field name="name">Purchase Requisitions</field>
+    </record>
+</odoo>

@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="report_final_po_template">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="o">
+                <t t-call="web.external_layout">
+                    <div class="page">
+
+                        <!-- ── TITLE ── -->
+                        <div class="row mb-4">
+                            <div class="col-12 text-center">
+                                <h2 class="fw-bold">PURCHASE ORDER</h2>
+                                <h5 class="text-muted">CEO Approved — Final Vendor Copy</h5>
+                            </div>
+                        </div>
+
+                        <!-- ── HEADER INFO ── -->
+                        <div class="row mb-3">
+                            <div class="col-6">
+                                <table class="table table-sm table-borderless">
+                                    <tr>
+                                        <td class="fw-bold" style="width:40%">PO Reference:</td>
+                                        <td><t t-esc="o.name"/></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="fw-bold">Date:</td>
+                                        <td><t t-esc="o.date_order" t-options='{"widget": "date"}'/></td>
+                                    </tr>
+                                    <tr t-if="o.date_approve">
+                                        <td class="fw-bold">Order Deadline:</td>
+                                        <td><t t-esc="o.date_approve" t-options='{"widget": "date"}'/></td>
+                                    </tr>
+                                    <tr t-if="o.x_category_id">
+                                        <td class="fw-bold">Category:</td>
+                                        <td><t t-esc="o.x_category_id.name"/></td>
+                                    </tr>
+                                </table>
+                            </div>
+                            <div class="col-6">
+                                <table class="table table-sm table-borderless">
+                                    <tr t-if="o.partner_id">
+                                        <td class="fw-bold" style="width:40%">Vendor:</td>
+                                        <td><t t-esc="o.partner_id.name"/></td>
+                                    </tr>
+                                    <tr t-if="o.partner_ref">
+                                        <td class="fw-bold">Vendor Reference:</td>
+                                        <td><t t-esc="o.partner_ref"/></td>
+                                    </tr>
+                                    <tr t-if="o.x_project_analytic_account_id">
+                                        <td class="fw-bold">Project:</td>
+                                        <td><t t-esc="o.x_project_analytic_account_id.name"/></td>
+                                    </tr>
+                                    <tr t-if="o.picking_type_id">
+                                        <td class="fw-bold">Deliver To:</td>
+                                        <td><t t-esc="o.picking_type_id.warehouse_id.name or ''"/></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="fw-bold">Currency:</td>
+                                        <td><t t-esc="o.currency_id.name"/></td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- ── LINE ITEMS ── -->
+                        <div class="row mb-4">
+                            <div class="col-12">
+                                <h5 class="fw-bold border-bottom pb-1">Order Items</h5>
+                                <table class="table table-sm table-bordered o_main_table">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th style="width:5%">#</th>
+                                            <th style="width:35%">Product / Description</th>
+                                            <th style="width:12%" class="text-center">UoM</th>
+                                            <th style="width:13%" class="text-center">Approved Qty</th>
+                                            <th style="width:15%" class="text-right">Unit Price</th>
+                                            <th style="width:20%" class="text-right">Subtotal</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <t t-set="line_no" t-value="1"/>
+                                        <t t-foreach="o.order_line" t-as="line">
+                                            <!-- Cascade: approved_qty → recommended_qty → requested_qty → product_qty -->
+                                            <t t-set="final_qty"
+                                               t-value="line.x_approved_qty if line.x_approved_qty > 0
+                                                        else (line.x_recommended_qty if line.x_recommended_qty > 0
+                                                        else (line.x_requested_qty if line.x_requested_qty > 0
+                                                        else line.product_qty))"/>
+                                            <tr>
+                                                <td><t t-esc="line_no"/><t t-set="line_no" t-value="line_no + 1"/></td>
+                                                <td>
+                                                    <span t-esc="line.product_id.display_name"/>
+                                                    <t t-if="line.name and line.name != line.product_id.display_name">
+                                                        <br/><small class="text-muted"><t t-esc="line.name"/></small>
+                                                    </t>
+                                                </td>
+                                                <td class="text-center"><t t-esc="line.product_uom_id.name"/></td>
+                                                <td class="text-center fw-bold">
+                                                    <t t-esc="final_qty"/>
+                                                </td>
+                                                <td class="text-right">
+                                                    <t t-esc="line.price_unit"
+                                                       t-options='{"widget": "monetary", "display_currency": o.currency_id}'/>
+                                                </td>
+                                                <td class="text-right fw-bold">
+                                                    <t t-esc="final_qty * line.price_unit"
+                                                       t-options='{"widget": "monetary", "display_currency": o.currency_id}'/>
+                                                </td>
+                                            </tr>
+                                        </t>
+                                    </tbody>
+                                    <tfoot>
+                                        <tr>
+                                            <td colspan="5" class="text-right fw-bold">Total:</td>
+                                            <td class="text-right fw-bold">
+                                                <t t-esc="o.amount_total"
+                                                   t-options='{"widget": "monetary", "display_currency": o.currency_id}'/>
+                                            </td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- ── TERMS ── -->
+                        <div class="row mt-3" t-if="o.note">
+                            <div class="col-12">
+                                <h5 class="fw-bold border-bottom pb-1">Terms &amp; Conditions</h5>
+                                <div style="font-size:12px; line-height:1.6;">
+                                    <t t-out="o.note"/>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ── AUTHORIZATION / SIGNATURES ── -->
+                        <style>
+                            @import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&amp;display=swap');
+                            .matracon-sig { font-family: 'Dancing Script', cursive; font-size: 26px; color: #1a237e; line-height: 1.1; }
+                        </style>
+                        <t t-set="sig" t-value="o.env['x.po.signature.config'].sudo().search([('company_id', '=', o.company_id.id)], limit=1)"/>
+                        <div class="row mt-5">
+                            <!-- PO Officer -->
+                            <div class="col-6 text-center">
+                                <div style="min-height:60px; display:flex; align-items:flex-end; justify-content:center; padding-bottom:4px;">
+                                    <!-- Image if uploaded, else cursive name -->
+                                    <t t-if="sig and sig.x_po_officer_signature">
+                                        <img t-att-src="image_data_uri(sig.x_po_officer_signature)"
+                                             style="max-height:58px; max-width:200px; object-fit:contain;"/>
+                                    </t>
+                                    <t t-else="">
+                                        <span class="matracon-sig">
+                                            <t t-esc="(sig and sig.x_po_officer_name) or 'Nasir Swati'"/>
+                                        </span>
+                                    </t>
+                                </div>
+                                <div style="border-top: 1px solid #000; padding-top: 5px;">
+                                    <div class="fw-bold">
+                                        <t t-esc="(sig and sig.x_po_officer_name) or 'Nasir Swati'"/>
+                                    </div>
+                                    <div class="text-muted small">
+                                        <t t-esc="(sig and sig.x_po_officer_title) or 'Procurement Officer'"/>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- CEO -->
+                            <div class="col-6 text-center">
+                                <div style="min-height:60px; display:flex; align-items:flex-end; justify-content:center; padding-bottom:4px;">
+                                    <!-- Image if uploaded, else cursive name -->
+                                    <t t-if="sig and sig.x_ceo_signature">
+                                        <img t-att-src="image_data_uri(sig.x_ceo_signature)"
+                                             style="max-height:58px; max-width:200px; object-fit:contain;"/>
+                                    </t>
+                                    <t t-else="">
+                                        <span class="matracon-sig">
+                                            <t t-esc="(sig and sig.x_ceo_name) or 'Jehanzeb Saulat'"/>
+                                        </span>
+                                    </t>
+                                </div>
+                                <div style="border-top: 1px solid #000; padding-top: 5px;">
+                                    <div class="fw-bold">
+                                        <t t-esc="(sig and sig.x_ceo_name) or 'Jehanzeb Saulat'"/>
+                                    </div>
+                                    <div class="text-muted small">
+                                        <t t-esc="(sig and sig.x_ceo_title) or 'Chief Executive Officer'"/>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+</odoo>

@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="action_report_attendance_sheet" model="ir.actions.report">
+        <field name="name">Attendance Sheet</field>
+        <field name="model">x.attendance.sheet</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">site_operations.report_attendance_sheet_document</field>
+        <field name="report_file">site_operations.report_attendance_sheet_document</field>
+        <field name="print_report_name">'Attendance - ' + (object.name or '')</field>
+        <field name="binding_model_id" ref="model_x_attendance_sheet"/>
+        <field name="binding_type">report</field>
+    </record>
+
+    <template id="report_attendance_sheet_document">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="sheet">
+                <t t-call="web.external_layout">
+                    <div class="page">
+                        <div class="row mb-3 text-center">
+                            <div class="col-12">
+                                <h3 style="font-weight:700;">ATTENDANCE REGISTER</h3>
+                                <h5 style="color:#555;"><t t-esc="sheet.name"/></h5>
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-6">
+                                <table class="table table-sm table-borderless" style="font-size:13px;">
+                                    <tr>
+                                        <td style="width:40%;font-weight:600;">Project</td>
+                                        <td><t t-esc="sheet.project_analytic_account_id.name or '-'"/></td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-weight:600;">Period</td>
+                                        <td>
+                                            <t t-esc="sheet.date_from.strftime('%d %b %Y') if sheet.date_from else '-'"/>
+                                            &amp;nbsp;–&amp;nbsp;
+                                            <t t-esc="sheet.date_to.strftime('%d %b %Y') if sheet.date_to else '-'"/>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+                            <div class="col-6">
+                                <table class="table table-sm table-borderless" style="font-size:13px;">
+                                    <tr>
+                                        <td style="width:40%;font-weight:600;">Total Employees</td>
+                                        <td><t t-esc="sheet.employee_count"/></td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-weight:600;">Status</td>
+                                        <td style="text-transform:capitalize;font-weight:600;">
+                                            <t t-esc="dict(sheet._fields['state'].selection).get(sheet.state, sheet.state)"/>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+
+                        <table class="table table-sm table-bordered" style="font-size:12px;">
+                            <thead class="table-secondary">
+                                <tr>
+                                    <th>#</th>
+                                    <th>Employee</th>
+                                    <th class="text-center">Present</th>
+                                    <th class="text-center">Absent</th>
+                                    <th class="text-center">Leave</th>
+                                    <th class="text-center">Holiday</th>
+                                    <th class="text-center">Paid Days</th>
+                                    <th class="text-center">Total Days</th>
+                                    <th class="text-end">Advance</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <t t-foreach="sheet.line_ids" t-as="line">
+                                    <tr>
+                                        <td><t t-esc="line_index + 1"/></td>
+                                        <td><t t-esc="line.employee_id.name"/></td>
+                                        <td class="text-center"><t t-esc="line.present_days"/></td>
+                                        <td class="text-center"><t t-esc="line.absent_days"/></td>
+                                        <td class="text-center"><t t-esc="line.leave_days"/></td>
+                                        <td class="text-center"><t t-esc="line.holiday_days"/></td>
+                                        <td class="text-center fw-bold"><t t-esc="line.paid_days"/></td>
+                                        <td class="text-center"><t t-esc="line.total_days"/></td>
+                                        <td class="text-end">
+                                            <t t-if="line.x_advance_amount">
+                                                <t t-esc="'{:,.0f}'.format(line.x_advance_amount)"/>
+                                            </t>
+                                            <t t-else="">—</t>
+                                        </td>
+                                    </tr>
+                                </t>
+                            </tbody>
+                            <tfoot>
+                                <tr class="fw-bold table-light">
+                                    <td colspan="2">Total</td>
+                                    <td class="text-center"><t t-esc="sum(sheet.line_ids.mapped('present_days'))"/></td>
+                                    <td class="text-center"><t t-esc="sum(sheet.line_ids.mapped('absent_days'))"/></td>
+                                    <td class="text-center"><t t-esc="sum(sheet.line_ids.mapped('leave_days'))"/></td>
+                                    <td class="text-center"><t t-esc="sum(sheet.line_ids.mapped('holiday_days'))"/></td>
+                                    <td class="text-center"><t t-esc="sum(sheet.line_ids.mapped('paid_days'))"/></td>
+                                    <td class="text-center"><t t-esc="sum(sheet.line_ids.mapped('total_days'))"/></td>
+                                    <td class="text-end"><t t-esc="'{:,.0f}'.format(sum(sheet.line_ids.mapped('x_advance_amount')))"/></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+
+                        <div class="row mt-5">
+                            <div class="col-4 text-center">
+                                <div style="border-top:1px solid #000;padding-top:4px;margin-top:40px;">Prepared By</div>
+                            </div>
+                            <div class="col-4 text-center">
+                                <div style="border-top:1px solid #000;padding-top:4px;margin-top:40px;">Verified By</div>
+                            </div>
+                            <div class="col-4 text-center">
+                                <div style="border-top:1px solid #000;padding-top:4px;margin-top:40px;">Approved By</div>
+                            </div>
+                        </div>
+                        <p class="text-muted small mt-3">System-generated — Matracon Pakistan Pvt. Ltd.</p>
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+
+</odoo>

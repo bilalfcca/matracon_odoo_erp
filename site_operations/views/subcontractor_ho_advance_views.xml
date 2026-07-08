@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         HO Advance to Subcontractor — Form View
+         Single-screen: fill details → Create Vendor Payment → CEO approves
+         → payment posts → advance auto-confirms.
+    ══════════════════════════════════════════════════════════════════════════ -->
+    <record id="view_subcontractor_ho_advance_form" model="ir.ui.view">
+        <field name="name">x.subcontractor.ho.advance.form</field>
+        <field name="model">x.subcontractor.ho.advance</field>
+        <field name="arch" type="xml">
+            <form string="HO Advance to Subcontractor">
+                <header>
+                    <!-- Step 1: create the vendor payment from here -->
+                    <button name="action_create_payment" type="object"
+                            string="Create Vendor Payment"
+                            class="btn-primary"
+                            invisible="state != 'draft' or payment_id != False"
+                            groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"/>
+                    <!-- Once payment exists: re-open it -->
+                    <button name="action_open_payment" type="object"
+                            string="Open Payment"
+                            class="btn-secondary"
+                            invisible="not payment_id"/>
+                    <button name="action_reset_draft" type="object"
+                            string="Reset to Draft" class="btn-secondary"
+                            invisible="state != 'confirmed'"
+                            groups="purchase_demand_raise.group_matracon_admin"/>
+                    <button name="action_cancel" type="object"
+                            string="Cancel" class="btn-danger"
+                            invisible="state in ('confirmed', 'cancelled')"
+                            groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,confirmed"/>
+                </header>
+
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_ipcs" type="object"
+                                class="oe_stat_button" icon="fa-file-text-o"
+                                invisible="ipc_count == 0">
+                            <field name="ipc_count" widget="statinfo" string="IPCs"/>
+                        </button>
+                    </div>
+
+                    <div class="oe_title">
+                        <h1><field name="name" readonly="1"/></h1>
+                    </div>
+
+                    <!-- Advance Details -->
+                    <group>
+                        <group string="Subcontractor">
+                            <field name="subcontractor_id"
+                                   readonly="state != 'draft'"/>
+                            <field name="project_analytic_account_id"
+                                   string="Destination Project"
+                                   readonly="state != 'draft'"/>
+                        </group>
+                        <group string="Advance Details">
+                            <field name="currency_id" invisible="1"/>
+                            <field name="amount" readonly="state != 'draft'"/>
+                            <field name="advance_date" readonly="state != 'draft'"/>
+                        </group>
+                    </group>
+
+                    <!-- Payment Status — visible once payment has been created -->
+                    <group string="Payment" invisible="not payment_id">
+                        <group>
+                            <field name="payment_id" readonly="1"
+                                   string="Payment" options="{'no_open': False}"/>
+                            <field name="payment_name" string="Reference" readonly="1"/>
+                        </group>
+                        <group>
+                            <field name="payment_state" string="Payment Status"
+                                   readonly="1" widget="badge"
+                                   decoration-warning="payment_state == 'draft'"
+                                   decoration-info="payment_state == 'in_process'"
+                                   decoration-success="payment_state in ('paid','partial')"/>
+                        </group>
+                    </group>
+
+                    <!-- Step guide — shown only before payment is created -->
+                    <div class="alert alert-info" invisible="payment_id != False" role="alert">
+                        <strong>Next steps:</strong>
+                        <ol class="mb-0 mt-1">
+                            <li>Fill in Subcontractor, Destination Project, Amount and Date above.</li>
+                            <li>Click <strong>Create Vendor Payment</strong> — a pre-filled payment form opens.</li>
+                            <li>Add journal / bank details and submit for CEO approval.</li>
+                            <li>Once the payment is posted this advance confirms automatically.</li>
+                        </ol>
+                    </div>
+
+                    <field name="notes"
+                           string="Notes / Purpose"
+                           placeholder="Purpose of this advance…"
+                           readonly="state == 'cancelled'"/>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         HO Advance to Subcontractor — List View
+    ══════════════════════════════════════════════════════════════════════════ -->
+    <record id="view_subcontractor_ho_advance_list" model="ir.ui.view">
+        <field name="name">x.subcontractor.ho.advance.list</field>
+        <field name="model">x.subcontractor.ho.advance</field>
+        <field name="arch" type="xml">
+            <list string="HO Advances"
+                  decoration-muted="state == 'cancelled'"
+                  decoration-success="state == 'confirmed'"
+                  decoration-warning="state == 'draft'">
+                <field name="name"/>
+                <field name="subcontractor_id"/>
+                <field name="project_analytic_account_id" string="Destination Project"/>
+                <field name="advance_date"/>
+                <field name="amount"/>
+                <field name="currency_id" column_invisible="1"/>
+                <field name="payment_name" string="Payment" optional="show"/>
+                <field name="payment_state" string="Payment Status" optional="show"
+                       widget="badge"
+                       decoration-warning="payment_state == 'draft'"
+                       decoration-success="payment_state in ('paid','partial')"/>
+                <field name="state" widget="badge"
+                       decoration-warning="state == 'draft'"
+                       decoration-success="state == 'confirmed'"
+                       decoration-danger="state == 'cancelled'"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         HO Advance to Subcontractor — Search View
+    ══════════════════════════════════════════════════════════════════════════ -->
+    <record id="view_subcontractor_ho_advance_search" model="ir.ui.view">
+        <field name="name">x.subcontractor.ho.advance.search</field>
+        <field name="model">x.subcontractor.ho.advance</field>
+        <field name="arch" type="xml">
+            <search string="Search HO Advances">
+                <field name="subcontractor_id"/>
+                <field name="project_analytic_account_id"/>
+                <field name="name"/>
+                <filter string="Draft" name="filter_draft"
+                        domain="[('state','=','draft')]"/>
+                <filter string="Confirmed" name="filter_confirmed"
+                        domain="[('state','=','confirmed')]"/>
+                <separator/>
+                <filter string="Group by Subcontractor" name="group_sub"
+                        context="{'group_by': 'subcontractor_id'}"/>
+                <filter string="Group by Project" name="group_project"
+                        context="{'group_by': 'project_analytic_account_id'}"/>
+            </search>
+        </field>
+    </record>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         Action
+    ══════════════════════════════════════════════════════════════════════════ -->
+    <record id="action_subcontractor_ho_advance" model="ir.actions.act_window">
+        <field name="name">HO Advances to Subcontractors</field>
+        <field name="res_model">x.subcontractor.ho.advance</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_subcontractor_ho_advance_search"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No HO advances recorded yet.
+            </p>
+            <p>
+                Create an advance record, fill in the subcontractor and destination
+                project, then click <strong>Create Vendor Payment</strong>.
+                The payment goes through the normal CEO approval flow —
+                once posted, the advance confirms automatically and appears in IPCs.
+            </p>
+        </field>
+    </record>
+
+</odoo>

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="action_report_wht_certificate" model="ir.actions.report">
+        <field name="name">WHT Deduction Certificate</field>
+        <field name="model">x.wht.certificate</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">site_operations.report_wht_certificate_document</field>
+        <field name="report_file">site_operations.report_wht_certificate_document</field>
+        <field name="print_report_name">'WHT Certificate - ' + object.name</field>
+        <field name="binding_model_id" ref="site_operations.model_x_wht_certificate"/>
+        <field name="binding_type">report</field>
+    </record>
+</odoo>

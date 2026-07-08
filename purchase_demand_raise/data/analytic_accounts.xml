@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <!--
+        Create the 3 project analytic accounts under the existing "Project" plan.
+        noupdate="1" → created once on install, never overwritten on module update.
+        On production/staging these will be created automatically when the module installs.
+    -->
+
+    <!-- ── MCH - BAHAWALNAGAR ── -->
+    <record id="analytic_account_mch_bahawalnagar" model="account.analytic.account">
+        <field name="name">MCH - BAHAWALNAGAR</field>
+        <field name="code">MCH-BHW</field>
+        <field name="plan_id" ref="analytic.analytic_plan_projects"/>
+    </record>
+
+    <!-- ── STP - MARDAN ── -->
+    <record id="analytic_account_stp_mardan" model="account.analytic.account">
+        <field name="name">STP - MARDAN</field>
+        <field name="code">STP-MRD</field>
+        <field name="plan_id" ref="analytic.analytic_plan_projects"/>
+    </record>
+
+    <!-- ── RWASA ── -->
+    <record id="analytic_account_rwasa" model="account.analytic.account">
+        <field name="name">RWASA</field>
+        <field name="code">RWASA</field>
+        <field name="plan_id" ref="analytic.analytic_plan_projects"/>
+    </record>
+
+</odoo>

@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="action_report_salary_sheet" model="ir.actions.report">
+        <field name="name">Salary Sheet</field>
+        <field name="model">x.salary.sheet</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">site_operations.report_salary_sheet_document</field>
+        <field name="report_file">site_operations.report_salary_sheet_document</field>
+        <field name="print_report_name">'Salary Sheet - ' + (object.name or '')</field>
+        <field name="binding_model_id" ref="model_x_salary_sheet"/>
+        <field name="binding_type">report</field>
+    </record>
+
+    <template id="report_salary_sheet_document">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="sheet">
+                <t t-call="web.external_layout">
+                    <div class="page">
+
+                        <!-- Header -->
+                        <div class="row mb-3 text-center">
+                            <div class="col-12">
+                                <h3 style="font-weight:700;letter-spacing:1px;">SALARY SHEET</h3>
+                                <h5 style="color:#374151;"><t t-esc="sheet.name"/></h5>
+                            </div>
+                        </div>
+
+                        <!-- Meta info -->
+                        <div class="row mb-3">
+                            <div class="col-6">
+                                <table class="table table-sm table-borderless" style="font-size:13px;">
+                                    <tr>
+                                        <td style="width:38%;font-weight:600;">Project</td>
+                                        <td><t t-esc="sheet.project_analytic_account_id.name or '-'"/></td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-weight:600;">Period</td>
+                                        <td>
+                                            <t t-esc="sheet.date_from.strftime('%d %b %Y') if sheet.date_from else '-'"/>
+                                            &#160;–&#160;
+                                            <t t-esc="sheet.date_to.strftime('%d %b %Y') if sheet.date_to else '-'"/>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-weight:600;">Workforce</td>
+                                        <td><t t-esc="sheet.workforce_count"/> employees</td>
+                                    </tr>
+                                </table>
+                            </div>
+                            <div class="col-6">
+                                <table class="table table-sm table-borderless" style="font-size:13px;">
+                                    <tr>
+                                        <td style="width:40%;font-weight:600;">Gross Basic</td>
+                                        <td class="text-end">
+                                            <t t-esc="'{:,.2f}'.format(sheet.total_basic)"/>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-weight:600;">Total Allowances</td>
+                                        <td class="text-end">
+                                            <t t-esc="'{:,.2f}'.format(sheet.total_allowances)"/>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-weight:600;">Total Deductions</td>
+                                        <td class="text-end">
+                                            <t t-esc="'{:,.2f}'.format(sheet.total_deductions)"/>
+                                        </td>
+                                    </tr>
+                                    <tr style="border-top:2px solid #000;">
+                                        <td style="font-weight:700;">Net Payable</td>
+                                        <td class="text-end fw-bold">
+                                            <t t-esc="'{:,.2f}'.format(sheet.total_net)"/>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Payroll Lines Table -->
+                        <table class="table table-sm table-bordered" style="font-size:11px;">
+                            <thead>
+                                <tr style="background:#1E40AF;">
+                                    <th class="text-center" style="width:4%;color:#fff;">#</th>
+                                    <th style="width:18%;color:#fff;">Employee</th>
+                                    <th class="text-center" style="width:7%;color:#fff;">Paid Days</th>
+                                    <th class="text-end" style="width:10%;color:#fff;">Monthly Basic</th>
+                                    <th class="text-end" style="width:10%;color:#fff;">Basic (Days)</th>
+                                    <th class="text-end" style="width:9%;color:#fff;">Allowances</th>
+                                    <th class="text-end" style="width:7%;color:#fff;">WHT</th>
+                                    <th class="text-end" style="width:7%;color:#fff;">EOBI</th>
+                                    <th class="text-end" style="width:8%;color:#fff;">Advance</th>
+                                    <th class="text-end" style="width:8%;color:#fff;">Deductions</th>
+                                    <th class="text-end" style="width:10%;color:#fff;">Net Payable</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <t t-foreach="sheet.line_ids" t-as="line">
+                                    <tr>
+                                        <td class="text-center"><t t-esc="line_index + 1"/></td>
+                                        <td><t t-esc="line.employee_id.name"/></td>
+                                        <td class="text-center"><t t-esc="'{:.2f}'.format(line.paid_days)"/></td>
+                                        <td class="text-end"><t t-esc="'{:,.2f}'.format(line.detail_basic_full)"/></td>
+                                        <td class="text-end"><t t-esc="'{:,.2f}'.format(line.basic_salary)"/></td>
+                                        <td class="text-end"><t t-esc="'{:,.2f}'.format(line.allowances)"/></td>
+                                        <td class="text-end"><t t-esc="'{:,.2f}'.format(line.detail_wht)"/></td>
+                                        <td class="text-end"><t t-esc="'{:,.2f}'.format(line.detail_eobi)"/></td>
+                                        <td class="text-end"><t t-esc="'{:,.2f}'.format(line.detail_advance)"/></td>
+                                        <td class="text-end"><t t-esc="'{:,.2f}'.format(line.deductions)"/></td>
+                                        <td class="text-end fw-bold"><t t-esc="'{:,.2f}'.format(line.net_payable)"/></td>
+                                    </tr>
+                                </t>
+                            </tbody>
+                            <tfoot style="background:#F3F4F6;font-weight:700;">
+                                <tr>
+                                    <td colspan="4" class="text-end">Totals</td>
+                                    <td class="text-end">
+                                        <t t-esc="'{:,.2f}'.format(sum(sheet.line_ids.mapped('basic_salary')))"/>
+                                    </td>
+                                    <td class="text-end">
+                                        <t t-esc="'{:,.2f}'.format(sheet.total_allowances)"/>
+                                    </td>
+                                    <td class="text-end">
+                                        <t t-esc="'{:,.2f}'.format(sum(sheet.line_ids.mapped('detail_wht')))"/>
+                                    </td>
+                                    <td class="text-end">
+                                        <t t-esc="'{:,.2f}'.format(sum(sheet.line_ids.mapped('detail_eobi')))"/>
+                                    </td>
+                                    <td class="text-end">
+                                        <t t-esc="'{:,.2f}'.format(sum(sheet.line_ids.mapped('detail_advance')))"/>
+                                    </td>
+                                    <td class="text-end">
+                                        <t t-esc="'{:,.2f}'.format(sheet.total_deductions)"/>
+                                    </td>
+                                    <td class="text-end">
+                                        <t t-esc="'{:,.2f}'.format(sheet.total_net)"/>
+                                    </td>
+                                </tr>
+                            </tfoot>
+                        </table>
+
+                        <!-- Signature Lines -->
+                        <div class="row mt-5 pt-4">
+                            <div class="col-5 text-center">
+                                <div style="border-top:1px solid #000;padding-top:6px;margin-top:60px;">
+                                    <strong>Prepared By</strong><br/>
+                                    <small style="color:#6B7280;">Site Accountant</small>
+                                </div>
+                            </div>
+                            <div class="col-2"/>
+                            <div class="col-5 text-center">
+                                <div style="border-top:1px solid #000;padding-top:6px;margin-top:60px;">
+                                    <strong>Approved By</strong><br/>
+                                    <small style="color:#6B7280;">Project Manager</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <p class="text-muted small mt-3 text-center">
+                            System-generated — Matracon Pakistan Pvt. Ltd. ·
+                            <t t-esc="sheet.name"/> ·
+                            Printed: <t t-esc="context_timestamp(datetime.datetime.now()).strftime('%d %b %Y %H:%M')"/>
+                        </p>
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+
+</odoo>

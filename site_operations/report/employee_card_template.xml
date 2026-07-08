@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="report_employee_card_document">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="o">
+                <t t-call="web.external_layout">
+                    <t t-set="company" t-value="o.company_id or env.company"/>
+                    <div class="page">
+                        <!-- ID Card Container -->
+                        <div style="max-width: 340px; margin: 40px auto; border: 2px solid #2c3e50; border-radius: 12px; overflow: hidden; font-family: Arial, sans-serif; box-shadow: 0 4px 16px rgba(0,0,0,0.15);">
+
+                            <!-- Header strip with company colour -->
+                            <div style="background: #2c3e50; padding: 14px 18px; display: flex; align-items: center; gap: 14px;">
+                                <div style="flex: 0 0 auto;">
+                                    <t t-if="company.logo">
+                                        <img t-att-src="'data:image/png;base64,' + company.logo.decode('utf-8') if isinstance(company.logo, bytes) else 'data:image/png;base64,' + company.logo"
+                                             style="height:48px; width:auto; border-radius:4px; background:#fff; padding:2px;"
+                                             alt="Company Logo"/>
+                                    </t>
+                                </div>
+                                <div style="flex: 1; color: #fff;">
+                                    <div style="font-size: 13px; font-weight: bold; letter-spacing: 0.5px;">
+                                        <t t-esc="company.name"/>
+                                    </div>
+                                    <div style="font-size: 10px; opacity: 0.75; margin-top: 2px;">EMPLOYEE IDENTITY CARD</div>
+                                </div>
+                            </div>
+
+                            <!-- Body -->
+                            <div style="background: #fff; padding: 16px 18px; display: flex; gap: 14px; align-items: flex-start;">
+
+                                <!-- Photo -->
+                                <div style="flex: 0 0 auto;">
+                                    <t t-if="o.image_128">
+                                        <img t-att-src="'data:image/png;base64,' + o.image_128.decode('utf-8') if isinstance(o.image_128, bytes) else 'data:image/png;base64,' + o.image_128"
+                                             style="width: 80px; height: 80px; object-fit: cover; border-radius: 6px; border: 1px solid #ddd;"
+                                             alt="Employee Photo"/>
+                                    </t>
+                                    <t t-else="">
+                                        <div style="width: 80px; height: 80px; background: #ecf0f1; border-radius: 6px; border: 1px solid #ddd; display: flex; align-items: center; justify-content: center; font-size: 28px; color: #95a5a6;">
+                                            &#x1F464;
+                                        </div>
+                                    </t>
+                                </div>
+
+                                <!-- Details -->
+                                <div style="flex: 1; min-width: 0;">
+                                    <div style="font-size: 15px; font-weight: bold; color: #2c3e50; margin-bottom: 8px; word-break: break-word;">
+                                        <t t-esc="o.name"/>
+                                    </div>
+
+                                    <table style="width: 100%; border-collapse: collapse; font-size: 10px;">
+                                        <tr style="border-bottom: 1px solid #ecf0f1;">
+                                            <td style="padding: 3px 0; color: #7f8c8d; font-weight: bold; white-space: nowrap; width: 45%;">Job Title</td>
+                                            <td style="padding: 3px 0; color: #2c3e50;">
+                                                <t t-esc="o.job_id.name or o.job_title or 'N/A'"/>
+                                            </td>
+                                        </tr>
+                                        <tr style="border-bottom: 1px solid #ecf0f1;">
+                                            <td style="padding: 3px 0; color: #7f8c8d; font-weight: bold;">Department</td>
+                                            <td style="padding: 3px 0; color: #2c3e50;">
+                                                <t t-esc="o.department_id.name or 'N/A'"/>
+                                            </td>
+                                        </tr>
+                                        <tr style="border-bottom: 1px solid #ecf0f1;">
+                                            <td style="padding: 3px 0; color: #7f8c8d; font-weight: bold;">Site / Project</td>
+                                            <td style="padding: 3px 0; color: #2c3e50;">
+                                                <t t-esc="o.x_project_analytic_account_id.name or 'N/A'"/>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td style="padding: 3px 0; color: #7f8c8d; font-weight: bold;">CNIC</td>
+                                            <td style="padding: 3px 0; color: #2c3e50; font-family: monospace;">
+                                                <t t-esc="o.x_cnic or 'N/A'"/>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- Footer -->
+                            <div style="background: #ecf0f1; padding: 8px 18px; text-align: center; font-size: 9px; color: #7f8c8d; border-top: 1px solid #ddd;">
+                                <span style="font-weight: bold;"><t t-esc="company.name"/></span>
+                                <t t-if="company.phone"> &#x2022; <t t-esc="company.phone"/></t>
+                                <t t-if="company.email"> &#x2022; <t t-esc="company.email"/></t>
+                            </div>
+                        </div>
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+</odoo>

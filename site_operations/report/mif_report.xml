@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ── Material Issuance Form (MIF) ──────────────────────────────────── -->
+    <record id="action_report_mif" model="ir.actions.report">
+        <field name="name">Material Issuance Form</field>
+        <field name="model">stock.picking</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">site_operations.report_mif_document</field>
+        <field name="report_file">site_operations.report_mif_document</field>
+        <field name="print_report_name">'MIF - ' + object.name</field>
+        <field name="binding_model_id" ref="stock.model_stock_picking"/>
+        <field name="binding_type">report</field>
+    </record>
+
+    <!-- ── Gate Pass ─────────────────────────────────────────────────────── -->
+    <record id="action_report_gate_pass" model="ir.actions.report">
+        <field name="name">Gate Pass</field>
+        <field name="model">stock.picking</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">site_operations.report_gate_pass_document</field>
+        <field name="report_file">site_operations.report_gate_pass_document</field>
+        <field name="print_report_name">'Gate Pass - ' + object.name</field>
+        <field name="binding_model_id" ref="stock.model_stock_picking"/>
+        <field name="binding_type">report</field>
+    </record>
+
+    <!-- ── Liability Sheet PDF ───────────────────────────────────────────── -->
+    <record id="action_report_liability_sheet" model="ir.actions.report">
+        <field name="name">Liability Sheet</field>
+        <field name="model">x.liability.sheet</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">site_operations.report_liability_sheet_document</field>
+        <field name="report_file">site_operations.report_liability_sheet_document</field>
+        <field name="print_report_name">'Liability Sheet - ' + (object.name or '')</field>
+        <field name="binding_model_id" ref="site_operations.model_x_liability_sheet"/>
+        <field name="binding_type">report</field>
+    </record>
+</odoo>

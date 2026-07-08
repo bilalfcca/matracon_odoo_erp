@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <!--
+        Pre-loaded T&C Templates for Matracon Pakistan Purchase Orders.
+        noupdate="1" — loaded once at install; admin can edit freely without
+        module upgrades overwriting their changes.
+    -->
+
+    <!-- ── Template 1: PO with LC ──────────────────────────────────────────── -->
+    <record id="po_terms_template_with_lc" model="x.po.terms.template">
+        <field name="name">PO with LC</field>
+        <field name="sequence">10</field>
+        <field name="description">Purchase Order where Matracon Pakistan opens the Import Letter of Credit</field>
+        <field name="active">True</field>
+        <field name="content" type="html">
+<p>Through your quotation, we are pleased to confirm the order for the Supply of subjected items conforming to relevant standards for our subject project, immediately according to the following details:</p>
+
+<p>M/s Matracon-KBDL-5H INSAAT is engaged in the project for which the Vendor have offered their Quotation with the rates being for the Supply and installation of subjected material.</p>
+
+<p>The Vendor takes complete responsibility and obligation, as defined under this Purchase Order, technical specifications of the Contract between ADB and Matracon-KBDL-5H Insaat JV and technical submittals (including revised submittals) for Project and the Vendor irrevocably accepts the same, which now becomes part of this purchase order.</p>
+
+<p>All specifications and technical submittals (including revised submittals) approved or to be approved by the Client/Consultant shall be considered as part of this Purchase Order, therefore, the Supplier shall be the responsible to fulfill all the requirements as specified therein.</p>
+
+<p>Any material failing to conform to the quality testing standards shall be removed &amp; replaced at your own cost.</p>
+
+<p>The Vendor shall provide all material specifications, test reports, and test certificates, for approval by the consultant/client of the Project. Testing of materials would be the responsibility of the Vendor.</p>
+
+<p>The Vendor shall submit method statements, installation procedures, and work schedules for approval prior to commencement of work. All works shall proceed only after obtaining written approval from the consultant/client of the Project.</p>
+
+<p>Installation shall be carried out in accordance with approved shop drawings, method statements, and consultant recommendations.</p>
+
+<p>The Vendor confirms that the quoted cost is complete and sufficient for the provision, installation, testing, commissioning, and successful operation of the equipment/system in all respects. No additional payment shall be entertained on this account.</p>
+
+<h4>Terms &amp; Conditions (Particular)</h4>
+<ul>
+    <li>A warranty of 02 years will be provided, starting from the date of successful testing and commissioning.</li>
+    <li>The warranty/guarantee must be issued by the principal company, not by any authorized supplier or vendor.</li>
+    <li>Matracon-KBDL-5H INSAAT JV has submitted Performance guarantee to ADB/Employer for the performance which shall remain alive till liability period of the Project. The Vendor shall also submit an undertaking that they take complete responsibility for their supplied Subject material.</li>
+    <li>A Performance Guarantee equivalent to 25% of the total work order must be submitted, issued by a reputed Double-A insurance company, and valid for at least 2 years from the date of successful testing and commissioning.</li>
+    <li>All payments will be issued against a security cheque from a valid bank and an active account.</li>
+    <li>The supplier will be responsible for obtaining all necessary approvals from the client and appointed consultants.</li>
+    <li>The guarantee/warranty will be addressed to WASA Rawalpindi.</li>
+    <li>Transportation charges on Vendor. Unloading will be responsibility of Matracon Pakistan (Pvt) Limited.</li>
+    <li>The Factory Acceptance Test (FAT) will be conducted for subjected materials originating from USA, or Europe. The cost of travel, accommodation, and all associated expenses for five (05) persons shall be the responsibility of the supplier.</li>
+</ul>
+
+<h4>Payment Terms for Purchase Order (PO)</h4>
+<p>Matracon Pakistan (Pvt.) Limited will open import LC of value as per agreed amount. Moreover, Applicable taxes, duties will be paid by Matracon Pakistan (Pvt) Limited. However, such payment will be adjusted from Total cost of PO.</p>
+<p>Balance payment will be paid item-wise as per agreed schedule in PKR cash as per the following terms:</p>
+<ul>
+    <li>10% Advance on PO</li>
+    <li>25% After 2 Months</li>
+    <li>25% after FAT</li>
+    <li>20% on BL (Bill of Lading)</li>
+    <li>10% on Delivery at site (Within 10 days of delivery)</li>
+    <li>10% on Testing, Commissioning, and Final Handing Over</li>
+</ul>
+        </field>
+    </record>
+
+    <!-- ── Template 3: PO Confirmation Letter (CEO formal letter format) ──── -->
+    <record id="po_terms_template_po_confirmation" model="x.po.terms.template">
+        <field name="name">PO Confirmation Letter (CEO)</field>
+        <field name="sequence">5</field>
+        <field name="description">Formal PO confirmation letter signed by CEO (JEHANZEB SAULAT). Use for local/domestic purchase orders.</field>
+        <field name="active">True</field>
+        <field name="content" type="html">
+<p><strong>Sub: Order for the Supply of [Material / Service as per RFQ Reference]</strong></p>
+
+<p>Dear Sir/Madam,</p>
+
+<p>With reference to your quotation and subsequent discussions, we are pleased to confirm the Purchase Order for the supply of the above-mentioned materials/services as per the terms and conditions set out herein.</p>
+
+<h4>1. Scope of Supply</h4>
+<p>As per the attached RFQ and your accepted quotation. All materials shall conform to the relevant standards, specifications, and drawings as agreed between the parties.</p>
+
+<h4>2. Quality Assurance</h4>
+<ul>
+    <li>All materials shall be inspected and approved by Matracon Pakistan (Pvt.) Limited before dispatch and upon delivery at the project site.</li>
+    <li>Any material found defective or not conforming to the agreed specifications shall be removed and replaced at the Vendor's cost.</li>
+    <li>The Vendor shall provide all relevant test certificates, factory test reports, and quality assurance documents.</li>
+</ul>
+
+<h4>3. Delivery</h4>
+<ul>
+    <li>Materials must be delivered to the project site within the agreed delivery period from the date of this Purchase Order.</li>
+    <li>Transportation, loading, and unloading to the project site is the responsibility of the Vendor unless otherwise stated.</li>
+    <li>Risk of loss or damage shall remain with the Vendor until materials are delivered and accepted at the project site.</li>
+    <li>Any delay in delivery shall be subject to penalties as mutually agreed.</li>
+</ul>
+
+<h4>4. Payment Terms</h4>
+<p>Payment shall be made as per the agreed schedule. All payments are subject to deduction of applicable withholding taxes (WHT) as per the Income Tax Ordinance 2001 and other applicable laws of Pakistan.</p>
+
+<h4>5. Warranty / Guarantee</h4>
+<p>The Vendor shall provide warranty as per the quotation / agreed terms commencing from the date of successful delivery and acceptance at the project site.</p>
+
+<h4>6. Price</h4>
+<p>Prices are firm and fixed for the full duration of this Purchase Order. The Vendor confirms that the quoted cost is complete and inclusive of all charges. GST shall be paid separately as per law.</p>
+
+<h4>7. Dispute Resolution</h4>
+<p>Any dispute arising out of or in connection with this Purchase Order shall be resolved through mutual negotiation. If not resolved amicably, the matter shall be referred to the competent courts of Islamabad, Pakistan.</p>
+
+<h4>8. Acknowledgement</h4>
+<p>Please sign and return a copy of this Purchase Order as acknowledgement of acceptance within 48 hours of receipt.</p>
+
+<br/>
+<p>
+    Yours sincerely,<br/><br/>
+    <strong>JEHANZEB SAULAT</strong><br/>
+    Chief Executive Officer<br/>
+    Matracon Pakistan (Pvt.) Limited
+</p>
+        </field>
+    </record>
+
+    <!-- ── Template 2: PO without LC ───────────────────────────────────────── -->
+    <record id="po_terms_template_without_lc" model="x.po.terms.template">
+        <field name="name">PO without LC</field>
+        <field name="sequence">20</field>
+        <field name="description">Purchase Order where the Supplier arranges the Letter of Credit at their own cost</field>
+        <field name="active">True</field>
+        <field name="content" type="html">
+<p>Through your quotation, we are pleased to confirm the order for the Supply &amp; Installation of subjected items conforming to relevant standards for our subject project, immediately according to the following details:</p>
+
+<p>M/s Matracon-KBDL-5H INSAAT is engaged in the project for which the Vendor have offered their Quotation with the rates being for the Supply and installation of subject material.</p>
+
+<p>The Vendor takes complete responsibility and obligation, as defined under this Purchase Order, technical specifications of the Contract between ADB and Matracon-KBDL-5H Insaat JV and technical submittals (including revised submittals) for Project and the Vendor irrevocably accepts the same, which now becomes part of this purchase order.</p>
+
+<p>All specifications and technical submittals (including revised submittals) approved or to be approved by the Client/Consultant shall be considered as part of this Purchase Order, therefore, the Supplier shall be the responsible to fulfill all the requirements as specified therein.</p>
+
+<p>Any material failing to conform to the quality testing standards shall be removed &amp; replaced at your own cost.</p>
+
+<p>The Vendor shall provide all material specifications, test reports, and test certificates, for approval by the consultant/client of the Project. Testing of materials would be the responsibility of the Vendor.</p>
+
+<p>The Vendor shall submit method statements, installation procedures, and work schedules for approval prior to commencement of work. All works shall proceed only after obtaining written approval from the consultant/client of the Project.</p>
+
+<p>Installation shall be carried out in accordance with approved shop drawings, method statements, and consultant recommendations.</p>
+
+<p>The Vendor confirms that the quoted cost is complete and sufficient for the provision, installation, testing, commissioning, and successful operation of the equipment/system in all respects. No additional payment shall be entertained on this account.</p>
+
+<h4>Terms &amp; Conditions (Particular)</h4>
+<ul>
+    <li>A warranty of 02 years will be provided, starting from the date of successful testing and commissioning.</li>
+    <li>The warranty/guarantee to be issued by the Vendor.</li>
+    <li>Matracon-KBDL-5H INSAAT JV has submitted Performance guarantee to ADB/Employer for the performance which shall remain alive till liability period of the Project. The Vendor shall also submit an undertaking that they take complete responsibility for their supplied Subject material.</li>
+    <li>A Performance Guarantee equivalent to 10% of the total work order shall be submitted in the form of Bank Guarantee issued by scheduled bank of Pakistan, and shall remain valid for at least 2 years from the date of successful testing and commissioning.</li>
+    <li>The security cheque(s) submitted by the Supplier shall serve as a continuing security against the due performance of all obligations under this Purchase Order and may be presented for encashment by Matracon Pakistan (Pvt.) Limited in the event of default, non-performance, breach of contractual obligations, or failure to compensate for losses and damages arising therefrom.</li>
+    <li>The supplier will be responsible for obtaining all necessary approvals from the client and appointed consultants.</li>
+    <li>The guarantee/warranty will be addressed to WASA Rawalpindi.</li>
+    <li>Transportation, loading / unloading etc., charges will be borne by the Vendor.</li>
+    <li>The Factory Acceptance Test (FAT) will be conducted for subjected materials originating from Europe. The cost of travel, accommodation, and all associated expenses for Three (03) persons shall be the responsibility of the supplier. Alternatively, if required by the Client/Consultant, third-party inspection and testing may be carried out through SGS or any other approved third-party inspection agency nominated by the Client/Consultant.</li>
+    <li>The Vendor binds itself to complete the entire manufacturing and safe delivery at the project site within the agreed timeline from contract signing. Following successful delivery, the complete physical installation, testing, and commissioning must be executed within Two (2) Weeks.</li>
+</ul>
+
+<h4>Payment Terms for Purchase Order (PO)</h4>
+<p>The Supplier shall arrange and open the Letter of Credit (LC) / Bank Contract / Official Order Acknowledgment at their own cost and responsibility. The LC / Bank Contract / Official Order Acknowledgment shall explicitly reference the Project name and shall name Matracon Pakistan Private Limited as the concerned party.</p>
+<p>All payments will be issued against a security cheque from a valid bank and an active account.</p>
+<p>Payment will be made as follows:</p>
+<ul>
+    <li>20% Advance on PO</li>
+    <li>30% on confirmation of readiness by the factory, before FAT</li>
+    <li>10% after successful FAT</li>
+    <li>15% on BL (Bill of Lading)</li>
+    <li>5% after Delivery at site</li>
+    <li>10% after installation</li>
+    <li>10% after Testing, Commissioning, and Final Handing Over</li>
+</ul>
+        </field>
+    </record>
+
+</odoo>

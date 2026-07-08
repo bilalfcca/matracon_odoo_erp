@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_material_cost_report_list" model="ir.ui.view">
+        <field name="name">x.material.cost.report.list</field>
+        <field name="model">x.material.cost.report</field>
+        <field name="arch" type="xml">
+            <list string="Material Cost Consumption"
+                  create="0" edit="0" delete="0"
+                  decoration-danger="net_qty == 0">
+                <field name="project_analytic_account_id" optional="show"/>
+                <field name="product_category_id" optional="show"/>
+                <field name="product_id"/>
+                <field name="product_uom" string="Unit"/>
+                <field name="issued_qty"/>
+                <field name="returned_qty"/>
+                <field name="net_qty"/>
+                <field name="unit_cost"/>
+                <field name="total_cost"/>
+                <field name="currency_id" column_invisible="1"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_material_cost_report" model="ir.actions.server">
+        <field name="name">Material Cost Consumption</field>
+        <field name="model_id" ref="base.model_res_partner"/>
+        <field name="state">code</field>
+        <field name="code">action = env['x.material.cost.report'].action_refresh_report()</field>
+    </record>
+
+</odoo>

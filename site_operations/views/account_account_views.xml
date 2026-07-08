@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         0.  Invoice Lines → Account column visible to site accountants
+             Standard Odoo gates account_id in invoice lines on
+             account.group_account_readonly. Site accountants have only
+             group_account_invoice, so the column is hidden for them.
+             We extend the groups to include group_site_accountant.
+
+             UAT Point 5 — Head Office CoA unrestricted:
+             HO users (group_head_office / group_finance_ho) see the complete
+             Chart of Accounts in the account picker — no account_type domain
+             filter and no search_default_type_* context pre-filter.
+             Site accountants retain their existing site-scoped restrictions.
+    ══════════════════════════════════════════════════════════════════════════ -->
+    <record id="view_move_form_invoice_line_account_site_accountant" model="ir.ui.view">
+        <field name="name">account.move.form.invoice.line.account.site.accountant</field>
+        <field name="model">account.move</field>
+        <field name="inherit_id" ref="account.view_move_form"/>
+        <field name="arch" type="xml">
+            <!-- Expose user analytic + HO flag so domain/context below can reference them -->
+            <xpath expr="//field[@name='invoice_line_ids']" position="before">
+                <field name="x_user_analytic_id" invisible="1"/>
+                <field name="x_user_is_ho" invisible="1"/>
+            </xpath>
+            <xpath expr="//field[@name='account_id'][@widget='many2one_account_account']" position="attributes">
+                <attribute name="groups">account.group_account_readonly,site_operations.group_site_accountant</attribute>
+                <!-- Domain:
+                     • HO users (x_user_is_ho=True):  no account_type restriction — full CoA.
+                     • Site accountants (x_user_analytic_id set): exclude receivable/payable/
+                       off_balance AND restrict to accounts tagged for their site. -->
+                <attribute name="domain">([('company_ids', 'parent_of', company_id)] if parent.x_user_is_ho else [('company_ids', 'parent_of', company_id), ('account_type', 'not in', ('asset_receivable', 'liability_payable', 'off_balance')), ('x_ho_only', '=', False)]) + (['|', ('x_site_ids', '=', False), ('x_site_ids', 'in', [parent.x_user_analytic_id])] if parent.x_user_analytic_id else [])</attribute>
+                <!-- Context:
+                     • HO users: all search_default_type_* and preferred_account_type → False,
+                       so the picker opens with no type pre-filter.
+                     • Non-HO: standard Odoo behaviour (expense pre-filter for bills,
+                       income pre-filter for customer invoices). -->
+                <attribute name="context">{'partner_id': partner_id, 'move_type': parent.move_type, 'search_default_type_asset_fixed': not parent.x_user_is_ho and 'in_' in parent.move_type, 'search_default_type_expense': not parent.x_user_is_ho and 'in_' in parent.move_type, 'search_default_type_expense_direct_cost': not parent.x_user_is_ho and 'in_' in parent.move_type, 'search_default_account_type': not parent.x_user_is_ho and ('out_' in parent.move_type and 'income'), 'preferred_account_type': not parent.x_user_is_ho and ('out_' in parent.move_type and 'income' or 'in_' in parent.move_type and 'expense')}</attribute>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         1.  Journal Items tab on vendor bill / account.move
+             Add site_operations.group_site_accountant alongside the standard
+             account.group_account_readonly so site accountants can see the
+             GL breakdown of their bills.
+    ══════════════════════════════════════════════════════════════════════════ -->
+    <record id="view_move_form_journal_items_site_accountant" model="ir.ui.view">
+        <field name="name">account.move.form.journal.items.site.accountant</field>
+        <field name="model">account.move</field>
+        <field name="inherit_id" ref="account.view_move_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//page[@name='aml_tab']" position="attributes">
+                <attribute name="groups">account.group_account_readonly,site_operations.group_site_accountant</attribute>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         2.  account.account form: site visibility fields + site balance button
+             - x_ho_only: checkbox to mark an account as Head-Office-Only
+             - x_site_ids: which sites can see this account (empty = all)
+             - Standard Balance stat button is hidden from site accountants and
+               replaced by a Site Balance button that shows only their project's
+               balance and opens only their project's journal items.
+    ══════════════════════════════════════════════════════════════════════════ -->
+    <record id="view_account_form_site_ops" model="ir.ui.view">
+        <field name="name">account.account.form.site.ops</field>
+        <field name="model">account.account</field>
+        <field name="inherit_id" ref="account.view_account_form"/>
+        <field name="arch" type="xml">
+
+            <!-- Expose user-context flags so view logic can reference them -->
+            <xpath expr="//sheet" position="before">
+                <field name="x_user_is_site_accountant" invisible="1"/>
+                <field name="x_site_balance" invisible="1"/>
+            </xpath>
+
+            <!-- Standard Balance button: keep for HO users, hide from site accountants
+                 (the global balance is not meaningful / could be misleading for a site). -->
+            <xpath expr="//button[@name='account.action_move_line_select']" position="attributes">
+                <attribute name="groups">account.group_account_readonly</attribute>
+                <attribute name="invisible">x_user_is_site_accountant</attribute>
+            </xpath>
+
+            <!-- Site Balance button: only for site accountants.
+                 Shows the balance from posted move lines tagged to their project only.
+                 Clicking through opens journal items pre-filtered to the same scope. -->
+            <xpath expr="//button[@name='account.action_move_line_select']" position="after">
+                <button name="action_open_site_journal_items"
+                        type="object"
+                        class="oe_stat_button"
+                        icon="fa-bars"
+                        invisible="not x_user_is_site_accountant">
+                    <field name="x_site_balance" widget="statinfo" string="Site Balance"/>
+                </button>
+            </xpath>
+
+            <!-- Add Site Visibility section inside the Accounting tab -->
+            <xpath expr="//page[@name='accounting']//group[last()]" position="after">
+                <group string="Site Visibility" groups="account.group_account_manager">
+                    <!-- Head Office Only flag — when checked, no site accountant
+                         can see this account regardless of x_site_ids below. -->
+                    <field name="x_ho_only" string="Head Office Only"/>
+                    <!-- Per-site visibility — hidden when HO-Only is checked since
+                         it becomes irrelevant once the account is fully restricted. -->
+                    <field name="x_site_ids"
+                           widget="many2many_tags"
+                           string="Visible to Sites"
+                           options="{'no_create': True}"
+                           placeholder="Leave empty = visible to all sites"
+                           invisible="x_ho_only"/>
+                </group>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         3.  Dedicated Chart of Accounts action for site accountants.
+             Uses an ir.actions.server to compute the domain server-side.
+             NOTE: ir.actions.act_window domains are pre-processed client-side
+             in Odoo 19 by JavaScript evaluateExpr, which does NOT have access
+             to the `user` record — only `uid` (integer). So we use a server
+             action that has full access to env.user and returns a concrete
+             domain list (no further client-side evaluation needed).
+    ══════════════════════════════════════════════════════════════════════════ -->
+    <record id="action_coa_site_accountant_server" model="ir.actions.server">
+        <field name="name">Chart of Accounts (Site)</field>
+        <field name="model_id" ref="account.model_account_account"/>
+        <field name="state">code</field>
+        <field name="code">
+analytic_id = env.user.x_default_analytic_account_id.id
+if analytic_id:
+    # Exclude accounts flagged as Head Office Only (x_ho_only=True) AND
+    # restrict to accounts that are either untagged (empty x_site_ids = all sites)
+    # or explicitly tagged with this site's analytic account.
+    domain = [
+        ('x_ho_only', '=', False),
+        '|',
+        ('x_site_ids', '=', False),
+        ('x_site_ids', 'in', [analytic_id]),
+    ]
+else:
+    domain = []
+action = {
+    'type': 'ir.actions.act_window',
+    'name': 'Chart of Accounts',
+    'res_model': 'account.account',
+    'view_mode': 'list,form',
+    'domain': domain,
+    'context': {'default_x_site_ids': []},
+    'help': '&lt;p class="o_view_nocontent_smiling_face"&gt;No accounts visible to your site yet.&lt;/p&gt;'
+            '&lt;p&gt;Accounts with no site restriction are visible to all sites. '
+            'Ask Head Office to check Configuration &amp;rarr; Chart of Accounts.&lt;/p&gt;',
+}
+        </field>
+    </record>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         4.  Chart of Accounts list: show x_site_ids as optional column
+             (HO can see / edit which sites each account is assigned to).
+             Column is hidden by default to keep the list clean.
+    ══════════════════════════════════════════════════════════════════════════ -->
+    <record id="view_account_list_site_ops" model="ir.ui.view">
+        <field name="name">account.account.list.site.ops</field>
+        <field name="model">account.account</field>
+        <field name="inherit_id" ref="account.view_account_list"/>
+        <field name="arch" type="xml">
+            <xpath expr="//list" position="inside">
+                <field name="x_ho_only"
+                       string="HO Only"
+                       optional="hide"
+                       groups="account.group_account_manager"/>
+                <field name="x_site_ids"
+                       widget="many2many_tags"
+                       string="Visible to Sites"
+                       optional="hide"
+                       groups="account.group_account_manager"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         5.  Journal form: x_site_ids field so HO/admin can assign which
+             sites are allowed to select each journal in petty cash expenses.
+    ══════════════════════════════════════════════════════════════════════════ -->
+    <record id="view_account_journal_form_site_ops" model="ir.ui.view">
+        <field name="name">account.journal.form.site.ops</field>
+        <field name="model">account.journal</field>
+        <field name="inherit_id" ref="account.view_account_journal_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//page[@name='advanced_settings']" position="before">
+                <page string="Site Visibility" groups="account.group_account_manager,site_operations.group_finance_ho">
+                    <group>
+                        <field name="x_site_ids"
+                               widget="many2many_tags"
+                               string="Visible to Sites"
+                               options="{'no_create': True}"
+                               placeholder="Leave empty = visible to all sites"/>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

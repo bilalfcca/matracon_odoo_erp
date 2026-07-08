@@ -1,0 +1,202 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        Matracon Pakistan — Custom mail templates for Purchase module.
+
+        1.  Override the standard Odoo "Send RFQ" template with a formal
+            Matracon letter format, and swap in our custom RFQ PDF report.
+        2.  New "Matracon PO Confirmation" template — auto-sent to vendor
+            when CEO gives final approval (called from action_ceo_final_approve).
+
+        noupdate="0" on the override so every module upgrade re-applies
+        our body.  The new template is noupdate="1" (load-once; editable
+        by admin without being overwritten on upgrade).
+    -->
+
+    <!-- ══ 1.  Matracon standalone RFQ template ═══════════════════════════════
+         NEW record with our own ID — no noupdate conflict with the base
+         purchase module.  This is what action_rfq_send() explicitly uses.
+         noupdate="0" so every module upgrade re-applies our body and PDF.
+         ════════════════════════════════════════════════════════════════════ -->
+    <record id="matracon_rfq_email_template" model="mail.template">
+        <field name="name">Purchase: Send RFQ — Matracon Format</field>
+        <field name="model_id" ref="purchase.model_purchase_order"/>
+        <field name="subject">Request for Quotation — Ref: {{ object.name }}</field>
+        <field name="body_html" type="html">
+<div style="margin:0;padding:0;font-family:Arial,sans-serif;">
+    <p style="margin:0 0 6px 0;font-size:13px;">
+        <strong><t t-out="object.partner_id.name or ''">M/s XYZ Company</t></strong>
+    </p>
+    <p style="margin:0 0 14px 0;font-size:13px;">
+        Date: <t t-out="format_date(datetime.datetime.now()) or ''">July 02, 2026</t>
+    </p>
+
+    <p style="margin:0 0 12px 0;font-size:13px;">
+        <strong>Subject: Request for Quotation — Ref: <t t-out="object.name or ''">P-HO-0001</t></strong>
+    </p>
+
+    <p style="margin:0 0 10px 0;font-size:13px;">Dear Sir/Madam,</p>
+
+    <p style="margin:0 0 10px 0;font-size:13px;">
+        We are pleased to invite your quotation for the supply of
+        materials/services as per the following requirements.
+    </p>
+
+    <p style="margin:0 0 10px 0;font-size:13px;">
+        Please find attached the RFQ document
+        (<strong><t t-out="object.name or ''">P-HO-0001</t></strong>)
+        for your reference.
+    </p>
+
+    <p style="margin:0 0 6px 0;font-size:13px;">Kindly provide the following in your quotation:</p>
+    <ul style="font-size:13px;margin:0 0 12px 0;padding-left:20px;">
+        <li>Technical compliance with specifications</li>
+        <li>Unit rates and total quoted price</li>
+        <li>Delivery period</li>
+        <li>Warranty details</li>
+        <li>Validity of the offer</li>
+        <li>Installation / testing charges (if applicable)</li>
+    </ul>
+
+    <p style="margin:0 0 16px 0;font-size:13px;">
+        We look forward to receiving your competitive quotation at the earliest.
+    </p>
+
+    <p style="margin:0;font-size:13px;">
+        Best regards,<br/>
+        <strong>Procurement Department</strong><br/>
+        Matracon Pakistan (Pvt.) Limited
+    </p>
+</div>
+        </field>
+        <!-- Attach our custom RFQ PDF: formal intro letter + blank Unit Price /
+             Tax % / Total columns so the vendor fills them in. -->
+        <field name="report_template_ids" eval="[(6, 0, [ref('purchase_demand_raise.action_report_rfq_demand_raise')])]"/>
+        <field name="auto_delete" eval="True"/>
+    </record>
+
+    <!-- ══ 1b. Override standard Odoo RFQ template body/subject only ══════════
+         The base template is noupdate="1" in purchase module, so the
+         report_template_ids field cannot be reliably overridden here.
+         Body/subject are still updated so the fallback path (standard Odoo
+         Send RFQ button if ever called directly) also shows Matracon format.
+         ════════════════════════════════════════════════════════════════════ -->
+    <record id="purchase.email_template_edi_purchase" model="mail.template">
+        <field name="name">Purchase: Request For Quotation (Matracon)</field>
+        <field name="subject">Request for Quotation — Ref: {{ object.name }}</field>
+        <field name="body_html" type="html">
+<div style="margin:0;padding:0;font-family:Arial,sans-serif;">
+    <p style="margin:0 0 6px 0;font-size:13px;">
+        <strong><t t-out="object.partner_id.name or ''">M/s XYZ Company</t></strong>
+    </p>
+    <p style="margin:0 0 14px 0;font-size:13px;">
+        Date: <t t-out="format_date(datetime.datetime.now()) or ''">July 02, 2026</t>
+    </p>
+
+    <p style="margin:0 0 12px 0;font-size:13px;">
+        <strong>Subject: Request for Quotation — Ref: <t t-out="object.name or ''">P-HO-0001</t></strong>
+    </p>
+
+    <p style="margin:0 0 10px 0;font-size:13px;">Dear Sir/Madam,</p>
+
+    <p style="margin:0 0 10px 0;font-size:13px;">
+        We are pleased to invite your quotation for the supply of
+        materials/services as per the following requirements.
+    </p>
+
+    <p style="margin:0 0 10px 0;font-size:13px;">
+        Please find attached the RFQ document
+        (<strong><t t-out="object.name or ''">P-HO-0001</t></strong>)
+        for your reference.
+    </p>
+
+    <p style="margin:0 0 6px 0;font-size:13px;">Kindly provide the following in your quotation:</p>
+    <ul style="font-size:13px;margin:0 0 12px 0;padding-left:20px;">
+        <li>Technical compliance with specifications</li>
+        <li>Unit rates and total quoted price</li>
+        <li>Delivery period</li>
+        <li>Warranty details</li>
+        <li>Validity of the offer</li>
+        <li>Installation / testing charges (if applicable)</li>
+    </ul>
+
+    <p style="margin:0 0 16px 0;font-size:13px;">
+        We look forward to receiving your competitive quotation at the earliest.
+    </p>
+
+    <p style="margin:0;font-size:13px;">
+        Best regards,<br/>
+        <strong>Procurement Department</strong><br/>
+        Matracon Pakistan (Pvt.) Limited
+    </p>
+</div>
+        </field>
+        <!-- NOTE: report_template_ids intentionally omitted here.
+             The noupdate="1" on the base purchase template prevents this field
+             from being reliably overridden on upgrades.  The attachment is
+             handled by matracon_rfq_email_template (above) which is used by
+             our action_rfq_send() Python override. -->
+    </record>
+
+    <!-- ══ 2.  PO Confirmation — sent automatically on CEO final approval ════ -->
+    <data noupdate="1">
+        <record id="matracon_po_confirmation_email_template" model="mail.template">
+            <field name="name">Purchase: PO Confirmation — CEO Approved (Matracon)</field>
+            <field name="model_id" ref="purchase.model_purchase_order"/>
+            <field name="subject">Purchase Order Confirmed — Ref: {{ object.name }}</field>
+            <field name="partner_to" eval="False"/>
+            <field name="use_default_to" eval="True"/>
+            <field name="description">Auto-sent to vendor when CEO gives final approval and the PO is locked.</field>
+            <field name="body_html" type="html">
+<div style="margin:0;padding:0;font-family:Arial,sans-serif;">
+    <p style="margin:0 0 6px 0;font-size:13px;">
+        <strong><t t-out="object.partner_id.name or ''">M/s XYZ Company</t></strong>
+    </p>
+    <p style="margin:0 0 14px 0;font-size:13px;">
+        Date: <t t-out="format_date(datetime.datetime.now()) or ''">July 02, 2026</t>
+    </p>
+    <p style="margin:0 0 6px 0;font-size:13px;">
+        Ref: <t t-out="object.name or ''">P-HO-0001</t>
+    </p>
+
+    <p style="margin:0 0 12px 0;font-size:13px;">
+        <strong>Subject: Order for the Supply of Materials — PO Reference: <t t-out="object.name or ''">P-HO-0001</t></strong>
+    </p>
+
+    <p style="margin:0 0 10px 0;font-size:13px;">Dear Sir/Madam,</p>
+
+    <p style="margin:0 0 10px 0;font-size:13px;">
+        With reference to your quotation and subsequent discussions, we are pleased
+        to confirm the above-referenced Purchase Order for the supply of
+        materials/services as detailed in the attached document.
+    </p>
+
+    <p style="margin:0 0 10px 0;font-size:13px;">
+        Please find attached the confirmed Purchase Order for your records.
+        Kindly acknowledge receipt of this order and confirm your acceptance
+        by returning a signed copy.
+    </p>
+
+    <p style="margin:0 0 6px 0;font-size:13px;">
+        For any queries, please do not hesitate to contact our Procurement Department.
+    </p>
+
+    <p style="margin:0 0 20px 0;font-size:13px;">
+        We look forward to your prompt delivery as per the agreed schedule.
+    </p>
+
+    <p style="margin:0;font-size:13px;">
+        Yours sincerely,<br/><br/>
+        <strong>JEHANZEB SAULAT</strong><br/>
+        Chief Executive Officer<br/>
+        Matracon Pakistan (Pvt.) Limited
+    </p>
+</div>
+            </field>
+            <!-- Attach our custom Final PO PDF report -->
+            <field name="report_template_ids" eval="[(4, ref('purchase_demand_raise.action_report_final_po'))]"/>
+            <field name="auto_delete" eval="True"/>
+        </record>
+    </data>
+
+</odoo>

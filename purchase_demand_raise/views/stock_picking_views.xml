@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_picking_form_pr_receipt" model="ir.ui.view">
+        <field name="name">stock.picking.form.pr.receipt</field>
+        <field name="model">stock.picking</field>
+        <field name="inherit_id" ref="stock.view_picking_form"/>
+        <!-- Priority 21 — must run after site_operations.view_picking_form_site_ops (priority 20)
+             so our add="x_is_site_procurement" appends to whatever invisible that view sets. -->
+        <field name="priority">21</field>
+        <field name="arch" type="xml">
+
+            <!-- Site Procurement: hide "Receive From" (partner_id) — no formal
+                 vendor is used; the informal vendor name lives on the PO as
+                 x_site_vendor_name.  We append our condition to whatever invisible
+                 was already set by the site_ops view (priority 20). -->
+            <xpath expr="//div[hasclass('o_td_label')][label[@for='partner_id']]" position="attributes">
+                <attribute name="invisible" separator=" or " add="x_is_site_procurement"/>
+            </xpath>
+            <xpath expr="//field[@name='partner_id']" position="attributes">
+                <attribute name="invisible" separator=" or " add="x_is_site_procurement"/>
+            </xpath>
+
+            <!-- Inject PR Receipt Details group + the x_is_site_procurement flag
+                 between the standard header fields and the Operations notebook.
+                 The flag is outside the conditionally-visible group so it is
+                 always loaded by the OWL renderer regardless of picking type. -->
+            <xpath expr="//sheet/notebook" position="before">
+
+                <!-- Always-visible invisible flag — tells the form whether this is
+                     a site-procurement receipt so the partner_id row can hide. -->
+                <field name="x_is_site_procurement" invisible="1"/>
+
+                <!-- PR Receipt Details: only visible on incoming PR receipts. -->
+                <group string="PR Receipt Details"
+                       invisible="picking_type_code != 'incoming' or not purchase_id">
+                    <group>
+                        <field name="x_project_analytic_account_id"
+                               string="Project"
+                               readonly="1"
+                               options="{'no_open': True}"/>
+                        <field name="x_dmr_no"
+                               string="DMR No"
+                               readonly="1"/>
+                        <field name="x_gate_pass_no"
+                               placeholder="Enter gate pass number…"/>
+                    </group>
+                    <group>
+                        <field name="x_weight_document"
+                               widget="binary"
+                               filename="x_weight_document_filename"
+                               string="Weight Document (upload before validating)"/>
+                        <field name="x_weight_document_filename" invisible="1"/>
+                    </group>
+                </group>
+
+            </xpath>
+
+        </field>
+    </record>
+
+</odoo>

@@ -1,0 +1,132 @@
+from markupsafe import Markup
+
+from odoo import models, fields, api, _
+from odoo.exceptions import UserError
+
+
+class StockReturnPickingSiteOps(models.TransientModel):
+    _inherit = 'stock.return.picking'
+
+    def _create_return(self):
+        """After standard return picking is created, tag it with our custom fields."""
+        new_picking = super()._create_return()
+        orig = self.picking_id
+        if orig and orig.x_transfer_purpose in ('material_issuance', 'site_to_site'):
+            new_picking.write({
+                'x_is_return_transfer': True,
+                'x_original_issuance_id': orig.id,
+                'x_contact_id': orig.x_contact_id.id,
+                'x_issuance_project_id': orig.x_issuance_project_id.id,
+                'x_inventory_type': orig.x_inventory_type,
+                'x_issue_type': orig.x_issue_type,
+                'x_transfer_purpose': orig.x_transfer_purpose,
+            })
+            for line in self.product_return_moves:
+                if not line.product_id:
+                    continue
+                move = new_picking.move_ids.filtered(
+                    lambda m, p=line.product_id: m.product_id == p
+                )[:1]
+                if move:
+                    vals = {}
+                    if line.x_return_condition:
+                        vals['x_return_condition'] = line.x_return_condition
+                    if line.x_damage_amount:
+                        vals['x_damage_amount'] = line.x_damage_amount
+                    if vals:
+                        move.write(vals)
+
+            # For asset issuances: auto-fill picking-level backcharge from wizard damage amounts
+            # so the return form opens pre-filled and the user isn't asked twice.
+            if orig.x_inventory_type == 'asset':
+                total_damage = sum(
+                    l.x_damage_amount for l in self.product_return_moves
+                    if l.x_damage_amount
+                )
+                if total_damage > 0:
+                    new_picking.write({
+                        'x_return_backcharge_applicable': True,
+                        'x_return_backcharge_amount': total_damage,
+                    })
+
+            # Replace the generic Odoo "created from" note with a readable message
+            new_picking.message_ids.sudo().filtered(
+                lambda m: 'has been created from' in (m.body or '')
+            ).unlink()
+
+            label = 'Material Return' if orig.x_transfer_purpose == 'material_issuance' \
+                else 'Site-to-Site Return'
+            parts = [
+                Markup('<b>%s</b> initiated.') % label,
+                Markup('Original Issuance: <b>%s</b>') % orig._get_html_link(),
+            ]
+            if orig.x_contact_id:
+                parts.append(Markup('Issued to: <b>%s</b>') % orig.x_contact_id.name)
+            if orig.x_issuance_project_id:
+                parts.append(Markup('Project: <b>%s</b>') % orig.x_issuance_project_id.name)
+            if orig.x_inventory_type:
+                inv_type_label = dict(
+                    orig._fields['x_inventory_type'].selection
+                ).get(orig.x_inventory_type, orig.x_inventory_type)
+                parts.append(Markup('Type: <b>%s</b>') % inv_type_label)
+            new_picking.message_post(
+                body=Markup(' | ').join(parts),
+                subtype_xmlid='mail.mt_note',
+            )
+        return new_picking
+
+
+class StockReturnPickingLineSiteOps(models.TransientModel):
+    _inherit = 'stock.return.picking.line'
+
+    x_issued_qty = fields.Float(
+        string='Issued', compute='_compute_x_outstanding', digits='Product Unit of Measure')
+    x_returned_qty = fields.Float(
+        string='Returned', compute='_compute_x_outstanding', digits='Product Unit of Measure')
+    x_outstanding_qty = fields.Float(
+        string='Outstanding', compute='_compute_x_outstanding', digits='Product Unit of Measure')
+    x_return_condition = fields.Selection([
+        ('new', 'New'),
+        ('used', 'Used'),
+        ('repairable', 'Repairable'),
+        ('scrap', 'Scrap'),
+    ], string='Condition', default='new')
+    x_damage_amount = fields.Float(string='Damage Charge')
+
+    @api.depends('product_id', 'wizard_id.picking_id')
+    def _compute_x_outstanding(self):
+        for line in self:
+            orig = line.wizard_id.picking_id
+            if not orig or orig.x_transfer_purpose not in ('material_issuance', 'site_to_site'):
+                line.x_issued_qty = 0.0
+                line.x_returned_qty = 0.0
+                line.x_outstanding_qty = 0.0
+                continue
+
+            # Qty issued on the original picking for this product
+            issued = sum(
+                m.quantity for m in orig.move_ids
+                if m.product_id == line.product_id and m.state == 'done'
+            )
+
+            # Qty already returned in previous done return pickings
+            prev_returns = self.env['stock.picking'].search([
+                ('x_original_issuance_id', '=', orig.id),
+                ('state', '=', 'done'),
+            ])
+            returned = sum(
+                m.quantity for ret in prev_returns
+                for m in ret.move_ids
+                if m.product_id == line.product_id
+            )
+
+            line.x_issued_qty = issued
+            line.x_returned_qty = returned
+            line.x_outstanding_qty = max(issued - returned, 0.0)
+
+    def _prepare_move_default_vals(self):
+        vals = super()._prepare_move_default_vals()
+        vals['x_return_condition'] = self.x_return_condition or 'new'
+        if self.x_damage_amount:
+            vals['x_damage_amount'] = self.x_damage_amount
+        return vals

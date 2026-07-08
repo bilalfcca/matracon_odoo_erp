@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Warehouses are created/linked in Python (find-or-create by code/name).
+         XML records were removed — they caused duplicate-key crashes when a
+         warehouse already existed from a prior upgrade or post_init hook. -->
+    <data>
+        <function model="x.project.site.config" name="_matracon_ensure_site_warehouses"/>
+    </data>
+</odoo>

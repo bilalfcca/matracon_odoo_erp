@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ── New CS-based report (x.comparative.statement → PDF download) ── -->
+    <record id="action_report_cs_from_cs" model="ir.actions.report">
+        <field name="name">Comparative Statement (PDF)</field>
+        <field name="model">x.comparative.statement</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">purchase_demand_raise.report_cs_from_cs_document</field>
+        <field name="report_file">purchase_demand_raise.report_cs_from_cs_document</field>
+        <field name="print_report_name">'CS - %s' % (object.name)</field>
+        <field name="binding_model_id" ref="model_x_comparative_statement"/>
+        <field name="binding_type">report</field>
+    </record>
+
+    <!-- ── CS HTML Preview (opens in browser tab, not a download) ── -->
+    <record id="action_report_cs_preview_html" model="ir.actions.report">
+        <field name="name">Comparative Statement (Preview)</field>
+        <field name="model">x.comparative.statement</field>
+        <field name="report_type">qweb-html</field>
+        <field name="report_name">purchase_demand_raise.report_cs_from_cs_document</field>
+        <field name="report_file">purchase_demand_raise.report_cs_from_cs_document</field>
+        <field name="print_report_name">'CS Preview - %s' % (object.name)</field>
+    </record>
+
+    <!-- ── Legacy report (purchase.order → native alternatives) — kept for backward compat ── -->
+    <record id="action_report_comparative_statement" model="ir.actions.report">
+        <field name="name">Comparative Statement (Legacy / Native Alternatives)</field>
+        <field name="model">purchase.order</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">purchase_demand_raise.report_comparative_statement_document</field>
+        <field name="report_file">purchase_demand_raise.report_comparative_statement_document</field>
+        <field name="print_report_name">'CS - %s' % (object.name)</field>
+        <field name="binding_model_id" ref="purchase.model_purchase_order"/>
+        <field name="binding_type">report</field>
+    </record>
+</odoo>

@@ -1,0 +1,335 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ════════════════════════════════════════════════════════════════════════
+         Subcontractor IPC — List View
+    ════════════════════════════════════════════════════════════════════════ -->
+    <record id="view_subcontractor_ipc_list" model="ir.ui.view">
+        <field name="name">x.subcontractor.ipc.list</field>
+        <field name="model">x.subcontractor.ipc</field>
+        <field name="arch" type="xml">
+            <list string="Subcontractor IPCs"
+                  decoration-muted="state == 'draft'"
+                  decoration-info="state == 'submitted'"
+                  decoration-success="state == 'paid'">
+                <field name="name" string="Reference"/>
+                <field name="ipc_number" string="IPC No."/>
+                <field name="subcontractor_id" string="Subcontractor"/>
+                <field name="project_analytic_account_id" string="Project"/>
+                <field name="ipc_date" string="IPC Date"/>
+                <field name="gross_work_done" string="Gross (Cumulative)"/>
+                <field name="this_ipc_gross" string="This IPC Work" optional="show"/>
+                <field name="net_payable" string="Net Payable"/>
+                <field name="currency_id" column_invisible="1"/>
+                <field name="state" widget="badge"
+                       decoration-muted="state == 'draft'"
+                       decoration-info="state == 'submitted'"
+                       decoration-success="state == 'paid'"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ════════════════════════════════════════════════════════════════════════
+         Subcontractor IPC — Form View
+    ════════════════════════════════════════════════════════════════════════ -->
+    <record id="view_subcontractor_ipc_form" model="ir.ui.view">
+        <field name="name">x.subcontractor.ipc.form</field>
+        <field name="model">x.subcontractor.ipc</field>
+        <field name="arch" type="xml">
+            <form string="Interim Payment Certificate">
+                <header>
+                    <button name="action_submit" type="object"
+                            string="Submit IPC"
+                            class="btn-primary"
+                            invisible="state != 'draft'"/>
+                    <button name="action_mark_paid" type="object"
+                            string="Mark as Paid"
+                            class="btn-success"
+                            invisible="state != 'submitted'"
+                            groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"/>
+                    <button name="action_print_ipc" type="object"
+                            string="Print IPC"
+                            class="btn-secondary"
+                            icon="fa-print"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,submitted,paid"/>
+                </header>
+
+                <sheet>
+                    <!-- Smart Buttons -->
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_payments" type="object"
+                                class="oe_stat_button" icon="fa-money"
+                                invisible="payment_count == 0">
+                            <field name="payment_count"
+                                   widget="statinfo" string="Payments"/>
+                        </button>
+                        <button name="action_view_liability_sheet" type="object"
+                                class="oe_stat_button" icon="fa-balance-scale"
+                                invisible="not liability_sheet_id">
+                            <div class="o_stat_info">
+                                <span class="o_stat_text">Liability</span>
+                                <span class="o_stat_text">Sheet</span>
+                            </div>
+                        </button>
+                        <button name="action_view_ho_advances" type="object"
+                                class="oe_stat_button" icon="fa-university"
+                                invisible="ho_advance_count == 0">
+                            <field name="ho_advance_count"
+                                   widget="statinfo" string="HO Advances"/>
+                        </button>
+                    </div>
+
+                    <!-- Title -->
+                    <div class="oe_title">
+                        <h1>
+                            <span class="me-2" style="color:#888; font-size:0.7em;">IPC No.</span>
+                            <field name="ipc_number"
+                                   readonly="state != 'draft'"
+                                   placeholder="e.g. 3"/>
+                            <span class="ms-3 text-muted" style="font-size:0.6em;">
+                                [<field name="name" readonly="1" class="oe_inline"/>]
+                            </span>
+                        </h1>
+                    </div>
+
+                    <!-- IPC Header Info -->
+                    <group>
+                        <group string="IPC Details">
+                            <field name="subcontractor_id"
+                                   readonly="state != 'draft'"/>
+                            <field name="project_analytic_account_id"
+                                   readonly="1"/>
+                            <field name="ipc_date"
+                                   string="IPC Date (Period To)"
+                                   readonly="state != 'draft'"/>
+                            <field name="ipc_date_from"
+                                   string="Period From"
+                                   readonly="1"
+                                   help="Auto-computed: day after the previous submitted IPC for this subcontractor and project."/>
+                            <field name="previous_ipc_id"
+                                   string="Previous IPC"
+                                   readonly="1"
+                                   invisible="not previous_ipc_id"/>
+                            <field name="currency_id" invisible="1"/>
+                        </group>
+                        <group string="IPC Document">
+                            <field name="ipc_document"
+                                   widget="binary"
+                                   filename="ipc_document_filename"
+                                   string="IPC Document"
+                                   required="state == 'draft'"
+                                   readonly="state != 'draft'"/>
+                            <field name="ipc_document_filename" invisible="1"/>
+                        </group>
+                    </group>
+
+                    <!-- ════════════════════════════════════════════════════
+                         SECTION 1 — Cumulative Work Summary
+                    ════════════════════════════════════════════════════ -->
+                    <group string="Work Done Summary">
+                        <group>
+                            <field name="gross_work_done"
+                                   string="1. Gross Work Done up to this IPC (cumulative)"
+                                   readonly="state != 'draft'"
+                                   class="fw-bold"/>
+                            <field name="previous_gross_work_done"
+                                   string="2. Work Done up to Previous IPC"
+                                   readonly="1"/>
+                            <field name="this_ipc_gross"
+                                   string="3. Work Done for this IPC (1 − 2)"
+                                   readonly="1"
+                                   class="fw-bold text-primary"/>
+                        </group>
+                    </group>
+
+                    <!-- ════════════════════════════════════════════════════
+                         SECTION 2 — Deductions
+                    ════════════════════════════════════════════════════ -->
+                    <group string="Deductions">
+
+                        <!-- a) Retention Money -->
+                        <group string="a)  Retention Money">
+                            <field name="retention_pct"
+                                   string="Retention Rate (%)"
+                                   readonly="state != 'draft'"
+                                   widget="float"
+                                   options="{'type': 'number'}"
+                                   help="Retention percentage deducted from each IPC. Default 5%."/>
+                            <field name="total_retention_cumulative"
+                                   string="Total Retention up to this IPC"
+                                   readonly="1"/>
+                            <field name="previous_retention_amount"
+                                   string="Already Retained up to Previous IPC"
+                                   readonly="1"/>
+                            <field name="retention_amount"
+                                   string="To be Retained in this IPC"
+                                   readonly="1"
+                                   class="fw-bold"/>
+                        </group>
+
+                        <!-- b) Mob Advance Recovery -->
+                        <group string="b)  Mob Advance Recovery">
+                            <field name="mob_advance_recovery"
+                                   string="Mob Advance Recovery"
+                                   readonly="state != 'draft'"/>
+                        </group>
+
+                        <!-- c) HO Advance Recovery -->
+                        <group string="c)  HO Advance by Head Office">
+                            <field name="ho_advance_till_prev_ipc"
+                                   string="HO Advance till Previous IPC"
+                                   readonly="1"/>
+                            <field name="ho_advance_till_this_ipc"
+                                   string="HO Advance till This IPC"
+                                   readonly="1"/>
+                            <field name="ho_advance_this_period"
+                                   string="New HO Advance (This Period)"
+                                   readonly="1"
+                                   class="fw-bold"/>
+                            <field name="ho_advance_recovery"
+                                   string="HO Advance Recovery (this IPC)"
+                                   readonly="state != 'draft'"/>
+                        </group>
+
+                        <!-- d) Security Withheld -->
+                        <group string="d)  Security Withheld">
+                            <field name="security_withheld"
+                                   string="Security Withheld"
+                                   readonly="state != 'draft'"/>
+                        </group>
+
+                    </group>
+
+                    <!-- e) Back Charges (auto-populated) -->
+                    <group string="e)  Back Charges (auto-populated for this Subcontractor &amp; Project)">
+                        <div class="mb-2" invisible="state != 'draft'">
+                            <button name="action_refresh_backcharges"
+                                    type="object"
+                                    string="↺  Refresh Backcharges"
+                                    class="btn btn-sm btn-secondary"/>
+                        </div>
+                        <field name="backcharge_line_ids"
+                               nolabel="1"
+                               readonly="state != 'draft'">
+                            <list editable="bottom">
+                                <field name="backcharge_id"
+                                       domain="[('subcontractor_id', '=', parent.subcontractor_id), ('project_analytic_account_id', '=', parent.project_analytic_account_id), ('state', '=', 'pending')]"
+                                       options="{'no_create': True}"/>
+                                <field name="description" readonly="1"/>
+                                <field name="date" readonly="1"/>
+                                <field name="amount" readonly="1" sum="Total"/>
+                                <field name="currency_id" column_invisible="1"/>
+                            </list>
+                        </field>
+                        <div class="o_field_widget ms-auto pe-2 text-end" style="min-width:200px;">
+                            <strong>Total Back Charges: </strong>
+                            <field name="backcharge_total" readonly="1" class="oe_inline fw-bold"/>
+                        </div>
+                    </group>
+
+                    <!-- e) Other Deductions & f) Other Additions -->
+                    <group>
+                        <group string="f)  Other Deductions">
+                            <field name="other_deductions_amount"
+                                   string="Amount"
+                                   readonly="state != 'draft'"/>
+                            <field name="other_deductions_reason"
+                                   string="Reason / Description"
+                                   placeholder="Brief reason for this deduction…"
+                                   readonly="state != 'draft'"
+                                   required="other_deductions_amount != 0"/>
+                        </group>
+                        <group string="g)  Other Additions">
+                            <field name="other_additions_amount"
+                                   string="Amount"
+                                   readonly="state != 'draft'"/>
+                            <field name="other_additions_reason"
+                                   string="Reason / Description"
+                                   placeholder="Brief reason for this addition…"
+                                   readonly="state != 'draft'"
+                                   required="other_additions_amount != 0"/>
+                        </group>
+                    </group>
+
+                    <!-- ════════════════════════════════════════════════════
+                         SECTION 3 — Net Summary
+                    ════════════════════════════════════════════════════ -->
+                    <group>
+                        <group string="Summary">
+                            <field name="total_deductions"
+                                   string="Total Deductions"
+                                   readonly="1"
+                                   class="fw-bold text-danger"/>
+                            <field name="net_payable"
+                                   string="NET PAYABLE"
+                                   readonly="1"
+                                   class="fw-bold text-success"
+                                   style="font-size:1.1em;"/>
+                        </group>
+                    </group>
+
+                    <!-- Notes -->
+                    <group>
+                        <field name="notes"
+                               string="Notes / Scope of Work"
+                               readonly="state != 'draft'"
+                               placeholder="Describe the scope of work covered in this IPC…"/>
+                    </group>
+
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- ════════════════════════════════════════════════════════════════════════
+         Subcontractor IPC — Search View
+    ════════════════════════════════════════════════════════════════════════ -->
+    <record id="view_subcontractor_ipc_search" model="ir.ui.view">
+        <field name="name">x.subcontractor.ipc.search</field>
+        <field name="model">x.subcontractor.ipc</field>
+        <field name="arch" type="xml">
+            <search string="Search IPCs">
+                <field name="name"/>
+                <field name="ipc_number"/>
+                <field name="subcontractor_id"/>
+                <field name="project_analytic_account_id"/>
+                <filter name="filter_draft" string="Draft"
+                        domain="[('state', '=', 'draft')]"/>
+                <filter name="filter_submitted" string="Submitted"
+                        domain="[('state', '=', 'submitted')]"/>
+                <filter name="filter_paid" string="Paid"
+                        domain="[('state', '=', 'paid')]"/>
+                <separator/>
+                <filter name="group_subcontractor" string="Group by Subcontractor"
+                        context="{'group_by': 'subcontractor_id'}"/>
+                <filter name="group_project" string="Group by Project"
+                        context="{'group_by': 'project_analytic_account_id'}"/>
+                <filter name="group_state" string="Group by Status"
+                        context="{'group_by': 'state'}"/>
+            </search>
+        </field>
+    </record>
+
+    <!-- ════════════════════════════════════════════════════════════════════════
+         Action
+    ════════════════════════════════════════════════════════════════════════ -->
+    <record id="action_subcontractor_ipc" model="ir.actions.act_window">
+        <field name="name">Subcontractor IPCs</field>
+        <field name="res_model">x.subcontractor.ipc</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_subcontractor_ipc_search"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No IPCs created yet.
+            </p>
+            <p>
+                Create an IPC to record cumulative subcontractor billing.
+                Enter the gross cumulative work done — previous IPC data and
+                deductions are computed automatically.
+            </p>
+        </field>
+    </record>
+
+</odoo>

@@ -1,0 +1,325 @@
+/* Matracon Operations Dashboards — mobile-first responsive layout */
+
+.o_form_view.o_matracon_dashboard {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+}
+
+.o_matracon_dashboard {
+    overflow-x: hidden;
+    max-width: 100%;
+
+    .o_form_sheet,
+    .o_form_sheet_bg,
+    .o_content {
+        max-width: 100%;
+        overflow-x: hidden;
+    }
+
+    /* ── Header: wrap buttons instead of overflowing ── */
+    > header,
+    .o_form_statusbar {
+        flex-wrap: wrap !important;
+        gap: 0.35rem 0.5rem;
+        row-gap: 0.5rem;
+        max-width: 100%;
+        height: auto !important;
+        min-height: unset !important;
+        overflow: visible !important;
+
+        /* Odoo 19: buttons live inside .o_statusbar_buttons */
+        .o_statusbar_buttons {
+            display: flex !important;
+            flex-wrap: wrap !important;
+            gap: 0.35rem 0.5rem;
+            overflow: visible !important;
+            height: auto !important;
+        }
+
+        .btn,
+        button {
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+    }
+
+    /* ── Filter toolbar (inside sheet) ── */
+    .matracon-dash-filters {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-end;
+        gap: 0.5rem 0.75rem;
+        width: 100%;
+        max-width: 100%;
+        margin-bottom: 1rem;
+        padding: 0.75rem 1rem;
+        background: rgba(220, 53, 69, 0.08);
+        border: 1px solid rgba(220, 53, 69, 0.25);
+        border-radius: 8px;
+
+        .matracon-dash-filters__label {
+            flex: 0 0 100%;
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: var(--bs-secondary-color, var(--o-text-muted, #6c757d));
+            margin-bottom: 0.15rem;
+        }
+
+        .matracon-dash-filters__field {
+            flex: 1 1 9rem;
+            min-width: 0 !important;
+            max-width: 100%;
+
+            .o_field_widget,
+            .o_input,
+            select,
+            input {
+                min-width: 0 !important;
+                max-width: 100%;
+                width: 100%;
+            }
+        }
+
+        .matracon-dash-filters__actions {
+            flex: 0 0 auto;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.35rem;
+        }
+    }
+
+    /* ── Title block ── */
+    .oe_title {
+        max-width: 100%;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+
+        h1 {
+            font-size: clamp(1.15rem, 4.5vw, 1.75rem);
+            line-height: 1.25;
+            overflow-wrap: anywhere;
+        }
+
+        p,
+        h3 {
+            overflow-wrap: anywhere;
+        }
+    }
+
+    /* ── KPI cards ── */
+    .row {
+        margin-left: 0;
+        margin-right: 0;
+        max-width: 100%;
+    }
+
+    .card {
+        max-width: 100%;
+        overflow: hidden;
+    }
+
+    .card-header {
+        flex-wrap: wrap;
+        gap: 0.35rem 0.5rem;
+    }
+
+    .card-body {
+        max-width: 100%;
+        overflow: hidden;
+
+        .d-flex.flex-column.gap-2 {
+            margin-top: 0.25rem;
+        }
+    }
+
+    /* ── Embedded list tables: scroll inside card, not whole page ── */
+    .matracon-dash-table-wrap {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior-x: contain;
+
+        .o_field_widget {
+            max-width: 100%;
+        }
+
+        .o_list_renderer,
+        .o_list_view {
+            max-width: 100%;
+        }
+
+        table.o_list_table {
+            margin-bottom: 0;
+        }
+    }
+
+    /* ── Stock alert banner ── */
+    .matracon-dash-alert {
+        flex-wrap: wrap !important;
+        max-width: 100%;
+
+        .flex-grow-1 {
+            min-width: 0;
+            flex: 1 1 12rem;
+        }
+    }
+
+    /* ── Issuance split bar ── */
+    .matracon-issuance-bar {
+        flex-wrap: wrap;
+        height: auto !important;
+        min-height: 28px;
+
+        > div {
+            flex: 1 1 100% !important;
+            min-height: 28px;
+            padding: 0.25rem 0.5rem;
+        }
+    }
+
+    @media (min-width: 576px) {
+        .matracon-issuance-bar > div {
+            flex: 1 1 50% !important;
+        }
+    }
+
+    @media (min-width: 992px) {
+        .matracon-issuance-bar {
+            flex-wrap: nowrap;
+            height: 28px !important;
+
+            > div {
+                flex: 0 0 60% !important;
+
+                + div {
+                    flex: 0 0 40% !important;
+                }
+            }
+        }
+    }
+}
+
+/* ── Dark mode overrides ─────────────────────────────────────────── */
+/* Odoo 19 dark mode uses the `.o_dark` class on <html> or <body>     */
+/* and also respects `prefers-color-scheme: dark` via CSS vars.        */
+
+.o_dark .o_matracon_dashboard,
+[data-color-scheme="dark"] .o_matracon_dashboard {
+    /* Filter bar: red-tinted background in dark mode */
+    .matracon-dash-filters {
+        background: rgba(220, 53, 69, 0.15);
+        border-color: rgba(220, 53, 69, 0.35);
+
+        .matracon-dash-filters__label {
+            color: var(--o-text-muted, rgba(255, 255, 255, 0.55));
+        }
+
+        /* Inputs / selects inside the filter box */
+        .o_field_widget,
+        .o_input,
+        .o_select,
+        select,
+        input[type="text"],
+        input[type="search"],
+        input {
+            background-color: rgba(255, 255, 255, 0.07) !important;
+            color: rgba(255, 255, 255, 0.85) !important;
+            border-color: rgba(255, 255, 255, 0.15) !important;
+
+            &::placeholder {
+                color: rgba(255, 255, 255, 0.35) !important;
+            }
+        }
+
+        /* Many2one / selection dropdown text */
+        .o_field_many2one_selection .o_input,
+        .o_field_selection select {
+            color: rgba(255, 255, 255, 0.85) !important;
+        }
+    }
+
+    /* Card chrome */
+    .card {
+        background-color: var(--o-surface-1, #2c2c2c);
+        box-shadow: 0 1px 6px rgba(0, 0, 0, 0.35) !important;
+    }
+
+    .card-header {
+        border-bottom-color: rgba(255, 255, 255, 0.1) !important;
+
+        /* Section title text (the "Active Requisitions", "Site Transfers" labels) */
+        strong {
+            color: var(--o-text-light, #e0e0e0) !important;
+        }
+
+        /* Small uppercase sub-labels */
+        small {
+            color: var(--o-text-muted, rgba(255, 255, 255, 0.55)) !important;
+        }
+    }
+
+    /* KPI card body labels */
+    .card-body {
+        small.text-muted,
+        small.text-uppercase {
+            color: var(--o-text-muted, rgba(255, 255, 255, 0.55)) !important;
+        }
+
+        /* "On Order" / "Recent GRNs" sub-section labels */
+        small.fw-bold {
+            color: var(--o-text-muted, rgba(255, 255, 255, 0.55)) !important;
+        }
+    }
+}
+
+@media (max-width: 767.98px) {
+    .o_matracon_dashboard {
+        /* Tighter sheet padding on phones */
+        .o_form_sheet {
+            padding-left: 0.65rem !important;
+            padding-right: 0.65rem !important;
+        }
+
+        .matracon-dash-filters__field {
+            flex: 1 1 100%;
+        }
+
+        /* Smaller KPI numbers */
+        .card-body .fw-bold[style*="font-size:2"] {
+            font-size: 2rem !important;
+        }
+
+        /* Header: full-width primary actions */
+        > header {
+            .btn-primary,
+            .btn-secondary {
+                flex: 1 1 calc(50% - 0.25rem);
+                min-width: 0;
+            }
+        }
+
+        /* Hide low-priority list columns on very small screens */
+        .matracon-dash-table-wrap--compact {
+            th[data-name="x_category_id"],
+            td[name="x_category_id"],
+            th[data-name="x_initiator_id"],
+            td[name="x_initiator_id"],
+            th[data-name="x_ho_status"],
+            td[name="x_ho_status"],
+            th[data-name="x_has_tender_alternatives"],
+            td[name="x_has_tender_alternatives"],
+            th[data-name="date_order"],
+            td[name="date_order"],
+            th[data-name="origin"],
+            td[name="origin"],
+            th[data-name="scheduled_date"],
+            td[name="scheduled_date"] {
+                display: none;
+            }
+        }
+    }
+}

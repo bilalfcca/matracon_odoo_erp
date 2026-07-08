@@ -1,0 +1,422 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ════════════════════════════════════════════════════════════════════
+         Material Issuance / Site-to-Site Transfer — inherited form view
+         Injects site operations fields into the standard stock.picking form.
+    ════════════════════════════════════════════════════════════════════════ -->
+    <record id="view_picking_form_site_ops" model="ir.ui.view">
+        <field name="name">stock.picking.form.site.ops</field>
+        <field name="model">stock.picking</field>
+        <field name="inherit_id" ref="stock.view_picking_form"/>
+        <field name="priority">20</field>
+        <field name="arch" type="xml">
+
+            <!-- ── Smart Buttons ──────────────────────────────────────────── -->
+            <xpath expr="//div[@name='button_box']" position="inside">
+
+                <button name="action_view_vendor_bills"
+                        type="object"
+                        class="oe_stat_button"
+                        icon="fa-pencil-square-o"
+                        invisible="picking_type_code != 'incoming' or not purchase_id or x_vendor_bill_count == 0">
+                    <field name="x_vendor_bill_count" widget="statinfo" string="Vendor Bills"/>
+                </button>
+
+                <!-- Return counter button -->
+                <button name="action_view_returns"
+                        type="object"
+                        class="oe_stat_button"
+                        icon="fa-undo"
+                        invisible="x_transfer_purpose not in ['material_issuance'] or x_is_return_transfer or state != 'done'">
+                    <field name="x_return_count" widget="statinfo" string="Return Transfers"/>
+                </button>
+
+                <!-- Backcharge entries button -->
+                <button name="action_view_backcharge_entries"
+                        type="object"
+                        class="oe_stat_button"
+                        icon="fa-money"
+                        invisible="x_backcharge_entry_count == 0">
+                    <field name="x_backcharge_entry_count" widget="statinfo" string="Backcharge"/>
+                </button>
+
+                <!-- Inter-project entry button -->
+                <button name="action_view_interproject_entry"
+                        type="object"
+                        class="oe_stat_button"
+                        icon="fa-exchange"
+                        invisible="x_interproject_entry_count == 0">
+                    <field name="x_interproject_entry_count" widget="statinfo" string="Inter-Project"/>
+                </button>
+
+                <!-- Destination receipt (source transfer) -->
+                <button name="action_view_dest_receipt"
+                        type="object"
+                        class="oe_stat_button"
+                        icon="fa-truck"
+                        invisible="not x_dest_picking_id">
+                    <span class="o_stat_text">Dest. Receipt</span>
+                </button>
+
+                <!-- Source transfer (destination receipt) -->
+                <button name="action_view_source_transfer"
+                        type="object"
+                        class="oe_stat_button"
+                        icon="fa-truck"
+                        invisible="not x_source_transfer_id">
+                    <span class="o_stat_text">Source Transfer</span>
+                </button>
+
+                <!-- Employee Backcharge — visible on returns with an employee BC -->
+                <button name="action_view_employee_backcharge"
+                        type="object"
+                        class="oe_stat_button"
+                        icon="fa-user"
+                        invisible="not x_employee_backcharge_id or not x_is_return_transfer">
+                    <field name="x_employee_backcharge_count" widget="statinfo" string="Employee BC"/>
+                </button>
+
+                <!-- Subcontractor Backcharge — visible on returns with a sub BC -->
+                <button name="action_view_sub_backcharge"
+                        type="object"
+                        class="oe_stat_button"
+                        icon="fa-briefcase"
+                        invisible="not x_sub_backcharge_id or not x_is_return_transfer">
+                    <field name="x_sub_backcharge_count" widget="statinfo" string="Sub Backcharge"/>
+                </button>
+
+            </xpath>
+
+            <!-- ── Hide standard state statusbar for site-to-site transfers ── -->
+            <!-- Standard stock.picking has two state statusbars; hide both   -->
+            <!-- when our custom x_site_transfer_state pipeline is active.    -->
+            <xpath expr="//field[@name='state'][@statusbar_visible='draft,assigned,done']" position="attributes">
+                <attribute name="invisible">picking_type_code != 'incoming' or x_transfer_purpose == 'site_to_site'</attribute>
+            </xpath>
+            <xpath expr="//field[@name='state'][@statusbar_visible='draft,confirmed,assigned,done']" position="attributes">
+                <attribute name="invisible">picking_type_code == 'incoming' or x_transfer_purpose == 'site_to_site'</attribute>
+            </xpath>
+
+            <!-- ── Header action buttons ──────────────────────────────────── -->
+            <xpath expr="//button[@name='button_validate']" position="before">
+
+                <!-- Site-to-site approval workflow -->
+                <button name="action_submit_site_transfer"
+                        type="object"
+                        string="Submit for Approval"
+                        class="btn-primary"
+                        invisible="x_transfer_purpose != 'site_to_site' or x_is_dest_receipt or x_site_transfer_state not in ('draft', 'rejected')"
+                        groups="purchase_demand_raise.group_site_store"/>
+                <button name="action_approve_site_transfer"
+                        type="object"
+                        string="Approve Transfer"
+                        class="btn-success"
+                        invisible="x_transfer_purpose != 'site_to_site' or x_is_dest_receipt or x_site_transfer_state != 'pending_approval'"
+                        groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+                <button name="action_reject_site_transfer"
+                        type="object"
+                        string="Reject Transfer"
+                        class="btn-danger"
+                        invisible="x_transfer_purpose != 'site_to_site' or x_is_dest_receipt or x_site_transfer_state != 'pending_approval'"
+                        groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
+                <!-- Print MIF button -->
+                <button name="action_print_mif"
+                        type="object"
+                        string="Print MIF"
+                        class="btn-secondary"
+                        invisible="x_transfer_purpose not in ['material_issuance', 'site_to_site']"/>
+
+                <!-- Print MTN button -->
+                <button name="action_print_mtn" type="object"
+                        string="Print MTN" class="btn-secondary" icon="fa-print"
+                        invisible="x_transfer_purpose != 'site_to_site'"/>
+
+                <!-- Print Gate Pass button -->
+                <button name="action_print_gate_pass"
+                        type="object"
+                        string="Print Gate Pass"
+                        class="btn-secondary"
+                        invisible="not x_generate_gate_pass"/>
+
+            </xpath>
+
+            <!-- ── Transfer Purpose + Issue Type (after title, normal text) ── -->
+            <xpath expr="//div[hasclass('oe_title')]" position="after">
+                <field name="x_site_transfer_state"
+                       widget="statusbar"
+                       statusbar_visible="draft,pending_approval,approved,done"
+                       invisible="x_transfer_purpose != 'site_to_site' or x_is_dest_receipt"/>
+                <group name="site_ops_classification"
+                       invisible="not x_transfer_purpose or picking_type_code == 'incoming'"
+                       col="4">
+                    <!-- Transfer Purpose: hide radio on returns (it's always Material Issuance) -->
+                    <field name="x_transfer_purpose" widget="radio" options="{'horizontal': true}"
+                           invisible="x_is_return_transfer"/>
+                    <field name="x_issue_type"
+                           invisible="x_transfer_purpose != 'material_issuance'"
+                           readonly="x_is_return_transfer and state == 'done'"/>
+                    <field name="x_inventory_type"
+                           invisible="x_transfer_purpose != 'material_issuance'"
+                           readonly="x_is_return_transfer and state == 'done'"/>
+                    <field name="x_is_return_transfer" invisible="1"/>
+                </group>
+                <!-- Return info banner — shows on draft returns, auto-load happens on contact/type change -->
+                <div class="alert alert-info mb-0"
+                     invisible="not x_is_return_transfer or state != 'draft'"
+                     style="padding:8px 12px;">
+                    <strong>Return Flow:</strong>
+                    Select <b>Issue Type</b> → <b>Contact</b> — all outstanding items load automatically.
+                    Adjust quantities if needed, then Validate.
+                </div>
+                <field name="x_original_issuance_id" invisible="1"/>
+            </xpath>
+
+            <!-- ── Hide standard partner_id (we use x_contact_id instead) ── -->
+            <xpath expr="//div[hasclass('o_td_label')][label[@for='partner_id']]" position="attributes">
+                <attribute name="invisible">x_transfer_purpose in ['material_issuance', 'site_to_site']</attribute>
+            </xpath>
+            <xpath expr="//field[@name='partner_id']" position="attributes">
+                <attribute name="invisible">x_transfer_purpose in ['material_issuance', 'site_to_site']</attribute>
+            </xpath>
+
+            <!-- ── Hide Operation Type when this is a site ops transfer ────── -->
+            <xpath expr="//field[@name='picking_type_id'][not(@column_invisible)]" position="attributes">
+                <attribute name="invisible">x_transfer_purpose in ['material_issuance', 'site_to_site']</attribute>
+            </xpath>
+
+            <!-- ── Hide Source Document for material issuance ───────────── -->
+            <xpath expr="//field[@name='origin']" position="attributes">
+                <attribute name="invisible">x_transfer_purpose in ['material_issuance', 'site_to_site']</attribute>
+            </xpath>
+
+            <!-- ── Site Ops fields after origin ─────────────────────────── -->
+            <xpath expr="//field[@name='origin']" position="after">
+
+                <field name="x_is_dest_receipt" invisible="1"/>
+                <field name="x_dest_picking_id" invisible="1"/>
+                <field name="x_source_transfer_id" invisible="1"/>
+                <field name="x_product_ids_at_location" invisible="1"/>
+                <!-- Site project context fields -->
+                <field name="x_user_site_analytic_ids" invisible="1"/>
+                <field name="x_user_has_multi_site" invisible="1"/>
+                <field name="x_site_wh_view_location_id" invisible="1"/>
+
+                <!-- ─ Project: auto-filled from user default; editable when user has multiple sites ─ -->
+                <field name="x_issuance_project_id"
+                       readonly="not x_user_has_multi_site or state == 'done'"
+                       domain="[('id', 'in', x_user_site_analytic_ids)]"
+                       invisible="x_transfer_purpose not in ['material_issuance', 'site_to_site']"/>
+
+                <!-- ─ Destination Project (site-to-site only) ─ -->
+                <field name="x_dest_project_id"
+                       invisible="x_transfer_purpose != 'site_to_site'"/>
+
+                <!-- hidden flag used by contact domain below -->
+                <field name="x_is_site_store" invisible="1"/>
+
+                <!-- ─ Contact — hidden for site-to-site ─ -->
+                <!-- Normal: employees from HR app; Subcontractor: contacts tagged Subcontractor -->
+                <field name="x_contact_id"
+                       domain="[('category_id.name', '=', 'Subcontractor')] if x_issue_type == 'subcontractor' else [('employee', '=', True)]"
+                       invisible="x_transfer_purpose != 'material_issuance'"/>
+
+                <!-- ─ Outstanding materials HTML summary ─ -->
+                <div name="outstanding_materials_section"
+                     invisible="not x_contact_id or x_transfer_purpose not in ['material_issuance']"
+                     style="margin: 8px 0;">
+                    <div class="o_form_label" style="font-weight:bold;">Outstanding Materials for this Contact:</div>
+                    <field name="x_outstanding_materials_html" widget="html" readonly="1"/>
+                </div>
+
+            </xpath>
+
+            <!-- ── Hide "Note" tab for site ops transfers ────────────────── -->
+            <xpath expr="//page[@name='note']" position="attributes">
+                <attribute name="invisible">x_transfer_purpose in ['material_issuance', 'site_to_site']</attribute>
+            </xpath>
+
+            <!-- ── Hide "Additional Info" tab for site ops transfers ────── -->
+            <xpath expr="//page[@name='extra']" position="before">
+                <page name="site_ops_extra"
+                      string="Details"
+                      invisible="x_transfer_purpose not in ['material_issuance', 'site_to_site']">
+
+                    <!-- Gate Pass -->
+                    <group name="gate_pass_group" string="Gate Pass">
+                        <field name="x_generate_gate_pass"/>
+                        <field name="x_gate_pass_outward_no"
+                               invisible="not x_generate_gate_pass"/>
+                    </group>
+
+                    <!-- Backcharge section — subcontractor consumable issuances only -->
+                    <group name="backcharge_group"
+                           string="Backcharge"
+                           invisible="x_issue_type != 'subcontractor' or x_inventory_type != 'consumable' or x_transfer_purpose != 'material_issuance'">
+                        <group col="2">
+                            <field name="x_backcharge_applicable"/>
+                            <field name="x_backcharge_amount" readonly="1"
+                                   invisible="not x_backcharge_applicable"/>
+                        </group>
+                        <group col="2" invisible="not x_backcharge_applicable">
+                            <field name="x_backcharge_description"/>
+                            <field name="x_backcharge_refund_entry_id"
+                                   readonly="1"
+                                   invisible="not x_backcharge_refund_entry_id"/>
+                        </group>
+                    </group>
+
+                    <!-- Return-specific fields -->
+                    <group name="return_group"
+                           string="Return Details"
+                           invisible="not x_is_return_transfer">
+                        <group col="2">
+                            <field name="x_original_issuance_id" readonly="1" invisible="1"/>
+                            <field name="x_return_type"/>
+                        </group>
+                        <group col="2">
+                            <field name="x_return_condition" placeholder="Summary (optional)"/>
+                            <field name="x_return_remarks"/>
+                        </group>
+                        <group col="2"
+                               invisible="x_inventory_type != 'asset'">
+                            <field name="x_return_backcharge_applicable"/>
+                            <field name="x_return_backcharge_amount"
+                                   invisible="not x_return_backcharge_applicable or x_return_backcharge_entry_id"
+                                   placeholder="e.g. 15000"/>
+                            <field name="x_return_backcharge_entry_id"
+                                   readonly="1"
+                                   invisible="not x_return_backcharge_entry_id"/>
+                        </group>
+                    </group>
+
+                    <!-- Quantity summary for returns -->
+                    <group name="qty_summary_group"
+                           string="Quantity Summary"
+                           invisible="not x_is_return_transfer">
+                        <group col="3">
+                            <field name="x_original_issued_qty" readonly="1"/>
+                            <field name="x_total_returned_qty" readonly="1"/>
+                            <field name="x_outstanding_qty" readonly="1"/>
+                        </group>
+                    </group>
+
+                </page>
+            </xpath>
+
+            <xpath expr="//page[@name='extra']" position="attributes">
+                <attribute name="invisible">x_transfer_purpose in ['material_issuance', 'site_to_site']</attribute>
+            </xpath>
+
+            <!-- Source location: readonly for site store on all material issuances (forward + return)
+                 and site-to-site. HO users (x_is_site_store=False) always keep it editable.
+                 Default values are set by default_get / _compute_location_id so no manual entry needed.
+                 Targets only the multi-locations-group visible field (not the always-invisible one). -->
+            <xpath expr="//field[@name='location_id'][@groups='stock.group_stock_multi_locations']" position="attributes">
+                <attribute name="readonly">state == 'done' or (x_is_site_store and x_transfer_purpose in ['material_issuance', 'site_to_site'])</attribute>
+                <attribute name="invisible">x_transfer_purpose not in ['material_issuance', 'site_to_site']</attribute>
+            </xpath>
+            <!-- Destination location: readonly for site store on all material issuances (forward + return).
+                 default_get seeds the correct value; _compute_location_id keeps it correct on save. -->
+            <xpath expr="//field[@name='location_dest_id'][@groups='stock.group_stock_multi_locations']" position="attributes">
+                <attribute name="readonly">state == 'done' or (x_is_site_store and x_transfer_purpose == 'material_issuance')</attribute>
+                <attribute name="domain">
+                    [('id', 'child_of', x_site_wh_view_location_id), ('usage', 'in', ['internal', 'transit'])] if (x_is_site_store and picking_type_code == 'incoming' and x_site_wh_view_location_id) else []
+                </attribute>
+                <attribute name="invisible">x_transfer_purpose not in ['material_issuance', 'site_to_site']</attribute>
+            </xpath>
+
+            <!-- ── Hide "Product Availability" field on returns ──────────── -->
+            <xpath expr="//field[@name='products_availability']" position="attributes">
+                <attribute name="invisible">x_is_return_transfer</attribute>
+            </xpath>
+            <xpath expr="//field[@name='products_availability_state']" position="attributes">
+                <attribute name="invisible">x_is_return_transfer</attribute>
+            </xpath>
+
+            <!-- ── Operations tab columns ─────────────────────────────────── -->
+            <xpath expr="//field[@name='move_ids']/list/field[@name='product_id']" position="before">
+                <field name="x_allowed_product_ids" column_invisible="1"/>
+            </xpath>
+            <xpath expr="//field[@name='move_ids']/list/field[@name='product_id']" position="attributes">
+                <attribute name="domain">[('id', 'in', x_allowed_product_ids)] if parent.x_transfer_purpose == 'material_issuance' and not parent.x_is_return_transfer else []</attribute>
+            </xpath>
+
+            <!-- Before Demand: On Hand (issuances only), then return context columns -->
+            <xpath expr="//field[@name='move_ids']/list/field[@name='product_uom_qty']"
+                   position="before">
+                <!-- On Hand: issuances only -->
+                <field name="x_qty_on_hand"
+                       string="On Hand"
+                       readonly="1"
+                       optional="show"
+                       column_invisible="parent.x_transfer_purpose not in ['material_issuance', 'site_to_site'] or parent.x_is_return_transfer"/>
+                <!-- Return context columns (returns only) -->
+                <field name="x_issued_qty"
+                       string="Total Issued"
+                       readonly="1"
+                       column_invisible="not parent.x_is_return_transfer"/>
+                <field name="x_prev_returned_qty"
+                       string="Total Returned"
+                       readonly="1"
+                       column_invisible="1"/>
+                <field name="x_outstanding_return_qty"
+                       string="Outstanding"
+                       readonly="1"
+                       column_invisible="not parent.x_is_return_transfer"/>
+            </xpath>
+
+            <!-- Rename "Demand" → "Quantity" on the issuance form.
+                 The return form (view_material_return_form, mode=primary) applies its
+                 own arch AFTER extension views and relabels this to "Returning Now". -->
+            <xpath expr="//field[@name='move_ids']/list/field[@name='product_uom_qty']"
+                   position="attributes">
+                <attribute name="string">Quantity</attribute>
+            </xpath>
+
+            <!-- After Demand: backcharge for issuances; nothing extra for returns -->
+            <xpath expr="//field[@name='move_ids']/list/field[@name='product_uom_qty']"
+                   position="after">
+                <field name="x_unit_cost"
+                       optional="show"
+                       column_invisible="parent.x_is_return_transfer or parent.x_backcharge_applicable == False or parent.x_inventory_type != 'consumable'"/>
+                <field name="x_line_backcharge_amount"
+                       optional="show"
+                       column_invisible="parent.x_is_return_transfer or parent.x_backcharge_applicable == False or parent.x_inventory_type != 'consumable'"/>
+                <field name="x_return_condition"
+                       optional="show"
+                       column_invisible="not parent.x_is_return_transfer"/>
+                <field name="x_damage_amount"
+                       optional="show"
+                       column_invisible="not parent.x_is_return_transfer or parent.x_return_type != 'damaged'"/>
+                <field name="x_asset_value"
+                       optional="show"
+                       string="Asset Value"
+                       readonly="1"
+                       column_invisible="parent.x_inventory_type != 'asset' or not parent.x_is_return_transfer"/>
+            </xpath>
+
+        </field>
+    </record>
+
+    <!-- ════════════════════════════════════════════════════════════════════
+         Material Return Form (primary mode)
+         Opens only when action_material_return explicitly selects this view.
+         All extension views of stock.view_picking_form (including the override
+         above) still apply — they show/hide columns via x_is_return_transfer.
+         This primary view's arch then re-labels product_uom_qty "Returning Now",
+         overriding the "Quantity" set by the extension view above.
+    ════════════════════════════════════════════════════════════════════════ -->
+    <record id="view_material_return_form" model="ir.ui.view">
+        <field name="name">stock.picking.material.return.form</field>
+        <field name="model">stock.picking</field>
+        <field name="inherit_id" ref="stock.view_picking_form"/>
+        <field name="mode">primary</field>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='move_ids']/list/field[@name='product_uom_qty']"
+                   position="attributes">
+                <attribute name="string">Returning Now</attribute>
+            </xpath>
+        </field>
+    </record>
+</odoo>
