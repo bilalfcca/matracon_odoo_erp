@@ -54,7 +54,9 @@
     // .o_list_renderer; with a local scroll container that sticky resolves
     // correctly to top:0 of the table area — no z-index hacks needed.
     // ─────────────────────────────────────────────────────────────────────────
-    .o_field_one2many .o_list_renderer {
+    // NOTE: In Odoo 19, the one2many wrapper class is o_field_x2many_list
+    //       (not o_field_one2many which was removed in Odoo 17+).
+    .o_field_x2many_list .o_list_renderer {
         max-height: 50vh;   // half the viewport — adapts to any screen height
         min-height: 180px;  // never collapse below ~3 rows
         overflow-y: auto;
