@@ -156,31 +156,35 @@
                 <attribute name="groups">!site_operations.group_site_accountant</attribute>
             </xpath>
 
-            <!-- 6. Site-accountant-only "Journal Entries" tab — READ-ONLY.
-                 Purpose: verification only.  Site accountants enter product lines
-                 and accounts in the Invoice Lines tab (above); this tab shows the
-                 computed accounting result so they can verify the entries before
-                 confirming the bill.
-                 Making this tab editable causes two interacting errors when the user
-                 switches between the two tabs:
-                   • "The entry is not balanced" — tab-switch commits the Invoice Lines
-                     edit before onchange has recomputed the AP/AR payable line.
-                   • "You cannot delete a payable/receivable line …" — tab-switch
-                     triggers a line-reconciliation that tries to unlink the payable row.
-                 Both errors disappear when the Journal Entries tab is read-only,
-                 because there is no competing edit session to commit. -->
+            <!-- 6. Site-accountant-only "Journal Entries" tab — EDITABLE in draft.
+                 Site accountants can view the computed accounting result for
+                 verification AND manually add/edit double-entry lines (debit/credit
+                 with Chart-of-Accounts selection) as requested by the client.
+                 The tab becomes read-only once the bill is posted (state != 'draft'). -->
             <xpath expr="//page[@id='invoice_tab']" position="before">
                 <page string="Journal Entries"
                       name="sa_invoice_lines"
                       groups="site_operations.group_site_accountant">
-                    <field name="line_ids" readonly="1">
+                    <field name="line_ids" readonly="state != 'draft'">
                         <list string="Journal Entries"
+                              editable="bottom"
                               decoration-muted="display_type in ('line_section', 'line_note')"
                               default_order="sequence, id">
-                            <field name="account_id"/>
+                            <control>
+                                <create string="Add a line"/>
+                            </control>
+                            <field name="account_id"
+                                   required="display_type not in ('line_section', 'line_note')"
+                                   domain="[('x_ho_only', '=', False), ('company_ids', 'parent_of', parent.company_id), '|', ('x_site_ids', '=', False), ('x_site_ids', 'in', [parent.x_user_analytic_id])] if parent.x_user_analytic_id else [('company_ids', 'parent_of', parent.company_id)]"
+                                   options="{'no_create': True, 'no_create_edit': True}"/>
+                            <field name="partner_id"
+                                   optional="show"
+                                   domain="['|', ('parent_id', '=', False), ('is_company', '=', True)]"/>
                             <field name="name" optional="show"/>
                             <field name="analytic_distribution"
                                    widget="analytic_distribution"
+                                   groups="analytic.group_analytic_accounting"
+                                   optional="show"
                                    options="{'account_field': 'account_id'}"/>
                             <field name="debit" sum="Total Debit"
                                    invisible="display_type in ('line_section', 'line_subsection', 'line_note')"/>
@@ -224,12 +228,10 @@
                 <attribute name="invisible">move_type == 'out_invoice'</attribute>
             </xpath>
 
-            <!-- 4. Journal Entries tab — first tab for HO users on customer invoices.
-                     READ-ONLY verification view.  All editing (product lines, amounts,
-                     accounts, analytic) happens in the Invoice Lines tab.  Making this
-                     tab editable causes "not balanced" / "cannot delete payable line"
-                     errors when switching between the two tabs (same root cause as the
-                     site-accountant vendor bill tab — see note in that view above).
+            <!-- 4. Journal Entries tab — first tab on customer invoices for ALL users
+                     (site accountants use the sa_invoice_lines tab from the view above).
+                     EDITABLE in draft so users can add/edit double-entry lines manually.
+                     Becomes read-only once the invoice is posted (state != 'draft').
                      Shows ALL journal lines including the auto-managed Account Receivable
                      so the running balance is always visible. -->
             <xpath expr="//page[@id='invoice_tab']" position="before">
@@ -237,15 +239,24 @@
                       name="customer_journal_entries"
                       invisible="move_type != 'out_invoice'"
                       groups="!site_operations.group_site_accountant">
-                    <field name="line_ids" readonly="1">
+                    <field name="line_ids" readonly="state != 'draft'">
                         <list string="Journal Entries"
+                              editable="bottom"
                               decoration-muted="display_type in ('line_section', 'line_note')"
                               default_order="sequence, id">
-                            <field name="account_id"/>
+                            <control>
+                                <create string="Add a line"/>
+                            </control>
+                            <field name="account_id"
+                                   required="display_type not in ('line_section', 'line_note')"
+                                   domain="[('company_ids', 'parent_of', parent.company_id)]"
+                                   options="{'no_create': True}"/>
                             <field name="name" optional="show"/>
                             <field name="partner_id" optional="hide"/>
                             <field name="analytic_distribution"
                                    widget="analytic_distribution"
+                                   groups="analytic.group_analytic_accounting"
+                                   optional="show"
                                    options="{'account_field': 'account_id'}"/>
                             <field name="debit" sum="Total Debit"
                                    invisible="display_type in ('line_section', 'line_subsection', 'line_note')"/>
