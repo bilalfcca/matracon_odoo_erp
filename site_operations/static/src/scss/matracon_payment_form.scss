@@ -43,18 +43,25 @@
         max-width: 100%;
     }
 
-    // Sticky column headers — liability lines one2many
-    // The form's scroll container (.o_content) is below the fixed control panel,
-    // so top: 0 pins the thead to the top of the visible content area.
-    .o_field_one2many table thead {
-        position: sticky;
-        top: 0;
-        z-index: 2;
+    // Inner-scroll for liability lines
+    // ─────────────────────────────────────────────────────────────────────────
+    // Problem: Odoo's form header (<header> → .o_form_statusbar) is itself
+    // position:sticky; top:0 with z-index:1020.  Our <thead> would also be
+    // sticky at top:0 but slide *behind* the statusbar and disappear.
+    //
+    // Fix: give .o_list_renderer its own overflow-y:auto scroll container.
+    // Odoo's core CSS already makes <thead> position:sticky inside
+    // .o_list_renderer; with a local scroll container that sticky resolves
+    // correctly to top:0 of the table area — no z-index hacks needed.
+    // ─────────────────────────────────────────────────────────────────────────
+    .o_field_one2many .o_list_renderer {
+        max-height: 50vh;   // half the viewport — adapts to any screen height
+        min-height: 180px;  // never collapse below ~3 rows
+        overflow-y: auto;
 
-        th {
-            background: var(--o-view-background-color, #fff);
-            // Thin shadow replaces the bottom border (border doesn't travel with sticky)
-            box-shadow: 0 1px 0 var(--o-border-color, rgba(0, 0, 0, 0.15));
+        // Reinforce the bg so rows scrolling underneath don't bleed through
+        .o_list_table thead th {
+            background: var(--ListRenderer-thead-bg-color, var(--o-view-background-color, #fff));
         }
     }
 }
