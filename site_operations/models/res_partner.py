@@ -34,6 +34,27 @@ class ResPartnerSiteOps(models.Model):
                 ('x_transfer_purpose', 'in', ['material_issuance', 'site_to_site']),
             ])
 
+    @api.model
+    def default_get(self, fields_list):
+        res = super().default_get(fields_list)
+        ctx = self.env.context
+        # Auto-apply tag when partner is created from a contextual field.
+        # The tag is also forced read-only in partner_views.xml so the user
+        # cannot change it after the dialog opens.
+        if 'category_id' in fields_list:
+            tag_name = None
+            if ctx.get('site_procurement_vendor'):
+                tag_name = 'Local Supplier'
+            elif ctx.get('subcontractor_create'):
+                tag_name = 'Subcontractor'
+            if tag_name:
+                tag = self.env['res.partner.category'].search(
+                    [('name', '=', tag_name)], limit=1
+                )
+                if tag:
+                    res['category_id'] = [(4, tag.id)]
+        return res
+
     def action_view_material_issuances(self):
         self.ensure_one()
         return {
