@@ -168,6 +168,10 @@
                             string="Print Voucher" class="btn-secondary"
                             icon="fa-print"/>
                     <field name="state" widget="statusbar"/>
+                    <button name="action_delete_draft" type="object"
+                            string="Delete" class="btn-danger"
+                            invisible="state != 'draft'"
+                            confirm="This petty cash expense will be permanently deleted. Are you sure?"/>
                 </header>
                 <sheet>
                     <!-- Smart buttons -->
