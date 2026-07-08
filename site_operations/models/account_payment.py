@@ -1028,6 +1028,18 @@ class AccountPaymentSiteOps(models.Model):
         self._validate_ceo_payment_approval()
         for payment in self.filtered(lambda p: p.x_liability_sheet_line_id):
             payment.amount = payment.x_net_payable or payment.amount
+        # Sync x_source_project_ids from Fund Allocation tab lines when the user
+        # added allocation rows directly (skipping the now-invisible source project
+        # widget).  Without this, the validation below fires even though allocations
+        # are present.
+        for payment in self.filtered(
+            lambda p: p.payment_type == 'outbound'
+            and not p.x_source_project_ids
+            and p.x_allocation_ids
+        ):
+            payment.x_source_project_ids = payment.x_allocation_ids.mapped(
+                'project_analytic_account_id'
+            )
         self._validate_liability_payment()
         self._validate_fund_allocations()
         # In Odoo 19 Enterprise (with 'accountant' module installed),
