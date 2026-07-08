@@ -42,4 +42,19 @@
         flex-wrap: wrap;
         max-width: 100%;
     }
+
+    // Sticky column headers — liability lines one2many
+    // The form's scroll container (.o_content) is below the fixed control panel,
+    // so top: 0 pins the thead to the top of the visible content area.
+    .o_field_one2many table thead {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+
+        th {
+            background: var(--o-view-background-color, #fff);
+            // Thin shadow replaces the bottom border (border doesn't travel with sticky)
+            box-shadow: 0 1px 0 var(--o-border-color, rgba(0, 0, 0, 0.15));
+        }
+    }
 }
