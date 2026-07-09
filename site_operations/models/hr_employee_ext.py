@@ -4,6 +4,35 @@ from odoo import models, fields, api, _
 class HrEmployeeMatracon(models.Model):
     _inherit = 'hr.employee'
 
+    # ── Last Online ──────────────────────────────────────────────────────────
+    # Reads mail.presence.last_presence (updated every ~60 s while the user
+    # has an open browser tab) — more granular than login_date (which only
+    # changes when the user types their password again).
+    # Stored=False: always recomputed at render time, no staleness issue.
+    x_last_online = fields.Datetime(
+        string='Last Online',
+        compute='_compute_x_last_online',
+        store=False,
+        help='Last time this employee was active in the system. '
+             'Only populated when the employee has a linked user account.',
+    )
+
+    @api.depends('user_id')
+    def _compute_x_last_online(self):
+        # Batch fetch presences to avoid N+1 queries across list views
+        user_ids = [emp.user_id.id for emp in self if emp.user_id]
+        if user_ids:
+            presences = self.env['mail.presence'].sudo().search(
+                [('user_id', 'in', user_ids)]
+            )
+            presence_map = {p.user_id.id: p.last_presence for p in presences}
+        else:
+            presence_map = {}
+        for emp in self:
+            emp.x_last_online = (
+                presence_map.get(emp.user_id.id, False) if emp.user_id else False
+            )
+
     x_project_analytic_account_id = fields.Many2one(
         'account.analytic.account',
         string='Site Project',

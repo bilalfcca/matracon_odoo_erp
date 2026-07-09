@@ -197,6 +197,45 @@ def seed_demo_bank_balances(env):
         }).action_post()
 
 
+def deduplicate_partner_tags(env):
+    """
+    Remove duplicate res.partner.category records that share the same name.
+    Keeps the record with the lowest ID; re-links all partner associations.
+    Idempotent — safe to call on every upgrade.
+    """
+    import logging
+    _logger = logging.getLogger(__name__)
+    cr = env.cr
+    cr.execute("""
+        SELECT name, array_agg(id ORDER BY id) AS ids
+        FROM res_partner_category
+        GROUP BY name
+        HAVING count(*) > 1
+    """)
+    rows = cr.fetchall()
+    for name, ids in rows:
+        keep_id = ids[0]
+        dup_ids = ids[1:]
+        _logger.info('deduplicate_partner_tags: keeping tag id=%s "%s", removing %s', keep_id, name, dup_ids)
+        # Re-link partners that point to a duplicate but not yet to the keeper
+        cr.execute("""
+            UPDATE res_partner_res_partner_category_rel
+            SET category_id = %s
+            WHERE category_id = ANY(%s)
+              AND partner_id NOT IN (
+                SELECT partner_id FROM res_partner_res_partner_category_rel
+                WHERE category_id = %s
+              )
+        """, (keep_id, dup_ids, keep_id))
+        # Drop any remaining duplicate links (partner already has keeper)
+        cr.execute("""
+            DELETE FROM res_partner_res_partner_category_rel
+            WHERE category_id = ANY(%s)
+        """, (dup_ids,))
+        # Delete the duplicate tag records
+        cr.execute("DELETE FROM res_partner_category WHERE id = ANY(%s)", (dup_ids,))
+
+
 def migrate_matracon_admin_group(env):
     """Move users from legacy site_operations admin group to purchase_demand_raise."""
     old = env.ref('site_operations.group_matracon_admin', raise_if_not_found=False)
@@ -265,6 +304,7 @@ def reprocess_existing_payments(env):
 
 
 def post_init_hook(env):
+    deduplicate_partner_tags(env)
     try:
         migrate_matracon_admin_group(env)
         configure_production_users(env)
@@ -288,6 +328,7 @@ def post_init_hook(env):
 
 
 def post_migrate_hook(env):
+    deduplicate_partner_tags(env)
     reprocess_existing_payments(env)
     # Re-apply production user config (groups + default analytic/warehouse) on every update
     # so that a module upgrade or re-install never silently resets site user settings.

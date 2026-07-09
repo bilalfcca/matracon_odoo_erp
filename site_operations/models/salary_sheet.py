@@ -429,6 +429,16 @@ class SalarySheet(models.Model):
             return f'July {y} – June {y + 1}'
         return f'July {y - 1} – June {y}'
 
+    def unlink(self):
+        for rec in self:
+            if rec.state != 'draft':
+                raise UserError(_('Only draft salary sheets can be deleted.'))
+        return super().unlink()
+
+    def action_delete_draft(self):
+        self.unlink()
+        return {'type': 'ir.actions.act_window_close'}
+
 
 class SalarySheetLine(models.Model):
     _name = 'x.salary.sheet.line'

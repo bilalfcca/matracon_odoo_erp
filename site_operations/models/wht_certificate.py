@@ -133,3 +133,13 @@ class WHTCertificate(models.Model):
         return self.env.ref(
             'site_operations.action_report_wht_certificate'
         ).report_action(self)
+
+    def unlink(self):
+        for rec in self:
+            if rec.state != 'draft':
+                raise UserError(_('Only draft WHT certificates can be deleted.'))
+        return super().unlink()
+
+    def action_delete_draft(self):
+        self.unlink()
+        return {'type': 'ir.actions.act_window_close'}

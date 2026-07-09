@@ -64,6 +64,10 @@
                             icon="fa-print"/>
                     <field name="state" widget="statusbar"
                            statusbar_visible="draft,open,reply_submitted,under_proceeding,order_filed,closed,paid"/>
+                    <button name="action_delete_draft" type="object"
+                            string="Delete" class="btn-danger"
+                            invisible="state != 'draft'"
+                            confirm="This tax notice will be permanently deleted. Are you sure?"/>
                 </header>
                 <sheet>
                     <widget name="web_ribbon" title="Overdue" bg_color="text-bg-danger"

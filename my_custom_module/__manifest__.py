@@ -5,6 +5,7 @@
     'depends': ['account', 'account_reports'],
     'data': [
         'views/partner_ledger_tax_templates.xml',
+        'views/trial_balance_type_groupby.xml',
     ],
     'installable': True,
     'application': False,

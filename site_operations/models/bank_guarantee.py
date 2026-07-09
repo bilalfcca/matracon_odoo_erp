@@ -426,6 +426,16 @@ class BankGuarantee(models.Model):
             'site_operations.action_report_bank_guarantee'
         ).report_action(self)
 
+    def unlink(self):
+        for rec in self:
+            if rec.state != 'draft':
+                raise UserError(_('Only draft bank guarantees can be deleted.'))
+        return super().unlink()
+
+    def action_delete_draft(self):
+        self.unlink()
+        return {'type': 'ir.actions.act_window_close'}
+
 
 class BankGuaranteeAmendment(models.Model):
     _name = 'x.bank.guarantee.amendment'
@@ -449,6 +459,13 @@ class BankGuaranteeAmendment(models.Model):
     new_expiry_date = fields.Date(string='New Expiry Date')
     currency_id = fields.Many2one(
         related='guarantee_id.currency_id', store=True, readonly=True)
+    attachment_ids = fields.Many2many(
+        'ir.attachment',
+        'x_bg_amendment_attachment_rel',
+        'amendment_id', 'attachment_id',
+        string='Supporting Documents',
+        help='Attach bank letters, extensions, or other supporting documentation for this amendment.',
+    )
 
     def action_apply_extension(self):
         for rec in self.filtered(lambda a: a.new_expiry_date and a.guarantee_id):

@@ -219,6 +219,7 @@
                 <!-- Normal: employees from HR app; Subcontractor: contacts tagged Subcontractor -->
                 <field name="x_contact_id"
                        domain="[('category_id.name', '=', 'Subcontractor')] if x_issue_type == 'subcontractor' else [('employee', '=', True)]"
+                       context="{'subcontractor_create': x_issue_type == 'subcontractor'}"
                        invisible="x_transfer_purpose != 'material_issuance'"/>
 
                 <!-- ─ Outstanding materials HTML summary ─ -->

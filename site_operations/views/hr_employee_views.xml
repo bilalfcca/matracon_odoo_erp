@@ -7,6 +7,14 @@
         <field name="inherit_id" ref="hr.view_employee_form"/>
         <field name="arch" type="xml">
 
+            <!-- Last Online — shown in Settings > User group, only when user is linked -->
+            <xpath expr="//group[@name='user']" position="inside">
+                <field name="x_last_online"
+                       readonly="1"
+                       string="Last Online"
+                       invisible="not user_id"/>
+            </xpath>
+
             <!-- Print Employee Card button in button_box -->
             <xpath expr="//div[@name='button_box']" position="inside">
                 <button name="action_print_employee_card"

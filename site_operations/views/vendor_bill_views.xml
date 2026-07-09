@@ -185,6 +185,7 @@
                                    widget="analytic_distribution"
                                    groups="analytic.group_analytic_accounting"
                                    optional="show"
+                                   readonly="parent.move_type in ('out_invoice', 'entry')"
                                    options="{'account_field': 'account_id'}"/>
                             <field name="debit" sum="Total Debit"
                                    invisible="display_type in ('line_section', 'line_subsection', 'line_note')"/>

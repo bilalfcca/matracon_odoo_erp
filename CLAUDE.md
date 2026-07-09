@@ -108,3 +108,58 @@ All reports use QWeb templates. Report XML IDs follow the pattern `site_operatio
 
 ## Commit Identity
 Use `awaisqureshidev01@gmail.com` / `Awais` from `.claude.json` oauthAccount.
+
+---
+
+## Session Notes — 2026-07-09
+
+### Analytic Distribution on Move Lines — UPDATED pattern
+The note above says "MISC journal entries use line-level `analytic_distribution`". This is now **also true for customer invoices (`out_invoice`) and site-accountant journal entries (`entry`)**. The analytic propagation in `account_move.py` now covers all three:
+
+| `move_type` | Propagation | View editable? |
+|---|---|---|
+| `in_invoice` | auto-fill from header `x_project_analytic_account_id` | ✅ Yes |
+| `out_invoice` | auto-fill from header `x_project_analytic_account_id` | 🔒 Read-only (SA view) |
+| `entry` (site accountant only) | auto-fill from user's default analytic | 🔒 Read-only (SA view) |
+
+Three hooks in `account_move.py` cover all paths:
+- `_onchange_project_analytic_account_fill_lines` — handles `in_invoice` + `out_invoice`
+- `_onchange_invoice_line_ids_fill_analytic` — handles `in_invoice` + `out_invoice`
+- `_onchange_line_ids_fill_analytic_for_entry` — handles `entry` for site accountants (NEW)
+- `AccountMoveLineSiteOps.create()` — DB-level stamp for all three types
+
+The `analytic_distribution` column in the site-accountant Journal Entries tab (`sa_invoice_lines`) has:
+```xml
+readonly="parent.move_type in ('out_invoice', 'entry')"
+```
+
+### New Field: `hr.employee.x_last_online`
+- File: `site_operations/models/hr_employee_ext.py`
+- Computed (store=False), reads `mail.presence.last_presence` via sudo
+- Batched compute — single SQL query per recordset, safe for list views
+- Shown on Settings tab > User group, `invisible="not user_id"`
+- `mail.presence.last_presence` updates every ~60 s while browser tab is open
+
+### Pending — odoosh-push blocked
+All commits since `f394994` are **local only** and have NOT reached staging. The push command:
+```
+odoosh-push
+```
+fails with: _"Pushing code on Odoo.sh is only available after this feature has been enabled in your project settings."_
+
+**Action required:** User must enable **AI Code Push** in their Odoo.sh project settings. Once enabled, run `odoosh-push` to push all pending commits to staging.
+
+Commits waiting to be pushed (oldest first):
+```
+f394994  Feat: Trial Balance — group by account type
+3d01a2e  Fix: dashboard payment KPIs + BG amendment attachments
+91067e4  Feat: liability sheet — compact header + sticky scrollable lines table
+dcd564f  Feat: customer invoice — analytic account shown per-line (read-only)
+53679c8  Feat: journal entries — auto-fill analytic (read-only) for site accountants
+891c0aa  Feat: employee form — Last Online timestamp for linked users
+```
+
+### Key design decisions made this session
+- **`group_analytic_accounting` not in site accountant's `implied_ids`** — it's granted to all users via the system-wide "Analytic Accounting" setting (`res.config.settings.group_analytic_accounting`). In staging this setting is ON so all users see the `analytic_distribution` widget. The `groups="analytic.group_analytic_accounting"` attribute in views is already satisfied.
+- **`mail.presence` over `res.users.login_date`** — `login_date` only updates on password re-entry. `mail.presence.last_presence` updates every 60 s while the browser tab is open. Much more accurate for "last online".
+- **`x_project_analytic_account_id` on `entry` type** — the field has `invisible="move_type not in ('in_invoice', 'out_invoice')"` in the view but still exists on the model with `default=lambda self: self.env.user.x_default_analytic_account_id`. Site accountants always have this default set. The field is invisible/read-only on journal entries so they can't change it — only the line-level `analytic_distribution` is visible (read-only).

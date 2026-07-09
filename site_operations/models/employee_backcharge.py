@@ -105,6 +105,16 @@ class EmployeeBackcharge(models.Model):
                 raise UserError(_('Only cancelled backcharges can be re-opened.'))
             bc.state = 'open' if bc.remaining_amount > 0 else 'cleared'
 
+    def unlink(self):
+        for rec in self:
+            if rec.state != 'open':
+                raise UserError(_('Only open (unprocessed) employee backcharges can be deleted.'))
+        return super().unlink()
+
+    def action_delete_draft(self):
+        self.unlink()
+        return {'type': 'ir.actions.act_window_close'}
+
 
 class EmployeeBackchargeDeduction(models.Model):
     """One record per salary-sheet deduction for a backcharge.

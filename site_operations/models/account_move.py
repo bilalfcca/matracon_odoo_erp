@@ -192,11 +192,14 @@ class AccountMoveSiteOps(models.Model):
 
     @api.onchange('x_project_analytic_account_id')
     def _onchange_project_analytic_account_fill_lines(self):
-        """When the project is (re-)selected on a vendor bill, immediately tag
-        every existing journal item (product lines, tax lines, payable line)
-        with the new analytic distribution so the Journal Entries tab and the
-        Invoice Lines tab both reflect the correct project in real time."""
-        if self.move_type != 'in_invoice':
+        """When the project is (re-)selected on a vendor bill or customer invoice,
+        immediately tag every existing journal item (product lines, tax lines,
+        payable/receivable line) with the new analytic distribution so the Journal
+        Entries tab and the Invoice Lines tab both reflect the correct project in
+        real time.  Customer invoice lines are always read-only in the SA view so
+        this just ensures the display is correct; the analytic is also stamped
+        at DB-write time by AccountMoveLineSiteOps.create()."""
+        if self.move_type not in ('in_invoice', 'out_invoice'):
             return
         dist = (
             {str(self.x_project_analytic_account_id.id): 100.0}
@@ -214,10 +217,30 @@ class AccountMoveSiteOps(models.Model):
         Odoo's base _onchange_invoice_line_ids has not yet rebuilt the full
         line_ids; auto-generated tax and payable lines are handled at DB-write
         time by AccountMoveLineSiteOps.create() further below."""
-        if not self.x_project_analytic_account_id or self.move_type != 'in_invoice':
+        if not self.x_project_analytic_account_id or self.move_type not in ('in_invoice', 'out_invoice'):
             return
         dist = {str(self.x_project_analytic_account_id.id): 100.0}
         for line in self.invoice_line_ids:
+            if not line.analytic_distribution:
+                line.analytic_distribution = dist
+
+    @api.onchange('line_ids')
+    def _onchange_line_ids_fill_analytic_for_entry(self):
+        """For site-accountant journal entries (move_type='entry'): fill
+        analytic_distribution on every new line immediately so the read-only
+        Analytic column shows the project without requiring a manual save.
+
+        invoice_line_ids does not apply to MISC entries — we use line_ids
+        directly here.  The DB-level create() hook below handles the same
+        for server-side and programmatic record creation."""
+        if (
+            self.move_type != 'entry'
+            or not self.x_project_analytic_account_id
+            or not self.env.user.has_group('site_operations.group_site_accountant')
+        ):
+            return
+        dist = {str(self.x_project_analytic_account_id.id): 100.0}
+        for line in self.line_ids:
             if not line.analytic_distribution:
                 line.analytic_distribution = dist
 
@@ -813,8 +836,12 @@ class AccountMoveLineSiteOps(models.Model):
             if move_id not in move_cache:
                 move_cache[move_id] = self.env['account.move'].browse(move_id)
             move = move_cache[move_id]
+            is_sa_entry = (
+                move.move_type == 'entry'
+                and self.env.user.has_group('site_operations.group_site_accountant')
+            )
             if (
-                move.move_type == 'in_invoice'
+                (move.move_type in ('in_invoice', 'out_invoice') or is_sa_entry)
                 and move.state == 'draft'
                 and move.x_project_analytic_account_id
             ):
