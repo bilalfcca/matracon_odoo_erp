@@ -109,14 +109,15 @@
         <field name="model">hr.employee</field>
         <field name="inherit_id" ref="hr.hr_kanban_view_employees"/>
         <field name="arch" type="xml">
-            <!-- Declare x_last_online + x_is_currently_online so both are fetched.
-                 x_is_currently_online is time-based (2-min threshold on last_presence)
-                 and is more accurate than hr_icon_display which lags by 5-10 min. -->
+            <!-- Fetch x_last_online (timestamp) and x_is_currently_online (driven by
+                 mail.presence.status == 'online' — Odoo's native WebSocket/bus status).
+                 When the browser tab closes, Odoo sets status → 'offline' automatically,
+                 so x_is_currently_online flips to False with no custom threshold needed. -->
             <xpath expr="//kanban/field[@name='show_hr_icon_display']" position="after">
                 <field name="x_last_online"/>
                 <field name="x_is_currently_online"/>
             </xpath>
-            <!-- Show "Online" only when heartbeat is within the last 2 minutes -->
+            <!-- Show "Online" when Odoo's native presence status == 'online' -->
             <xpath expr="//footer" position="before">
                 <div t-if="record.x_last_online.raw_value"
                      class="text-muted small mt-1"

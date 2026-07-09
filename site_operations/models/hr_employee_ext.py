@@ -1,4 +1,3 @@
-from datetime import timedelta
 from odoo import models, fields, api, _
 
 
@@ -6,30 +5,27 @@ class HrEmployeeMatracon(models.Model):
     _inherit = 'hr.employee'
 
     # ── Presence fields ──────────────────────────────────────────────────────
-    # Both fields are non-stored and computed together from a single
-    # mail.presence batch query to avoid N+1 lookups in kanban / list views.
-    #
-    # ONLINE THRESHOLD: mail.presence.last_presence is updated every ~60 s
-    # while the browser tab is open.  We consider a user "currently online"
-    # only if their last heartbeat arrived within the past 2 minutes.
-    # This prevents the stale-green-dot problem where hr_icon_display keeps
-    # the user "online" for up to 5–10 minutes after they close the tab.
-    _ONLINE_THRESHOLD_MINUTES = 2
+    # Odoo's bus/WebSocket system natively manages mail.presence.status:
+    #   'online'  → browser tab is open and connected
+    #   'away'    → tab open but idle
+    #   'offline' → browser closed / disconnected
+    # We read that status directly — no manual time thresholds needed.
+    # x_last_online  = last_presence timestamp (shown as "Online From: …")
+    # x_is_currently_online = True only when Odoo's native status == 'online'
 
     x_last_online = fields.Datetime(
         string='Last Online',
         compute='_compute_x_presence_info',
         store=False,
-        help='Last time this employee had an active browser tab. '
+        help='Last time this employee had an active browser session. '
              'Only populated when the employee has a linked user account.',
     )
     x_is_currently_online = fields.Boolean(
         string='Currently Online',
         compute='_compute_x_presence_info',
         store=False,
-        help='True when the employee sent a presence heartbeat within the last '
-             '2 minutes — more accurate than Odoo\'s built-in hr_icon_display '
-             'which can lag by up to 5–10 minutes after logout.',
+        help='True when Odoo\'s native presence status is "online" '
+             '(browser tab open and connected).',
     )
     x_presence_log_ids = fields.One2many(
         'x.employee.presence.log', 'employee_id',
@@ -39,64 +35,30 @@ class HrEmployeeMatracon(models.Model):
 
     @api.depends('user_id')
     def _compute_x_presence_info(self):
-        """Batch-fetch mail.presence for all employees in the recordset,
-        then set both x_last_online and x_is_currently_online in one pass.
+        """Batch-fetch mail.presence for all employees in the recordset.
+
+        Reads two fields from mail.presence in a single query:
+          • last_presence  → shown as "Online From: …" in the kanban card
+          • status         → drives x_is_currently_online (trusts Odoo's bus)
+
+        No manual time-threshold logic — Odoo's WebSocket/bus already handles
+        the online→offline transition when the browser tab closes.
         """
-        threshold = fields.Datetime.now() - timedelta(
-            minutes=self._ONLINE_THRESHOLD_MINUTES
-        )
         user_ids = [emp.user_id.id for emp in self if emp.user_id]
         if user_ids:
             presences = self.env['mail.presence'].sudo().search(
                 [('user_id', 'in', user_ids)]
             )
-            presence_map = {p.user_id.id: p.last_presence for p in presences}
+            last_map = {p.user_id.id: p.last_presence for p in presences}
+            status_map = {p.user_id.id: p.status for p in presences}
         else:
-            presence_map = {}
-        for emp in self:
-            last = presence_map.get(emp.user_id.id) if emp.user_id else False
-            emp.x_last_online = last
-            emp.x_is_currently_online = bool(last and last >= threshold)
-
-    def _compute_hr_icon_display(self):
-        """Override Odoo's presence dot to use our 2-minute heartbeat threshold.
-
-        Odoo's default implementation reads mail.presence.status which has a
-        built-in 5–10 minute grace period — it keeps showing green long after
-        the user closes the browser.
-
-        Strategy: let super() run first (sets all the standard values), then
-        downgrade any 'presence_online' dot to 'presence_undetermined' (grey)
-        for employees whose last_presence heartbeat is older than 2 minutes.
-        """
-        super()._compute_hr_icon_display()
-
-        threshold = fields.Datetime.now() - timedelta(
-            minutes=self._ONLINE_THRESHOLD_MINUTES
-        )
-        # Only query presences for employees Odoo thinks are online
-        online_user_ids = [
-            emp.user_id.id for emp in self
-            if emp.user_id and emp.hr_icon_display == 'presence_online'
-        ]
-        if not online_user_ids:
-            return
-
-        presences = self.env['mail.presence'].sudo().search(
-            [('user_id', 'in', online_user_ids)]
-        )
-        # Users whose heartbeat has expired
-        stale_user_ids = {
-            p.user_id.id for p in presences
-            if not p.last_presence or p.last_presence < threshold
-        }
-        # Also treat users with NO presence record as stale
-        found_user_ids = {p.user_id.id for p in presences}
-        stale_user_ids |= set(online_user_ids) - found_user_ids
+            last_map = {}
+            status_map = {}
 
         for emp in self:
-            if emp.user_id.id in stale_user_ids:
-                emp.hr_icon_display = 'presence_undetermined'
+            uid = emp.user_id.id if emp.user_id else False
+            emp.x_last_online = last_map.get(uid, False)
+            emp.x_is_currently_online = (status_map.get(uid) == 'online')
 
     x_project_analytic_account_id = fields.Many2one(
         'account.analytic.account',
