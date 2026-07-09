@@ -177,6 +177,7 @@
                                     <field name="description"/>
                                     <field name="amount_change" sum="Total Change"/>
                                     <field name="new_expiry_date"/>
+                                    <field name="attachment_ids" widget="many2many_binary" string="Docs"/>
                                 </list>
                             </field>
                         </page>
@@ -247,6 +248,11 @@
                     <field name="description"/>
                     <field name="amount_change"/>
                     <field name="new_expiry_date"/>
+                </group>
+                <group string="Supporting Documents">
+                    <field name="attachment_ids" widget="many2many_binary" nolabel="1"
+                           colspan="2"
+                           placeholder="Attach bank letters, extension notices, or other supporting documents..."/>
                 </group>
                 <footer>
                     <button name="action_apply_extension" type="object" string="Apply Extension"

@@ -459,6 +459,13 @@ class BankGuaranteeAmendment(models.Model):
     new_expiry_date = fields.Date(string='New Expiry Date')
     currency_id = fields.Many2one(
         related='guarantee_id.currency_id', store=True, readonly=True)
+    attachment_ids = fields.Many2many(
+        'ir.attachment',
+        'x_bg_amendment_attachment_rel',
+        'amendment_id', 'attachment_id',
+        string='Supporting Documents',
+        help='Attach bank letters, extensions, or other supporting documentation for this amendment.',
+    )
 
     def action_apply_extension(self):
         for rec in self.filtered(lambda a: a.new_expiry_date and a.guarantee_id):

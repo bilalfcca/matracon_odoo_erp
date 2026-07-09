@@ -252,27 +252,60 @@ class ManagementDashboard(models.TransientModel):
             return [('date', '<=', date_to)]
         return []
 
+    # Odoo 19 removed the 'posted' state — active payments are now
+    # 'in_process', 'paid', or 'partial'.  Keep 'posted' as a fallback.
+    _ACTIVE_PAYMENT_STATES = ('in_process', 'paid', 'partial', 'posted')
+
     def _payments_for_analytics(self, analytics, payment_type, date_from, date_to):
+        """Return posted payments of the given type linked to the given analytics.
+
+        Checks ``x_fund_project_id`` first (primary link).  Falls back to
+        ``move_id.x_project_analytic_account_id`` for payments imported or
+        registered through the standard Odoo wizard where ``x_fund_project_id``
+        was not explicitly filled in.
+        """
         Payment = self.env['account.payment']
-        domain = [
+        base_domain = [
             ('payment_type', '=', payment_type),
-            ('state', '=', 'posted'),
+            ('state', 'in', self._ACTIVE_PAYMENT_STATES),
         ] + self._payment_date_domain(date_from, date_to)
-        if analytics:
-            domain.append(('x_fund_project_id', 'in', analytics.ids))
-        return Payment.search(domain)
+
+        if not analytics:
+            return Payment.search(base_domain)
+
+        # Primary: payments explicitly tagged to this project fund pool
+        primary = Payment.search(
+            base_domain + [('x_fund_project_id', 'in', analytics.ids)]
+        )
+        # Fallback: payments whose journal-entry header carries the project
+        # analytic account (set by the payment posting logic) but whose
+        # x_fund_project_id was never filled (e.g. imported or batch-paid bills)
+        fallback = Payment.search(
+            base_domain + [
+                ('x_fund_project_id', '=', False),
+                ('move_id.x_project_analytic_account_id', 'in', analytics.ids),
+            ]
+        )
+        return primary | fallback
 
     def _period_outbound_for_analytics(self, analytics, date_from, date_to):
-        """Outbound spend in period — allocations + direct payments."""
+        """Outbound spend in period — allocations + direct payments.
+
+        For direct payments (no allocation lines) we check both
+        ``x_fund_project_id`` (primary) and ``x_destination_project_id``
+        (fallback for vendor bill payments where only the destination is tagged).
+        """
         Allocation = self.env['x.payment.project.allocation']
         Payment = self.env['account.payment']
         total = 0.0
         if not analytics:
             return 0.0
+
+        # ── Allocation-based outbound ─────────────────────────────────────────
         alloc_domain = [
             ('project_analytic_account_id', 'in', analytics.ids),
             ('payment_id.payment_type', '=', 'outbound'),
-            ('payment_id.state', '=', 'posted'),
+            ('payment_id.state', 'in', self._ACTIVE_PAYMENT_STATES),
         ]
         if date_from:
             alloc_domain.append(('payment_id.date', '>=', date_from))
@@ -280,13 +313,36 @@ class ManagementDashboard(models.TransientModel):
             alloc_domain.append(('payment_id.date', '<=', date_to))
         total += sum(Allocation.search(alloc_domain).mapped('allocation_amount'))
 
-        direct_domain = [
+        # ── Direct outbound payments (no allocation lines) ────────────────────
+        date_domain = self._payment_date_domain(date_from, date_to)
+        outbound_base = [
             ('payment_type', '=', 'outbound'),
-            ('state', '=', 'posted'),
-            ('x_fund_project_id', 'in', analytics.ids),
+            ('state', 'in', self._ACTIVE_PAYMENT_STATES),
             ('x_allocation_ids', '=', False),
-        ] + self._payment_date_domain(date_from, date_to)
-        total += sum(Payment.search(direct_domain).mapped('amount'))
+        ] + date_domain
+
+        # Primary: fund project explicitly set
+        primary_ids = Payment.search(
+            outbound_base + [('x_fund_project_id', 'in', analytics.ids)]
+        ).ids
+
+        # Fallback 1: destination project set (vendor bill payments)
+        dest_payments = Payment.search(
+            outbound_base + [
+                ('x_destination_project_id', 'in', analytics.ids),
+                ('x_fund_project_id', '=', False),
+            ]
+        )
+        # Fallback 2: move header carries the project analytic
+        move_payments = Payment.search(
+            outbound_base + [
+                ('x_fund_project_id', '=', False),
+                ('x_destination_project_id', '=', False),
+                ('move_id.x_project_analytic_account_id', 'in', analytics.ids),
+            ]
+        )
+        all_direct = Payment.browse(primary_ids) | dest_payments | move_payments
+        total += sum(all_direct.mapped('amount'))
         return total
 
     def _bank_balances(self):
