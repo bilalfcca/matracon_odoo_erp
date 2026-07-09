@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        Detect employees who have gone offline.
+        Odoo never sets status='offline' server-side when a browser tab closes,
+        so we check last_poll staleness every 2 minutes.
+    -->
+    <record id="cron_employee_presence_offline_detect" model="ir.cron">
+        <field name="name">Employee Presence - Detect Offline Transitions</field>
+        <field name="model_id" ref="hr.model_hr_employee"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_update_presence_log()</field>
+        <field name="interval_number">2</field>
+        <field name="interval_type">minutes</field>
+        <field name="priority">100</field>
+    </record>
+</odoo>

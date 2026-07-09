@@ -4,10 +4,12 @@ from odoo import models, fields, api
 class XEmployeePresenceLog(models.Model):
     """Audit log of every online/away/offline status change for linked employees.
 
-    Records are written by the `mail.presence` write/create hooks in
-    ``mail_presence_ext.py``.  Only status *transitions* are logged —
-    repeated heartbeat writes that keep the same status are silently
-    skipped to prevent log bloat.
+    Records are written by:
+      • mail_presence_ext.py  — online/away transitions (when browser connects)
+      • hr.employee._cron_update_presence_log — offline transitions (when browser closes)
+
+    Only status *transitions* are logged — heartbeat writes that keep the same
+    status are silently skipped to keep the log lean.
     """
     _name = 'x.employee.presence.log'
     _description = 'Employee Online/Offline Presence History'
@@ -30,56 +32,54 @@ class XEmployeePresenceLog(models.Model):
     ], string='Status', required=True, readonly=True)
 
     duration = fields.Char(
-        string='Duration in State',
+        string='Duration',
         compute='_compute_duration',
         store=False,
-        help='How long the employee stayed in this status before the next change. '
+        help='How long the employee stayed in this status before the next transition. '
              '"Ongoing" means this is still their current status.',
     )
 
     def _compute_duration(self):
-        """For each log entry, duration = time until the NEXT (newer) status change.
-        The most recent entry shows "Ongoing" because no newer transition exists yet.
+        """Compute duration = time until the NEXT log entry for the same employee.
 
-        Uses a single SQL query per employee to avoid N+1 lookups.
+        Uses a batch SQL query per unique employee to avoid N+1 lookups.
+        Most-recent entry shows 'Ongoing'.
         """
         if not self:
             return
 
-        # Group records by employee to batch the lookup
-        by_employee = {}
+        # Group by employee
+        by_employee: dict[int, list] = {}
         for log in self:
             by_employee.setdefault(log.employee_id.id, []).append(log)
 
         for emp_id, logs in by_employee.items():
-            timestamps = [l.timestamp for l in logs]
-            if not timestamps:
-                continue
+            # Fetch all entries for this employee in ascending order
+            self.env.cr.execute("""
+                SELECT id, timestamp
+                FROM   x_employee_presence_log
+                WHERE  employee_id = %s
+                ORDER  BY timestamp ASC
+            """, (emp_id,))
+            rows = self.env.cr.fetchall()   # [(id, timestamp), ...]
 
-            # Fetch all log entries for this employee ordered asc so we can
-            # look up the "next" entry for each record efficiently
-            all_for_emp = self.search([
-                ('employee_id', '=', emp_id),
-            ], order='timestamp asc')
-
-            # Build a map: timestamp → next_timestamp
-            ts_list = [r.timestamp for r in all_for_emp]
+            # Build map: id → next_timestamp
             next_ts_map = {}
-            for i, r in enumerate(all_for_emp):
-                if i + 1 < len(all_for_emp):
-                    next_ts_map[r.timestamp] = all_for_emp[i + 1].timestamp
-                else:
-                    next_ts_map[r.timestamp] = None  # Most recent — still ongoing
+            for i, (rid, rts) in enumerate(rows):
+                next_ts_map[rid] = rows[i + 1][1] if i + 1 < len(rows) else None
 
             for log in logs:
-                next_ts = next_ts_map.get(log.timestamp)
+                next_ts = next_ts_map.get(log.id)
                 if next_ts is None:
                     log.duration = 'Ongoing'
                 else:
                     delta = next_ts - log.timestamp
                     total_seconds = int(delta.total_seconds())
-                    hours, remainder = divmod(total_seconds, 3600)
-                    minutes, seconds = divmod(remainder, 60)
+                    if total_seconds < 0:
+                        log.duration = '—'
+                        continue
+                    hours, rem = divmod(total_seconds, 3600)
+                    minutes, seconds = divmod(rem, 60)
                     if hours > 0:
                         log.duration = f'{hours}h {minutes}m'
                     elif minutes > 0:
