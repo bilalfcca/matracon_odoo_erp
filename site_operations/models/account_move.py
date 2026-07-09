@@ -192,11 +192,14 @@ class AccountMoveSiteOps(models.Model):
 
     @api.onchange('x_project_analytic_account_id')
     def _onchange_project_analytic_account_fill_lines(self):
-        """When the project is (re-)selected on a vendor bill, immediately tag
-        every existing journal item (product lines, tax lines, payable line)
-        with the new analytic distribution so the Journal Entries tab and the
-        Invoice Lines tab both reflect the correct project in real time."""
-        if self.move_type != 'in_invoice':
+        """When the project is (re-)selected on a vendor bill or customer invoice,
+        immediately tag every existing journal item (product lines, tax lines,
+        payable/receivable line) with the new analytic distribution so the Journal
+        Entries tab and the Invoice Lines tab both reflect the correct project in
+        real time.  Customer invoice lines are always read-only in the SA view so
+        this just ensures the display is correct; the analytic is also stamped
+        at DB-write time by AccountMoveLineSiteOps.create()."""
+        if self.move_type not in ('in_invoice', 'out_invoice'):
             return
         dist = (
             {str(self.x_project_analytic_account_id.id): 100.0}
@@ -214,7 +217,7 @@ class AccountMoveSiteOps(models.Model):
         Odoo's base _onchange_invoice_line_ids has not yet rebuilt the full
         line_ids; auto-generated tax and payable lines are handled at DB-write
         time by AccountMoveLineSiteOps.create() further below."""
-        if not self.x_project_analytic_account_id or self.move_type != 'in_invoice':
+        if not self.x_project_analytic_account_id or self.move_type not in ('in_invoice', 'out_invoice'):
             return
         dist = {str(self.x_project_analytic_account_id.id): 100.0}
         for line in self.invoice_line_ids:
@@ -814,7 +817,7 @@ class AccountMoveLineSiteOps(models.Model):
                 move_cache[move_id] = self.env['account.move'].browse(move_id)
             move = move_cache[move_id]
             if (
-                move.move_type == 'in_invoice'
+                move.move_type in ('in_invoice', 'out_invoice')
                 and move.state == 'draft'
                 and move.x_project_analytic_account_id
             ):
