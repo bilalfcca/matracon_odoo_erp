@@ -128,30 +128,34 @@ class SubcontractorIPC(models.Model):
         currency_field='currency_id', tracking=True,
         help='Mobilisation advance amount to be recovered in this IPC.')
 
-    # ── HO Advance Recovery ───────────────────────────────────────────────────
-    ho_advance_till_prev_ipc = fields.Monetary(
-        string='HO Advance till Previous IPC',
-        compute='_compute_ho_advance', store=False,
+    # ── Payments Made to Subcontractor (GL-based, replaces HO Advance tracker) ─
+    # These read actual posted GL debits on any liability_payable account
+    # for this subcontractor + project, regardless of payment source
+    # (HO bank payment, petty cash advance, or manual journal entry).
+    payments_till_prev_ipc = fields.Monetary(
+        string='Payments till Previous IPC',
+        compute='_compute_payments_made', store=False,
         currency_field='currency_id', readonly=True,
-        help='Cumulative HO advances confirmed for this sub+project up to '
-             'the date of the previous IPC.')
-    ho_advance_till_this_ipc = fields.Monetary(
-        string='HO Advance till This IPC',
-        compute='_compute_ho_advance', store=False,
+        help='Total payments made to this subcontractor for this project up to '
+             'the previous IPC date (sum of GL debits on all payable accounts).')
+    payments_till_this_ipc = fields.Monetary(
+        string='Payments till This IPC',
+        compute='_compute_payments_made', store=False,
         currency_field='currency_id', readonly=True,
-        help='Cumulative HO advances confirmed for this sub+project up to '
+        help='Total payments made to this subcontractor for this project up to '
              'this IPC date.')
-    ho_advance_this_period = fields.Monetary(
-        string='New HO Advance (This Period)',
-        compute='_compute_ho_advance', store=False,
+    payments_this_period = fields.Monetary(
+        string='Payments in This Period',
+        compute='_compute_payments_made', store=False,
         currency_field='currency_id', readonly=True,
-        help='HO advances disbursed between the previous IPC and this IPC '
+        help='Payments made between the previous IPC and this IPC '
              '(= till this IPC − till previous IPC). Pre-fills the recovery field.')
     ho_advance_recovery = fields.Monetary(
-        string='HO Advance Recovery',
+        string='Payment Recovery',
         currency_field='currency_id', tracking=True,
-        help='HO advance amount to be recovered in this IPC. '
-             'Auto-filled from advances in this period; accountant may adjust.')
+        help='Amount to be recovered (deducted) in this IPC for payments already '
+             'made to the subcontractor. Auto-filled from payments in this period; '
+             'accountant may adjust.')
 
     # ── Back charges (auto-populated from pending records for this sub+project) ─
     backcharge_line_ids = fields.One2many(
@@ -275,40 +279,60 @@ class SubcontractorIPC(models.Model):
         'subcontractor_id', 'project_analytic_account_id',
         'ipc_date', 'previous_ipc_id',
     )
-    def _compute_ho_advance(self):
-        """Sum confirmed HO advances for this sub+project up to each cutoff date."""
-        HOAdv = self.env['x.subcontractor.ho.advance'].sudo()
+    def _compute_payments_made(self):
+        """Sum all payments made to this subcontractor for this project.
+
+        Reads from GL (posted account.move.lines) — captures every debit on
+        any liability_payable account where partner = subcontractor and the
+        analytic matches this project.  This includes:
+          • HO bank payments (account.payment → DR payable / CR bank)
+          • Petty cash subcontractor advances (DR payable / CR cash-in-hand)
+          • Any manual journal entries on the subcontractor's payable account
+
+        Two analytic-linking paths are checked (OR):
+          1. move header  x_project_analytic_account_id
+          2. move-line    analytic_distribution JSONB key
+        """
+        cr = self.env.cr
         for ipc in self:
             if not ipc.subcontractor_id or not ipc.project_analytic_account_id:
-                ipc.ho_advance_till_prev_ipc = 0.0
-                ipc.ho_advance_till_this_ipc = 0.0
-                ipc.ho_advance_this_period = 0.0
+                ipc.payments_till_prev_ipc = 0.0
+                ipc.payments_till_this_ipc = 0.0
+                ipc.payments_this_period = 0.0
                 continue
 
-            base_domain = [
-                ('subcontractor_id', '=', ipc.subcontractor_id.id),
-                ('project_analytic_account_id', '=',
-                 ipc.project_analytic_account_id.id),
-                ('state', '=', 'confirmed'),
-            ]
+            partner_id = ipc.subcontractor_id.id
+            analytic_id = ipc.project_analytic_account_id.id
+            analytic_str = str(analytic_id)
 
-            # Till previous IPC cutoff
-            till_prev = 0.0
-            if ipc.previous_ipc_id and ipc.previous_ipc_id.ipc_date:
-                recs = HOAdv.search(
-                    base_domain + [('advance_date', '<=', ipc.previous_ipc_id.ipc_date)])
-                till_prev = sum(recs.mapped('amount'))
+            def _gl_payments(cutoff_date):
+                if not cutoff_date:
+                    return 0.0
+                cr.execute("""
+                    SELECT COALESCE(SUM(aml.debit), 0)
+                    FROM   account_move_line aml
+                    JOIN   account_move      am  ON am.id  = aml.move_id
+                    JOIN   account_account   aa  ON aa.id  = aml.account_id
+                    WHERE  aml.partner_id        = %s
+                      AND  aa.account_type       = 'liability_payable'
+                      AND  am.state              = 'posted'
+                      AND  am.date              <= %s
+                      AND  (   am.x_project_analytic_account_id = %s
+                            OR aml.analytic_distribution ? %s)
+                """, (partner_id, cutoff_date, analytic_id, analytic_str))
+                return cr.fetchone()[0]
 
-            # Till this IPC cutoff
-            till_this = 0.0
-            if ipc.ipc_date:
-                recs = HOAdv.search(
-                    base_domain + [('advance_date', '<=', ipc.ipc_date)])
-                till_this = sum(recs.mapped('amount'))
+            prev_date = (
+                ipc.previous_ipc_id.ipc_date
+                if ipc.previous_ipc_id and ipc.previous_ipc_id.ipc_date
+                else None
+            )
+            till_prev = _gl_payments(prev_date)
+            till_this = _gl_payments(ipc.ipc_date)
 
-            ipc.ho_advance_till_prev_ipc = till_prev
-            ipc.ho_advance_till_this_ipc = till_this
-            ipc.ho_advance_this_period = max(till_this - till_prev, 0.0)
+            ipc.payments_till_prev_ipc = till_prev
+            ipc.payments_till_this_ipc = till_this
+            ipc.payments_this_period = max(till_this - till_prev, 0.0)
 
     @api.depends(
         'gross_work_done', 'previous_gross_work_done',
@@ -402,25 +426,40 @@ class SubcontractorIPC(models.Model):
 
     @api.onchange('subcontractor_id', 'project_analytic_account_id', 'ipc_date')
     def _onchange_prefill_ho_advance_recovery(self):
-        """Auto-fill HO Advance Recovery with the difference in this IPC period."""
+        """Auto-fill Payment Recovery with GL payments made in this IPC period."""
         if not (self.subcontractor_id and self.project_analytic_account_id
                 and self.ipc_date):
             return
-        HOAdv = self.env['x.subcontractor.ho.advance'].sudo()
-        base_domain = [
-            ('subcontractor_id', '=', self.subcontractor_id.id),
-            ('project_analytic_account_id', '=',
-             self.project_analytic_account_id.id),
-            ('state', '=', 'confirmed'),
-        ]
-        till_prev = 0.0
-        if self.previous_ipc_id and self.previous_ipc_id.ipc_date:
-            recs = HOAdv.search(
-                base_domain + [('advance_date', '<=', self.previous_ipc_id.ipc_date)])
-            till_prev = sum(recs.mapped('amount'))
-        recs_this = HOAdv.search(
-            base_domain + [('advance_date', '<=', self.ipc_date)])
-        till_this = sum(recs_this.mapped('amount'))
+
+        partner_id = self.subcontractor_id.id
+        analytic_id = self.project_analytic_account_id.id
+        analytic_str = str(analytic_id)
+        cr = self.env.cr
+
+        def _gl_payments(cutoff_date):
+            if not cutoff_date:
+                return 0.0
+            cr.execute("""
+                SELECT COALESCE(SUM(aml.debit), 0)
+                FROM   account_move_line aml
+                JOIN   account_move      am  ON am.id  = aml.move_id
+                JOIN   account_account   aa  ON aa.id  = aml.account_id
+                WHERE  aml.partner_id        = %s
+                  AND  aa.account_type       = 'liability_payable'
+                  AND  am.state              = 'posted'
+                  AND  am.date              <= %s
+                  AND  (   am.x_project_analytic_account_id = %s
+                        OR aml.analytic_distribution ? %s)
+            """, (partner_id, cutoff_date, analytic_id, analytic_str))
+            return cr.fetchone()[0]
+
+        prev_date = (
+            self.previous_ipc_id.ipc_date
+            if self.previous_ipc_id and self.previous_ipc_id.ipc_date
+            else None
+        )
+        till_prev = _gl_payments(prev_date)
+        till_this = _gl_payments(self.ipc_date)
         self.ho_advance_recovery = max(till_this - till_prev, 0.0)
 
     @api.onchange('subcontractor_id', 'project_analytic_account_id')

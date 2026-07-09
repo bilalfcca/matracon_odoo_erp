@@ -561,6 +561,24 @@ class PettyCashExpense(models.Model):
         related='employee_id.x_advance_balance',
         currency_field='currency_id', readonly=True)
 
+    # ── Subcontractor Advance ────────────────────────────────────────────────
+    is_subcontractor_advance = fields.Boolean(
+        string='Subcontractor Advance',
+        default=False,
+        help='Enable to record this petty cash payment as an advance to a subcontractor. '
+             'Creates a debit entry on the selected payable account for the subcontractor — '
+             'appears in the partner ledger and is tracked in IPC payment summaries.')
+    advance_subcontractor_id = fields.Many2one(
+        'res.partner', string='Subcontractor',
+        domain="[('category_id.name', '=', 'Subcontractor')]",
+        help='Subcontractor receiving this advance.')
+    advance_payable_account_id = fields.Many2one(
+        'account.account',
+        string='Payable Account',
+        domain="[('account_type', '=', 'liability_payable')]",
+        help='Payable account to debit (e.g. Payable to Subcontractors). '
+             'This entry appears in the partner ledger and IPC payment tracking.')
+
     receipt = fields.Binary(string='Receipt / Voucher')
     receipt_filename = fields.Char()
 
@@ -626,6 +644,23 @@ class PettyCashExpense(models.Model):
                     'x.petty.cash.expense', site_code)
         return super().create(vals_list)
 
+    @api.onchange('is_subcontractor_advance', 'advance_subcontractor_id')
+    def _onchange_sub_advance_fill_account(self):
+        """Auto-fill the payable account when a subcontractor advance is toggled."""
+        if not self.is_subcontractor_advance:
+            return
+        # Look for "Payable to Subcontractors" account first, else first payable
+        account = self.env['account.account'].search([
+            ('account_type', '=', 'liability_payable'),
+            ('name', 'ilike', 'Payable to Subcontractors'),
+        ], limit=1)
+        if not account:
+            account = self.env['account.account'].search([
+                ('account_type', '=', 'liability_payable'),
+            ], limit=1)
+        if account and not self.advance_payable_account_id:
+            self.advance_payable_account_id = account
+
     @api.onchange('fund_id')
     def _onchange_fund_fill_accounting(self):
         """Auto-fill petty cash account and cash journal when fund changes."""
@@ -656,6 +691,14 @@ class PettyCashExpense(models.Model):
             if expense.is_employee_advance and not expense.employee_id:
                 raise UserError(_(
                     'Please select an Employee before posting this advance.'
+                ))
+            if expense.is_subcontractor_advance and not expense.advance_subcontractor_id:
+                raise UserError(_(
+                    'Please select a Subcontractor before posting this advance.'
+                ))
+            if expense.is_subcontractor_advance and not expense.advance_payable_account_id:
+                raise UserError(_(
+                    'Please select a Payable Account for this subcontractor advance.'
                 ))
             if not expense.x_signed_voucher:
                 raise UserError(_(
@@ -705,6 +748,11 @@ class PettyCashExpense(models.Model):
             advance_note = ''
             if expense.is_employee_advance and expense.employee_id:
                 advance_note = f'<br/><b>Employee Advance:</b> {expense.employee_id.name}'
+            elif expense.is_subcontractor_advance and expense.advance_subcontractor_id:
+                advance_note = (
+                    f'<br/><b>Subcontractor Advance:</b> {expense.advance_subcontractor_id.name}'
+                    + (f' ({expense.advance_payable_account_id.display_name})' if expense.advance_payable_account_id else '')
+                )
             body = Markup(
                 '<b>Expense Posted</b><br/>'
                 '<b>Reference:</b> {ref}<br/>'
@@ -794,23 +842,31 @@ class PettyCashExpense(models.Model):
                 ('company_id', '=', self.env.company.id),
             ], limit=1)
 
-        # ── Debit: accountant-selected account or category fallback ──────────
-        debit_account = self.expense_account_id
-        if not debit_account:
-            CATEGORY_ACCOUNT_MAP = {
-                'travel': '6270',
-                'supplies': '6280',
-                'utilities': '6300',
-                'meals': '6290',
-                'other': '6290',
-            }
-            code = CATEGORY_ACCOUNT_MAP.get(self.category, '6290')
-            debit_account = self.env['account.account'].search([
-                ('code', 'like', code),
-                ('company_id', '=', self.env.company.id),
-            ], limit=1)
-        if not debit_account:
-            debit_account = credit_account
+        # ── Debit: subcontractor advance → payable account; else expense acct ─
+        debit_partner_id = False
+        if self.is_subcontractor_advance and self.advance_subcontractor_id and self.advance_payable_account_id:
+            # Advance to subcontractor: debit their payable account
+            # JE: Dr "Payable to Subcontractors" (partner), Cr Cash-in-Hand
+            # Appears in partner ledger; captured by IPC "payments made" GL query.
+            debit_account = self.advance_payable_account_id
+            debit_partner_id = self.advance_subcontractor_id.id
+        else:
+            debit_account = self.expense_account_id
+            if not debit_account:
+                CATEGORY_ACCOUNT_MAP = {
+                    'travel': '6270',
+                    'supplies': '6280',
+                    'utilities': '6300',
+                    'meals': '6290',
+                    'other': '6290',
+                }
+                code = CATEGORY_ACCOUNT_MAP.get(self.category, '6290')
+                debit_account = self.env['account.account'].search([
+                    ('code', 'like', code),
+                    ('company_id', '=', self.env.company.id),
+                ], limit=1)
+            if not debit_account:
+                debit_account = credit_account
 
         analytic_distribution = {}
         if self.project_analytic_account_id:
@@ -828,6 +884,7 @@ class PettyCashExpense(models.Model):
                 (0, 0, {
                     'name': self.name,
                     'account_id': debit_account.id,
+                    'partner_id': debit_partner_id or False,
                     'debit': self.amount,
                     'credit': 0.0,
                     'analytic_distribution': analytic_distribution or False,

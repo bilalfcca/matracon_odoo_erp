@@ -226,6 +226,20 @@
                                    readonly="1"
                                    invisible="not is_employee_advance"
                                    string="Current Outstanding Balance"/>
+                            <field name="is_subcontractor_advance" readonly="state == 'posted'"/>
+                            <field name="advance_subcontractor_id"
+                                   readonly="state == 'posted'"
+                                   invisible="not is_subcontractor_advance"
+                                   required="is_subcontractor_advance"
+                                   options="{'no_create': True}"/>
+                            <field name="advance_payable_account_id"
+                                   string="Payable Account"
+                                   readonly="state == 'posted'"
+                                   invisible="not is_subcontractor_advance"
+                                   required="is_subcontractor_advance"
+                                   options="{'no_create': True}"
+                                   domain="[('account_type', '=', 'liability_payable')]"
+                                   help="Payable account to debit (e.g. Payable to Subcontractors). Entry appears in partner ledger and IPC payment tracking."/>
                         </group>
                     </group>
 
