@@ -16,6 +16,11 @@ class HrEmployeeMatracon(models.Model):
         help='Last time this employee was active in the system. '
              'Only populated when the employee has a linked user account.',
     )
+    x_presence_log_ids = fields.One2many(
+        'x.employee.presence.log', 'employee_id',
+        string='Online/Offline History',
+        readonly=True,
+    )
 
     @api.depends('user_id')
     def _compute_x_last_online(self):
