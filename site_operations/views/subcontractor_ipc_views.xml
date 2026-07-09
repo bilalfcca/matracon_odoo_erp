@@ -76,12 +76,7 @@
                                 <span class="o_stat_text">Sheet</span>
                             </div>
                         </button>
-                        <button name="action_view_ho_advances" type="object"
-                                class="oe_stat_button" icon="fa-university"
-                                invisible="ho_advance_count == 0">
-                            <field name="ho_advance_count"
-                                   widget="statinfo" string="HO Advances"/>
-                        </button>
+                        <!-- Payments tracked via GL — see "Payments Made" section below -->
                     </div>
 
                     <!-- Title -->
@@ -179,20 +174,20 @@
                                    readonly="state != 'draft'"/>
                         </group>
 
-                        <!-- c) HO Advance Recovery -->
-                        <group string="c)  HO Advance by Head Office">
-                            <field name="ho_advance_till_prev_ipc"
-                                   string="HO Advance till Previous IPC"
+                        <!-- c) Payments Made to Subcontractor (GL-based) -->
+                        <group string="c)  Payments Made to Subcontractor">
+                            <field name="payments_till_prev_ipc"
+                                   string="Payments till Previous IPC"
                                    readonly="1"/>
-                            <field name="ho_advance_till_this_ipc"
-                                   string="HO Advance till This IPC"
+                            <field name="payments_till_this_ipc"
+                                   string="Payments till This IPC"
                                    readonly="1"/>
-                            <field name="ho_advance_this_period"
-                                   string="New HO Advance (This Period)"
+                            <field name="payments_this_period"
+                                   string="Payments in This Period"
                                    readonly="1"
                                    class="fw-bold"/>
                             <field name="ho_advance_recovery"
-                                   string="HO Advance Recovery (this IPC)"
+                                   string="Payment Recovery (this IPC)"
                                    readonly="state != 'draft'"/>
                         </group>
 

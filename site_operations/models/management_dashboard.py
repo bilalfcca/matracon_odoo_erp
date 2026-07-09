@@ -521,15 +521,13 @@ class ManagementDashboard(models.TransientModel):
                 sum(s.avg_present_pct for s in proj_sheets) / len(proj_sheets)
                 if proj_sheets else 0.0
             )
-            fund = self.env['x.petty.cash.fund'].search([
-                ('project_analytic_account_id', '=', analytic.id),
-            ], limit=1)
             attendance_lines.append({
                 'project_name': analytic.name,
                 'employee_count': emp_count,
                 'monthly_present_days': present,
                 'attendance_pct': att_pct,
-                'petty_cash_balance': fund.balance if fund else 0.0,
+                'petty_cash_balance': self.env['x.petty.cash.fund'].get_gl_balance_for_analytic(
+                    analytic.id),
                 'currency_id': currency.id,
             })
 
@@ -671,10 +669,8 @@ class ManagementDashboard(models.TransientModel):
             vendor_liability += metrics['x_total_vendor_liability']
             sub_liability += metrics['x_total_sub_liability']
 
-            fund = self.env['x.petty.cash.fund'].search([
-                ('project_analytic_account_id', '=', project.x_analytic_account_id.id),
-            ], limit=1)
-            pc_balance = fund.balance if fund else 0.0
+            pc_balance = self.env['x.petty.cash.fund'].get_gl_balance_for_analytic(
+                project.x_analytic_account_id.id)
             petty_cash_total += pc_balance
 
             bg_status, bg_amount = self._bg_status_for_project(project)

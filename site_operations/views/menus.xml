@@ -330,13 +330,14 @@
               sequence="31"
               groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
-    <!-- Accounting → Vendors → HO Advances to Subcontractors -->
+    <!-- HO Advances menu restricted to admin only — flow replaced by GL-based payment tracking.
+         Existing HO advance records remain accessible to admins for audit/history. -->
     <menuitem id="menu_subcontractor_ho_advance"
-              name="HO Advances (Subcontractors)"
+              name="HO Advances (Legacy)"
               parent="account.menu_finance_payables"
               action="site_operations.action_subcontractor_ho_advance"
               sequence="32"
-              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+              groups="purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
     <!-- Accounting → Chart of Accounts (Site Accountant — sees only their site accounts) -->
     <menuitem id="menu_chart_of_accounts_site_accountant"

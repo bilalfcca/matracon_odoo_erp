@@ -69,4 +69,43 @@
         </field>
     </record>
 
+    <!-- ── Employee List view — Last Online optional column ── -->
+    <record id="view_hr_employee_list_matracon" model="ir.ui.view">
+        <field name="name">hr.employee.list.matracon</field>
+        <field name="model">hr.employee</field>
+        <field name="inherit_id" ref="hr.view_employee_tree"/>
+        <field name="arch" type="xml">
+            <!-- Add after the "Related User" column so it appears right next to it -->
+            <xpath expr="//field[@name='user_id']" position="after">
+                <field name="x_last_online"
+                       string="Last Online"
+                       readonly="1"
+                       optional="show"
+                       widget="datetime"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ── Employee Kanban view — Last Online in card footer area ── -->
+    <record id="view_hr_employee_kanban_matracon" model="ir.ui.view">
+        <field name="name">hr.employee.kanban.matracon</field>
+        <field name="model">hr.employee</field>
+        <field name="inherit_id" ref="hr.hr_kanban_view_employees"/>
+        <field name="arch" type="xml">
+            <!-- Declare x_last_online so it is fetched with each kanban record -->
+            <xpath expr="//kanban/field[@name='show_hr_icon_display']" position="after">
+                <field name="x_last_online"/>
+            </xpath>
+            <!-- Show "Last Online" label just above the footer inside each card -->
+            <xpath expr="//footer" position="before">
+                <div t-if="record.x_last_online.raw_value"
+                     class="text-muted small mt-1"
+                     title="Last time this employee had an active browser tab">
+                    <i class="fa fa-clock-o me-1"/>
+                    Last online: <field name="x_last_online" readonly="1" class="oe_inline"/>
+                </div>
+            </xpath>
+        </field>
+    </record>
+
 </odoo>

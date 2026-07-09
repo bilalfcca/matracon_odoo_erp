@@ -20,16 +20,19 @@ class PettyCashFund(models.Model):
         'account.analytic.account', string='Site Project',
         tracking=True, index=True)
     balance = fields.Monetary(
-        compute='_compute_balance', store=True,
+        compute='_compute_balance',
+        store=False,
         currency_field='currency_id',
-        help='Current petty cash balance after releases and expenses.',
+        help='Current petty cash balance read directly from the GL (posted move lines '
+             'on x_petty_cash_account_id filtered by this site\'s analytic account). '
+             'Falls back to released − expensed when the GL account is not configured.',
     )
     total_released = fields.Monetary(
-        compute='_compute_balance', store=True,
+        compute='_compute_totals', store=True,
         currency_field='currency_id',
     )
     total_expensed = fields.Monetary(
-        compute='_compute_balance', store=True,
+        compute='_compute_totals', store=True,
         currency_field='currency_id',
     )
     currency_id = fields.Many2one(
@@ -63,7 +66,9 @@ class PettyCashFund(models.Model):
         'request_ids.state', 'request_ids.released_amount',
         'expense_ids.amount', 'expense_ids.state',
     )
-    def _compute_balance(self):
+    def _compute_totals(self):
+        """Compute total_released and total_expensed from the custom request/expense
+        records. These fields track the workflow totals for reporting purposes."""
         for fund in self:
             released = sum(fund.request_ids.filtered(
                 lambda r: r.state in ('released', 'confirmed')
@@ -73,7 +78,97 @@ class PettyCashFund(models.Model):
             ).mapped('amount'))
             fund.total_released = released
             fund.total_expensed = expensed
-            fund.balance = released - expensed
+
+    def _compute_balance(self):
+        """Compute the fund balance directly from the GL (posted account.move.lines).
+
+        When a petty cash GL account can be resolved (from the fund's own
+        x_petty_cash_account_id OR from the linked site config), this reads the
+        actual debit/credit balance of that account filtered to this site's analytic
+        account — so ALL journal entries that touch the petty cash GL account
+        (including HO opening balance entries, replenishment payments, manual journal
+        entries, and expense journal entries) are reflected automatically.
+
+        Two analytic-linking paths are checked (OR) to be consistent with the
+        account.account Site Balance computation:
+          1. move header  x_project_analytic_account_id
+          2. move-line    analytic_distribution JSONB key  (HO MISC entries)
+
+        Falls back to released − expensed only when no GL account can be determined.
+        """
+        for fund in self:
+            acct = fund.x_petty_cash_account_id
+            analytic = fund.project_analytic_account_id
+            # If the fund has no direct account, look it up from the site config
+            # (read-only, no write — safe inside a compute method)
+            if not acct and analytic:
+                site_config = self.env['x.project.site.config'].sudo().search(
+                    [('analytic_account_id', '=', analytic.id)], limit=1)
+                if site_config:
+                    acct = site_config.x_petty_cash_account_id
+            if acct and analytic:
+                fund.env.cr.execute("""
+                    SELECT  COALESCE(SUM(aml.balance), 0)
+                    FROM    account_move_line  aml
+                    JOIN    account_move       am   ON am.id = aml.move_id
+                    WHERE   aml.account_id = %s
+                      AND   am.state       = 'posted'
+                      AND   (
+                                am.x_project_analytic_account_id = %s
+                             OR aml.analytic_distribution ? %s
+                            )
+                """, (acct.id, analytic.id, str(analytic.id)))
+                fund.balance = fund.env.cr.fetchone()[0]
+            else:
+                # Fallback: released − expensed from custom workflow records
+                released = sum(fund.request_ids.filtered(
+                    lambda r: r.state in ('released', 'confirmed')
+                ).mapped('released_amount'))
+                expensed = sum(fund.expense_ids.filtered(
+                    lambda e: e.state == 'posted'
+                ).mapped('amount'))
+                fund.balance = released - expensed
+
+    @api.model
+    def get_gl_balance_for_analytic(self, analytic_id):
+        """Return the petty cash GL balance for a given analytic account ID.
+
+        Designed for dashboards: works whether or not a fund record exists.
+        Resolution order:
+          1. Fund record with x_petty_cash_account_id → uses fund.balance (GL-based)
+          2. Fund record WITHOUT account → looks up site config account, reads GL
+          3. No fund but site config has account → reads GL directly
+          4. Nothing configured → returns 0.0
+
+        This means ANY journal entry touching the petty cash account with the
+        correct analytic distribution will be counted, regardless of how it was
+        created (manual entry, import, replenishment payment, etc.).
+        """
+        fund = self.search(
+            [('project_analytic_account_id', '=', analytic_id)], limit=1)
+        if fund:
+            # fund.balance already handles site-config fallback (see _compute_balance)
+            return fund.balance
+
+        # No fund record — try to compute from site config's petty cash account
+        site_config = self.env['x.project.site.config'].sudo().search(
+            [('analytic_account_id', '=', analytic_id)], limit=1)
+        if not site_config or not site_config.x_petty_cash_account_id:
+            return 0.0
+
+        acct_id = site_config.x_petty_cash_account_id.id
+        self.env.cr.execute("""
+            SELECT  COALESCE(SUM(aml.balance), 0)
+            FROM    account_move_line  aml
+            JOIN    account_move       am   ON am.id = aml.move_id
+            WHERE   aml.account_id = %s
+              AND   am.state       = 'posted'
+              AND   (
+                        am.x_project_analytic_account_id = %s
+                     OR aml.analytic_distribution ? %s
+                    )
+        """, (acct_id, analytic_id, str(analytic_id)))
+        return self.env.cr.fetchone()[0]
 
     @api.model
     def get_or_create_for_project(self, analytic):
@@ -466,6 +561,24 @@ class PettyCashExpense(models.Model):
         related='employee_id.x_advance_balance',
         currency_field='currency_id', readonly=True)
 
+    # ── Subcontractor Advance ────────────────────────────────────────────────
+    is_subcontractor_advance = fields.Boolean(
+        string='Subcontractor Advance',
+        default=False,
+        help='Enable to record this petty cash payment as an advance to a subcontractor. '
+             'Creates a debit entry on the selected payable account for the subcontractor — '
+             'appears in the partner ledger and is tracked in IPC payment summaries.')
+    advance_subcontractor_id = fields.Many2one(
+        'res.partner', string='Subcontractor',
+        domain="[('category_id.name', '=', 'Subcontractor')]",
+        help='Subcontractor receiving this advance.')
+    advance_payable_account_id = fields.Many2one(
+        'account.account',
+        string='Payable Account',
+        domain="[('account_type', '=', 'liability_payable')]",
+        help='Payable account to debit (e.g. Payable to Subcontractors). '
+             'This entry appears in the partner ledger and IPC payment tracking.')
+
     receipt = fields.Binary(string='Receipt / Voucher')
     receipt_filename = fields.Char()
 
@@ -531,6 +644,23 @@ class PettyCashExpense(models.Model):
                     'x.petty.cash.expense', site_code)
         return super().create(vals_list)
 
+    @api.onchange('is_subcontractor_advance', 'advance_subcontractor_id')
+    def _onchange_sub_advance_fill_account(self):
+        """Auto-fill the payable account when a subcontractor advance is toggled."""
+        if not self.is_subcontractor_advance:
+            return
+        # Look for "Payable to Subcontractors" account first, else first payable
+        account = self.env['account.account'].search([
+            ('account_type', '=', 'liability_payable'),
+            ('name', 'ilike', 'Payable to Subcontractors'),
+        ], limit=1)
+        if not account:
+            account = self.env['account.account'].search([
+                ('account_type', '=', 'liability_payable'),
+            ], limit=1)
+        if account and not self.advance_payable_account_id:
+            self.advance_payable_account_id = account
+
     @api.onchange('fund_id')
     def _onchange_fund_fill_accounting(self):
         """Auto-fill petty cash account and cash journal when fund changes."""
@@ -561,6 +691,14 @@ class PettyCashExpense(models.Model):
             if expense.is_employee_advance and not expense.employee_id:
                 raise UserError(_(
                     'Please select an Employee before posting this advance.'
+                ))
+            if expense.is_subcontractor_advance and not expense.advance_subcontractor_id:
+                raise UserError(_(
+                    'Please select a Subcontractor before posting this advance.'
+                ))
+            if expense.is_subcontractor_advance and not expense.advance_payable_account_id:
+                raise UserError(_(
+                    'Please select a Payable Account for this subcontractor advance.'
                 ))
             if not expense.x_signed_voucher:
                 raise UserError(_(
@@ -610,6 +748,11 @@ class PettyCashExpense(models.Model):
             advance_note = ''
             if expense.is_employee_advance and expense.employee_id:
                 advance_note = f'<br/><b>Employee Advance:</b> {expense.employee_id.name}'
+            elif expense.is_subcontractor_advance and expense.advance_subcontractor_id:
+                advance_note = (
+                    f'<br/><b>Subcontractor Advance:</b> {expense.advance_subcontractor_id.name}'
+                    + (f' ({expense.advance_payable_account_id.display_name})' if expense.advance_payable_account_id else '')
+                )
             body = Markup(
                 '<b>Expense Posted</b><br/>'
                 '<b>Reference:</b> {ref}<br/>'
@@ -699,23 +842,31 @@ class PettyCashExpense(models.Model):
                 ('company_id', '=', self.env.company.id),
             ], limit=1)
 
-        # ── Debit: accountant-selected account or category fallback ──────────
-        debit_account = self.expense_account_id
-        if not debit_account:
-            CATEGORY_ACCOUNT_MAP = {
-                'travel': '6270',
-                'supplies': '6280',
-                'utilities': '6300',
-                'meals': '6290',
-                'other': '6290',
-            }
-            code = CATEGORY_ACCOUNT_MAP.get(self.category, '6290')
-            debit_account = self.env['account.account'].search([
-                ('code', 'like', code),
-                ('company_id', '=', self.env.company.id),
-            ], limit=1)
-        if not debit_account:
-            debit_account = credit_account
+        # ── Debit: subcontractor advance → payable account; else expense acct ─
+        debit_partner_id = False
+        if self.is_subcontractor_advance and self.advance_subcontractor_id and self.advance_payable_account_id:
+            # Advance to subcontractor: debit their payable account
+            # JE: Dr "Payable to Subcontractors" (partner), Cr Cash-in-Hand
+            # Appears in partner ledger; captured by IPC "payments made" GL query.
+            debit_account = self.advance_payable_account_id
+            debit_partner_id = self.advance_subcontractor_id.id
+        else:
+            debit_account = self.expense_account_id
+            if not debit_account:
+                CATEGORY_ACCOUNT_MAP = {
+                    'travel': '6270',
+                    'supplies': '6280',
+                    'utilities': '6300',
+                    'meals': '6290',
+                    'other': '6290',
+                }
+                code = CATEGORY_ACCOUNT_MAP.get(self.category, '6290')
+                debit_account = self.env['account.account'].search([
+                    ('code', 'like', code),
+                    ('company_id', '=', self.env.company.id),
+                ], limit=1)
+            if not debit_account:
+                debit_account = credit_account
 
         analytic_distribution = {}
         if self.project_analytic_account_id:
@@ -733,6 +884,7 @@ class PettyCashExpense(models.Model):
                 (0, 0, {
                     'name': self.name,
                     'account_id': debit_account.id,
+                    'partner_id': debit_partner_id or False,
                     'debit': self.amount,
                     'credit': 0.0,
                     'analytic_distribution': analytic_distribution or False,
@@ -743,6 +895,7 @@ class PettyCashExpense(models.Model):
                     'account_id': credit_account.id,
                     'debit': 0.0,
                     'credit': self.amount,
+                    'analytic_distribution': analytic_distribution or False,
                 }),
             ],
         }

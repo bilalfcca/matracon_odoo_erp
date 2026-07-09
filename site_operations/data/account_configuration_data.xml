@@ -14,6 +14,22 @@
         <field name="account_type">liability_current</field>
     </record>
 
+    <!-- Payable to Suppliers — trade payables to vendors/suppliers -->
+    <record id="account_payable_to_suppliers" model="account.account">
+        <field name="code">211010</field>
+        <field name="name">Payable to Suppliers</field>
+        <field name="account_type">liability_payable</field>
+        <field name="reconcile" eval="True"/>
+    </record>
+
+    <!-- Payable to Subcontractors — payables for subcontractor IPCs and advances -->
+    <record id="account_payable_to_subcontractors" model="account.account">
+        <field name="code">211020</field>
+        <field name="name">Payable to Subcontractors</field>
+        <field name="account_type">liability_payable</field>
+        <field name="reconcile" eval="True"/>
+    </record>
+
     <!-- Retention Payable — retention held, payable back to subcontractor on release -->
     <record id="account_retention_payable" model="account.account">
         <field name="code">211200</field>
