@@ -133,12 +133,13 @@ The `analytic_distribution` column in the site-accountant Journal Entries tab (`
 readonly="parent.move_type in ('out_invoice', 'entry')"
 ```
 
-### New Field: `hr.employee.x_last_online`
+### New Fields: `hr.employee.x_last_online` + `x_is_currently_online`
 - File: `site_operations/models/hr_employee_ext.py`
-- Computed (store=False), reads `mail.presence.last_presence` via sudo
-- Batched compute — single SQL query per recordset, safe for list views
-- Shown on Settings tab > User group, `invisible="not user_id"`
-- `mail.presence.last_presence` updates every ~60 s while browser tab is open
+- Both computed (store=False) together in `_compute_x_presence_info()`
+- Batch SQL — single `SELECT user_id, last_poll FROM mail_presence WHERE user_id = ANY(%s)` per recordset
+- `x_last_online` = `last_poll` timestamp (last heartbeat); shown as "Last Seen" in Settings tab and kanban
+- `x_is_currently_online` = True when `last_poll >= now() - 65s`
+- **Do NOT read `mail.presence.status`** — it stays 'online' in DB up to 12h after browser closes; `last_poll` is the only reliable signal
 
 ### Pending — odoosh-push blocked
 All commits are **local only** and have NOT reached staging. Enable **AI Code Push** in Odoo.sh project settings, then run `odoosh-push`.
@@ -255,7 +256,7 @@ AND (am.x_project_analytic_account_id = [analytic_id]
 
 #### Online History Tab (employee form)
 - Visible when employee has a linked user; restricted to Admin / HO / Finance HO
-- Columns: **Date & Time**, **Activity** (Online/Away/Offline with colour), **Duration in State**
+- Columns: **Date & Time**, **Status** (Online/Offline with colour — no Away), **Duration**
 - Duration computed via batch SQL per employee (not N+1)
 
 ### Vendor Payments (Accounting → Vendors → Payments) — Overhaul
@@ -308,3 +309,73 @@ Vendor payments to subcontractors now feed IPC "Payments Made" automatically:
 ad99bdc  Feat: employee presence — 'Online From' label + Duration column in history
 6f1cb83  Fix: employee kanban — accurate online detection via 2-min heartbeat threshold
 ```
+
+---
+
+## Session Notes — 2026-07-09 (third session)
+
+### IPC Payment Tracking — Removed Custom GL Accounts
+
+#### What changed
+- Removed custom accounts "Payable to Suppliers" (211010) and "Payable to Subcontractors" (211020) from `account_configuration_data.xml` — user has their own imported chart of accounts
+- Removed `_onchange_category_auto_payable` from `res_partner.py` (was auto-assigning those accounts by partner category)
+- Removed `_onchange_partner_fill_expense_account` from `account_payment.py` (was auto-filling from partner's payable account)
+- `x_expense_account_id` on `account.payment` is now fully optional — selecting any account (or none) does not affect IPC tracking
+
+#### IPC query — now uses `account.payment` directly (not GL)
+**File:** `site_operations/models/subcontractor_ipc.py` → `_compute_payments_made` and `_onchange_prefill_ho_advance_recovery`
+
+```sql
+-- Bank / vendor payments
+SELECT COALESCE(SUM(ap.amount), 0)
+FROM account_payment ap
+WHERE ap.partner_id = %s
+  AND ap.payment_type = 'outbound'
+  AND ap.state IN ('in_process', 'paid')   -- Odoo 19: NOT 'posted'
+  AND ap.date <= %s
+  AND ap.x_destination_project_id = %s
+
+-- Petty cash subcontractor advances
+SELECT COALESCE(SUM(pce.amount), 0)
+FROM x_petty_cash_expense pce
+WHERE pce.advance_subcontractor_id = %s
+  AND pce.is_subcontractor_advance = true
+  AND pce.state = 'posted'
+  AND pce.expense_date <= %s
+  AND pce.project_analytic_account_id = %s
+```
+
+**Key Odoo 19 gotcha:** `account.payment.state` is `'in_process'` or `'paid'` — NOT `'posted'`. The underlying `account.move.state` is `'posted'` but that's a different table. Always use `IN ('in_process', 'paid')` when querying `account_payment` directly.
+
+### Employee Presence — Binary Online/Offline Only
+
+#### Removed: Away state
+- `x.employee.presence.log` status selection now only has `('online', 'Online')` and `('offline', 'Offline')` — no 'away'
+- `mail_presence_ext.py` no longer logs 'away' transitions; Odoo's 'away' (idle browser tab) is treated identically to 'online'
+- History tab decorations updated: green = Online, grey = Offline — no yellow/warning
+
+#### Current presence detection logic
+| Signal | Source | Action |
+|---|---|---|
+| Browser tab open | `mail.presence.write(status='online'/'away')` | If was offline → write 'offline' entry at last_poll, then 'online' entry |
+| Browser tab closes | Nothing (Odoo is never notified) | Cron detects stale last_poll every 2 min, writes 'offline' at last_poll time |
+| View employee form/kanban | `_compute_x_presence_info()` | `last_poll >= now - 65s` → Online; else → Offline + "Last seen: [last_poll]" |
+
+#### `ONLINE_THRESHOLD_SECONDS = 65`
+Matches Odoo's own `DISCONNECTION_TIMER = UPDATE_PRESENCE_DELAY + 5 = 65`. Defined in both `hr_employee_ext.py` and `mail_presence_ext.py`.
+
+### Menu Rename
+- **Accounting → Customers → Payments** renamed to **Receipts**
+- Override in `views/menus.xml`: `<record id="account.menu_action_account_payments_receivable" model="ir.ui.menu"><field name="name">Receipts</field></record>`
+
+### Commits This Session (oldest → newest)
+```
+13c1b5f  Fix: remove custom GL accounts + decouple IPC payment tracking from account type
+faf6559  Fix: employee online presence — reliable last_poll-based detection + cron offline log
+5354846  Fix: IPC payments query — use state IN ('in_process','paid') for Odoo 19
+214276e  Fix: employee presence — binary Online/Offline only, remove Away state
+2ee5e7e  Rename: Accounting > Customers > Payments → Receipts
+```
+
+### Pending — odoosh-push blocked
+All commits are **local only**. Enable **AI Code Push** in Odoo.sh project settings, then run `odoosh-push`.

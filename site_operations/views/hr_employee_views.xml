@@ -7,12 +7,13 @@
         <field name="inherit_id" ref="hr.view_employee_form"/>
         <field name="arch" type="xml">
 
-            <!-- Last Online — shown in Settings > User group, only when user is linked -->
+            <!-- Last Seen — shown in Settings > User group, only when user is linked -->
             <xpath expr="//group[@name='user']" position="inside">
                 <field name="x_last_online"
                        readonly="1"
-                       string="Last Online"
-                       invisible="not user_id"/>
+                       string="Last Seen"
+                       invisible="not user_id"
+                       widget="datetime"/>
             </xpath>
 
             <!-- Print Employee Card button in button_box -->
@@ -65,19 +66,19 @@
                         </list>
                     </field>
                 </page>
+
+                <!-- Online History — WhatsApp-style: Online / Offline transitions with duration -->
                 <page string="Online History" name="online_history"
                       invisible="not user_id"
                       groups="purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_head_office,site_operations.group_finance_ho">
                     <field name="x_presence_log_ids" readonly="1">
                         <list create="0" delete="0" default_order="timestamp desc">
                             <field name="timestamp" string="Date &amp; Time" widget="datetime"/>
-                            <field name="status" string="Activity"
+                            <field name="status" string="Status"
                                    decoration-success="status == 'online'"
-                                   decoration-warning="status == 'away'"
                                    decoration-muted="status == 'offline'"/>
-                            <field name="duration" string="Duration in State"
+                            <field name="duration" string="Duration"
                                    decoration-success="status == 'online'"
-                                   decoration-warning="status == 'away'"
                                    decoration-muted="status == 'offline'"/>
                         </list>
                     </field>
@@ -86,16 +87,15 @@
         </field>
     </record>
 
-    <!-- ── Employee List view — Last Online optional column ── -->
+    <!-- ── Employee List view — Last Seen optional column ── -->
     <record id="view_hr_employee_list_matracon" model="ir.ui.view">
         <field name="name">hr.employee.list.matracon</field>
         <field name="model">hr.employee</field>
         <field name="inherit_id" ref="hr.view_employee_tree"/>
         <field name="arch" type="xml">
-            <!-- Add after the "Related User" column so it appears right next to it -->
             <xpath expr="//field[@name='user_id']" position="after">
                 <field name="x_last_online"
-                       string="Last Online"
+                       string="Last Seen"
                        readonly="1"
                        optional="show"
                        widget="datetime"/>
@@ -103,32 +103,42 @@
         </field>
     </record>
 
-    <!-- ── Employee Kanban view — Last Online / Online status in card ── -->
+    <!-- ── Employee Kanban — WhatsApp-style Online / Last seen ── -->
     <record id="view_hr_employee_kanban_matracon" model="ir.ui.view">
         <field name="name">hr.employee.kanban.matracon</field>
         <field name="model">hr.employee</field>
         <field name="inherit_id" ref="hr.hr_kanban_view_employees"/>
         <field name="arch" type="xml">
-            <!-- Fetch x_last_online (timestamp) and x_is_currently_online (driven by
-                 mail.presence.status == 'online' — Odoo's native WebSocket/bus status).
-                 When the browser tab closes, Odoo sets status → 'offline' automatically,
-                 so x_is_currently_online flips to False with no custom threshold needed. -->
+            <!-- Declare fields needed by the kanban template -->
             <xpath expr="//kanban/field[@name='show_hr_icon_display']" position="after">
                 <field name="x_last_online"/>
                 <field name="x_is_currently_online"/>
             </xpath>
-            <!-- Show "Online" when Odoo's native presence status == 'online' -->
+
+            <!--
+                WhatsApp-style presence indicator:
+                  • Green dot  + "Online"               when x_is_currently_online == True
+                  • Grey  dot  + "Last seen [datetime]" when offline but last_poll known
+                  • Nothing                             when no user linked / never seen
+            -->
             <xpath expr="//footer" position="before">
-                <div t-if="record.x_last_online.raw_value"
-                     class="text-muted small mt-1"
-                     title="Last time this employee had an active browser tab">
-                    <i class="fa fa-clock-o me-1"/>
+                <div t-if="record.user_id.raw_value"
+                     class="small mt-1 d-flex align-items-center gap-1">
                     <t t-if="record.x_is_currently_online.raw_value">
-                        <span class="fw-semibold" style="color:#16a34a;">Online</span>
+                        <!-- Online -->
+                        <span class="rounded-circle d-inline-block"
+                              style="width:8px;height:8px;background:#16a34a;flex-shrink:0;"/>
+                        <span style="color:#16a34a;" class="fw-semibold">Online</span>
                     </t>
-                    <t t-else="">
-                        Online From: <field name="x_last_online" readonly="1" class="oe_inline"/>
+                    <t t-elif="record.x_last_online.raw_value">
+                        <!-- Offline but we know when they were last seen -->
+                        <span class="rounded-circle d-inline-block"
+                              style="width:8px;height:8px;background:#9ca3af;flex-shrink:0;"/>
+                        <span class="text-muted">Last seen:
+                            <field name="x_last_online" readonly="1" class="oe_inline" widget="datetime"/>
+                        </span>
                     </t>
+                    <!-- else: no presence data — show nothing -->
                 </div>
             </xpath>
         </field>

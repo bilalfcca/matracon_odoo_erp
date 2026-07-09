@@ -282,16 +282,9 @@ class SubcontractorIPC(models.Model):
     def _compute_payments_made(self):
         """Sum all payments made to this subcontractor for this project.
 
-        Reads from GL (posted account.move.lines) — captures every debit on
-        any liability_payable account where partner = subcontractor and the
-        analytic matches this project.  This includes:
-          • HO bank payments (account.payment → DR payable / CR bank)
-          • Petty cash subcontractor advances (DR payable / CR cash-in-hand)
-          • Any manual journal entries on the subcontractor's payable account
-
-        Two analytic-linking paths are checked (OR):
-          1. move header  x_project_analytic_account_id
-          2. move-line    analytic_distribution JSONB key
+        Queries account.payment (outbound, posted) and petty cash subcontractor
+        advances directly by partner + project — independent of which expense/payable
+        account was selected on the payment, so any chart of accounts works.
         """
         cr = self.env.cr
         for ipc in self:
@@ -303,32 +296,43 @@ class SubcontractorIPC(models.Model):
 
             partner_id = ipc.subcontractor_id.id
             analytic_id = ipc.project_analytic_account_id.id
-            analytic_str = str(analytic_id)
 
-            def _gl_payments(cutoff_date):
+            def _total_payments(cutoff_date):
                 if not cutoff_date:
                     return 0.0
+                # Bank / vendor payments via account.payment
                 cr.execute("""
-                    SELECT COALESCE(SUM(aml.debit), 0)
-                    FROM   account_move_line aml
-                    JOIN   account_move      am  ON am.id  = aml.move_id
-                    JOIN   account_account   aa  ON aa.id  = aml.account_id
-                    WHERE  aml.partner_id        = %s
-                      AND  aa.account_type       = 'liability_payable'
-                      AND  am.state              = 'posted'
-                      AND  am.date              <= %s
-                      AND  (   am.x_project_analytic_account_id = %s
-                            OR aml.analytic_distribution ? %s)
-                """, (partner_id, cutoff_date, analytic_id, analytic_str))
-                return cr.fetchone()[0]
+                    SELECT COALESCE(SUM(ap.amount), 0)
+                    FROM   account_payment ap
+                    WHERE  ap.partner_id               = %s
+                      AND  ap.payment_type             = 'outbound'
+                      AND  ap.state                   IN ('in_process', 'paid')
+                      AND  ap.date                    <= %s
+                      AND  ap.x_destination_project_id = %s
+                """, (partner_id, cutoff_date, analytic_id))
+                vendor_pay = cr.fetchone()[0]
+
+                # Petty cash subcontractor advances
+                cr.execute("""
+                    SELECT COALESCE(SUM(pce.amount), 0)
+                    FROM   x_petty_cash_expense pce
+                    WHERE  pce.advance_subcontractor_id    = %s
+                      AND  pce.is_subcontractor_advance    = true
+                      AND  pce.state                       = 'posted'
+                      AND  pce.expense_date               <= %s
+                      AND  pce.project_analytic_account_id = %s
+                """, (partner_id, cutoff_date, analytic_id))
+                petty_cash = cr.fetchone()[0]
+
+                return vendor_pay + petty_cash
 
             prev_date = (
                 ipc.previous_ipc_id.ipc_date
                 if ipc.previous_ipc_id and ipc.previous_ipc_id.ipc_date
                 else None
             )
-            till_prev = _gl_payments(prev_date)
-            till_this = _gl_payments(ipc.ipc_date)
+            till_prev = _total_payments(prev_date)
+            till_this = _total_payments(ipc.ipc_date)
 
             ipc.payments_till_prev_ipc = till_prev
             ipc.payments_till_this_ipc = till_this
@@ -426,40 +430,53 @@ class SubcontractorIPC(models.Model):
 
     @api.onchange('subcontractor_id', 'project_analytic_account_id', 'ipc_date')
     def _onchange_prefill_ho_advance_recovery(self):
-        """Auto-fill Payment Recovery with GL payments made in this IPC period."""
+        """Auto-fill Payment Recovery with payments made in this IPC period.
+
+        Queries account.payment (outbound) + petty cash advances by partner+project
+        so any expense account selection is captured.
+        """
         if not (self.subcontractor_id and self.project_analytic_account_id
                 and self.ipc_date):
             return
 
         partner_id = self.subcontractor_id.id
         analytic_id = self.project_analytic_account_id.id
-        analytic_str = str(analytic_id)
         cr = self.env.cr
 
-        def _gl_payments(cutoff_date):
+        def _total_payments(cutoff_date):
             if not cutoff_date:
                 return 0.0
             cr.execute("""
-                SELECT COALESCE(SUM(aml.debit), 0)
-                FROM   account_move_line aml
-                JOIN   account_move      am  ON am.id  = aml.move_id
-                JOIN   account_account   aa  ON aa.id  = aml.account_id
-                WHERE  aml.partner_id        = %s
-                  AND  aa.account_type       = 'liability_payable'
-                  AND  am.state              = 'posted'
-                  AND  am.date              <= %s
-                  AND  (   am.x_project_analytic_account_id = %s
-                        OR aml.analytic_distribution ? %s)
-            """, (partner_id, cutoff_date, analytic_id, analytic_str))
-            return cr.fetchone()[0]
+                SELECT COALESCE(SUM(ap.amount), 0)
+                FROM   account_payment ap
+                WHERE  ap.partner_id               = %s
+                  AND  ap.payment_type             = 'outbound'
+                  AND  ap.state                   IN ('in_process', 'paid')
+                  AND  ap.date                    <= %s
+                  AND  ap.x_destination_project_id = %s
+            """, (partner_id, cutoff_date, analytic_id))
+            vendor_pay = cr.fetchone()[0]
+
+            cr.execute("""
+                SELECT COALESCE(SUM(pce.amount), 0)
+                FROM   x_petty_cash_expense pce
+                WHERE  pce.advance_subcontractor_id    = %s
+                  AND  pce.is_subcontractor_advance    = true
+                  AND  pce.state                       = 'posted'
+                  AND  pce.expense_date               <= %s
+                  AND  pce.project_analytic_account_id = %s
+            """, (partner_id, cutoff_date, analytic_id))
+            petty_cash = cr.fetchone()[0]
+
+            return vendor_pay + petty_cash
 
         prev_date = (
             self.previous_ipc_id.ipc_date
             if self.previous_ipc_id and self.previous_ipc_id.ipc_date
             else None
         )
-        till_prev = _gl_payments(prev_date)
-        till_this = _gl_payments(self.ipc_date)
+        till_prev = _total_payments(prev_date)
+        till_this = _total_payments(self.ipc_date)
         self.ho_advance_recovery = max(till_this - till_prev, 0.0)
 
     @api.onchange('subcontractor_id', 'project_analytic_account_id')

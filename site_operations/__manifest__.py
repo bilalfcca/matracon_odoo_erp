@@ -34,6 +34,7 @@
         'data/employee_backcharge_sequence.xml',
         'data/ho_advance_sequence.xml',
         'data/app_visibility_data.xml',
+        'data/presence_cron.xml',
         'views/hr_employee_views.xml',
         'views/attendance_views.xml',
         'views/salary_views.xml',

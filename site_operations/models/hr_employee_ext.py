@@ -1,31 +1,37 @@
+from datetime import timedelta
+
 from odoo import models, fields, api, _
+
+# Matches mail.presence.DISCONNECTION_TIMER (UPDATE_PRESENCE_DELAY + 5 = 65 s).
+# A user is considered online only if their last browser heartbeat is within this window.
+ONLINE_THRESHOLD_SECONDS = 65
 
 
 class HrEmployeeMatracon(models.Model):
     _inherit = 'hr.employee'
 
     # ── Presence fields ──────────────────────────────────────────────────────
-    # Odoo's bus/WebSocket system natively manages mail.presence.status:
-    #   'online'  → browser tab is open and connected
-    #   'away'    → tab open but idle
-    #   'offline' → browser closed / disconnected
-    # We read that status directly — no manual time thresholds needed.
-    # x_last_online  = last_presence timestamp (shown as "Online From: …")
-    # x_is_currently_online = True only when Odoo's native status == 'online'
+    # x_is_currently_online — True only when last_poll in mail_presence is
+    #   within ONLINE_THRESHOLD_SECONDS.  This is the same check Odoo's own
+    #   frontend bus uses; reading mail.presence.status is unreliable because
+    #   the server never sets it to 'offline' when a browser tab closes.
+    # x_last_online — the last_poll timestamp from mail_presence (last heartbeat).
+    #   Shown as "Last seen" on the kanban card when the employee is offline.
 
     x_last_online = fields.Datetime(
-        string='Last Online',
+        string='Last Seen',
         compute='_compute_x_presence_info',
         store=False,
-        help='Last time this employee had an active browser session. '
+        help='Last time this employee had an active browser session '
+             '(last heartbeat from mail.presence.last_poll). '
              'Only populated when the employee has a linked user account.',
     )
     x_is_currently_online = fields.Boolean(
         string='Currently Online',
         compute='_compute_x_presence_info',
         store=False,
-        help='True when Odoo\'s native presence status is "online" '
-             '(browser tab open and connected).',
+        help='True when the browser sent a heartbeat within the last 65 seconds '
+             '(same threshold Odoo\'s own frontend uses).',
     )
     x_presence_log_ids = fields.One2many(
         'x.employee.presence.log', 'employee_id',
@@ -35,30 +41,93 @@ class HrEmployeeMatracon(models.Model):
 
     @api.depends('user_id')
     def _compute_x_presence_info(self):
-        """Batch-fetch mail.presence for all employees in the recordset.
+        """Batch-read mail_presence.last_poll for all employees in one SQL query.
 
-        Reads two fields from mail.presence in a single query:
-          • last_presence  → shown as "Online From: …" in the kanban card
-          • status         → drives x_is_currently_online (trusts Odoo's bus)
+        Online  = last_poll >= now() - ONLINE_THRESHOLD_SECONDS
+        Offline = no presence record, or last_poll older than the threshold
 
-        No manual time-threshold logic — Odoo's WebSocket/bus already handles
-        the online→offline transition when the browser tab closes.
+        We use last_poll (not status) because Odoo never writes status='offline'
+        server-side — it stays at 'online' in the DB until the GC deletes the
+        record after 12 hours, making status unreliable for offline detection.
         """
         user_ids = [emp.user_id.id for emp in self if emp.user_id]
-        if user_ids:
-            presences = self.env['mail.presence'].sudo().search(
-                [('user_id', 'in', user_ids)]
-            )
-            last_map = {p.user_id.id: p.last_presence for p in presences}
-            status_map = {p.user_id.id: p.status for p in presences}
-        else:
-            last_map = {}
-            status_map = {}
+        if not user_ids:
+            for emp in self:
+                emp.x_last_online = False
+                emp.x_is_currently_online = False
+            return
+
+        self.env.cr.execute(
+            "SELECT user_id, last_poll FROM mail_presence WHERE user_id = ANY(%s)",
+            (user_ids,)
+        )
+        rows = {r[0]: r[1] for r in self.env.cr.fetchall()}
+
+        now = fields.Datetime.now()
+        threshold = now - timedelta(seconds=ONLINE_THRESHOLD_SECONDS)
 
         for emp in self:
             uid = emp.user_id.id if emp.user_id else False
-            emp.x_last_online = last_map.get(uid, False)
-            emp.x_is_currently_online = (status_map.get(uid) == 'online')
+            last_poll = rows.get(uid) if uid else None
+            emp.x_is_currently_online = bool(last_poll and last_poll >= threshold)
+            emp.x_last_online = last_poll or False
+
+    # ── Cron: detect offline transitions ────────────────────────────────────
+
+    @api.model
+    def _cron_update_presence_log(self):
+        """Scheduled every 2 minutes — writes 'offline' log entries for employees
+        whose browser heartbeat has gone stale (last_poll > ONLINE_THRESHOLD_SECONDS ago).
+
+        This is the only reliable way to capture offline events because Odoo never
+        sets mail.presence.status = 'offline' server-side when a browser tab closes.
+
+        Timestamp used = last_poll (the final heartbeat — closest we can get to
+        the actual disconnect moment without client cooperation).
+        """
+        employees = self.search([('user_id', '!=', False)])
+        if not employees:
+            return
+
+        user_ids = employees.mapped('user_id').ids
+        self.env.cr.execute(
+            "SELECT user_id, last_poll FROM mail_presence WHERE user_id = ANY(%s)",
+            (user_ids,)
+        )
+        presence_map = {r[0]: r[1] for r in self.env.cr.fetchall()}
+
+        now = fields.Datetime.now()
+        threshold = now - timedelta(seconds=ONLINE_THRESHOLD_SECONDS)
+
+        Log = self.env['x.employee.presence.log'].sudo()
+
+        for emp in employees:
+            uid = emp.user_id.id
+            last_poll = presence_map.get(uid)
+
+            # Still online — nothing to do
+            if last_poll and last_poll >= threshold:
+                continue
+
+            # Effectively offline — check what the last log entry says
+            last_log = Log.search(
+                [('employee_id', '=', emp.id)],
+                order='timestamp desc', limit=1
+            )
+            # Already logged as offline (or no log at all) — skip
+            if not last_log or last_log.status == 'offline':
+                continue
+
+            # Write offline transition at the time of the last heartbeat
+            offline_ts = last_poll if last_poll else now
+            Log.create({
+                'employee_id': emp.id,
+                'user_id': uid,
+                'timestamp': offline_ts,
+                'status': 'offline',
+            })
+
+    # ── Other fields / methods ───────────────────────────────────────────────
 
     x_project_analytic_account_id = fields.Many2one(
         'account.analytic.account',

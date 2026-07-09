@@ -196,13 +196,13 @@
                 <!-- HO Advance checkbox — removed from UI (legacy; kept in model for existing data) -->
                 <field name="x_is_ho_advance" invisible="1"/>
 
-                <!-- Expense Account: which CoA the payment debits (any payment type) -->
+                <!-- Expense Account: optional override for the payable/expense account in the JE -->
                 <field name="x_expense_account_id"
                        string="Expense Account"
                        invisible="payment_type != 'outbound' or x_payment_category in ('salary', 'petty_cash')"
                        options="{'no_create': True}"
                        domain="[('active', '=', True)]"
-                       help="Chart of account debited by this payment. Auto-filled from the vendor's payable account. For subcontractor payments this must point to 'Payable to Subcontractors' so the amount flows into the IPC automatically."/>
+                       help="Optional: override which account is debited in the payment journal entry. Leave blank to use the vendor's default payable account. IPC payment tracking is based on the vendor contact, so any account selection works."/>
 
                 <!-- x_source_project_ids kept in model; entry is via Fund Allocation tab lines only -->
                 <field name="x_source_project_ids" widget="many2many_tags" invisible="1"/>

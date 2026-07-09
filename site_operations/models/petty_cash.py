@@ -646,24 +646,16 @@ class PettyCashExpense(models.Model):
 
     @api.onchange('is_subcontractor_advance', 'advance_subcontractor_id')
     def _onchange_sub_advance_fill_account(self):
-        """Auto-fill expense_account_id with "Payable to Subcontractors" when
-        the subcontractor advance flag is toggled on.  The same account is used
-        as the debit in the journal entry so the payment appears in the partner
-        ledger and is captured by the IPC "Payments Made" GL query.
+        """Auto-fill expense_account_id from the subcontractor's default payable account
+        when the subcontractor advance flag is toggled on or the subcontractor changes.
+        The debit on that account with partner = subcontractor makes the entry appear
+        in the partner ledger and be counted in IPC payment tracking.
         """
         if not self.is_subcontractor_advance:
             return
-        # Prefer "Payable to Subcontractors" (211020), fall back to any liability_payable
-        account = self.env['account.account'].search([
-            ('account_type', '=', 'liability_payable'),
-            ('name', 'ilike', 'Payable to Subcontractors'),
-        ], limit=1)
-        if not account:
-            account = self.env['account.account'].search([
-                ('account_type', '=', 'liability_payable'),
-            ], limit=1)
-        if account:
-            self.expense_account_id = account
+        # Use the subcontractor's configured payable account from their partner record
+        if self.advance_subcontractor_id and self.advance_subcontractor_id.property_account_payable_id:
+            self.expense_account_id = self.advance_subcontractor_id.property_account_payable_id
 
     @api.onchange('fund_id')
     def _onchange_fund_fill_accounting(self):
@@ -702,8 +694,7 @@ class PettyCashExpense(models.Model):
                 ))
             if expense.is_subcontractor_advance and not expense.expense_account_id:
                 raise UserError(_(
-                    'Please select an Expense Account (e.g. Payable to Subcontractors) '
-                    'for this subcontractor advance.'
+                    'Please select an Expense Account for this subcontractor advance.'
                 ))
             if not expense.x_signed_voucher:
                 raise UserError(_(
@@ -848,10 +839,10 @@ class PettyCashExpense(models.Model):
             ], limit=1)
 
         # ── Debit: subcontractor advance → expense_account_id (payable) + partner ─
-        # For subcontractor advances the user sets expense_account_id to
-        # "Payable to Subcontractors" (211020).  Stamping the subcontractor as
-        # partner on this debit line makes it appear in the partner ledger AND
-        # ensures the IPC "Payments Made" GL query picks it up automatically.
+        # Stamping the subcontractor as partner on the debit line makes the entry
+        # appear in the partner ledger AND ensures the IPC "Payments Made" query
+        # (which aggregates x_petty_cash_expense by advance_subcontractor_id) picks
+        # it up — regardless of which payable account is selected.
         debit_partner_id = False
         if self.is_subcontractor_advance and self.advance_subcontractor_id and self.expense_account_id:
             debit_account = self.expense_account_id
