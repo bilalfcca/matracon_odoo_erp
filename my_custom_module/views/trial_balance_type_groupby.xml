@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        Override the Trial Balance report to group by account type instead
+        of account.group code-prefix ranges.
+
+        Hierarchy:
+          Level 1 (main head)  : account_internal_group
+                                 (Asset | Liability | Equity | Income | Expense | Off Balance)
+          Level 2 (sub head)   : account_type
+                                 (Bank and Cash | Current Assets | Fixed Assets | Payable | …)
+          Level 3 (leaf)       : account_id  (individual GL account)
+
+        The built-in account.group hierarchy (filter_hierarchy) is disabled
+        because it works purely on code-prefix ranges, which causes accounts
+        like "411xxx JS BANK" (type: Bank and Cash) to appear under
+        "41 Cost of Sales" group.
+    -->
+
+    <!-- Disable code-prefix hierarchy on the report itself -->
+    <record id="account_reports.trial_balance_report" model="account.report">
+        <field name="filter_hierarchy">never</field>
+    </record>
+
+    <!-- Replace single-level account_id groupby with 3-level type hierarchy.
+         Both groupby (canonical) and user_groupby (user-overridable copy)
+         must be set so that _get_groupby() returns the new hierarchy. -->
+    <record id="account_reports.trial_balance_report_all" model="account.report.line">
+        <field name="groupby">account_internal_group,account_type,account_id</field>
+        <field name="user_groupby">account_internal_group,account_type,account_id</field>
+    </record>
+</odoo>
