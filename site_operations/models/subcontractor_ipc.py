@@ -306,7 +306,7 @@ class SubcontractorIPC(models.Model):
                     FROM   account_payment ap
                     WHERE  ap.partner_id               = %s
                       AND  ap.payment_type             = 'outbound'
-                      AND  ap.state                    = 'posted'
+                      AND  ap.state                   IN ('in_process', 'paid')
                       AND  ap.date                    <= %s
                       AND  ap.x_destination_project_id = %s
                 """, (partner_id, cutoff_date, analytic_id))
@@ -451,7 +451,7 @@ class SubcontractorIPC(models.Model):
                 FROM   account_payment ap
                 WHERE  ap.partner_id               = %s
                   AND  ap.payment_type             = 'outbound'
-                  AND  ap.state                    = 'posted'
+                  AND  ap.state                   IN ('in_process', 'paid')
                   AND  ap.date                    <= %s
                   AND  ap.x_destination_project_id = %s
             """, (partner_id, cutoff_date, analytic_id))
