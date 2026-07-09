@@ -56,14 +56,22 @@
     // ─────────────────────────────────────────────────────────────────────────
     // NOTE: In Odoo 19, the one2many wrapper class is o_field_x2many_list
     //       (not o_field_one2many which was removed in Odoo 17+).
-    .o_field_x2many_list .o_list_renderer {
-        max-height: 50vh;   // half the viewport — adapts to any screen height
-        min-height: 180px;  // never collapse below ~3 rows
+    // Target both standalone one2many (new compact layout, no notebook) and
+    // the legacy notebook-wrapped one2many in case of partial upgrades.
+    .o_field_x2many_list .o_list_renderer,
+    .o_field_one2many .o_list_renderer {
+        max-height: 60vh;   // most of the viewport so rows are visible
+        min-height: 200px;  // never collapse below ~4 rows
         overflow-y: auto;
 
         // Reinforce the bg so rows scrolling underneath don't bleed through
         .o_list_table thead th {
             background: var(--ListRenderer-thead-bg-color, var(--o-view-background-color, #fff));
         }
+    }
+
+    // Metadata row: fields rendered inline next to their labels
+    .d-inline .o_field_widget {
+        display: inline !important;
     }
 }

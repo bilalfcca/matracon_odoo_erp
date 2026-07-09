@@ -73,107 +73,115 @@
                 </header>
 
                 <sheet>
-                    <!-- Sheet totals label + stat buttons -->
-                    <div class="mb-1" style="font-size:11px; font-weight:600; text-transform:uppercase; color:#6c757d; letter-spacing:0.5px;">
-                        This Sheet Totals
-                    </div>
-                    <div class="oe_button_box" name="button_box">
-                        <button name="action_view_payments"
-                                type="object"
-                                class="oe_stat_button"
-                                icon="fa-money"
-                                invisible="not payment_ids">
-                            <field name="payment_ids" widget="statinfo" string="Payments"/>
-                        </button>
-                        <button type="button" class="oe_stat_button" icon="fa-balance-scale">
-                            <div class="o_stat_info">
-                                <field name="total_liability" widget="statinfo" string="Total Liability"/>
-                            </div>
-                        </button>
-                        <button type="button" class="oe_stat_button" icon="fa-thumbs-up">
-                            <div class="o_stat_info">
-                                <field name="total_recommended" widget="statinfo" string="Recommended"/>
-                            </div>
-                        </button>
-                        <button type="button" class="oe_stat_button" icon="fa-check-circle">
-                            <div class="o_stat_info">
-                                <field name="total_approved" widget="statinfo" string="Approved"/>
-                            </div>
-                        </button>
-                        <button type="button" class="oe_stat_button" icon="fa-money">
-                            <div class="o_stat_info">
-                                <field name="total_paid" widget="statinfo" string="Paid"/>
-                            </div>
-                        </button>
-                    </div>
-
                     <field name="x_is_site_accountant" invisible="1"/>
 
-                    <div class="oe_title">
-                        <h1>
-                            <field name="name" readonly="1" placeholder="LS/PROJECT/001"/>
-                        </h1>
+                    <!-- ── Compact header: title + metadata + stat buttons in one row ── -->
+                    <div class="d-flex flex-wrap align-items-start gap-3 mb-2">
+
+                        <!-- Left: name + project/dates -->
+                        <div class="flex-grow-1 min-width-0">
+                            <div class="mb-1" style="font-size:11px; font-weight:600; text-transform:uppercase; color:#6c757d; letter-spacing:0.5px;">
+                                This Sheet Totals
+                            </div>
+                            <h2 class="mb-1 mt-0" style="font-size:1.5rem; font-weight:700;">
+                                <field name="name" readonly="1" placeholder="LS/PROJECT/001"/>
+                            </h2>
+                            <!-- Metadata row -->
+                            <div class="d-flex flex-wrap gap-3" style="font-size:0.875rem;">
+                                <span>
+                                    <span class="text-muted fw-semibold">Project: </span>
+                                    <field name="project_analytic_account_id"
+                                           readonly="1"
+                                           nolabel="1"
+                                           class="d-inline"/>
+                                </span>
+                                <span>
+                                    <span class="text-muted fw-semibold">From: </span>
+                                    <field name="date_from"
+                                           readonly="state not in ['draft']"
+                                           nolabel="1"
+                                           class="d-inline"/>
+                                </span>
+                                <span>
+                                    <span class="text-muted fw-semibold">To: </span>
+                                    <field name="date_to"
+                                           readonly="state not in ['draft']"
+                                           nolabel="1"
+                                           class="d-inline"/>
+                                </span>
+                                <!-- PM document: compact single-line version -->
+                                <span invisible="state == 'paid'">
+                                    <span class="text-muted fw-semibold"
+                                          invisible="not x_is_site_accountant">PM Signed Copy (Required): </span>
+                                    <span class="text-muted fw-semibold"
+                                          invisible="x_is_site_accountant">PM Signed Copy: </span>
+                                    <field name="pm_signed_sheet"
+                                           widget="binary"
+                                           filename="pm_signed_sheet_filename"
+                                           nolabel="1"
+                                           readonly="state not in ['draft']"
+                                           class="d-inline"/>
+                                    <field name="pm_signed_sheet_filename" invisible="1"/>
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Right: stat buttons -->
+                        <div class="oe_button_box flex-shrink-0" name="button_box"
+                             style="max-width:100%;">
+                            <button name="action_view_payments"
+                                    type="object"
+                                    class="oe_stat_button"
+                                    icon="fa-money"
+                                    invisible="not payment_ids">
+                                <field name="payment_ids" widget="statinfo" string="Payments"/>
+                            </button>
+                            <button type="button" class="oe_stat_button" icon="fa-balance-scale">
+                                <div class="o_stat_info">
+                                    <field name="total_liability" widget="statinfo" string="Total Liability"/>
+                                </div>
+                            </button>
+                            <button type="button" class="oe_stat_button" icon="fa-thumbs-up">
+                                <div class="o_stat_info">
+                                    <field name="total_recommended" widget="statinfo" string="Recommended"/>
+                                </div>
+                            </button>
+                            <button type="button" class="oe_stat_button" icon="fa-check-circle">
+                                <div class="o_stat_info">
+                                    <field name="total_approved" widget="statinfo" string="Approved"/>
+                                </div>
+                            </button>
+                            <button type="button" class="oe_stat_button" icon="fa-money">
+                                <div class="o_stat_info">
+                                    <field name="total_paid" widget="statinfo" string="Paid"/>
+                                </div>
+                            </button>
+                        </div>
                     </div>
 
-                    <group name="header_fields">
-                        <group name="left">
-                            <field name="project_analytic_account_id"
-                                   readonly="1"/>
-                            <field name="date_from"
-                                   readonly="state not in ['draft']"/>
-                            <field name="date_to"
-                                   readonly="state not in ['draft']"/>
-                        </group>
-                    </group>
-
-                    <!-- PM physical signature — title differs by role -->
-                    <!-- Site Accountant sees the "(Required before Submit)" reminder -->
-                    <group string="PM Signed Document (Required before Submit)"
-                           invisible="state == 'paid' or not x_is_site_accountant">
-                        <field name="pm_signed_sheet"
-                               widget="binary"
-                               filename="pm_signed_sheet_filename"
-                               string="Upload PM Signed Copy"
-                               readonly="state not in ['draft']"/>
-                        <field name="pm_signed_sheet_filename" invisible="1"/>
-                    </group>
-                    <!-- Finance / CEO / others see the plain label -->
-                    <group string="PM Signed Document"
-                           invisible="state == 'paid' or x_is_site_accountant">
-                        <field name="pm_signed_sheet"
-                               widget="binary"
-                               filename="pm_signed_sheet_filename"
-                               string="PM Signed Copy"
-                               readonly="state not in ['draft']"/>
-                        <field name="pm_signed_sheet_filename" invisible="1"/>
-                    </group>
-
-                    <notebook>
-                        <page name="lines_tab" string="Liability Lines">
-                            <field name="line_ids" widget="one2many"
-                                   readonly="state == 'paid'">
-                                <list string="Liability Lines" editable="bottom">
-                                    <field name="sequence" widget="handle"/>
-                                    <field name="x_is_ceo" column_invisible="1"/>
-                                    <field name="description"/>
-                                    <field name="partner_id" readonly="is_locked"/>
-                                    <field name="opening_balance" readonly="is_locked"/>
-                                    <field name="new_liability" readonly="is_locked"/>
-                                    <field name="liability_amount" readonly="1"/>
-                                    <field name="recommended_amount"
-                                           readonly="parent.state != 'draft'"/>
-                                    <!-- Approved: manually entered by CEO only; hidden from site accountant -->
-                                    <field name="approved_amount"
-                                           column_invisible="parent.x_is_site_accountant and parent.state == 'draft'"
-                                           readonly="parent.state != 'submitted' or is_locked or not x_is_ceo"/>
-                                    <field name="paid_amount" readonly="1" optional="show"/>
-                                    <field name="balance" readonly="1" optional="show"/>
-                                    <field name="payment_id" optional="hide" readonly="1"/>
-                                    <field name="is_locked" column_invisible="1"/>
-                                </list>
-                            </field>
-                        </page>
-                    </notebook>
+                    <!-- ── Liability Lines (fills remaining height; headers sticky) ── -->
+                    <field name="line_ids" widget="one2many"
+                           readonly="state == 'paid'">
+                        <list string="Liability Lines" editable="bottom">
+                            <field name="sequence" widget="handle"/>
+                            <field name="x_is_ceo" column_invisible="1"/>
+                            <field name="description"/>
+                            <field name="partner_id" readonly="is_locked"/>
+                            <field name="opening_balance" readonly="is_locked"/>
+                            <field name="new_liability" readonly="is_locked"/>
+                            <field name="liability_amount" readonly="1"/>
+                            <field name="recommended_amount"
+                                   readonly="parent.state != 'draft'"/>
+                            <!-- Approved: manually entered by CEO only; hidden from site accountant -->
+                            <field name="approved_amount"
+                                   column_invisible="parent.x_is_site_accountant and parent.state == 'draft'"
+                                   readonly="parent.state != 'submitted' or is_locked or not x_is_ceo"/>
+                            <field name="paid_amount" readonly="1" optional="show"/>
+                            <field name="balance" readonly="1" optional="show"/>
+                            <field name="payment_id" optional="hide" readonly="1"/>
+                            <field name="is_locked" column_invisible="1"/>
+                        </list>
+                    </field>
                 </sheet>
                 <chatter/>
             </form>
