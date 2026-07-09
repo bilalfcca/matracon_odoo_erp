@@ -141,13 +141,7 @@ readonly="parent.move_type in ('out_invoice', 'entry')"
 - `mail.presence.last_presence` updates every ~60 s while browser tab is open
 
 ### Pending — odoosh-push blocked
-All commits since `f394994` are **local only** and have NOT reached staging. The push command:
-```
-odoosh-push
-```
-fails with: _"Pushing code on Odoo.sh is only available after this feature has been enabled in your project settings."_
-
-**Action required:** User must enable **AI Code Push** in their Odoo.sh project settings. Once enabled, run `odoosh-push` to push all pending commits to staging.
+All commits are **local only** and have NOT reached staging. Enable **AI Code Push** in Odoo.sh project settings, then run `odoosh-push`.
 
 Commits waiting to be pushed (oldest first):
 ```
@@ -157,9 +151,79 @@ f394994  Feat: Trial Balance — group by account type
 dcd564f  Feat: customer invoice — analytic account shown per-line (read-only)
 53679c8  Feat: journal entries — auto-fill analytic (read-only) for site accountants
 891c0aa  Feat: employee form — Last Online timestamp for linked users
+4ffdbac Fix: site balance + petty cash balance — HO MISC via analytic_distribution
+fd2cf14 Docs: CLAUDE.md — session notes 2026-07-09
+050924a Feat: subcontractor CoA + payment tracking overhaul (v1.7.6)
 ```
 
 ### Key design decisions made this session
 - **`group_analytic_accounting` not in site accountant's `implied_ids`** — it's granted to all users via the system-wide "Analytic Accounting" setting (`res.config.settings.group_analytic_accounting`). In staging this setting is ON so all users see the `analytic_distribution` widget. The `groups="analytic.group_analytic_accounting"` attribute in views is already satisfied.
 - **`mail.presence` over `res.users.login_date`** — `login_date` only updates on password re-entry. `mail.presence.last_presence` updates every 60 s while the browser tab is open. Much more accurate for "last online".
 - **`x_project_analytic_account_id` on `entry` type** — the field has `invisible="move_type not in ('in_invoice', 'out_invoice')"` in the view but still exists on the model with `default=lambda self: self.env.user.x_default_analytic_account_id`. Site accountants always have this default set. The field is invisible/read-only on journal entries so they can't change it — only the line-level `analytic_distribution` is visible (read-only).
+
+---
+
+## Session Notes — 2026-07-09 (continued)
+
+### Subcontractor CoA + Payment Flow — v1.7.6
+
+#### New GL Accounts (account_configuration_data.xml)
+| ID | Name | Code | Type |
+|---|---|---|---|
+| 61 | Payable to Suppliers | 211010 | liability_payable |
+| 62 | Payable to Subcontractors | 211020 | liability_payable |
+
+Both are `reconcile=True` so they appear in the partner ledger and can be reconciled.
+
+#### Partner Auto-Assignment (res_partner.py)
+`@api.onchange('category_id')` on `res.partner`:
+- "Subcontractor" category → auto-sets `property_account_payable_id` to "Payable to Subcontractors"
+- Other categories → auto-sets to "Payable to Suppliers"
+- Only fires when `property_account_payable_id` is NOT already set (no override).
+
+#### Petty Cash Subcontractor Advance (petty_cash.py)
+New fields on `x.petty.cash.expense`:
+- `is_subcontractor_advance` (Boolean)
+- `advance_subcontractor_id` (Many2one res.partner, domain Subcontractor category)
+- `advance_payable_account_id` (Many2one account.account, domain liability_payable)
+
+Journal entry when posted:
+- Dr: `advance_payable_account_id` (partner = subcontractor, analytic = project)
+- Cr: Petty Cash account (Cash in Hand)
+
+Auto-fill onchange: when `is_subcontractor_advance` is checked, `advance_payable_account_id` defaults to "Payable to Subcontractors" (if found).
+
+The debit on the payable account with `partner_id` = subcontractor ensures the entry appears in the partner ledger AND is captured by the IPC "payments made" GL query.
+
+#### IPC — Payments Made to Subcontractor (subcontractor_ipc.py)
+**Replaced** `_compute_ho_advance` (reads `x.subcontractor.ho.advance` records) with `_compute_payments_made` (reads GL):
+
+```sql
+SELECT COALESCE(SUM(aml.debit), 0)
+FROM account_move_line aml
+JOIN account_move am ON am.id = aml.move_id
+JOIN account_account aa ON aa.id = aml.account_id
+WHERE aml.partner_id = [subcontractor_id]
+AND aa.account_type = 'liability_payable'
+AND am.state = 'posted'
+AND am.date <= [cutoff_date]
+AND (am.x_project_analytic_account_id = [analytic_id]
+     OR aml.analytic_distribution ? [analytic_id_str])
+```
+
+**New fields** (stored=False computed):
+- `payments_till_prev_ipc` → total payments up to previous IPC date
+- `payments_till_this_ipc` → total payments up to this IPC date
+- `payments_this_period` → difference (auto-fills "Payment Recovery")
+
+**Kept field** `ho_advance_recovery` (DB column preserved for existing data) — relabelled "Payment Recovery" in view. Feeds into `total_deductions` unchanged.
+
+**IPC view changes:**
+- Section title: "HO Advance by Head Office" → "Payments Made to Subcontractor"
+- Field labels updated
+- HO Advances smart button removed from IPC form
+
+#### HO Advance Legacy Menu
+- Menu renamed "HO Advances (Legacy)"
+- Restricted to `group_matracon_admin` and `base.group_system` only
+- Model `x.subcontractor.ho.advance` and its data preserved for audit history
