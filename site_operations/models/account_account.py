@@ -79,19 +79,33 @@ class AccountAccountSiteOps(models.Model):
 
     @api.depends_context('uid')
     def _compute_x_site_balance(self):
+        """Compute the GL balance for this account scoped to the current user's site.
+
+        Two analytic-linking paths are checked (OR):
+          1. move header  x_project_analytic_account_id — set on vendor bills (in_invoice)
+             and on move entries created by site accountants (via model default).
+          2. move-line    analytic_distribution JSONB key — set on MISC journal entries
+             made by Head Office and on petty-cash / salary journal entries.
+
+        Using raw SQL because the ORM domain language cannot express the JSONB
+        key-exists operator (?).
+        """
         analytic_id = self.env.user.x_default_analytic_account_id.id
-        if analytic_id:
-            # Single aggregated query for all accounts in the recordset
-            data = self.env['account.move.line'].read_group(
-                domain=[
-                    ('account_id', 'in', self.ids),
-                    ('move_id.x_project_analytic_account_id', '=', analytic_id),
-                    ('move_id.state', '=', 'posted'),
-                ],
-                fields=['account_id', 'balance:sum'],
-                groupby=['account_id'],
-            )
-            by_account = {d['account_id'][0]: d['balance'] for d in data}
+        if analytic_id and self.ids:
+            self.env.cr.execute("""
+                SELECT  aml.account_id,
+                        COALESCE(SUM(aml.balance), 0) AS balance
+                FROM    account_move_line  aml
+                JOIN    account_move       am   ON am.id = aml.move_id
+                WHERE   aml.account_id = ANY(%s)
+                  AND   am.state       = 'posted'
+                  AND   (
+                            am.x_project_analytic_account_id = %s
+                         OR aml.analytic_distribution ? %s
+                        )
+                GROUP BY aml.account_id
+            """, (self.ids, analytic_id, str(analytic_id)))
+            by_account = {row[0]: row[1] for row in self.env.cr.fetchall()}
             for account in self:
                 account.x_site_balance = by_account.get(account.id, 0.0)
         else:
@@ -103,15 +117,30 @@ class AccountAccountSiteOps(models.Model):
     def action_open_site_journal_items(self):
         """Open journal items filtered to the current user's site project.
         Called from the 'Site Balance' stat button on the account.account form.
-        The ir.rule on account.move.line provides the server-side enforcement;
-        the explicit domain here gives the right result even in edge cases."""
+
+        Checks BOTH analytic-linking paths (OR) to be consistent with
+        _compute_x_site_balance:
+          1. move header  x_project_analytic_account_id
+          2. move-line    analytic_distribution JSONB key (HO MISC entries)
+        """
         self.ensure_one()
         analytic_id = self.env.user.x_default_analytic_account_id.id
-        domain = [('account_id', '=', self.id)]
         if analytic_id:
-            domain += [
-                ('move_id.x_project_analytic_account_id', '=', analytic_id),
-            ]
+            self.env.cr.execute("""
+                SELECT  aml.id
+                FROM    account_move_line  aml
+                JOIN    account_move       am   ON am.id = aml.move_id
+                WHERE   aml.account_id = %s
+                  AND   am.state       = 'posted'
+                  AND   (
+                            am.x_project_analytic_account_id = %s
+                         OR aml.analytic_distribution ? %s
+                        )
+            """, (self.id, analytic_id, str(analytic_id)))
+            line_ids = [row[0] for row in self.env.cr.fetchall()]
+            domain = [('id', 'in', line_ids)]
+        else:
+            domain = [('account_id', '=', self.id)]
         return {
             'type': 'ir.actions.act_window',
             'name': 'Journal Items',

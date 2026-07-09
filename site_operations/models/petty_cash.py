@@ -20,16 +20,19 @@ class PettyCashFund(models.Model):
         'account.analytic.account', string='Site Project',
         tracking=True, index=True)
     balance = fields.Monetary(
-        compute='_compute_balance', store=True,
+        compute='_compute_balance',
+        store=False,
         currency_field='currency_id',
-        help='Current petty cash balance after releases and expenses.',
+        help='Current petty cash balance read directly from the GL (posted move lines '
+             'on x_petty_cash_account_id filtered by this site\'s analytic account). '
+             'Falls back to released − expensed when the GL account is not configured.',
     )
     total_released = fields.Monetary(
-        compute='_compute_balance', store=True,
+        compute='_compute_totals', store=True,
         currency_field='currency_id',
     )
     total_expensed = fields.Monetary(
-        compute='_compute_balance', store=True,
+        compute='_compute_totals', store=True,
         currency_field='currency_id',
     )
     currency_id = fields.Many2one(
@@ -63,7 +66,9 @@ class PettyCashFund(models.Model):
         'request_ids.state', 'request_ids.released_amount',
         'expense_ids.amount', 'expense_ids.state',
     )
-    def _compute_balance(self):
+    def _compute_totals(self):
+        """Compute total_released and total_expensed from the custom request/expense
+        records. These fields track the workflow totals for reporting purposes."""
         for fund in self:
             released = sum(fund.request_ids.filtered(
                 lambda r: r.state in ('released', 'confirmed')
@@ -73,7 +78,48 @@ class PettyCashFund(models.Model):
             ).mapped('amount'))
             fund.total_released = released
             fund.total_expensed = expensed
-            fund.balance = released - expensed
+
+    def _compute_balance(self):
+        """Compute the fund balance directly from the GL (posted account.move.lines).
+
+        When x_petty_cash_account_id is set this reads the actual debit/credit
+        balance of that account filtered to this site's analytic account — so ALL
+        journal entries that touch the petty cash GL account (including HO opening
+        balance entries, replenishment payments, and expense journal entries) are
+        reflected automatically.
+
+        Two analytic-linking paths are checked (OR) to be consistent with the
+        account.account Site Balance computation:
+          1. move header  x_project_analytic_account_id
+          2. move-line    analytic_distribution JSONB key  (HO MISC entries)
+
+        Falls back to released − expensed when the GL account is not configured.
+        """
+        for fund in self:
+            acct = fund.x_petty_cash_account_id
+            analytic = fund.project_analytic_account_id
+            if acct and analytic:
+                fund.env.cr.execute("""
+                    SELECT  COALESCE(SUM(aml.balance), 0)
+                    FROM    account_move_line  aml
+                    JOIN    account_move       am   ON am.id = aml.move_id
+                    WHERE   aml.account_id = %s
+                      AND   am.state       = 'posted'
+                      AND   (
+                                am.x_project_analytic_account_id = %s
+                             OR aml.analytic_distribution ? %s
+                            )
+                """, (acct.id, analytic.id, str(analytic.id)))
+                fund.balance = fund.env.cr.fetchone()[0]
+            else:
+                # Fallback: released − expensed from custom workflow records
+                released = sum(fund.request_ids.filtered(
+                    lambda r: r.state in ('released', 'confirmed')
+                ).mapped('released_amount'))
+                expensed = sum(fund.expense_ids.filtered(
+                    lambda e: e.state == 'posted'
+                ).mapped('amount'))
+                fund.balance = released - expensed
 
     @api.model
     def get_or_create_for_project(self, analytic):
@@ -743,6 +789,7 @@ class PettyCashExpense(models.Model):
                     'account_id': credit_account.id,
                     'debit': 0.0,
                     'credit': self.amount,
+                    'analytic_distribution': analytic_distribution or False,
                 }),
             ],
         }
