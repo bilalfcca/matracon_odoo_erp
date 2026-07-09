@@ -76,11 +76,9 @@
                             <field name="timestamp" string="Date &amp; Time" widget="datetime"/>
                             <field name="status" string="Status"
                                    decoration-success="status == 'online'"
-                                   decoration-warning="status == 'away'"
                                    decoration-muted="status == 'offline'"/>
                             <field name="duration" string="Duration"
                                    decoration-success="status == 'online'"
-                                   decoration-warning="status == 'away'"
                                    decoration-muted="status == 'offline'"/>
                         </list>
                     </field>

@@ -27,7 +27,6 @@ class XEmployeePresenceLog(models.Model):
     timestamp = fields.Datetime(string='Date & Time', required=True, readonly=True)
     status = fields.Selection([
         ('online', 'Online'),
-        ('away', 'Away'),
         ('offline', 'Offline'),
     ], string='Status', required=True, readonly=True)
 
