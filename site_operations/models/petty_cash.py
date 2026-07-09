@@ -82,22 +82,30 @@ class PettyCashFund(models.Model):
     def _compute_balance(self):
         """Compute the fund balance directly from the GL (posted account.move.lines).
 
-        When x_petty_cash_account_id is set this reads the actual debit/credit
-        balance of that account filtered to this site's analytic account — so ALL
-        journal entries that touch the petty cash GL account (including HO opening
-        balance entries, replenishment payments, and expense journal entries) are
-        reflected automatically.
+        When a petty cash GL account can be resolved (from the fund's own
+        x_petty_cash_account_id OR from the linked site config), this reads the
+        actual debit/credit balance of that account filtered to this site's analytic
+        account — so ALL journal entries that touch the petty cash GL account
+        (including HO opening balance entries, replenishment payments, manual journal
+        entries, and expense journal entries) are reflected automatically.
 
         Two analytic-linking paths are checked (OR) to be consistent with the
         account.account Site Balance computation:
           1. move header  x_project_analytic_account_id
           2. move-line    analytic_distribution JSONB key  (HO MISC entries)
 
-        Falls back to released − expensed when the GL account is not configured.
+        Falls back to released − expensed only when no GL account can be determined.
         """
         for fund in self:
             acct = fund.x_petty_cash_account_id
             analytic = fund.project_analytic_account_id
+            # If the fund has no direct account, look it up from the site config
+            # (read-only, no write — safe inside a compute method)
+            if not acct and analytic:
+                site_config = self.env['x.project.site.config'].sudo().search(
+                    [('analytic_account_id', '=', analytic.id)], limit=1)
+                if site_config:
+                    acct = site_config.x_petty_cash_account_id
             if acct and analytic:
                 fund.env.cr.execute("""
                     SELECT  COALESCE(SUM(aml.balance), 0)
@@ -120,6 +128,47 @@ class PettyCashFund(models.Model):
                     lambda e: e.state == 'posted'
                 ).mapped('amount'))
                 fund.balance = released - expensed
+
+    @api.model
+    def get_gl_balance_for_analytic(self, analytic_id):
+        """Return the petty cash GL balance for a given analytic account ID.
+
+        Designed for dashboards: works whether or not a fund record exists.
+        Resolution order:
+          1. Fund record with x_petty_cash_account_id → uses fund.balance (GL-based)
+          2. Fund record WITHOUT account → looks up site config account, reads GL
+          3. No fund but site config has account → reads GL directly
+          4. Nothing configured → returns 0.0
+
+        This means ANY journal entry touching the petty cash account with the
+        correct analytic distribution will be counted, regardless of how it was
+        created (manual entry, import, replenishment payment, etc.).
+        """
+        fund = self.search(
+            [('project_analytic_account_id', '=', analytic_id)], limit=1)
+        if fund:
+            # fund.balance already handles site-config fallback (see _compute_balance)
+            return fund.balance
+
+        # No fund record — try to compute from site config's petty cash account
+        site_config = self.env['x.project.site.config'].sudo().search(
+            [('analytic_account_id', '=', analytic_id)], limit=1)
+        if not site_config or not site_config.x_petty_cash_account_id:
+            return 0.0
+
+        acct_id = site_config.x_petty_cash_account_id.id
+        self.env.cr.execute("""
+            SELECT  COALESCE(SUM(aml.balance), 0)
+            FROM    account_move_line  aml
+            JOIN    account_move       am   ON am.id = aml.move_id
+            WHERE   aml.account_id = %s
+              AND   am.state       = 'posted'
+              AND   (
+                        am.x_project_analytic_account_id = %s
+                     OR aml.analytic_distribution ? %s
+                    )
+        """, (acct_id, analytic_id, str(analytic_id)))
+        return self.env.cr.fetchone()[0]
 
     @api.model
     def get_or_create_for_project(self, analytic):

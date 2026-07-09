@@ -132,10 +132,14 @@ class SiteAccountantDashboard(models.TransientModel):
         )
 
         # ── Petty Cash ────────────────────────────────────────────────────────
+        # get_gl_balance_for_analytic: reads from GL (any JE on the petty cash
+        # account with this analytic counts), works even if no fund record exists.
+        pc_balance = self.env['x.petty.cash.fund'].get_gl_balance_for_analytic(
+            analytic.id)
+        # Still need the fund record for workflow tables (replenishments/expenses)
         fund = self.env['x.petty.cash.fund'].search([
             ('project_analytic_account_id', '=', analytic.id),
         ], limit=1)
-        pc_balance = fund.balance if fund else 0.0
 
         # Replenishments (last 5 released requests)
         replenishments = []
