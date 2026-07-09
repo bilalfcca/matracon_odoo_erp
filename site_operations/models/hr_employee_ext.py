@@ -58,6 +58,46 @@ class HrEmployeeMatracon(models.Model):
             emp.x_last_online = last
             emp.x_is_currently_online = bool(last and last >= threshold)
 
+    def _compute_hr_icon_display(self):
+        """Override Odoo's presence dot to use our 2-minute heartbeat threshold.
+
+        Odoo's default implementation reads mail.presence.status which has a
+        built-in 5–10 minute grace period — it keeps showing green long after
+        the user closes the browser.
+
+        Strategy: let super() run first (sets all the standard values), then
+        downgrade any 'presence_online' dot to 'presence_undetermined' (grey)
+        for employees whose last_presence heartbeat is older than 2 minutes.
+        """
+        super()._compute_hr_icon_display()
+
+        threshold = fields.Datetime.now() - timedelta(
+            minutes=self._ONLINE_THRESHOLD_MINUTES
+        )
+        # Only query presences for employees Odoo thinks are online
+        online_user_ids = [
+            emp.user_id.id for emp in self
+            if emp.user_id and emp.hr_icon_display == 'presence_online'
+        ]
+        if not online_user_ids:
+            return
+
+        presences = self.env['mail.presence'].sudo().search(
+            [('user_id', 'in', online_user_ids)]
+        )
+        # Users whose heartbeat has expired
+        stale_user_ids = {
+            p.user_id.id for p in presences
+            if not p.last_presence or p.last_presence < threshold
+        }
+        # Also treat users with NO presence record as stale
+        found_user_ids = {p.user_id.id for p in presences}
+        stale_user_ids |= set(online_user_ids) - found_user_ids
+
+        for emp in self:
+            if emp.user_id.id in stale_user_ids:
+                emp.hr_icon_display = 'presence_undetermined'
+
     x_project_analytic_account_id = fields.Many2one(
         'account.analytic.account',
         string='Site Project',
