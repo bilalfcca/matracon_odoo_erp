@@ -118,11 +118,10 @@ class AccountPaymentSiteOps(models.Model):
         'account.account',
         string='Expense Account',
         tracking=True,
-        help='Chart of account this payment debits (e.g. Payable to Vendors or '
-             'Payable to Subcontractors). Auto-filled from the vendor\'s default '
-             'payable account. For subcontractor payments, ensure this is set to '
-             '"Payable to Subcontractors" (211020) so the payment automatically '
-             'appears in IPC payment tracking.',
+        help='Optional: override which payable account the payment JE debits. '
+             'Leave blank to use the vendor\'s default payable account. '
+             'IPC payment tracking is based on the vendor contact — '
+             'this field does not affect whether the payment appears in an IPC.',
     )
 
     x_cheque_number = fields.Char(string='Cheque / Reference No.', tracking=True)
@@ -442,14 +441,6 @@ class AccountPaymentSiteOps(models.Model):
     # ─────────────────────────────────────────────────────────────────────────
     # ONCHANGE
     # ─────────────────────────────────────────────────────────────────────────
-
-    @api.onchange('partner_id', 'payment_type')
-    def _onchange_partner_fill_expense_account(self):
-        """Auto-fill x_expense_account_id from the vendor's default payable account."""
-        if self.payment_type == 'outbound' and self.partner_id:
-            payable = self.partner_id.property_account_payable_id
-            if payable and not self.x_expense_account_id:
-                self.x_expense_account_id = payable
 
     @api.onchange('x_source_project_ids')
     def _onchange_source_projects_sync_allocations(self):

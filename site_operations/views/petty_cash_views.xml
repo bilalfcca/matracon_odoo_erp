@@ -257,13 +257,13 @@
                         </group>
                         <group string="Debit (Expense)">
                             <!-- When is_subcontractor_advance: domain opens to all liability_payable
-                                 accounts so "Payable to Subcontractors" (211020) is selectable.
+                                 accounts. Auto-filled from the subcontractor's payable account.
                                  Otherwise: standard site-scoped expense-account filter. -->
                             <field name="expense_account_id" readonly="state == 'posted'"
                                    string="Expense Account (Debit)"
                                    options="{'no_create': True}"
                                    domain="is_subcontractor_advance and [('account_type', '=', 'liability_payable')] or (project_analytic_account_id and [('x_ho_only', '=', False), '|', ('x_site_ids', '=', False), ('x_site_ids', 'in', [project_analytic_account_id])] or [])"
-                                   help="For subcontractor advances: set to 'Payable to Subcontractors' — auto-filled when toggling the checkbox. For regular expenses: the GL account to debit; leave blank to use the category default."/>
+                                   help="For subcontractor advances: auto-filled from the subcontractor's payable account; can be changed manually. For regular expenses: the GL account to debit; leave blank to use the category default."/>
                         </group>
                     </group>
 

@@ -34,31 +34,6 @@ class ResPartnerSiteOps(models.Model):
                 ('x_transfer_purpose', 'in', ['material_issuance', 'site_to_site']),
             ])
 
-    @api.onchange('category_id')
-    def _onchange_category_auto_payable(self):
-        """Auto-set payable CoA when partner category changes.
-
-        Subcontractor → "Payable to Subcontractors"
-        Vendor / Supplier / other → "Payable to Suppliers"
-
-        Only fires when the field is unset so it doesn't override
-        a manually configured account.
-        """
-        for partner in self:
-            if partner.property_account_payable_id:
-                continue  # already set — don't override manual selection
-            is_sub = any(
-                'subcontractor' in (c.name or '').lower()
-                for c in partner.category_id
-            )
-            search_name = 'Payable to Subcontractors' if is_sub else 'Payable to Suppliers'
-            account = self.env['account.account'].sudo().search([
-                ('account_type', '=', 'liability_payable'),
-                ('name', 'ilike', search_name),
-            ], limit=1)
-            if account:
-                partner.property_account_payable_id = account
-
     @api.model
     def default_get(self, fields_list):
         res = super().default_get(fields_list)
