@@ -224,6 +224,26 @@ class AccountMoveSiteOps(models.Model):
             if not line.analytic_distribution:
                 line.analytic_distribution = dist
 
+    @api.onchange('line_ids')
+    def _onchange_line_ids_fill_analytic_for_entry(self):
+        """For site-accountant journal entries (move_type='entry'): fill
+        analytic_distribution on every new line immediately so the read-only
+        Analytic column shows the project without requiring a manual save.
+
+        invoice_line_ids does not apply to MISC entries — we use line_ids
+        directly here.  The DB-level create() hook below handles the same
+        for server-side and programmatic record creation."""
+        if (
+            self.move_type != 'entry'
+            or not self.x_project_analytic_account_id
+            or not self.env.user.has_group('site_operations.group_site_accountant')
+        ):
+            return
+        dist = {str(self.x_project_analytic_account_id.id): 100.0}
+        for line in self.line_ids:
+            if not line.analytic_distribution:
+                line.analytic_distribution = dist
+
     def _matracon_update_project_billed_amount(self, extra_analytic_ids=()):
         """Recompute x_billed_to_client on every project linked to a customer
         invoice (out_invoice / out_refund) in this recordset.
@@ -816,8 +836,12 @@ class AccountMoveLineSiteOps(models.Model):
             if move_id not in move_cache:
                 move_cache[move_id] = self.env['account.move'].browse(move_id)
             move = move_cache[move_id]
+            is_sa_entry = (
+                move.move_type == 'entry'
+                and self.env.user.has_group('site_operations.group_site_accountant')
+            )
             if (
-                move.move_type in ('in_invoice', 'out_invoice')
+                (move.move_type in ('in_invoice', 'out_invoice') or is_sa_entry)
                 and move.state == 'draft'
                 and move.x_project_analytic_account_id
             ):
