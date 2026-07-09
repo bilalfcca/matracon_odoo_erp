@@ -114,6 +114,17 @@ class AccountPaymentSiteOps(models.Model):
         'res.partner.bank', string='Vendor Bank Account',
         domain="[('partner_id', '=', partner_id)]")
 
+    x_expense_account_id = fields.Many2one(
+        'account.account',
+        string='Expense Account',
+        tracking=True,
+        help='Chart of account this payment debits (e.g. Payable to Vendors or '
+             'Payable to Subcontractors). Auto-filled from the vendor\'s default '
+             'payable account. For subcontractor payments, ensure this is set to '
+             '"Payable to Subcontractors" (211020) so the payment automatically '
+             'appears in IPC payment tracking.',
+    )
+
     x_cheque_number = fields.Char(string='Cheque / Reference No.', tracking=True)
 
     x_is_cheque_payment = fields.Boolean(
@@ -431,6 +442,14 @@ class AccountPaymentSiteOps(models.Model):
     # ─────────────────────────────────────────────────────────────────────────
     # ONCHANGE
     # ─────────────────────────────────────────────────────────────────────────
+
+    @api.onchange('partner_id', 'payment_type')
+    def _onchange_partner_fill_expense_account(self):
+        """Auto-fill x_expense_account_id from the vendor's default payable account."""
+        if self.payment_type == 'outbound' and self.partner_id:
+            payable = self.partner_id.property_account_payable_id
+            if payable and not self.x_expense_account_id:
+                self.x_expense_account_id = payable
 
     @api.onchange('x_source_project_ids')
     def _onchange_source_projects_sync_allocations(self):
@@ -1105,6 +1124,19 @@ class AccountPaymentSiteOps(models.Model):
             write_off_line_vals=write_off_line_vals,
             force_balance=force_balance,
         )
+
+        # ── Substitute manually-chosen expense account on the payable/receivable line ──
+        # When x_expense_account_id is set, override the auto-computed counterpart so
+        # the payment JE hits the selected account (e.g. "Payable to Subcontractors"
+        # instead of the generic payable). This makes the entry appear in the IPC
+        # "Payments Made" GL query automatically for any subcontractor payment.
+        if self.x_expense_account_id and self.payment_type == 'outbound':
+            for vals in line_vals_list:
+                acct = self.env['account.account'].browse(vals.get('account_id'))
+                if acct.account_type in ('liability_payable', 'asset_receivable'):
+                    vals['account_id'] = self.x_expense_account_id.id
+                    break  # Only the first payable/receivable line (the counterpart)
+
         analytic = None
         if self.payment_type == 'inbound':
             analytic = self.x_fund_project_id

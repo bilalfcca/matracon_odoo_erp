@@ -646,10 +646,14 @@ class PettyCashExpense(models.Model):
 
     @api.onchange('is_subcontractor_advance', 'advance_subcontractor_id')
     def _onchange_sub_advance_fill_account(self):
-        """Auto-fill the payable account when a subcontractor advance is toggled."""
+        """Auto-fill expense_account_id with "Payable to Subcontractors" when
+        the subcontractor advance flag is toggled on.  The same account is used
+        as the debit in the journal entry so the payment appears in the partner
+        ledger and is captured by the IPC "Payments Made" GL query.
+        """
         if not self.is_subcontractor_advance:
             return
-        # Look for "Payable to Subcontractors" account first, else first payable
+        # Prefer "Payable to Subcontractors" (211020), fall back to any liability_payable
         account = self.env['account.account'].search([
             ('account_type', '=', 'liability_payable'),
             ('name', 'ilike', 'Payable to Subcontractors'),
@@ -658,8 +662,8 @@ class PettyCashExpense(models.Model):
             account = self.env['account.account'].search([
                 ('account_type', '=', 'liability_payable'),
             ], limit=1)
-        if account and not self.advance_payable_account_id:
-            self.advance_payable_account_id = account
+        if account:
+            self.expense_account_id = account
 
     @api.onchange('fund_id')
     def _onchange_fund_fill_accounting(self):
@@ -696,9 +700,10 @@ class PettyCashExpense(models.Model):
                 raise UserError(_(
                     'Please select a Subcontractor before posting this advance.'
                 ))
-            if expense.is_subcontractor_advance and not expense.advance_payable_account_id:
+            if expense.is_subcontractor_advance and not expense.expense_account_id:
                 raise UserError(_(
-                    'Please select a Payable Account for this subcontractor advance.'
+                    'Please select an Expense Account (e.g. Payable to Subcontractors) '
+                    'for this subcontractor advance.'
                 ))
             if not expense.x_signed_voucher:
                 raise UserError(_(
@@ -751,7 +756,7 @@ class PettyCashExpense(models.Model):
             elif expense.is_subcontractor_advance and expense.advance_subcontractor_id:
                 advance_note = (
                     f'<br/><b>Subcontractor Advance:</b> {expense.advance_subcontractor_id.name}'
-                    + (f' ({expense.advance_payable_account_id.display_name})' if expense.advance_payable_account_id else '')
+                    + (f' ({expense.expense_account_id.display_name})' if expense.expense_account_id else '')
                 )
             body = Markup(
                 '<b>Expense Posted</b><br/>'
@@ -842,13 +847,14 @@ class PettyCashExpense(models.Model):
                 ('company_id', '=', self.env.company.id),
             ], limit=1)
 
-        # ── Debit: subcontractor advance → payable account; else expense acct ─
+        # ── Debit: subcontractor advance → expense_account_id (payable) + partner ─
+        # For subcontractor advances the user sets expense_account_id to
+        # "Payable to Subcontractors" (211020).  Stamping the subcontractor as
+        # partner on this debit line makes it appear in the partner ledger AND
+        # ensures the IPC "Payments Made" GL query picks it up automatically.
         debit_partner_id = False
-        if self.is_subcontractor_advance and self.advance_subcontractor_id and self.advance_payable_account_id:
-            # Advance to subcontractor: debit their payable account
-            # JE: Dr "Payable to Subcontractors" (partner), Cr Cash-in-Hand
-            # Appears in partner ledger; captured by IPC "payments made" GL query.
-            debit_account = self.advance_payable_account_id
+        if self.is_subcontractor_advance and self.advance_subcontractor_id and self.expense_account_id:
+            debit_account = self.expense_account_id
             debit_partner_id = self.advance_subcontractor_id.id
         else:
             debit_account = self.expense_account_id

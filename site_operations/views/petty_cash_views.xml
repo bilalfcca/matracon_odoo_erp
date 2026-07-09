@@ -232,14 +232,7 @@
                                    invisible="not is_subcontractor_advance"
                                    required="is_subcontractor_advance"
                                    options="{'no_create': True}"/>
-                            <field name="advance_payable_account_id"
-                                   string="Payable Account"
-                                   readonly="state == 'posted'"
-                                   invisible="not is_subcontractor_advance"
-                                   required="is_subcontractor_advance"
-                                   options="{'no_create': True}"
-                                   domain="[('account_type', '=', 'liability_payable')]"
-                                   help="Payable account to debit (e.g. Payable to Subcontractors). Entry appears in partner ledger and IPC payment tracking."/>
+                            <!-- advance_payable_account_id removed: now use Expense Account (Debit) below -->
                         </group>
                     </group>
 
@@ -263,11 +256,14 @@
                             <field name="journal_id" invisible="1"/>
                         </group>
                         <group string="Debit (Expense)">
+                            <!-- When is_subcontractor_advance: domain opens to all liability_payable
+                                 accounts so "Payable to Subcontractors" (211020) is selectable.
+                                 Otherwise: standard site-scoped expense-account filter. -->
                             <field name="expense_account_id" readonly="state == 'posted'"
                                    string="Expense Account (Debit)"
                                    options="{'no_create': True}"
-                                   domain="[('x_ho_only', '=', False), '|', ('x_site_ids', '=', False), ('x_site_ids', 'in', [project_analytic_account_id])] if project_analytic_account_id else []"
-                                   help="Leave blank to use the default expense account for the selected category."/>
+                                   domain="is_subcontractor_advance and [('account_type', '=', 'liability_payable')] or (project_analytic_account_id and [('x_ho_only', '=', False), '|', ('x_site_ids', '=', False), ('x_site_ids', 'in', [project_analytic_account_id])] or [])"
+                                   help="For subcontractor advances: set to 'Payable to Subcontractors' — auto-filled when toggling the checkbox. For regular expenses: the GL account to debit; leave blank to use the category default."/>
                         </group>
                     </group>
 

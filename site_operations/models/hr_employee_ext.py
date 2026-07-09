@@ -4,34 +4,61 @@ from odoo import models, fields, api, _
 class HrEmployeeMatracon(models.Model):
     _inherit = 'hr.employee'
 
-    # ── Last Online ──────────────────────────────────────────────────────────
-    # Reads mail.presence.last_presence (updated every ~60 s while the user
-    # has an open browser tab) — more granular than login_date (which only
-    # changes when the user types their password again).
-    # Stored=False: always recomputed at render time, no staleness issue.
+    # ── Presence fields ──────────────────────────────────────────────────────
+    # Odoo's bus/WebSocket system natively manages mail.presence.status:
+    #   'online'  → browser tab is open and connected
+    #   'away'    → tab open but idle
+    #   'offline' → browser closed / disconnected
+    # We read that status directly — no manual time thresholds needed.
+    # x_last_online  = last_presence timestamp (shown as "Online From: …")
+    # x_is_currently_online = True only when Odoo's native status == 'online'
+
     x_last_online = fields.Datetime(
         string='Last Online',
-        compute='_compute_x_last_online',
+        compute='_compute_x_presence_info',
         store=False,
-        help='Last time this employee was active in the system. '
+        help='Last time this employee had an active browser session. '
              'Only populated when the employee has a linked user account.',
+    )
+    x_is_currently_online = fields.Boolean(
+        string='Currently Online',
+        compute='_compute_x_presence_info',
+        store=False,
+        help='True when Odoo\'s native presence status is "online" '
+             '(browser tab open and connected).',
+    )
+    x_presence_log_ids = fields.One2many(
+        'x.employee.presence.log', 'employee_id',
+        string='Online/Offline History',
+        readonly=True,
     )
 
     @api.depends('user_id')
-    def _compute_x_last_online(self):
-        # Batch fetch presences to avoid N+1 queries across list views
+    def _compute_x_presence_info(self):
+        """Batch-fetch mail.presence for all employees in the recordset.
+
+        Reads two fields from mail.presence in a single query:
+          • last_presence  → shown as "Online From: …" in the kanban card
+          • status         → drives x_is_currently_online (trusts Odoo's bus)
+
+        No manual time-threshold logic — Odoo's WebSocket/bus already handles
+        the online→offline transition when the browser tab closes.
+        """
         user_ids = [emp.user_id.id for emp in self if emp.user_id]
         if user_ids:
             presences = self.env['mail.presence'].sudo().search(
                 [('user_id', 'in', user_ids)]
             )
-            presence_map = {p.user_id.id: p.last_presence for p in presences}
+            last_map = {p.user_id.id: p.last_presence for p in presences}
+            status_map = {p.user_id.id: p.status for p in presences}
         else:
-            presence_map = {}
+            last_map = {}
+            status_map = {}
+
         for emp in self:
-            emp.x_last_online = (
-                presence_map.get(emp.user_id.id, False) if emp.user_id else False
-            )
+            uid = emp.user_id.id if emp.user_id else False
+            emp.x_last_online = last_map.get(uid, False)
+            emp.x_is_currently_online = (status_map.get(uid) == 'online')
 
     x_project_analytic_account_id = fields.Many2one(
         'account.analytic.account',

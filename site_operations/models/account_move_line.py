@@ -34,25 +34,29 @@ class AccountMoveLineSiteOps(models.Model):
     # ── 1. Constraint override ────────────────────────────────────────────────
 
     def _check_payable_receivable(self):
-        # Split into customer-invoice lines vs. everything else.
-        customer_lines = self.filtered(
-            lambda l: l.move_id.move_type in ('out_invoice', 'out_refund')
+        # Exempt move types from the standard XOR (due-date) check:
+        #   • out_invoice / out_refund — customer invoices (no due dates in our workflow)
+        #   • entry — manual journal entries (no due dates needed; hidden in UI)
+        exempt_lines = self.filtered(
+            lambda l: l.move_id.move_type in ('out_invoice', 'out_refund', 'entry')
         )
-        other_lines = self - customer_lines
+        other_lines = self - exempt_lines
 
-        # Run the unmodified core constraint for all non-customer-invoice lines.
+        # Run the unmodified core constraint for all non-exempt lines (vendor bills, etc.)
         if other_lines:
             super(AccountMoveLineSiteOps, other_lines)._check_payable_receivable()
 
         # For customer invoices we still enforce: no payable account on a sale doc.
-        for line in customer_lines:
+        for line in exempt_lines.filtered(
+            lambda l: l.move_id.move_type in ('out_invoice', 'out_refund')
+        ):
             if line.account_id.account_type == 'liability_payable':
                 raise UserError(
                     _("Account %s is of payable type, but is used in a sale operation.")
                     % line.account_id.code
                 )
-        # The 'payment_term XOR asset_receivable' XOR check is intentionally
-        # skipped for customer invoices — due dates are not used in this workflow.
+        # For 'entry' moves: no additional payable/receivable constraint —
+        # journal entries may freely use payable/receivable accounts without a due date.
 
     # ── 2. Real-time last-row balance ─────────────────────────────────────────
 

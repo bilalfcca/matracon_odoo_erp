@@ -171,8 +171,8 @@
                        invisible="payment_type != 'inbound'"
                        required="payment_type == 'inbound'"/>
 
-                <field name="x_vendor_bank_account_id"
-                       invisible="payment_type != 'outbound' or x_payment_category in ('petty_cash', 'salary') or (x_ceo_direct_payment and x_viewer_is_ceo_only)"/>
+                <!-- Vendor Bank Account — removed from UI (kept in model for data integrity) -->
+                <field name="x_vendor_bank_account_id" invisible="1"/>
 
                 <field name="x_salary_sheet_id"
                        readonly="1"
@@ -193,9 +193,16 @@
                        invisible="payment_type != 'outbound'"
                        required="payment_type == 'outbound' and (x_liability_sheet_id or x_payment_category in ('petty_cash', 'salary'))"/>
 
-                <field name="x_is_ho_advance"
-                       string="HO Advance to Subcontractor"
-                       invisible="payment_type != 'outbound' or x_payment_category in ('salary', 'petty_cash')"/>
+                <!-- HO Advance checkbox — removed from UI (legacy; kept in model for existing data) -->
+                <field name="x_is_ho_advance" invisible="1"/>
+
+                <!-- Expense Account: which CoA the payment debits (any payment type) -->
+                <field name="x_expense_account_id"
+                       string="Expense Account"
+                       invisible="payment_type != 'outbound' or x_payment_category in ('salary', 'petty_cash')"
+                       options="{'no_create': True}"
+                       domain="[('active', '=', True)]"
+                       help="Chart of account debited by this payment. Auto-filled from the vendor's payable account. For subcontractor payments this must point to 'Payable to Subcontractors' so the amount flows into the IPC automatically."/>
 
                 <!-- x_source_project_ids kept in model; entry is via Fund Allocation tab lines only -->
                 <field name="x_source_project_ids" widget="many2many_tags" invisible="1"/>

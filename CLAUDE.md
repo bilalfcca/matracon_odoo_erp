@@ -227,3 +227,84 @@ AND (am.x_project_analytic_account_id = [analytic_id]
 - Menu renamed "HO Advances (Legacy)"
 - Restricted to `group_matracon_admin` and `base.group_system` only
 - Model `x.subcontractor.ho.advance` and its data preserved for audit history
+
+---
+
+## Session Notes — 2026-07-09 (continued — second session)
+
+### Employee Online Presence — Complete Overhaul
+
+#### New Model: `x.employee.presence.log`
+- File: `site_operations/models/x_employee_presence_log.py`
+- Records every status transition (online → away → offline) from `mail.presence`
+- Fields: `employee_id`, `user_id`, `timestamp`, `status`, `duration` (computed)
+- `duration` = time in that state until next transition; most recent = "Ongoing"
+- Hooked via `mail_presence_ext.py` overriding `mail.presence.create()` and `.write()`
+- Only transitions are logged — repeated heartbeats keeping same status are skipped
+
+#### New Field: `x_is_currently_online` on `hr.employee`
+- Replaces `hr_icon_display == 'presence_online'` for online detection
+- Uses a **2-minute threshold** on `mail.presence.last_presence` (heartbeat ~60s)
+- Odoo's built-in `hr_icon_display` lags 5–10 min after logout; our field is accurate
+- Computed together with `x_last_online` in `_compute_x_presence_info()` (single batch query)
+
+#### Kanban Card
+- Green dot + **"Online"** → only when `x_is_currently_online == True` (heartbeat ≤ 2 min ago)
+- Otherwise shows **"Online From: [datetime]"** (was "Last online:")
+- Uses `x_is_currently_online` field; `hr_icon_display` no longer referenced for text
+
+#### Online History Tab (employee form)
+- Visible when employee has a linked user; restricted to Admin / HO / Finance HO
+- Columns: **Date & Time**, **Activity** (Online/Away/Offline with colour), **Duration in State**
+- Duration computed via batch SQL per employee (not N+1)
+
+### Vendor Payments (Accounting → Vendors → Payments) — Overhaul
+
+#### Removed Fields (UI only, model retained for data integrity)
+- `x_vendor_bank_account_id` — "Vendor Bank Account" hidden
+- `x_is_ho_advance` — "HO Advance to Subcontractor" checkbox hidden (legacy)
+
+#### New Field: `x_expense_account_id`
+- Added to `account.payment`; shows ALL active chart of accounts (no HO-only restriction)
+- Auto-fills from `partner_id.property_account_payable_id` on partner change
+- `_prepare_move_line_default_vals` substitutes this account on the payable/receivable JE line
+- **Works for ANY payment**, not just subcontractors
+- For subcontractors: auto-fills to 211020 → JE debit has partner = subcontractor → IPC GL query picks it up automatically
+
+#### IPC Auto-population via GL
+Vendor payments to subcontractors now feed IPC "Payments Made" automatically:
+- JE: Dr 211020 Payable to Subcontractors (partner = subcontractor, analytic = project), Cr Bank
+- Same SQL query in `subcontractor_ipc.py` captures this without any changes to IPC code
+
+### Petty Cash Subcontractor Advance — Consolidation
+
+#### Removed Field (UI only, model retained)
+- `advance_payable_account_id` hidden from view — replaced by `expense_account_id`
+
+#### Flow After Change
+- Checking `is_subcontractor_advance` → auto-fills **`expense_account_id`** to "Payable to Subcontractors" (211020)
+- `_create_journal_entry()`: when `is_subcontractor_advance`, stamps `advance_subcontractor_id` as `partner_id` on the debit line
+- JE: Dr `expense_account_id` (partner = subcontractor), Cr Petty Cash → IPC picks up automatically
+- Domain on `expense_account_id` is conditional: `liability_payable` accounts when `is_subcontractor_advance`, normal site-scoped expense filter otherwise
+
+### Journal Entries — Due Date & Payment Terms Removed
+
+#### View (`vendor_bill_views.xml`)
+- `invisible` condition on `div[@name='due_date']` extended from `move_type == 'out_invoice'` to `move_type in ('out_invoice', 'entry')`
+- Same for the label div `div[hasclass('o_td_label')][label[@for='invoice_date_due']]`
+- Both Due Date and Payment Terms now completely hidden on Journal Entry form for all users
+
+#### Backend (`account_move_line.py` — `_check_payable_receivable`)
+- Extended exempt move types from `('out_invoice', 'out_refund')` to `('out_invoice', 'out_refund', 'entry')`
+- Journal entries may now freely use payable/receivable accounts without a due date
+- Vendor bills retain the full constraint (due date still required there)
+- Customer invoices retain the "no payable account on sale doc" guard
+
+### Commits This Session (oldest → newest)
+```
+4f9d777  Feat: employee presence — kanban Online/Offline label + History tab audit trail
+5966553  Feat: vendor payment expense account + petty cash subcontractor flow overhaul
+82423b9  Fix: journal entries — remove Due Date & Payment Terms; suppress due-date constraint
+ad99bdc  Feat: employee presence — 'Online From' label + Duration column in history
+6f1cb83  Fix: employee kanban — accurate online detection via 2-min heartbeat threshold
+```
