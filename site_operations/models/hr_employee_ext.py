@@ -1,20 +1,35 @@
+from datetime import timedelta
 from odoo import models, fields, api, _
 
 
 class HrEmployeeMatracon(models.Model):
     _inherit = 'hr.employee'
 
-    # ── Last Online ──────────────────────────────────────────────────────────
-    # Reads mail.presence.last_presence (updated every ~60 s while the user
-    # has an open browser tab) — more granular than login_date (which only
-    # changes when the user types their password again).
-    # Stored=False: always recomputed at render time, no staleness issue.
+    # ── Presence fields ──────────────────────────────────────────────────────
+    # Both fields are non-stored and computed together from a single
+    # mail.presence batch query to avoid N+1 lookups in kanban / list views.
+    #
+    # ONLINE THRESHOLD: mail.presence.last_presence is updated every ~60 s
+    # while the browser tab is open.  We consider a user "currently online"
+    # only if their last heartbeat arrived within the past 2 minutes.
+    # This prevents the stale-green-dot problem where hr_icon_display keeps
+    # the user "online" for up to 5–10 minutes after they close the tab.
+    _ONLINE_THRESHOLD_MINUTES = 2
+
     x_last_online = fields.Datetime(
         string='Last Online',
-        compute='_compute_x_last_online',
+        compute='_compute_x_presence_info',
         store=False,
-        help='Last time this employee was active in the system. '
+        help='Last time this employee had an active browser tab. '
              'Only populated when the employee has a linked user account.',
+    )
+    x_is_currently_online = fields.Boolean(
+        string='Currently Online',
+        compute='_compute_x_presence_info',
+        store=False,
+        help='True when the employee sent a presence heartbeat within the last '
+             '2 minutes — more accurate than Odoo\'s built-in hr_icon_display '
+             'which can lag by up to 5–10 minutes after logout.',
     )
     x_presence_log_ids = fields.One2many(
         'x.employee.presence.log', 'employee_id',
@@ -23,8 +38,13 @@ class HrEmployeeMatracon(models.Model):
     )
 
     @api.depends('user_id')
-    def _compute_x_last_online(self):
-        # Batch fetch presences to avoid N+1 queries across list views
+    def _compute_x_presence_info(self):
+        """Batch-fetch mail.presence for all employees in the recordset,
+        then set both x_last_online and x_is_currently_online in one pass.
+        """
+        threshold = fields.Datetime.now() - timedelta(
+            minutes=self._ONLINE_THRESHOLD_MINUTES
+        )
         user_ids = [emp.user_id.id for emp in self if emp.user_id]
         if user_ids:
             presences = self.env['mail.presence'].sudo().search(
@@ -34,9 +54,9 @@ class HrEmployeeMatracon(models.Model):
         else:
             presence_map = {}
         for emp in self:
-            emp.x_last_online = (
-                presence_map.get(emp.user_id.id, False) if emp.user_id else False
-            )
+            last = presence_map.get(emp.user_id.id) if emp.user_id else False
+            emp.x_last_online = last
+            emp.x_is_currently_online = bool(last and last >= threshold)
 
     x_project_analytic_account_id = fields.Many2one(
         'account.analytic.account',
