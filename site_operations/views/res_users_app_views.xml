@@ -1,5 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
+  <!-- ── Last Online on Users form (Preferences tab → Other Preferences) ── -->
+  <record id="view_users_form_matracon_last_online" model="ir.ui.view">
+    <field name="name">res.users.form.matracon.last.online</field>
+    <field name="model">res.users</field>
+    <field name="inherit_id" ref="base.view_users_form"/>
+    <field name="arch" type="xml">
+      <xpath expr="//group[@name='other_preferences']" position="inside">
+        <field name="x_last_online" readonly="1" string="Last Online"
+               help="Last time this user had an active browser tab. Updated every ~60 s."/>
+      </xpath>
+    </field>
+  </record>
+
   <record id="view_users_form_matracon_app_access" model="ir.ui.view">
     <field name="name">res.users.form.matracon.app.access</field>
     <field name="model">res.users</field>

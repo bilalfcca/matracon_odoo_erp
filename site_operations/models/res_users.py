@@ -4,6 +4,27 @@ from odoo import models, fields, api
 class ResUsersSiteOps(models.Model):
     _inherit = 'res.users'
 
+    # ── Last Online ──────────────────────────────────────────────────────────
+    # Reads mail.presence.last_presence (updated every ~60 s while the user
+    # has an open browser tab) — more accurate than login_date which only
+    # updates on password re-entry.  Shown on the Users form (Preferences tab)
+    # and on the employee list / kanban views via hr.employee.x_last_online.
+    x_last_online = fields.Datetime(
+        string='Last Online',
+        compute='_compute_x_last_online',
+        store=False,
+        help='Last time this user was active in the system. '
+             'Updated every ~60 s while a browser tab is open.',
+    )
+
+    def _compute_x_last_online(self):
+        presences = self.env['mail.presence'].sudo().search(
+            [('user_id', 'in', self.ids)]
+        )
+        presence_map = {p.user_id.id: p.last_presence for p in presences}
+        for user in self:
+            user.x_last_online = presence_map.get(user.id, False)
+
     x_default_project_id = fields.Many2one(
         'project.project',
         string='Assigned Project',
