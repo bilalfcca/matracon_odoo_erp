@@ -4,6 +4,27 @@ from odoo import models, fields, api
 class ResUsersSiteOps(models.Model):
     _inherit = 'res.users'
 
+    # ── Auto-create employee on user creation ────────────────────────────────
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        users = super().create(vals_list)
+        Employee = self.env['hr.employee'].sudo()
+        for user in users:
+            # Skip portal / public users — only internal users get an employee record
+            if user.share:
+                continue
+            # Skip if an employee is already linked (e.g. created via HR module)
+            if Employee.search_count([('user_id', '=', user.id)]):
+                continue
+            Employee.create({
+                'name': user.name,
+                'user_id': user.id,
+                'work_email': user.email or user.login,
+                'company_id': user.company_id.id,
+            })
+        return users
+
     # ── Last Online ──────────────────────────────────────────────────────────
     # Reads mail.presence.last_presence (updated every ~60 s while the user
     # has an open browser tab) — more accurate than login_date which only

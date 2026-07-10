@@ -2,13 +2,29 @@ from datetime import timedelta
 
 from odoo import models, fields, api, _
 
-# Matches mail.presence.DISCONNECTION_TIMER (UPDATE_PRESENCE_DELAY + 5 = 65 s).
-# A user is considered online only if their last browser heartbeat is within this window.
-ONLINE_THRESHOLD_SECONDS = 65
+# A user is considered online while their last browser heartbeat is within this window.
+# 600 s = 10 minutes — user stays green until 10 min of inactivity.
+ONLINE_THRESHOLD_SECONDS = 600
 
 
 class HrEmployeeMatracon(models.Model):
     _inherit = 'hr.employee'
+
+    # ── Rename native 'Absent' label → 'Offline' ────────────────────────────
+    # Redefine the selection to change the displayed label in the status badge
+    # and kanban dot tooltip. The value 'presence_absent' is unchanged so that
+    # Odoo's JS widget and CSS class (o_icon_employee_absent = amber) still work.
+    hr_icon_display = fields.Selection(
+        selection=[
+            ('presence_present', 'Present'),
+            ('presence_out_of_working_hour', 'Off-Hours'),
+            ('presence_absent', 'Offline'),
+            ('presence_archive', 'Archived'),
+            ('presence_undetermined', 'Undetermined'),
+        ],
+        compute='_compute_presence_icon',
+        store=False,
+    )
 
     # ── Presence fields ──────────────────────────────────────────────────────
     # x_is_currently_online — True only when last_poll in mail_presence is
@@ -38,6 +54,38 @@ class HrEmployeeMatracon(models.Model):
         string='Online/Offline History',
         readonly=True,
     )
+
+    @api.depends('user_id')
+    def _compute_presence_icon(self):
+        """Override Odoo's attendance-based presence dot with browser-heartbeat detection.
+
+        presence_present (green)  — last_poll within ONLINE_THRESHOLD_SECONDS
+        presence_absent  (yellow) — heartbeat stale or no presence record
+        """
+        user_ids = [emp.user_id.id for emp in self if emp.user_id]
+        rows = {}
+        if user_ids:
+            self.env.cr.execute(
+                "SELECT user_id, last_poll FROM mail_presence WHERE user_id = ANY(%s)",
+                (user_ids,),
+            )
+            rows = {r[0]: r[1] for r in self.env.cr.fetchall()}
+
+        now = fields.Datetime.now()
+        threshold = now - timedelta(seconds=ONLINE_THRESHOLD_SECONDS)
+
+        for emp in self:
+            if not emp.user_id:
+                emp.hr_icon_display = 'presence_undetermined'
+                emp.show_hr_icon_display = False
+                continue
+            emp.show_hr_icon_display = True
+            last_poll = rows.get(emp.user_id.id)
+            emp.hr_icon_display = (
+                'presence_present'   # green  — browser is open
+                if last_poll and last_poll >= threshold
+                else 'presence_absent'   # yellow — browser closed / timed out
+            )
 
     @api.depends('user_id')
     def _compute_x_presence_info(self):
@@ -76,14 +124,14 @@ class HrEmployeeMatracon(models.Model):
 
     @api.model
     def _cron_update_presence_log(self):
-        """Scheduled every 2 minutes — writes 'offline' log entries for employees
-        whose browser heartbeat has gone stale (last_poll > ONLINE_THRESHOLD_SECONDS ago).
+        """Runs every minute — closes open sessions for employees whose heartbeat
+        has gone stale (last_poll older than ONLINE_THRESHOLD_SECONDS).
 
-        This is the only reliable way to capture offline events because Odoo never
-        sets mail.presence.status = 'offline' server-side when a browser tab closes.
+        Odoo never sends an 'offline' signal when a browser tab closes, so this
+        cron is the only way to detect the disconnect.
 
-        Timestamp used = last_poll (the final heartbeat — closest we can get to
-        the actual disconnect moment without client cooperation).
+        offline_at is stamped at last_poll (the final heartbeat received) —
+        the closest we can get to the real disconnect time without client cooperation.
         """
         employees = self.search([('user_id', '!=', False)])
         if not employees:
@@ -92,14 +140,14 @@ class HrEmployeeMatracon(models.Model):
         user_ids = employees.mapped('user_id').ids
         self.env.cr.execute(
             "SELECT user_id, last_poll FROM mail_presence WHERE user_id = ANY(%s)",
-            (user_ids,)
+            (user_ids,),
         )
         presence_map = {r[0]: r[1] for r in self.env.cr.fetchall()}
 
         now = fields.Datetime.now()
         threshold = now - timedelta(seconds=ONLINE_THRESHOLD_SECONDS)
 
-        Log = self.env['x.employee.presence.log'].sudo()
+        Session = self.env['x.employee.presence.log'].sudo()
 
         for emp in employees:
             uid = emp.user_id.id
@@ -109,23 +157,13 @@ class HrEmployeeMatracon(models.Model):
             if last_poll and last_poll >= threshold:
                 continue
 
-            # Effectively offline — check what the last log entry says
-            last_log = Log.search(
-                [('employee_id', '=', emp.id)],
-                order='timestamp desc', limit=1
-            )
-            # Already logged as offline (or no log at all) — skip
-            if not last_log or last_log.status == 'offline':
-                continue
-
-            # Write offline transition at the time of the last heartbeat
-            offline_ts = last_poll if last_poll else now
-            Log.create({
-                'employee_id': emp.id,
-                'user_id': uid,
-                'timestamp': offline_ts,
-                'status': 'offline',
-            })
+            # Heartbeat is stale → close any open session
+            open_session = Session.search([
+                ('employee_id', '=', emp.id),
+                ('offline_at', '=', False),
+            ], limit=1)
+            if open_session:
+                open_session.offline_at = last_poll or now
 
     # ── Other fields / methods ───────────────────────────────────────────────
 
