@@ -9,6 +9,13 @@ class ResUsersSiteOps(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         users = super().create(vals_list)
+        # Skip auto-employee creation during demo data loading.
+        # When Odoo loads demo data it sets install_demo=True in context and
+        # creates users via XML records.  The hr demo data will create the
+        # linked hr.employee records itself (with proper xmlids).  If we also
+        # auto-create here we get a duplicate-key violation on hr_employee_user_uniq.
+        if self.env.context.get('install_demo'):
+            return users
         Employee = self.env['hr.employee'].sudo()
         for user in users:
             # Skip portal / public users — only internal users get an employee record
