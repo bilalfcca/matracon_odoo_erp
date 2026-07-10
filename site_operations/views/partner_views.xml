@@ -15,7 +15,7 @@
                  the "Local Supplier" tag before saving. ── -->
             <field name="category_id" position="attributes">
                 <attribute name="required">context.get('site_procurement_vendor', False)</attribute>
-                <attribute name="readonly">context.get('site_procurement_vendor', False) or context.get('subcontractor_create', False)</attribute>
+                <attribute name="readonly">context.get('site_procurement_vendor', False) or context.get('subcontractor_create', False) or context.get('site_accountant_vendor', False)</attribute>
                 <attribute name="help">Tag this contact. Automatically set when creating from Site Procurement (Local Supplier) or Material Issuance (Subcontractor).</attribute>
             </field>
 

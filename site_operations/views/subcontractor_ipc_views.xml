@@ -96,7 +96,8 @@
                     <group>
                         <group string="IPC Details">
                             <field name="subcontractor_id"
-                                   readonly="state != 'draft'"/>
+                                   readonly="state != 'draft'"
+                                   context="{'subcontractor_create': True}"/>
                             <field name="project_analytic_account_id"
                                    readonly="1"/>
                             <field name="ipc_date"
