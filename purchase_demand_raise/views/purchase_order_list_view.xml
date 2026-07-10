@@ -175,13 +175,15 @@
          Users can remove the filter to see full history.
          ════════════════════════════════════════════════════════ -->
 
-    <!-- Procurement HO: lands on "Pending HO Approval" by default -->
+    <!-- Procurement HO: lands on "Pending HO Approval" by default.
+         default_x_pr_origin ensures "New" records open with x_pr_origin='procurement_ho'
+         so x_is_pr_document=True from the first render (shows all PR fields). -->
     <record id="action_prs_procurement_ho" model="ir.actions.act_window">
         <field name="name">Purchase Requisitions</field>
         <field name="res_model">purchase.order</field>
         <field name="view_mode">list,form</field>
         <field name="domain">[('x_is_alternative_rfq', '!=', True), ('x_procurement_type', '=', 'ho_procurement')]</field>
-        <field name="context">{'search_default_pending_ho_approval': 1}</field>
+        <field name="context">{'search_default_pending_ho_approval': 1, 'default_x_pr_origin': 'procurement_ho'}</field>
     </record>
 
     <!-- CEO: lands on "Pending CEO Final" by default -->
