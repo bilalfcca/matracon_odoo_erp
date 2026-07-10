@@ -46,14 +46,94 @@
                                placeholder="Enter gate pass number…"/>
                     </group>
                     <group>
+                        <!-- Renamed: Weight Document → Weight/PO Document -->
                         <field name="x_weight_document"
                                widget="binary"
                                filename="x_weight_document_filename"
-                               string="Weight Document (upload before validating)"/>
+                               string="Weight/PO Document (upload before validating)"/>
                         <field name="x_weight_document_filename" invisible="1"/>
                     </group>
                 </group>
 
+            </xpath>
+
+            <!-- ══════════════════════════════════════════════════════════════════
+                 "Validate" → "Mark Received"  (incoming PR receipts only)
+
+                 Strategy:
+                   1. Insert "Mark Received" buttons (receipt-only) BEFORE the
+                      existing oe_highlight Validate button.
+                   2. Suppress the original Validate buttons for receipts using
+                      separator/add to preserve their existing invisible conditions.
+
+                 The new buttons carry a distinguishing extra class
+                 (o_btn_mark_received) so that the XPaths in step 2 — which
+                 match @class='oe_highlight' and @class='o_btn_validate' exactly —
+                 do NOT accidentally re-hide the new buttons (exact-match vs. contains).
+            ══════════════════════════════════════════════════════════════════ -->
+
+            <!-- Step 1a: primary "Mark Received" (shown at Ready / assigned state) -->
+            <xpath expr="//button[@name='button_validate'][@class='oe_highlight']" position="before">
+                <button name="button_validate"
+                        invisible="picking_type_code != 'incoming' or not purchase_id or state in ('draft', 'confirmed', 'done', 'cancel')"
+                        string="Mark Received" type="object"
+                        class="oe_highlight o_btn_mark_received"
+                        groups="stock.group_stock_user" data-hotkey="v"/>
+            </xpath>
+
+            <!-- Step 1b: secondary "Mark Received" (shown at Todo / confirmed state) -->
+            <xpath expr="//button[@name='button_validate'][@class='o_btn_validate']" position="before">
+                <button name="button_validate"
+                        invisible="picking_type_code != 'incoming' or not purchase_id or state in ('waiting', 'assigned', 'done', 'cancel')"
+                        string="Mark Received" type="object"
+                        class="o_btn_validate o_btn_mark_received"
+                        groups="stock.group_stock_user" data-hotkey="v"/>
+            </xpath>
+
+            <!-- Step 2a: hide original oe_highlight Validate for PR receipts -->
+            <xpath expr="//button[@name='button_validate'][@class='oe_highlight']" position="attributes">
+                <attribute name="invisible" separator=" or " add="picking_type_code == 'incoming' and bool(purchase_id)"/>
+            </xpath>
+
+            <!-- Step 2b: hide original o_btn_validate for PR receipts -->
+            <xpath expr="//button[@name='button_validate'][@class='o_btn_validate']" position="attributes">
+                <attribute name="invisible" separator=" or " add="picking_type_code == 'incoming' and bool(purchase_id)"/>
+            </xpath>
+
+            <!-- ══════════════════════════════════════════════════════════════════
+                 Operations tab — column headers for PR receipts
+
+                 The material-issuance view (priority 20) already renamed
+                 product_uom_qty "Demand" → "Quantity".  We add receipt-specific
+                 columns and hide the originals for incoming + purchase contexts.
+
+                 product_uom_qty  →  "Original Demand"  (receipts)
+                 quantity         →  "Receiving Now"    (receipts)
+            ══════════════════════════════════════════════════════════════════ -->
+
+            <!-- product_uom_qty: add "Original Demand" after the existing column -->
+            <xpath expr="//field[@name='move_ids']/list/field[@name='product_uom_qty']" position="after">
+                <field name="product_uom_qty"
+                       string="Original Demand"
+                       readonly="1"
+                       column_invisible="parent.picking_type_code != 'incoming' or not parent.purchase_id"/>
+            </xpath>
+            <!-- Hide the [1] (original) product_uom_qty for receipts -->
+            <xpath expr="//field[@name='move_ids']/list/field[@name='product_uom_qty'][1]" position="attributes">
+                <attribute name="column_invisible">parent.picking_type_code == 'incoming' and bool(parent.purchase_id)</attribute>
+            </xpath>
+
+            <!-- quantity: add "Receiving Now" after the existing column -->
+            <xpath expr="//field[@name='move_ids']/list/field[@name='quantity']" position="after">
+                <field name="quantity"
+                       string="Receiving Now"
+                       readonly="not is_quantity_done_editable"
+                       column_invisible="parent.state == 'draft' or parent.picking_type_code != 'incoming' or not parent.purchase_id"
+                       decoration-danger="product_uom_qty and quantity &gt; product_uom_qty and parent.state not in ['done', 'cancel']"/>
+            </xpath>
+            <!-- Hide the [1] (original) quantity for receipts; keep draft-hide behaviour for others -->
+            <xpath expr="//field[@name='move_ids']/list/field[@name='quantity'][1]" position="attributes">
+                <attribute name="column_invisible">parent.state == 'draft' or (parent.picking_type_code == 'incoming' and bool(parent.purchase_id))</attribute>
             </xpath>
 
         </field>
