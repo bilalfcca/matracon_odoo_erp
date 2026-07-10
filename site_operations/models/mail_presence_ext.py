@@ -2,39 +2,69 @@ from datetime import timedelta
 
 from odoo import models, fields, api
 
-# Must match ONLINE_THRESHOLD_SECONDS in hr_employee_ext.py
-ONLINE_THRESHOLD_SECONDS = 65
+# Must match ONLINE_THRESHOLD_SECONDS in hr_employee_ext.py.
+# 600 s = 10 minutes — user stays online until 10 min of no heartbeat.
+ONLINE_THRESHOLD_SECONDS = 600
 
 
 class MailPresenceExt(models.Model):
-    """Hook into mail.presence to capture online/offline transitions.
+    """Hook into mail.presence to maintain session records in x.employee.presence.log.
 
-    Only two states are logged: 'online' and 'offline'.
-    Odoo's 'away' status (idle browser tab) is intentionally ignored —
-    a user is either online (heartbeat alive) or offline (heartbeat gone).
+    Each session = one continuous browser open period (online_at → offline_at).
 
-    Offline events are detected by the cron ``hr.employee._cron_update_presence_log``
-    because Odoo never sets status='offline' server-side when a browser tab closes.
+    Rules:
+      • A session is only split when the user was absent for > ONLINE_THRESHOLD_SECONDS.
+        Brief reconnects (server restarts, page reloads, tab switches) are ignored and
+        the existing session continues uninterrupted.
+      • Offline detection is handled by the cron (hr.employee._cron_update_presence_log),
+        NOT here — Odoo never sends an 'offline' event when the browser closes.
+
+    create() — fired when a presence record is (re)created:
+        • If there is already an open session that was started within ONLINE_THRESHOLD_SECONDS,
+          this is a rapid reconnect or server restart — let the session continue.
+        • If there is no open session (or the open one is stale), start a new session.
+
+    write() — fired on every heartbeat:
+        • If last_poll is None, the presence record was just created — create() handled it.
+        • If last_poll is recent (< ONLINE_THRESHOLD_SECONDS ago), the user is continuously
+          online — session continues, no action.
+        • If last_poll is stale (> ONLINE_THRESHOLD_SECONDS ago), the user is reconnecting
+          after a real absence — close the old session and start a new one.
     """
     _inherit = 'mail.presence'
 
     # ── helpers ─────────────────────────────────────────────────────────────
 
-    def _get_employee_for_user(self, user_id):
+    def _get_employee(self, user_id):
         return self.env['hr.employee'].sudo().search(
-            [('user_id', '=', user_id)], limit=1
+            [('user_id', '=', user_id)], limit=1,
         )
 
-    def _log_online(self, user_id):
-        """Write an 'online' log entry for the employee linked to user_id."""
-        employee = self._get_employee_for_user(user_id)
-        if not employee:
-            return
-        self.env['x.employee.presence.log'].sudo().create({
+    def _open_session_for(self, employee, user_id, now, close_existing_at=None):
+        """Close any open session (if meaningful) and start a new one.
+
+        close_existing_at — timestamp to stamp on the open session's offline_at.
+                            If None, uses now. Only closes if the resulting
+                            duration would be ≥ ONLINE_THRESHOLD_SECONDS.
+        """
+        Session = self.env['x.employee.presence.log'].sudo()
+
+        open_session = Session.search([
+            ('employee_id', '=', employee.id),
+            ('offline_at', '=', False),
+        ], limit=1)
+
+        if open_session:
+            effective_close = close_existing_at or now
+            duration = (effective_close - open_session.online_at).total_seconds()
+            if duration >= ONLINE_THRESHOLD_SECONDS:
+                open_session.offline_at = effective_close
+            # else: session is too short to be meaningful — discard and replace
+
+        Session.create({
             'employee_id': employee.id,
             'user_id': user_id,
-            'timestamp': fields.Datetime.now(),
-            'status': 'online',
+            'online_at': now,
         })
 
     # ── ORM hooks ────────────────────────────────────────────────────────────
@@ -42,58 +72,99 @@ class MailPresenceExt(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         records = super().create(vals_list)
-        for record in records:
-            # New presence record = fresh login (after GC deleted old one,
-            # or first ever login). Log as 'online' regardless of status value.
-            if record.user_id:
-                self._log_online(record.user_id.id)
+        now = fields.Datetime.now()
+        Session = self.env['x.employee.presence.log'].sudo()
+
+        for rec in records:
+            if not rec.user_id:
+                continue
+            emp = self._get_employee(rec.user_id.id)
+            if not emp:
+                continue
+
+            open_session = Session.search([
+                ('employee_id', '=', emp.id),
+                ('offline_at', '=', False),
+            ], limit=1)
+
+            if open_session:
+                gap = (now - open_session.online_at).total_seconds()
+                if gap < ONLINE_THRESHOLD_SECONDS:
+                    # Session was opened very recently — this is a server restart
+                    # or rapid reconnect. Let the session continue uninterrupted.
+                    continue
+                # Session is stale (cron hasn't caught up yet). Close it at a
+                # conservative estimate and start fresh.
+                open_session.offline_at = now - timedelta(seconds=ONLINE_THRESHOLD_SECONDS)
+
+            Session.create({
+                'employee_id': emp.id,
+                'user_id': rec.user_id.id,
+                'online_at': now,
+            })
+
         return records
 
     def write(self, vals):
-        """Log 'online' when a user reconnects after being effectively offline.
+        """On each heartbeat, maintain session records.
 
-        'away' is treated identically to 'online' — both mean the browser
-        is open. No separate 'away' entry is written to the log.
-
-        The only transition we log here is: was-offline → now-online.
-        The cron handles the online → offline direction.
+        Cases handled:
+          1. last_poll is None   → presence just created; create() already opened a session.
+          2. last_poll is recent → user is continuously online.
+             • Open session exists → all good, nothing to do.
+             • No open session    → recover: open a fresh session (handles edge cases where
+               the session was incorrectly closed, e.g. cron ran before first heartbeat).
+          3. last_poll is stale  → genuine reconnect after > ONLINE_THRESHOLD_SECONDS gap.
+             → Close the existing open session at last_poll, open a new one now.
         """
         new_status = vals.get('status')
-        # Only care about heartbeat writes; ignore other field updates
+        # Only intercept heartbeat writes ('online' / 'away')
         if new_status not in ('online', 'away'):
             return super().write(vals)
 
         now = fields.Datetime.now()
         threshold = now - timedelta(seconds=ONLINE_THRESHOLD_SECONDS)
+        Session = self.env['x.employee.presence.log'].sudo()
 
         for presence in self:
             if not presence.user_id:
                 continue
 
-            # Was this user effectively offline before this write?
-            was_offline = (
-                not presence.last_poll or presence.last_poll < threshold
-            )
+            # Case 1 — last_poll is None: presence record was just created by create(),
+            # which already opened a session.  Skip to avoid duplicates.
+            if not presence.last_poll:
+                continue
 
-            if was_offline:
-                # User is reconnecting. First close the gap with an 'offline'
-                # entry (if the last log entry isn't already 'offline').
-                employee = self._get_employee_for_user(presence.user_id.id)
-                if employee:
-                    last_log = self.env['x.employee.presence.log'].sudo().search(
-                        [('employee_id', '=', employee.id)],
-                        order='timestamp desc', limit=1
-                    )
-                    if not last_log or last_log.status != 'offline':
-                        # Stamp offline at last_poll (closest to actual disconnect)
-                        offline_ts = presence.last_poll or now
-                        self.env['x.employee.presence.log'].sudo().create({
-                            'employee_id': employee.id,
-                            'user_id': presence.user_id.id,
-                            'timestamp': offline_ts,
-                            'status': 'offline',
-                        })
-                    # Now log the reconnect as 'online'
-                    self._log_online(presence.user_id.id)
+            emp = self._get_employee(presence.user_id.id)
+            if not emp:
+                continue
+
+            open_session = Session.search([
+                ('employee_id', '=', emp.id),
+                ('offline_at', '=', False),
+            ], limit=1)
+
+            if presence.last_poll >= threshold:
+                # Case 2 — user is still online (heartbeat within window).
+                if not open_session:
+                    # No open session — recover by opening one (e.g. cron closed it
+                    # prematurely before the first heartbeat arrived).
+                    Session.create({
+                        'employee_id': emp.id,
+                        'user_id': presence.user_id.id,
+                        'online_at': presence.last_poll,
+                    })
+                # else: session is healthy, nothing to do
+                continue
+
+            # Case 3 — last_poll is stale: genuine reconnect after > threshold absence.
+            if open_session:
+                open_session.offline_at = presence.last_poll
+
+            Session.create({
+                'employee_id': emp.id,
+                'user_id': presence.user_id.id,
+                'online_at': now,
+            })
 
         return super().write(vals)

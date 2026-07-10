@@ -67,19 +67,16 @@
                     </field>
                 </page>
 
-                <!-- Online History — WhatsApp-style: Online / Offline transitions with duration -->
+                <!-- Online History — session log: Online At / Offline At / Duration -->
                 <page string="Online History" name="online_history"
                       invisible="not user_id"
                       groups="purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_head_office,site_operations.group_finance_ho">
                     <field name="x_presence_log_ids" readonly="1">
-                        <list create="0" delete="0" default_order="timestamp desc">
-                            <field name="timestamp" string="Date &amp; Time" widget="datetime"/>
-                            <field name="status" string="Status"
-                                   decoration-success="status == 'online'"
-                                   decoration-muted="status == 'offline'"/>
+                        <list create="0" delete="0" default_order="online_at desc">
+                            <field name="online_at" string="Online At" widget="datetime"/>
+                            <field name="offline_at" string="Offline At" widget="datetime"/>
                             <field name="duration" string="Duration"
-                                   decoration-success="status == 'online'"
-                                   decoration-muted="status == 'offline'"/>
+                                   decoration-success="not offline_at"/>
                         </list>
                     </field>
                 </page>
@@ -131,10 +128,10 @@
                         <span style="color:#16a34a;" class="fw-semibold">Online</span>
                     </t>
                     <t t-elif="record.x_last_online.raw_value">
-                        <!-- Offline but we know when they were last seen -->
+                        <!-- Offline — yellow dot + Last Seen timestamp -->
                         <span class="rounded-circle d-inline-block"
-                              style="width:8px;height:8px;background:#9ca3af;flex-shrink:0;"/>
-                        <span class="text-muted">Last seen:
+                              style="width:8px;height:8px;background:#ca8a04;flex-shrink:0;"/>
+                        <span style="color:#92400e;">Last Seen:
                             <field name="x_last_online" readonly="1" class="oe_inline" widget="datetime"/>
                         </span>
                     </t>

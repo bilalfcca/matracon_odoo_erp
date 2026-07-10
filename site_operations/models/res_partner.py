@@ -47,6 +47,8 @@ class ResPartnerSiteOps(models.Model):
                 tag_name = 'Local Supplier'
             elif ctx.get('subcontractor_create'):
                 tag_name = 'Subcontractor'
+            elif ctx.get('site_accountant_vendor'):
+                tag_name = 'Vendor'
             if tag_name:
                 tag = self.env['res.partner.category'].search(
                     [('name', '=', tag_name)], limit=1

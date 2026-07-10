@@ -67,14 +67,14 @@
                         groups="purchase_demand_raise.group_site_store"
                         disabled="1"/>
 
-                <!-- Procurement Officer: Submit PR (no PM doc required) -->
+                <!-- Procurement Officer: Send RFQ (PO-HO created PR — no PM doc, direct to CEO) -->
                 <button name="action_submit_pr"
-                        string="Submit PR"
+                        string="Send RFQ"
                         type="object"
                         class="btn-primary"
-                        invisible="x_pr_state != 'draft' or not x_can_submit"
+                        invisible="x_pr_state != 'draft' or not x_can_submit or x_pr_origin != 'procurement_ho'"
                         groups="purchase_demand_raise.group_procurement_ho"
-                        confirm="Submit this PR for CEO approval?"/>
+                        confirm="Send this RFQ for CEO approval? The PR will route directly to CEO."/>
 
                 <!-- HO: Approve + recommend vendor → routes directly to CEO (single step) -->
                 <button name="action_ho_approve"
@@ -214,6 +214,9 @@
                 <!-- Site warehouse restriction fields -->
                 <field name="x_site_incoming_type_ids" invisible="1"/>
                 <field name="x_site_has_multi_warehouse" invisible="1"/>
+                <!-- x_pr_origin needed so line column_invisible and button invisible
+                     conditions can access parent.x_pr_origin and x_pr_origin -->
+                <field name="x_pr_origin" invisible="1"/>
             </field>
 
             <!-- ── 5b. INJECT custom header fields after partner_id ── -->
@@ -331,11 +334,12 @@
                 <attribute name="column_invisible">parent.x_is_pr_document or parent.x_is_site_store or parent.x_is_alternative_rfq</attribute>
             </field>
 
-            <!-- Requested Qty: PR docs + site store (site store edits); alternatives (HO edits freely) -->
+            <!-- Requested Qty: PR docs + site store (site store edits); alternatives (HO edits freely)
+                 Hidden for HO-created PRs (x_pr_origin='procurement_ho') — HO fills Recommended Qty directly -->
             <field name="product_qty" position="before">
                 <field name="x_requested_qty"
                        string="Requested Qty"
-                       column_invisible="not parent.x_is_pr_document and not parent.x_is_site_store and not parent.x_is_alternative_rfq"
+                       column_invisible="(not parent.x_is_pr_document and not parent.x_is_site_store and not parent.x_is_alternative_rfq) or (x_is_ho and parent.x_pr_origin == 'procurement_ho')"
                        readonly="not x_is_site_store and not (x_is_ho and parent.x_pr_state in ('draft', 'submitted')) and not parent.x_is_alternative_rfq"
                        optional="show"/>
             </field>
@@ -349,11 +353,13 @@
                        readonly="1"
                        optional="show"/>
 
-                <!-- Recommended Qty: HO edits on PR and alternatives; hidden from Site Store -->
+                <!-- Recommended Qty: HO edits on PR and alternatives; hidden from Site Store.
+                     Editable in 'submitted' state (reviewing site-store PR) OR
+                     in 'draft' state when HO is the PR creator (procurement_ho flow). -->
                 <field name="x_recommended_qty"
                        string="Recommended Qty"
                        column_invisible="(not parent.x_is_pr_document and not parent.x_is_alternative_rfq) or parent.x_is_site_store"
-                       readonly="not x_is_ho or parent.x_pr_state != 'submitted'"
+                       readonly="not x_is_ho or (parent.x_pr_state not in ('draft', 'submitted')) or (parent.x_pr_state == 'draft' and parent.x_pr_origin != 'procurement_ho')"
                        optional="show"/>
 
                 <!-- Mandatory reason when HO changes recommended qty (PR docs only) -->
@@ -363,7 +369,7 @@
                        column_invisible="not parent.x_is_pr_document or parent.x_is_site_store"
                        invisible="not x_qty_reason_required"
                        required="x_qty_reason_required and parent.x_pr_state == 'submitted'"
-                       readonly="not x_is_ho or parent.x_pr_state != 'submitted'"
+                       readonly="not x_is_ho or (parent.x_pr_state not in ('draft', 'submitted')) or (parent.x_pr_state == 'draft' and parent.x_pr_origin != 'procurement_ho')"
                        placeholder="Required when recommended qty differs from requested"
                        optional="show"/>
 

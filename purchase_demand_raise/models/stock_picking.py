@@ -115,7 +115,7 @@ class StockPickingPR(models.Model):
                     and picking.purchase_id.x_is_pr_document):
                 if not picking.x_weight_document:
                     raise UserError(_(
-                        'Please upload the Weight Document before validating the receipt.'
+                        'Please upload the Weight/PO Document before marking the receipt as received.'
                     ))
         res = super().button_validate()
         self._matracon_after_receipt_validated()
