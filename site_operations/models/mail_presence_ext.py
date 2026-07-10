@@ -106,7 +106,17 @@ class MailPresenceExt(models.Model):
         return records
 
     def write(self, vals):
-        """On each heartbeat, detect genuine reconnects and start a new session."""
+        """On each heartbeat, maintain session records.
+
+        Cases handled:
+          1. last_poll is None   → presence just created; create() already opened a session.
+          2. last_poll is recent → user is continuously online.
+             • Open session exists → all good, nothing to do.
+             • No open session    → recover: open a fresh session (handles edge cases where
+               the session was incorrectly closed, e.g. cron ran before first heartbeat).
+          3. last_poll is stale  → genuine reconnect after > ONLINE_THRESHOLD_SECONDS gap.
+             → Close the existing open session at last_poll, open a new one now.
+        """
         new_status = vals.get('status')
         # Only intercept heartbeat writes ('online' / 'away')
         if new_status not in ('online', 'away'):
@@ -120,26 +130,34 @@ class MailPresenceExt(models.Model):
             if not presence.user_id:
                 continue
 
-            # If last_poll is None the presence record was just created by create().
-            # create() already handled session management — skip here to avoid duplicates.
+            # Case 1 — last_poll is None: presence record was just created by create(),
+            # which already opened a session.  Skip to avoid duplicates.
             if not presence.last_poll:
                 continue
 
-            # If last_poll is recent, the user is continuously online — no action needed.
-            if presence.last_poll >= threshold:
-                continue
-
-            # last_poll is stale → user is genuinely reconnecting after > 65 s absence.
             emp = self._get_employee(presence.user_id.id)
             if not emp:
                 continue
 
-            # Close existing session at last_poll (final heartbeat ≈ disconnect time),
-            # then start a fresh session.
             open_session = Session.search([
                 ('employee_id', '=', emp.id),
                 ('offline_at', '=', False),
             ], limit=1)
+
+            if presence.last_poll >= threshold:
+                # Case 2 — user is still online (heartbeat within window).
+                if not open_session:
+                    # No open session — recover by opening one (e.g. cron closed it
+                    # prematurely before the first heartbeat arrived).
+                    Session.create({
+                        'employee_id': emp.id,
+                        'user_id': presence.user_id.id,
+                        'online_at': presence.last_poll,
+                    })
+                # else: session is healthy, nothing to do
+                continue
+
+            # Case 3 — last_poll is stale: genuine reconnect after > threshold absence.
             if open_session:
                 open_session.offline_at = presence.last_poll
 

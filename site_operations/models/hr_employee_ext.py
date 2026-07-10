@@ -142,7 +142,11 @@ class HrEmployeeMatracon(models.Model):
             "SELECT user_id, last_poll FROM mail_presence WHERE user_id = ANY(%s)",
             (user_ids,),
         )
-        presence_map = {r[0]: r[1] for r in self.env.cr.fetchall()}
+        rows = self.env.cr.fetchall()
+        # presence_map: user_id → last_poll (None if record exists but no heartbeat yet)
+        # users_with_presence: set of user_ids that HAVE a mail.presence record
+        presence_map = {r[0]: r[1] for r in rows}
+        users_with_presence = set(presence_map.keys())
 
         now = fields.Datetime.now()
         threshold = now - timedelta(seconds=ONLINE_THRESHOLD_SECONDS)
@@ -151,19 +155,37 @@ class HrEmployeeMatracon(models.Model):
 
         for emp in employees:
             uid = emp.user_id.id
-            last_poll = presence_map.get(uid)
 
-            # Still online — nothing to do
-            if last_poll and last_poll >= threshold:
+            if uid not in users_with_presence:
+                # No presence record at all (never logged in, or GC cleaned it).
+                # Close any stale open session if one somehow exists.
+                open_session = Session.search([
+                    ('employee_id', '=', emp.id),
+                    ('offline_at', '=', False),
+                ], limit=1)
+                if open_session:
+                    open_session.offline_at = now
                 continue
 
-            # Heartbeat is stale → close any open session
+            last_poll = presence_map[uid]
+
+            # last_poll IS NULL → presence record exists but first heartbeat hasn't
+            # arrived yet (user just opened browser).  Do NOT close the session —
+            # it was just created by mail_presence_ext.create() and is valid.
+            if last_poll is None:
+                continue
+
+            # Heartbeat is recent — user is still online.
+            if last_poll >= threshold:
+                continue
+
+            # Heartbeat is stale → browser closed; stamp offline_at on the open session.
             open_session = Session.search([
                 ('employee_id', '=', emp.id),
                 ('offline_at', '=', False),
             ], limit=1)
             if open_session:
-                open_session.offline_at = last_poll or now
+                open_session.offline_at = last_poll
 
     # ── Other fields / methods ───────────────────────────────────────────────
 
