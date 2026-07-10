@@ -488,8 +488,24 @@ class PurchaseOrder(models.Model):
         )
         if self.x_initiator_id and self.x_initiator_id.partner_id:
             partner_ids.append(self.x_initiator_id.partner_id.id)
-        if partner_ids:
-            self.message_subscribe(partner_ids=list(set(partner_ids)))
+        if not partner_ids:
+            return
+        partner_ids = list(set(partner_ids))
+        # Use a savepoint so that a concurrent-duplicate DB error (unique constraint on
+        # mail_followers) only rolls back this subscribe attempt rather than the whole
+        # transaction.  This race condition is common on multi-worker staging/production
+        # (two workers both read "no followers yet", both try to INSERT the same partner).
+        # On failure we fall back to one-by-one subscribes so new partners still get through.
+        try:
+            with self.env.cr.savepoint():
+                self.message_subscribe(partner_ids=partner_ids)
+        except Exception:
+            for pid in partner_ids:
+                try:
+                    with self.env.cr.savepoint():
+                        self.message_subscribe(partner_ids=[pid])
+                except Exception:
+                    pass
 
     def _schedule_approval_activities(self):
         """Create To-Do activities for every HO user when a PR is submitted.
