@@ -66,13 +66,16 @@
 
             <!-- Inject site_accountant_vendor context so the partner-creation dialog
                  pre-fills the "Vendor" tag and makes it read-only.
-                 Preserves all existing Odoo context keys on this field. -->
+                 Preserves all existing Odoo context keys on this field.
+                 no_quick_create forces "Create and Edit" so the full partner form
+                 opens with the Vendor tag pre-filled from default_get. -->
             <xpath expr="//field[@name='partner_id']" position="attributes">
                 <attribute name="context">{
                     'res_partner_search_mode': (context.get('default_move_type', 'entry') in ('out_invoice', 'out_refund', 'out_receipt') and 'customer') or (context.get('default_move_type', 'entry') in ('in_invoice', 'in_refund', 'in_receipt') and 'supplier') or False,
                     'show_address': 1, 'default_is_company': True, 'show_vat': True,
                     'site_accountant_vendor': True
                 }</attribute>
+                <attribute name="options">{'no_quick_create': True}</attribute>
             </xpath>
 
             <xpath expr="//field[@name='partner_id']" position="after">

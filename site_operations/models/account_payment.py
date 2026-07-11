@@ -547,11 +547,30 @@ class AccountPaymentSiteOps(models.Model):
             category = vals.get('x_payment_category', 'vendor')
             # Only auto-set approval state if NOT explicitly provided by caller
             # (e.g. salary sheet already sets 'approved' — don't overwrite it)
-            if category in ('salary', 'petty_cash') and 'x_ceo_approval_state' not in vals:
-                if self.env.user.has_group('purchase_demand_raise.group_ceo_approval'):
-                    vals['x_ceo_approval_state'] = 'approved'
-                elif self.env.user.has_group('site_operations.group_finance_ho'):
-                    vals['x_ceo_approval_state'] = 'pending'
+            if 'x_ceo_approval_state' not in vals:
+                user = self.env.user
+                is_ceo = user.has_group('purchase_demand_raise.group_ceo_approval')
+                is_fo = user.has_group('site_operations.group_finance_ho')
+                is_admin = user._matracon_is_admin()
+                if category in ('salary', 'petty_cash'):
+                    if is_ceo or is_admin:
+                        vals['x_ceo_approval_state'] = 'approved'
+                    elif is_fo:
+                        vals['x_ceo_approval_state'] = 'pending'
+                elif category == 'vendor':
+                    # Vendor payments by Finance HO require explicit CEO approval
+                    # unless the payment is inherently pre-authorised:
+                    #   • CEO / admin creates it → auto-approved
+                    #   • CEO direct payment flag → auto-approved
+                    #   • Liability sheet set → CEO already approved at sheet level
+                    #   • WHT companion (x_origin_payment_id) → auto-created during posting
+                    is_ceo_direct = bool(vals.get('x_ceo_direct_payment'))
+                    has_liability_sheet = bool(vals.get('x_liability_sheet_id'))
+                    is_wht_companion = bool(vals.get('x_origin_payment_id'))
+                    if is_ceo or is_admin or is_ceo_direct or is_wht_companion:
+                        vals['x_ceo_approval_state'] = 'approved'
+                    elif is_fo and not has_liability_sheet:
+                        vals['x_ceo_approval_state'] = 'pending'
         payments = super().create(vals_list)
         payments._matracon_fix_salary_ceo_state()
         payments._matracon_notify_ceo_on_payment_create()
@@ -600,8 +619,6 @@ class AccountPaymentSiteOps(models.Model):
 
     def action_ceo_approve_payment(self):
         for payment in self:
-            if payment.x_payment_category not in ('salary', 'petty_cash'):
-                raise UserError(_('CEO approval applies to salary and petty cash only.'))
             if payment.x_ceo_approval_state != 'pending':
                 raise UserError(_('This payment is not pending CEO approval.'))
             payment.x_ceo_approval_state = 'approved'
@@ -932,7 +949,27 @@ class AccountPaymentSiteOps(models.Model):
             # Salary: CEO approved at salary sheet level — skip payment-level check.
             if payment.x_salary_sheet_id:
                 continue
-            if payment.x_ceo_approval_state == 'pending':
+            # WHT companion payments are auto-created during posting — no approval needed.
+            if payment.x_origin_payment_id:
+                continue
+
+            if (payment.payment_type == 'outbound'
+                    and payment.x_payment_category == 'vendor'):
+                # Liability sheet carries its own CEO approval — skip payment-level check.
+                if payment.x_liability_sheet_id:
+                    continue
+                # CEO direct payment — CEO is the initiator, already authorised.
+                if payment.x_ceo_direct_payment:
+                    continue
+                # All other outbound vendor payments MUST be CEO-approved.
+                if payment.x_ceo_approval_state != 'approved':
+                    raise UserError(_(
+                        'CEO approval is required before this payment can be processed.\n\n'
+                        'Payment "%s" has not been approved by the CEO. '
+                        'The CEO must click "Approve (CEO)" before Finance HO can proceed.'
+                    ) % (payment.name or _('Draft')))
+            elif payment.x_ceo_approval_state == 'pending':
+                # Catch remaining pending payments (salary/petty-cash without a sheet link).
                 raise UserError(_(
                     'CEO approval is required before posting this payment.\n\n'
                     'Payment "%s" is awaiting CEO approval. '

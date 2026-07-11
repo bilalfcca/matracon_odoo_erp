@@ -216,11 +216,19 @@
                 <field name="x_is_site_store" invisible="1"/>
 
                 <!-- ─ Contact — hidden for site-to-site ─ -->
-                <!-- Normal: employees from HR app; Subcontractor: contacts tagged Subcontractor -->
+                <!-- Employee mode: contacts must already exist in HR — no create allowed -->
                 <field name="x_contact_id"
-                       domain="[('category_id.name', '=', 'Subcontractor')] if x_issue_type == 'subcontractor' else [('employee', '=', True)]"
-                       context="{'subcontractor_create': x_issue_type == 'subcontractor'}"
-                       invisible="x_transfer_purpose != 'material_issuance'"/>
+                       domain="[('employee', '=', True)]"
+                       options="{'no_create': True}"
+                       invisible="x_issue_type == 'subcontractor' or x_transfer_purpose != 'material_issuance'"/>
+                <!-- Subcontractor mode: allow "Create and Edit" with tag auto-set;
+                     quick-create disabled so the full form (with pre-filled tag) always opens -->
+                <field name="x_contact_id"
+                       string="Subcontractor"
+                       domain="[('category_id.name', '=', 'Subcontractor')]"
+                       options="{'no_quick_create': True}"
+                       context="{'subcontractor_create': True}"
+                       invisible="x_issue_type != 'subcontractor' or x_transfer_purpose != 'material_issuance'"/>
 
                 <!-- ─ Outstanding materials HTML summary ─ -->
                 <div name="outstanding_materials_section"

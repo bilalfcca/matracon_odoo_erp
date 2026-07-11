@@ -231,6 +231,7 @@
                                    readonly="state == 'posted'"
                                    invisible="not is_subcontractor_advance"
                                    required="is_subcontractor_advance"
+                                   options="{'no_quick_create': True}"
                                    context="{'subcontractor_create': True}"/>
                             <!-- advance_payable_account_id removed: now use Expense Account (Debit) below -->
                         </group>
