@@ -48,7 +48,8 @@ class LiabilitySheet(models.Model):
 
     project_analytic_account_id = fields.Many2one(
         'account.analytic.account', string='Project',
-        required=True, tracking=True)
+        required=True, tracking=True,
+        default=lambda self: self.env.user.x_default_analytic_account_id)
 
     date_from = fields.Date(string='Date From', required=True, tracking=True)
     date_to = fields.Date(string='Date To', required=True, tracking=True)

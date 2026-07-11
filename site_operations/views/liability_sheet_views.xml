@@ -91,7 +91,7 @@
                                 <span>
                                     <span class="text-muted fw-semibold">Project: </span>
                                     <field name="project_analytic_account_id"
-                                           readonly="1"
+                                           readonly="x_is_site_accountant or state != 'draft'"
                                            nolabel="1"
                                            class="d-inline"/>
                                 </span>
