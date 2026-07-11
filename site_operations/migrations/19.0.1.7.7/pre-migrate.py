@@ -41,7 +41,14 @@ def migrate(cr, version):
             END IF;
 
             -- Clear all old event-log rows; fresh start with session model.
-            DELETE FROM x_employee_presence_log;
+            -- Guard: if the table was never created (first-time install of this
+            -- feature) the DELETE would raise UndefinedTable, so check first.
+            IF EXISTS (
+                SELECT 1 FROM information_schema.tables
+                WHERE table_name = 'x_employee_presence_log'
+            ) THEN
+                DELETE FROM x_employee_presence_log;
+            END IF;
         END $$;
     """)
 
