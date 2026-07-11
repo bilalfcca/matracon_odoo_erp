@@ -35,6 +35,19 @@ class MailPresenceExt(models.Model):
 
     # ── helpers ─────────────────────────────────────────────────────────────
 
+    def _presence_log_ready(self):
+        """Return True only when x_employee_presence_log table exists in DB.
+
+        Needed for the brief window between code deployment and the first
+        module upgrade that creates the table — without this guard every
+        presence heartbeat raises psycopg2.errors.UndefinedTable.
+        """
+        self.env.cr.execute(
+            "SELECT 1 FROM information_schema.tables "
+            "WHERE table_name = 'x_employee_presence_log' LIMIT 1"
+        )
+        return bool(self.env.cr.fetchone())
+
     def _get_employee(self, user_id):
         return self.env['hr.employee'].sudo().search(
             [('user_id', '=', user_id)], limit=1,
@@ -72,6 +85,8 @@ class MailPresenceExt(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         records = super().create(vals_list)
+        if not self._presence_log_ready():
+            return records
         now = fields.Datetime.now()
         Session = self.env['x.employee.presence.log'].sudo()
 
@@ -120,6 +135,9 @@ class MailPresenceExt(models.Model):
         new_status = vals.get('status')
         # Only intercept heartbeat writes ('online' / 'away')
         if new_status not in ('online', 'away'):
+            return super().write(vals)
+
+        if not self._presence_log_ready():
             return super().write(vals)
 
         now = fields.Datetime.now()
