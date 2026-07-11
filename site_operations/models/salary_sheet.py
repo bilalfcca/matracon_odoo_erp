@@ -64,7 +64,7 @@ class SalarySheet(models.Model):
     @api.depends(
         'line_ids.basic_salary', 'line_ids.allowances',
         'line_ids.deductions', 'line_ids.net_payable',
-        'line_ids.backcharge_to_deduct',
+        'line_ids.detail_wht', 'line_ids.backcharge_to_deduct',
     )
     def _compute_totals(self):
         for sheet in self:
