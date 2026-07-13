@@ -586,10 +586,23 @@ class PurchaseOrder(models.Model):
                 order.x_pr_origin = 'procurement_ho'
                 if not order.x_project_site_config_id:
                     raise UserError(_('Please select the Project before submitting.'))
-                # Auto-set recommended = requested for lines where HO hasn't changed qty
-                for line in order.order_line:
-                    if not line.x_recommended_qty and line.x_requested_qty:
-                        line.x_recommended_qty = line.x_requested_qty
+                # Vendor must be selected before submitting to CEO
+                if not order.partner_id:
+                    raise UserError(_(
+                        'Please select a Vendor before submitting to CEO.\n'
+                        'Go to the Vendor field (top of the form) and pick the supplier.'
+                    ))
+                # Recommended Qty is mandatory on HO-raised PRs
+                missing = [
+                    l.product_id.display_name or l.name or '#%d' % l.id
+                    for l in order.order_line
+                    if not (l.x_recommended_qty or 0.0)
+                ]
+                if missing:
+                    raise UserError(_(
+                        'Recommended Quantity is required for all lines before submitting to CEO.\n'
+                        'Missing on:\n• %s'
+                    ) % '\n• '.join(missing))
 
             if ho_raised:
                 # ── PO-raised PR: skip HO review → route directly to CEO ──────
@@ -1139,9 +1152,20 @@ class PurchaseOrder(models.Model):
         if self.env.user.has_group('purchase_demand_raise.group_site_store'):
             raise UserError(_('Site Store cannot send RFQs. Please submit the PR for approval.'))
 
-        # ── PR state gate (only for PR documents) ────────────────────────────
+        # ── Vendor gate — HO-raised PRs must have a vendor selected ──────────
         for order in self:
-            if order.x_is_pr_document and order.x_pr_state not in ('submitted', 'ceo_final', 'po_locked'):
+            if order.x_pr_origin == 'procurement_ho' and not order.partner_id:
+                raise UserError(_(
+                    'Please select a Vendor before sending the RFQ.\n'
+                    'Go to the Vendor field (top of the form) and pick the supplier.'
+                ))
+
+        # ── PR state gate (only for site-store-originated PRs) ───────────────
+        # HO-raised PRs (procurement_ho) can email the vendor at any stage (draft → sent)
+        for order in self:
+            if (order.x_is_pr_document
+                    and order.x_pr_origin != 'procurement_ho'
+                    and order.x_pr_state not in ('submitted', 'ceo_final', 'po_locked')):
                 raise UserError(_(
                     'RFQ cannot be sent at this stage.\n'
                     'Current PR Status: %s'

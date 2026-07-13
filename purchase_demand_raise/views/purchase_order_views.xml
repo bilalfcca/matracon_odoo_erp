@@ -67,14 +67,14 @@
                         groups="purchase_demand_raise.group_site_store"
                         disabled="1"/>
 
-                <!-- Procurement Officer: Send RFQ (PO-HO created PR — no PM doc, direct to CEO) -->
+                <!-- Procurement Officer: Submit to CEO (PO-HO created PR — vendor + rec qty required) -->
                 <button name="action_submit_pr"
-                        string="Send RFQ"
+                        string="Submit to CEO"
                         type="object"
                         class="btn-primary"
                         invisible="x_pr_state != 'draft' or not x_can_submit or x_pr_origin != 'procurement_ho'"
                         groups="purchase_demand_raise.group_procurement_ho"
-                        confirm="Send this RFQ for CEO approval? The PR will route directly to CEO."/>
+                        confirm="Vendor and Recommended Quantities must be filled before submitting. Route this PR directly to CEO for final approval?"/>
 
                 <!-- HO: Approve + recommend vendor → routes directly to CEO (single step) -->
                 <button name="action_ho_approve"
@@ -149,7 +149,8 @@
                 <attribute name="invisible">x_is_site_store or x_is_ceo or x_pr_state == 'po_locked' or (x_is_pr_document and x_pr_state in ('rejected', 'cancelled'))</attribute>
             </xpath>
             <xpath expr="//header/button[@name='action_rfq_send'][3]" position="attributes">
-                <attribute name="invisible">x_is_site_store or x_is_ceo or x_pr_state == 'po_locked' or (x_is_pr_document and x_pr_state in ('rejected', 'cancelled'))</attribute>
+                <!-- "Send PO" button (state=purchase) — hide for all PR documents; keep for direct POs -->
+                <attribute name="invisible">x_is_pr_document or x_is_site_store or x_is_ceo</attribute>
             </xpath>
             <!-- Confirm Order:
                  - PR documents: HIDDEN (CEO Final Approve handles confirm)
@@ -442,7 +443,7 @@
                         class="oe_stat_button"
                         icon="fa-balance-scale"
                         groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"
-                        invisible="x_is_site_store or x_pr_state not in ('submitted','ceo_final','po_locked')">
+                        invisible="x_is_site_store or x_pr_state not in ('draft','submitted','ceo_final','po_locked')">
                     <field name="x_comparative_statement_id" invisible="1"/>
                     <div class="o_field_widget o_stat_info">
                         <span class="o_stat_text" style="font-size:12px;font-weight:bold;">
