@@ -369,6 +369,22 @@ class AccountMoveSiteOps(models.Model):
             # (tax lines, payment-term lines) cannot overwrite the distribution.
             # Backcharge-generated bills are excluded — their picking sets analytics.
             if not move.x_source_picking_id:
+                # Last-chance analytic auto-fill: if the bill was created or
+                # imported without a project analytic (e.g. Excel import, or
+                # created by a user with no default), stamp it from the current
+                # (posting) user's default BEFORE applying analytics to lines.
+                # We use direct SQL here because the move is already 'posted'
+                # and Odoo's write lock would otherwise block a normal ORM write.
+                if not move.x_project_analytic_account_id:
+                    user_analytic = self.env.user.x_default_analytic_account_id
+                    if user_analytic:
+                        self.env.cr.execute(
+                            "UPDATE account_move"
+                            "   SET x_project_analytic_account_id = %s"
+                            " WHERE id = %s",
+                            (user_analytic.id, move.id),
+                        )
+                        move.invalidate_recordset(['x_project_analytic_account_id'])
                 move.sudo()._matracon_apply_bill_analytic()
                 move._ensure_liability_sheet_for_bill(notify=True)
                 move._update_project_balance_from_bill()
