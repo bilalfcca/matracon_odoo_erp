@@ -454,29 +454,91 @@ class CSVendor(models.Model):
         help='Mark this vendor as the selected winner.',
     )
 
-    # Commercial terms
-    x_rfq_reference = fields.Char(string='Quotation Reference')
-    x_quote_validity = fields.Date(string='Quote Validity')
+    # ── Commercial terms (7 required CS fields) ──────────────────────────────
+    # Each field has a Selection quick-pick and a Char manual-entry.
+    # Selecting from the dropdown auto-fills the Char; the Char is the actual
+    # stored value used in reports and auto-copied to PO Quotation Terms.
+
+    # 1. Delivery Basis
+    x_delivery_basis_type = fields.Selection([
+        ('onsite', 'Onsite'),
+        ('ex_factory', 'Ex-Factory'),
+        ('for_site', 'FOR Site'),
+        ('fob', 'FOB'),
+        ('cif', 'CIF / DDP'),
+    ], string='Delivery Basis (Quick Select)')
     x_delivery_basis = fields.Char(
         string='Delivery Basis',
-        help='e.g. Ex-Works, FOR, DDP, or any custom delivery terms.',
+        help='Final delivery basis — auto-filled by dropdown or type manually.',
     )
-    x_delivery_period = fields.Char(string='Delivery Period')
-    # Payment Terms — Odoo native dropdown (account.payment.term)
+
+    # 2. Taxes & Duties
+    x_tax_type = fields.Selection([
+        ('inclusive', 'Inclusive of All Taxes'),
+        ('exclusive', 'Exclusive of Taxes'),
+        ('gst_17', 'GST 17% Extra'),
+        ('exempt', 'Tax Exempt'),
+        ('as_quoted', 'As per Quotation'),
+    ], string='Taxes & Duties (Quick Select)')
+    x_tax_treatment = fields.Char(string='Taxes & Duties')
+
+    # 3. Payment Mode
+    x_payment_mode_type = fields.Selection([
+        ('cash', 'Cash'),
+        ('cheque', 'Cheque'),
+        ('bank_transfer', 'Bank Transfer'),
+        ('lc', 'Letter of Credit (LC)'),
+        ('advance_balance', 'Advance + Balance'),
+        ('mixed', 'Mixed / As Agreed'),
+    ], string='Payment Mode (Quick Select)')
+    x_payment_mode = fields.Char(string='Payment Mode')
+
+    # 4. Payment Terms — Odoo native dropdown
     x_payment_term_id = fields.Many2one(
         'account.payment.term',
         string='Payment Terms',
-        help='Select from Odoo standard payment terms. '
-             'Use "Custom Payment Notes" below for any extra conditions.',
+        help='Select from standard payment terms.',
     )
-    x_payment_terms = fields.Char(
-        string='Custom Payment Notes',
-        help='Free-text payment conditions not covered by the standard terms above '
-             '(e.g. "50% advance, balance after delivery").',
-    )
-    x_warranty = fields.Char(string='Warranty')
-    x_tax_treatment = fields.Char(string='Tax Treatment')
+
+    # 5. Delivery Time
+    x_delivery_time_type = fields.Selection([
+        ('immediate', 'Immediate'),
+        ('1_2_weeks', '1–2 Weeks'),
+        ('2_4_weeks', '2–4 Weeks'),
+        ('4_6_weeks', '4–6 Weeks'),
+        ('6_8_weeks', '6–8 Weeks'),
+        ('3_months', '3 Months'),
+        ('custom', 'Custom / As per Schedule'),
+    ], string='Delivery Time (Quick Select)')
+    x_delivery_period = fields.Char(string='Delivery Time')
+
+    # 6. Brand / Origin
+    x_brand_type = fields.Selection([
+        ('local', 'Local Make'),
+        ('imported', 'Imported'),
+        ('as_per_spec', 'As per Specification'),
+        ('siemens', 'Siemens'),
+        ('abb', 'ABB'),
+        ('schneider', 'Schneider'),
+        ('other', 'Other'),
+    ], string='Brand / Origin (Quick Select)')
     x_brand_origin = fields.Char(string='Brand / Origin')
+
+    # 7. Warranty
+    x_warranty_type = fields.Selection([
+        ('12m_dlp', '12 Months DLP'),
+        ('24m_dlp', '24 Months DLP'),
+        ('12m_std', '12 Months Standard'),
+        ('24m_std', '24 Months Standard'),
+        ('as_contract', 'As per Contract'),
+        ('no_warranty', 'No Warranty'),
+    ], string='Warranty (Quick Select)')
+    x_warranty = fields.Char(string='Warranty')
+
+    # Legacy / retained for existing data
+    x_rfq_reference = fields.Char(string='Quotation Reference')
+    x_quote_validity = fields.Date(string='Quote Validity')
+    x_payment_terms = fields.Char(string='Custom Payment Notes')
     x_ancillary_included = fields.Boolean(string='Ancillary Items Included?')
     x_remarks = fields.Text(string='Remarks')
 
@@ -525,6 +587,44 @@ class CSVendor(models.Model):
             }))
         if lines:
             self.x_line_ids = lines
+
+    # ── Dropdown → Char auto-fill onchanges ──────────────────────────────────
+
+    @api.onchange('x_delivery_basis_type')
+    def _onchange_delivery_basis_type(self):
+        if self.x_delivery_basis_type:
+            labels = dict(self._fields['x_delivery_basis_type'].selection)
+            self.x_delivery_basis = labels.get(self.x_delivery_basis_type, '')
+
+    @api.onchange('x_tax_type')
+    def _onchange_tax_type(self):
+        if self.x_tax_type:
+            labels = dict(self._fields['x_tax_type'].selection)
+            self.x_tax_treatment = labels.get(self.x_tax_type, '')
+
+    @api.onchange('x_payment_mode_type')
+    def _onchange_payment_mode_type(self):
+        if self.x_payment_mode_type:
+            labels = dict(self._fields['x_payment_mode_type'].selection)
+            self.x_payment_mode = labels.get(self.x_payment_mode_type, '')
+
+    @api.onchange('x_delivery_time_type')
+    def _onchange_delivery_time_type(self):
+        if self.x_delivery_time_type:
+            labels = dict(self._fields['x_delivery_time_type'].selection)
+            self.x_delivery_period = labels.get(self.x_delivery_time_type, '')
+
+    @api.onchange('x_brand_type')
+    def _onchange_brand_type(self):
+        if self.x_brand_type:
+            labels = dict(self._fields['x_brand_type'].selection)
+            self.x_brand_origin = labels.get(self.x_brand_type, '')
+
+    @api.onchange('x_warranty_type')
+    def _onchange_warranty_type(self):
+        if self.x_warranty_type:
+            labels = dict(self._fields['x_warranty_type'].selection)
+            self.x_warranty = labels.get(self.x_warranty_type, '')
 
     @api.onchange('x_tc_template_id')
     def _onchange_tc_template(self):
@@ -682,16 +782,32 @@ class CSVendor(models.Model):
         self.x_is_recommended = True
         cs.x_recommended_vendor_line_id = self
 
-        # Copy vendor and terms to the main PR
+        # Copy vendor and all CS commercial terms to the main PR
         pr = cs.x_purchase_order_id
         if pr:
             vals = {'partner_id': self.x_partner_id.id}
+            # Payment Terms (standard Odoo dropdown)
             if self.x_payment_term_id:
                 vals['payment_term_id'] = self.x_payment_term_id.id
+            # T&C (if any set on the vendor row — kept for backward compat)
             if self.x_tc_text:
                 vals['note'] = self.x_tc_text
             if self.x_tc_template_id:
                 vals['x_terms_template_id'] = self.x_tc_template_id.id
+            # ── Auto-fill the 7 CS commercial fields into PO Quotation Terms ──
+            # These populate the "Quotation Terms (CS)" tab on the PO form.
+            if self.x_brand_origin:
+                vals['x_quote_brand'] = self.x_brand_origin
+            if self.x_delivery_basis:
+                vals['x_quote_delivery_basis'] = self.x_delivery_basis
+            if self.x_delivery_period:
+                vals['x_quote_delivery_period'] = self.x_delivery_period
+            if self.x_payment_mode:
+                vals['x_quote_payment_terms'] = self.x_payment_mode
+            if self.x_tax_treatment:
+                vals['x_quote_tax_treatment'] = self.x_tax_treatment
+            if self.x_warranty:
+                vals['x_quote_warranty'] = self.x_warranty
             pr.sudo().write(vals)
 
             # Copy winning prices to PR lines

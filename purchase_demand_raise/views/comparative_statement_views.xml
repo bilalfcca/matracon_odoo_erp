@@ -250,42 +250,63 @@
                                         </group>
                                     </group>
 
-                                    <!-- ── Commercial Terms ── -->
+                                    <!-- ── Commercial Terms (7 required fields) ── -->
                                     <separator string="Commercial Terms"/>
                                     <group>
+                                        <!-- Left column -->
                                         <group string="Delivery &amp; Origin">
-                                            <field name="x_brand_origin"
-                                                   placeholder="e.g. Siemens, Local make"/>
-                                            <field name="x_delivery_basis"/>
+                                            <!-- 1. Delivery Basis -->
+                                            <field name="x_delivery_basis_type"
+                                                   string="Delivery Basis"/>
+                                            <field name="x_delivery_basis"
+                                                   string="↳ Custom"
+                                                   placeholder="e.g. Onsite, Ex-Factory, FOR site…"/>
+
+                                            <!-- 5. Delivery Time -->
+                                            <field name="x_delivery_time_type"
+                                                   string="Delivery Time"/>
                                             <field name="x_delivery_period"
-                                                   placeholder="e.g. 4–6 weeks"/>
-                                            <field name="x_rfq_reference"
-                                                   placeholder="Vendor's quotation number"/>
-                                            <field name="x_quote_validity"/>
+                                                   string="↳ Custom"
+                                                   placeholder="e.g. 4–6 weeks, Immediate…"/>
+
+                                            <!-- 6. Brand / Origin -->
+                                            <field name="x_brand_type"
+                                                   string="Brand / Origin"/>
+                                            <field name="x_brand_origin"
+                                                   string="↳ Custom"
+                                                   placeholder="e.g. Siemens, Local make…"/>
                                         </group>
+
+                                        <!-- Right column -->
                                         <group string="Payment &amp; Warranty">
+                                            <!-- 3. Payment Mode -->
+                                            <field name="x_payment_mode_type"
+                                                   string="Payment Mode"/>
+                                            <field name="x_payment_mode"
+                                                   string="↳ Custom"
+                                                   placeholder="e.g. Cheque, Cash, LC…"/>
+
+                                            <!-- 4. Payment Terms (Odoo dropdown) -->
                                             <field name="x_payment_term_id"
+                                                   string="Payment Terms"
                                                    options="{'no_create': True, 'no_open': True}"
                                                    placeholder="Select standard payment terms…"/>
-                                            <field name="x_payment_terms"
-                                                   placeholder="Any extra payment conditions…"/>
-                                            <field name="x_warranty"
-                                                   placeholder="e.g. 12 months DLP"/>
+
+                                            <!-- 2. Taxes &amp; Duties -->
+                                            <field name="x_tax_type"
+                                                   string="Taxes &amp; Duties"/>
                                             <field name="x_tax_treatment"
-                                                   placeholder="e.g. GST 17% extra"/>
+                                                   string="↳ Custom"
+                                                   placeholder="e.g. GST 17% extra, Inclusive…"/>
+
+                                            <!-- 7. Warranty -->
+                                            <field name="x_warranty_type"
+                                                   string="Warranty"/>
+                                            <field name="x_warranty"
+                                                   string="↳ Custom"
+                                                   placeholder="e.g. 12 months DLP, As per contract…"/>
                                         </group>
                                     </group>
-
-                                    <!-- ── T&C Template ── -->
-                                    <separator string="Terms &amp; Conditions"/>
-                                    <group>
-                                        <field name="x_tc_template_id"
-                                               string="T&amp;C Template"
-                                               options="{'no_create': True, 'no_open': True}"
-                                               placeholder="Select a template to auto-fill…"/>
-                                    </group>
-                                    <field name="x_tc_text" widget="html"
-                                           placeholder="Terms and conditions will appear here when a template is selected, or type them directly…"/>
 
                                     <!-- ── Documents ── -->
                                     <separator string="Vendor Quotation Documents"/>
