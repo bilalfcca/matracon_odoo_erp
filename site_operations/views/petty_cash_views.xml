@@ -346,7 +346,7 @@
         <field name="name">x.petty.cash.request.list.ceo</field>
         <field name="model">x.petty.cash.request</field>
         <field name="arch" type="xml">
-            <list editable="bottom"
+            <list create="0" multi_edit="1"
                   decoration-warning="state == 'submitted'"
                   decoration-info="state == 'ceo_approved'"
                   decoration-primary="state == 'released'"

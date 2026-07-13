@@ -316,16 +316,65 @@ class PettyCashRequest(models.Model):
 
     @api.onchange('ceo_amount_type', 'requested_amount')
     def _onchange_ceo_amount_type(self):
-        mapping = {
-            'full': 1.0,
-            'pct_75': 0.75,
-            'pct_50': 0.50,
-            'pct_25': 0.25,
-        }
+        """Form-view live update: recalculate amount when type or requested amount changes."""
         if self.ceo_amount_type and self.ceo_amount_type != 'manual':
             self.ceo_approved_amount = (
-                self.requested_amount * mapping[self.ceo_amount_type]
+                self.requested_amount * self._CEO_AMOUNT_FACTORS.get(self.ceo_amount_type, 1.0)
             )
+
+    @api.onchange('ceo_approved_amount')
+    def _onchange_ceo_approved_amount(self):
+        """Form-view: auto-switch type to Manual when CEO edits the amount directly."""
+        if not self.ceo_amount_type or self.ceo_amount_type == 'manual':
+            return
+        expected = self.requested_amount * self._CEO_AMOUNT_FACTORS.get(self.ceo_amount_type, 1.0)
+        if self.ceo_approved_amount != expected:
+            self.ceo_amount_type = 'manual'
+
+    def write(self, vals):
+        """
+        Sync ceo_approved_amount ↔ ceo_amount_type on every write.
+
+        @api.onchange only fires in the form view (client-side). For list-view
+        multi-edit writes we mirror the same logic here so the two fields always
+        stay consistent regardless of how they are changed.
+
+        Rules:
+        A) Type changes to non-manual AND amount NOT explicitly in same write
+           → compute amount = requested_amount × factor  (per record, since
+             requested_amount differs per record)
+        B) Amount changes explicitly AND type NOT in same write AND current
+           type is non-manual → auto-switch type to 'manual' (so the next
+           form-view open doesn't silently re-calculate over the custom value)
+        """
+        new_type = vals.get('ceo_amount_type')
+        has_amount = 'ceo_approved_amount' in vals
+
+        # Rule A: type changes to a percentage/full → recompute amount per record
+        if new_type and new_type != 'manual' and not has_amount:
+            factor = self._CEO_AMOUNT_FACTORS.get(new_type, 1.0)
+            for rec in self:
+                req = vals.get('requested_amount', rec.requested_amount) or 0.0
+                super(PettyCashRequest, rec).write(
+                    dict(vals, ceo_approved_amount=round(req * factor, 2))
+                )
+            return True
+
+        # Rule B: amount edited directly (no type in same write) → mark as manual
+        if has_amount and not new_type:
+            manual_recs = self.filtered(
+                lambda r: r.ceo_amount_type and r.ceo_amount_type != 'manual'
+            )
+            if manual_recs:
+                super(PettyCashRequest, manual_recs).write(
+                    dict(vals, ceo_amount_type='manual')
+                )
+                rest = self - manual_recs
+                if rest:
+                    super(PettyCashRequest, rest).write(vals)
+                return True
+
+        return super().write(vals)
 
     def action_ceo_approve(self):
         for req in self:

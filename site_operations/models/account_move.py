@@ -321,6 +321,38 @@ class AccountMoveSiteOps(models.Model):
                 'Please upload the physical bill document for: %s'
             ) % names)
 
+        # ── HO/Finance JE validation: payable lines must carry an analytic ──────
+        # Without analytic_distribution on the payable line, a Head Office or
+        # Finance journal entry cannot be attributed to any project, so it would
+        # be invisible in dashboards and IPC calculations.
+        # SA JEs are auto-filled by _onchange_line_ids_fill_analytic_for_entry;
+        # this check is a safety net specifically for HO/Finance users.
+        ho_or_finance = (
+            self.env.user.has_group('purchase_demand_raise.group_head_office')
+            or self.env.user.has_group('site_operations.group_finance_ho')
+        )
+        if ho_or_finance:
+            for move in self.filtered(lambda m: m.move_type == 'entry' and m.state != 'posted'):
+                missing = move.line_ids.filtered(
+                    lambda l: (
+                        l.account_id.account_type == 'liability_payable'
+                        and l.partner_id
+                        and not l.analytic_distribution
+                    )
+                )
+                if missing:
+                    partner_names = ', '.join(
+                        l.partner_id.display_name or l.account_id.display_name
+                        for l in missing
+                    )
+                    raise UserError(_(
+                        'Please set an Analytic Account on all payable lines before posting.\n\n'
+                        'Head Office / Finance journal entries must specify a project analytic '
+                        'account so the payment is tracked in the correct project dashboard '
+                        'and IPC calculations.\n\n'
+                        'Missing analytic on lines for: %s'
+                    ) % partner_names)
+
         # Site accountants have group_account_readonly (for Partner Ledger /
         # reporting menus) but Odoo's action_post() hard-checks group_account_invoice.
         # These are mutually exclusive Odoo 19 privilege levels; we cannot grant both.

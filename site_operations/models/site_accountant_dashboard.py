@@ -178,46 +178,58 @@ class SiteAccountantDashboard(models.TransientModel):
                     'currency_id': currency.id,
                 })
 
-        # ── Liabilities ───────────────────────────────────────────────────────
-        SheetLine = self.env['x.liability.sheet.line']
-        sheet_lines = SheetLine.search([
-            ('sheet_id.project_analytic_account_id', '=', analytic.id),
-            ('sheet_id.state', 'in', ('draft', 'submitted', 'approved')),
-        ])
-        partner_map = {}
-        for line in sheet_lines:
-            remaining = max(line.liability_amount - line.paid_amount, 0.0)
-            if remaining <= 0:
-                continue
-            pid = line.partner_id.id
-            is_sub = self._is_subcontractor(line.partner_id)
-            key = (pid, is_sub)
-            if key not in partner_map:
-                partner_map[key] = {
-                    'partner_name': line.partner_id.display_name,
-                    'partner_type': 'subcontractor' if is_sub else 'vendor',
-                    'category_label': line.description or (
-                        line.partner_id.category_id[:1].name
-                        if line.partner_id.category_id else ''
-                    ),
-                    'total_value': 0.0,
-                    'paid_amount': 0.0,
-                    'liability_amount': 0.0,
-                }
-            partner_map[key]['total_value'] += line.liability_amount
-            partner_map[key]['paid_amount'] += line.paid_amount
-            partner_map[key]['liability_amount'] += remaining
+        # ── Liabilities: from partner ledger (GL) — single source of truth ──────
+        # Matches Partner Ledger exactly; net of all payments (account.payment,
+        # direct JE, Excel imports, petty cash sub advances).
+        cr = self.env.cr
+        analytic_id = analytic.id
+        str_aid = str(analytic_id)
+        cr.execute("""
+            SELECT aml.partner_id, SUM(aml.credit - aml.debit) AS net_balance
+              FROM account_move_line aml
+              JOIN account_move am  ON am.id  = aml.move_id
+              JOIN account_account aa ON aa.id = aml.account_id
+             WHERE am.state        = 'posted'
+               AND aa.account_type = 'liability_payable'
+               AND aml.partner_id  IS NOT NULL
+               AND (
+                   am.x_project_analytic_account_id = %s
+                   OR (aml.analytic_distribution IS NOT NULL
+                       AND aml.analytic_distribution ? %s)
+               )
+             GROUP BY aml.partner_id
+            HAVING SUM(aml.credit - aml.debit) > 0.005
+        """, [analytic_id, str_aid])
+        gl_rows = cr.fetchall()
+        partner_ids_gl = [r[0] for r in gl_rows]
+        balance_map_gl = {r[0]: r[1] for r in gl_rows}
+        partners_gl = self.env['res.partner'].sudo().browse(partner_ids_gl)
+        partner_lookup_gl = {p.id: p for p in partners_gl}
 
         liability_lines = []
         sub_total = 0.0
         vendor_total = 0.0
-        for data in partner_map.values():
-            data['currency_id'] = currency.id
-            liability_lines.append(data)
-            if data['partner_type'] == 'subcontractor':
-                sub_total += data['liability_amount']
+        for pid, balance in balance_map_gl.items():
+            partner = partner_lookup_gl.get(pid)
+            if not partner:
+                continue
+            is_sub = self._is_subcontractor(partner)
+            entry = {
+                'partner_name': partner.display_name,
+                'partner_type': 'subcontractor' if is_sub else 'vendor',
+                'category_label': (
+                    partner.category_id[:1].name if partner.category_id else ''
+                ),
+                'total_value': balance,
+                'paid_amount': 0.0,       # GL net already accounts for all payments
+                'liability_amount': balance,
+                'currency_id': currency.id,
+            }
+            liability_lines.append(entry)
+            if is_sub:
+                sub_total += balance
             else:
-                vendor_total += data['liability_amount']
+                vendor_total += balance
 
         return {
             'kpi_total_employees': total_employees,
