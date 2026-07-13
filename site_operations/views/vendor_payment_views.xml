@@ -23,11 +23,18 @@
                 <attribute name="invisible">payment_type == 'outbound' and (x_liability_sheet_id or x_ceo_direct_payment)</attribute>
             </xpath>
 
-            <!-- Hide standard Confirm/Cancel from:
+            <!-- Hide standard Confirm button for:
                  1. CEO-only viewers on their own direct payments
-                 2. Finance HO on vendor payments that still need CEO approval -->
+                 2. ALL regular vendor payments — Finance HO uses "Set In Process" instead
+                    (which internally calls action_post). Showing both is confusing. -->
             <xpath expr="//button[@name='action_post']" position="attributes">
-                <attribute name="invisible">(x_ceo_direct_payment and x_viewer_is_ceo_only) or (payment_type == 'outbound' and x_payment_category == 'vendor' and not x_ceo_direct_payment and not x_liability_sheet_id and x_ceo_approval_state != 'approved')</attribute>
+                <attribute name="invisible">(x_ceo_direct_payment and x_viewer_is_ceo_only) or (payment_type == 'outbound' and x_payment_category == 'vendor' and not x_ceo_direct_payment and not x_liability_sheet_id)</attribute>
+            </xpath>
+
+            <!-- Hide standard Cancel button for vendor payments that are already
+                 submitted or CEO-approved — clutters the header alongside Set In Process -->
+            <xpath expr="//button[@name='action_cancel']" position="attributes">
+                <attribute name="invisible">payment_type == 'outbound' and x_payment_category == 'vendor' and not x_ceo_direct_payment and not x_liability_sheet_id and x_ceo_approval_state in ('submitted', 'approved')</attribute>
             </xpath>
 
             <!-- Stat buttons -->
@@ -88,23 +95,33 @@
                 <field name="x_viewer_is_fo" invisible="1"/>
                 <field name="x_viewer_is_ceo_only" invisible="1"/>
 
-                <!-- CEO: approve salary/petty cash payments -->
+                <!-- CEO: approve salary/petty cash/vendor payments.
+                     Also accepts 'submitted' state (FO already notified CEO). -->
                 <button name="action_ceo_approve_payment"
                         type="object"
                         string="Approve (CEO)"
                         class="btn-success"
                         groups="purchase_demand_raise.group_ceo_approval"
-                        invisible="x_ceo_approval_state != 'pending'"/>
+                        invisible="x_ceo_approval_state not in ('pending', 'submitted')"/>
 
-                <!-- Finance HO: submit vendor payment to CEO for explicit approval.
-                     Sends CEO a notification + activity.  Visible only when
-                     the payment is a regular vendor payment still pending CEO. -->
+                <!-- Finance HO: FIRST submission — only visible when still in 'pending'
+                     (not yet sent to CEO).  After click, state → 'submitted' and this
+                     button disappears; the Re-notify button below takes its place. -->
                 <button name="action_notify_ceo_for_approval"
                         type="object"
                         string="▶ Submit to CEO"
                         class="btn-warning"
                         groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"
                         invisible="x_ceo_approval_state != 'pending' or payment_type != 'outbound' or x_payment_category != 'vendor'"/>
+
+                <!-- Finance HO: re-notify CEO if they haven't acted yet.
+                     Visible only after first submission ('submitted') while still waiting. -->
+                <button name="action_notify_ceo_for_approval"
+                        type="object"
+                        string="↻ Re-notify CEO"
+                        class="btn-secondary"
+                        groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"
+                        invisible="x_ceo_approval_state != 'submitted' or payment_type != 'outbound' or x_payment_category != 'vendor'"/>
 
                 <field name="x_payment_category" invisible="1"/>
                 <!-- Show approval badge for all outbound payments that use CEO approval
@@ -115,6 +132,7 @@
                        readonly="1"
                        widget="badge"
                        decoration-warning="x_ceo_approval_state == 'pending'"
+                       decoration-info="x_ceo_approval_state == 'submitted'"
                        decoration-success="x_ceo_approval_state == 'approved'"
                        decoration-muted="x_ceo_approval_state == 'not_required'"/>
 
