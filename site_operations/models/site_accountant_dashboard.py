@@ -178,14 +178,25 @@ class SiteAccountantDashboard(models.TransientModel):
                     'currency_id': currency.id,
                 })
 
-        # ── Liabilities: from partner ledger (GL) — single source of truth ──────
-        # Matches Partner Ledger exactly; net of all payments (account.payment,
-        # direct JE, Excel imports, petty cash sub advances).
+        # ── Liabilities + payments: from partner ledger (GL) ────────────────────
+        # Returns EVERY vendor/subcontractor with ANY posted payable activity
+        # in this project (bill, JE payment, petty-cash advance, Excel import).
+        #
+        # Columns returned:
+        #   total_billed — SUM of credits on payable lines  (what you OWE them)
+        #   total_paid   — SUM of debits  on payable lines  (what you PAID them)
+        #   net_balance  — credit − debit                   (positive = still owe)
+        #
+        # HAVING includes rows where EITHER side > 0 so that a pure advance-
+        # payment JE (debit only, no bill) is still surfaced in the table.
         cr = self.env.cr
         analytic_id = analytic.id
         str_aid = str(analytic_id)
         cr.execute("""
-            SELECT aml.partner_id, SUM(aml.credit - aml.debit) AS net_balance
+            SELECT aml.partner_id,
+                   SUM(aml.credit)              AS total_billed,
+                   SUM(aml.debit)               AS total_paid,
+                   SUM(aml.credit - aml.debit)  AS net_balance
               FROM account_move_line aml
               JOIN account_move am  ON am.id  = aml.move_id
               JOIN account_account aa ON aa.id = aml.account_id
@@ -198,38 +209,42 @@ class SiteAccountantDashboard(models.TransientModel):
                        AND aml.analytic_distribution ? %s)
                )
              GROUP BY aml.partner_id
-            HAVING SUM(aml.credit - aml.debit) > 0.005
+            HAVING SUM(aml.credit) > 0.005 OR SUM(aml.debit) > 0.005
         """, [analytic_id, str_aid])
         gl_rows = cr.fetchall()
         partner_ids_gl = [r[0] for r in gl_rows]
-        balance_map_gl = {r[0]: r[1] for r in gl_rows}
+        gl_map = {r[0]: {'billed': r[1], 'paid': r[2], 'net': r[3]}
+                  for r in gl_rows}
         partners_gl = self.env['res.partner'].sudo().browse(partner_ids_gl)
         partner_lookup_gl = {p.id: p for p in partners_gl}
 
         liability_lines = []
         sub_total = 0.0
         vendor_total = 0.0
-        for pid, balance in balance_map_gl.items():
+        for pid, row in gl_map.items():
             partner = partner_lookup_gl.get(pid)
             if not partner:
                 continue
             is_sub = self._is_subcontractor(partner)
+            net = row['net']
             entry = {
                 'partner_name': partner.display_name,
                 'partner_type': 'subcontractor' if is_sub else 'vendor',
                 'category_label': (
                     partner.category_id[:1].name if partner.category_id else ''
                 ),
-                'total_value': balance,
-                'paid_amount': 0.0,       # GL net already accounts for all payments
-                'liability_amount': balance,
+                'total_value': row['billed'],   # total billed/owed (credits on payable)
+                'paid_amount': row['paid'],      # total paid (debits on payable, incl. JEs)
+                'liability_amount': net,         # net balance (positive=owe, negative=advance)
                 'currency_id': currency.id,
             }
             liability_lines.append(entry)
-            if is_sub:
-                sub_total += balance
-            else:
-                vendor_total += balance
+            # KPI totals only count genuine outstanding liabilities (net > 0)
+            if net > 0.005:
+                if is_sub:
+                    sub_total += net
+                else:
+                    vendor_total += net
 
         return {
             'kpi_total_employees': total_employees,

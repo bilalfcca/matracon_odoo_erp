@@ -462,13 +462,15 @@
                                     </div>
                                     <div class="card-body p-0 matracon-dash-table-wrap">
                                         <field name="sub_liability_line_ids" nolabel="1" readonly="1">
-                                            <list create="false" delete="false" edit="false">
+                                            <list create="false" delete="false" edit="false"
+                                                  decoration-danger="liability_amount > 0"
+                                                  decoration-success="liability_amount &lt;= 0 and paid_amount > 0">
                                                 <field name="partner_name" string="Subcontractor"/>
                                                 <field name="category_label" string="Work Type"/>
-                                                <field name="total_value" widget="monetary"/>
-                                                <field name="paid_amount" widget="monetary"/>
+                                                <field name="total_value" widget="monetary" string="Total Owed"/>
+                                                <field name="paid_amount" widget="monetary" string="Paid (JE/Bill)"/>
                                                 <field name="liability_amount" widget="monetary"
-                                                       decoration-danger="1" sum="Total"/>
+                                                       string="Net Payable" sum="Outstanding"/>
                                             </list>
                                         </field>
                                     </div>
@@ -483,13 +485,15 @@
                                     </div>
                                     <div class="card-body p-0 matracon-dash-table-wrap">
                                         <field name="vendor_liability_line_ids" nolabel="1" readonly="1">
-                                            <list create="false" delete="false" edit="false">
+                                            <list create="false" delete="false" edit="false"
+                                                  decoration-danger="liability_amount > 0"
+                                                  decoration-success="liability_amount &lt;= 0 and paid_amount > 0">
                                                 <field name="partner_name" string="Vendor"/>
                                                 <field name="category_label" string="Material Type"/>
-                                                <field name="total_value" widget="monetary"/>
-                                                <field name="paid_amount" widget="monetary"/>
+                                                <field name="total_value" widget="monetary" string="Total Owed"/>
+                                                <field name="paid_amount" widget="monetary" string="Paid (JE/Bill)"/>
                                                 <field name="liability_amount" widget="monetary"
-                                                       decoration-danger="1" sum="Total"/>
+                                                       string="Net Payable" sum="Outstanding"/>
                                             </list>
                                         </field>
                                     </div>

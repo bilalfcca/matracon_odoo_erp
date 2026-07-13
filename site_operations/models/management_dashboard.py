@@ -432,9 +432,15 @@ class ManagementDashboard(models.TransientModel):
         str_ids = [str(aid) for aid in analytic_ids]
         currency = self.env.company.currency_id
 
+        # Returns ALL vendors/subcontractors with ANY posted payable activity
+        # (bills, JE payments, Excel imports, petty-cash advances).
+        # Includes rows where only a DEBIT exists (pure advance/JE payment, no bill)
+        # so that payments made via journal entry are still visible in the dashboard.
         cr.execute("""
             SELECT aml.partner_id,
-                   SUM(aml.credit - aml.debit) AS net_balance
+                   SUM(aml.credit)              AS total_billed,
+                   SUM(aml.debit)               AS total_paid,
+                   SUM(aml.credit - aml.debit)  AS net_balance
               FROM account_move_line aml
               JOIN account_move am  ON am.id  = aml.move_id
               JOIN account_account aa ON aa.id = aml.account_id
@@ -447,7 +453,7 @@ class ManagementDashboard(models.TransientModel):
                        AND aml.analytic_distribution ?| %s::text[])
                )
              GROUP BY aml.partner_id
-            HAVING SUM(aml.credit - aml.debit) > 0.005
+            HAVING SUM(aml.credit) > 0.005 OR SUM(aml.debit) > 0.005
         """, [analytic_ids, str_ids])
 
         rows = cr.fetchall()
@@ -455,13 +461,13 @@ class ManagementDashboard(models.TransientModel):
             return [], []
 
         partner_ids = [r[0] for r in rows]
-        balance_map = {r[0]: r[1] for r in rows}
+        gl_map = {r[0]: {'billed': r[1], 'paid': r[2], 'net': r[3]} for r in rows}
         partners = self.env['res.partner'].sudo().browse(partner_ids)
         partner_lookup = {p.id: p for p in partners}
 
         vendor_lines = []
         sub_lines = []
-        for pid, balance in balance_map.items():
+        for pid, row in gl_map.items():
             partner = partner_lookup.get(pid)
             if not partner:
                 continue
@@ -475,9 +481,9 @@ class ManagementDashboard(models.TransientModel):
                 'category_label': (
                     partner.category_id[:1].name if partner.category_id else ''
                 ),
-                'total_value': balance,
-                'paid_amount': 0.0,       # GL net already accounts for all payments
-                'liability_amount': balance,
+                'total_value': row['billed'],   # credits on payable (what you owe)
+                'paid_amount': row['paid'],      # debits on payable (payments via any method)
+                'liability_amount': row['net'],  # net balance (positive=outstanding)
                 'currency_id': currency.id,
             }
             if is_sub:
