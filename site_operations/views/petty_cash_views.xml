@@ -373,32 +373,6 @@
         </field>
     </record>
 
-    <!-- CEO window action — excludes Draft, uses CEO editable list -->
-    <record id="action_petty_cash_request_ceo" model="ir.actions.act_window">
-        <field name="name">Petty Cash Requests</field>
-        <field name="res_model">x.petty.cash.request</field>
-        <field name="view_mode">list,form</field>
-        <field name="domain">[('state', '!=', 'draft')]</field>
-        <field name="view_ids" eval="[
-            (5, 0, 0),
-            (0, 0, {'view_mode': 'list', 'view_id': ref('view_petty_cash_request_list_ceo')}),
-        ]"/>
-        <field name="context">{'search_default_group_by_project': 1}</field>
-        <field name="search_view_id" ref="view_petty_cash_request_search"/>
-    </record>
-
-    <!-- Server action: CEO bulk approve — appears in Actions dropdown when
-         one or more requests are selected in any request list view.
-         The Python method itself enforces CEO-group access. -->
-    <record id="action_server_ceo_bulk_approve" model="ir.actions.server">
-        <field name="name">CEO Approve Selected</field>
-        <field name="model_id" ref="site_operations.model_x_petty_cash_request"/>
-        <field name="binding_model_id" ref="site_operations.model_x_petty_cash_request"/>
-        <field name="binding_view_types">list</field>
-        <field name="state">code</field>
-        <field name="code">action = records.action_ceo_bulk_approve()</field>
-    </record>
-
     <record id="view_petty_cash_request_search" model="ir.ui.view">
         <field name="name">x.petty.cash.request.search</field>
         <field name="model">x.petty.cash.request</field>
@@ -425,6 +399,32 @@
                         context="{'group_by': 'state'}"/>
             </search>
         </field>
+    </record>
+
+    <!-- CEO window action — excludes Draft, uses CEO editable list -->
+    <record id="action_petty_cash_request_ceo" model="ir.actions.act_window">
+        <field name="name">Petty Cash Requests</field>
+        <field name="res_model">x.petty.cash.request</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('state', '!=', 'draft')]</field>
+        <field name="view_ids" eval="[
+            (5, 0, 0),
+            (0, 0, {'view_mode': 'list', 'view_id': ref('view_petty_cash_request_list_ceo')}),
+        ]"/>
+        <field name="context">{'search_default_group_by_project': 1}</field>
+        <field name="search_view_id" ref="view_petty_cash_request_search"/>
+    </record>
+
+    <!-- Server action: CEO bulk approve — appears in Actions dropdown when
+         one or more requests are selected in any request list view.
+         The Python method itself enforces CEO-group access. -->
+    <record id="action_server_ceo_bulk_approve" model="ir.actions.server">
+        <field name="name">CEO Approve Selected</field>
+        <field name="model_id" ref="site_operations.model_x_petty_cash_request"/>
+        <field name="binding_model_id" ref="site_operations.model_x_petty_cash_request"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_ceo_bulk_approve()</field>
     </record>
 
     <record id="view_petty_cash_expense_search" model="ir.ui.view">
