@@ -96,6 +96,16 @@
                         groups="purchase_demand_raise.group_ceo_approval"
                         invisible="x_ceo_approval_state != 'pending'"/>
 
+                <!-- Finance HO: submit vendor payment to CEO for explicit approval.
+                     Sends CEO a notification + activity.  Visible only when
+                     the payment is a regular vendor payment still pending CEO. -->
+                <button name="action_notify_ceo_for_approval"
+                        type="object"
+                        string="▶ Submit to CEO"
+                        class="btn-warning"
+                        groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"
+                        invisible="x_ceo_approval_state != 'pending' or payment_type != 'outbound' or x_payment_category != 'vendor'"/>
+
                 <field name="x_payment_category" invisible="1"/>
                 <!-- Show approval badge for all outbound payments that use CEO approval
                      (vendor, salary, petty_cash) — hidden for CEO direct payments which
@@ -272,9 +282,17 @@
                 <page name="bank_fund_tab"
                       string="Bank Fund"
                       invisible="payment_type != 'outbound' or (x_ceo_direct_payment and x_viewer_is_ceo_only)">
-                    <div class="text-muted small mb-2">
+                    <!-- Cheque payments: show cheque guidance -->
+                    <div class="text-muted small mb-2"
+                         invisible="not x_is_cheque_payment">
                         Add source banks below. Each bank can have its own cheque number.
                     </div>
+                    <!-- Manual/cash payments: no cheque numbers needed -->
+                    <div class="text-muted small mb-2"
+                         invisible="x_is_cheque_payment">
+                        Add source cash or bank journals below for this payment.
+                    </div>
+                    <field name="x_is_cheque_payment" invisible="1"/>
                     <field name="x_bank_allocation_ids" widget="one2many">
                         <list string="Bank Fund" editable="bottom">
                             <field name="journal_id" string="Bank / Journal"
@@ -282,12 +300,16 @@
                                    options="{'no_create': True}"/>
                             <field name="available_balance" string="Available Bank Balance" readonly="1"/>
                             <field name="allocation_amount" string="Allocation Amount"/>
-                            <field name="x_cheque_number" string="Cheque No."/>
+                            <!-- Cheque No.: only shown when payment method is a cheque type -->
+                            <field name="x_cheque_number" string="Cheque No."
+                                   invisible="not parent.x_is_cheque_payment"/>
+                            <!-- Auto Assign: hidden when already has a cheque no. OR when not cheque payment -->
                             <button name="action_assign_cheque_number"
                                     type="object"
                                     string="Auto Assign"
                                     title="Auto-assign next cheque number from the active series"
-                                    class="btn-secondary btn-sm"/>
+                                    class="btn-secondary btn-sm"
+                                    invisible="x_cheque_number or not parent.x_is_cheque_payment"/>
                         </list>
                     </field>
                 </page>
