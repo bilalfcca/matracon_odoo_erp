@@ -373,6 +373,65 @@
         </field>
     </record>
 
+    <!-- ── Standard vendor-payment list: replace Odoo's "State" badge ──────────
+         Inherits account.view_account_supplier_payment_tree (vendor payments)
+         and account.view_account_various_payment_tree (all payments).
+         Replaces the generic "Draft/Posted" state badge with:
+           • x_ceo_approval_state  — Pending CEO / Awaiting CEO / CEO Approved
+           • x_payment_status      — Draft / In Process / Paid  (optional)
+         The original state field is made optional so it can be shown if needed. -->
+    <record id="view_matracon_supplier_payment_list_inherit" model="ir.ui.view">
+        <field name="name">account.payment.matracon.list.inherit</field>
+        <field name="model">account.payment</field>
+        <field name="inherit_id" ref="account.view_account_supplier_payment_tree"/>
+        <field name="arch" type="xml">
+            <!-- Replace the standard state badge with our two-level status -->
+            <field name="state" position="replace">
+                <!-- CEO approval state — main status for vendor payments -->
+                <field name="x_ceo_approval_state"
+                       widget="badge"
+                       string="Approval"
+                       decoration-warning="x_ceo_approval_state == 'pending'"
+                       decoration-info="x_ceo_approval_state == 'submitted'"
+                       decoration-success="x_ceo_approval_state == 'approved'"
+                       decoration-muted="x_ceo_approval_state == 'not_required'"/>
+                <!-- Processing state — secondary column, hidden by default -->
+                <field name="x_payment_status"
+                       widget="badge"
+                       string="Process Status"
+                       optional="hide"
+                       decoration-muted="x_payment_status == 'draft'"
+                       decoration-warning="x_payment_status == 'in_process'"
+                       decoration-success="x_payment_status == 'paid'"/>
+            </field>
+        </field>
+    </record>
+
+    <!-- Apply the same override to the "various payments" list (used on some menus) -->
+    <record id="view_matracon_various_payment_list_inherit" model="ir.ui.view">
+        <field name="name">account.payment.matracon.various.list.inherit</field>
+        <field name="model">account.payment</field>
+        <field name="inherit_id" ref="account.view_account_various_payment_tree"/>
+        <field name="arch" type="xml">
+            <field name="state" position="replace">
+                <field name="x_ceo_approval_state"
+                       widget="badge"
+                       string="Approval"
+                       decoration-warning="x_ceo_approval_state == 'pending'"
+                       decoration-info="x_ceo_approval_state == 'submitted'"
+                       decoration-success="x_ceo_approval_state == 'approved'"
+                       decoration-muted="x_ceo_approval_state == 'not_required'"/>
+                <field name="x_payment_status"
+                       widget="badge"
+                       string="Process Status"
+                       optional="hide"
+                       decoration-muted="x_payment_status == 'draft'"
+                       decoration-warning="x_payment_status == 'in_process'"
+                       decoration-success="x_payment_status == 'paid'"/>
+            </field>
+        </field>
+    </record>
+
     <record id="view_ho_payment_list" model="ir.ui.view">
         <field name="name">account.payment.ho.list</field>
         <field name="model">account.payment</field>
@@ -391,8 +450,17 @@
                 <field name="x_total_tax_amount" string="Taxes" optional="show"/>
                 <field name="journal_id" string="Source Bank" optional="show"/>
                 <field name="x_cheque_number" string="Cheque No." optional="show"/>
-                <field name="x_payment_status" string="Status" widget="badge" optional="show"/>
-                <field name="state" string="Posted" widget="badge"/>
+                <field name="x_ceo_approval_state"
+                       string="Approval"
+                       widget="badge"
+                       decoration-warning="x_ceo_approval_state == 'pending'"
+                       decoration-info="x_ceo_approval_state == 'submitted'"
+                       decoration-success="x_ceo_approval_state == 'approved'"
+                       decoration-muted="x_ceo_approval_state == 'not_required'"/>
+                <field name="x_payment_status" string="Process" widget="badge" optional="show"
+                       decoration-muted="x_payment_status == 'draft'"
+                       decoration-warning="x_payment_status == 'in_process'"
+                       decoration-success="x_payment_status == 'paid'"/>
             </list>
         </field>
     </record>
