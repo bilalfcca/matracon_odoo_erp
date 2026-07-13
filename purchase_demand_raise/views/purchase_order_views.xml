@@ -339,8 +339,8 @@
             <field name="product_qty" position="before">
                 <field name="x_requested_qty"
                        string="Requested Qty"
-                       column_invisible="(not parent.x_is_pr_document and not parent.x_is_site_store and not parent.x_is_alternative_rfq) or (x_is_ho and parent.x_pr_origin == 'procurement_ho')"
-                       readonly="not x_is_site_store and not (x_is_ho and parent.x_pr_state in ('draft', 'submitted')) and not parent.x_is_alternative_rfq"
+                       column_invisible="(not parent.x_is_pr_document and not parent.x_is_site_store and not parent.x_is_alternative_rfq) or (parent.x_is_ho and parent.x_pr_origin == 'procurement_ho')"
+                       readonly="not parent.x_is_site_store and not (parent.x_is_ho and parent.x_pr_state in ('draft', 'submitted')) and not parent.x_is_alternative_rfq"
                        optional="show"/>
             </field>
 
@@ -359,7 +359,7 @@
                 <field name="x_recommended_qty"
                        string="Recommended Qty"
                        column_invisible="(not parent.x_is_pr_document and not parent.x_is_alternative_rfq) or parent.x_is_site_store"
-                       readonly="not x_is_ho or (parent.x_pr_state not in ('draft', 'submitted')) or (parent.x_pr_state == 'draft' and parent.x_pr_origin != 'procurement_ho')"
+                       readonly="not parent.x_is_ho or (parent.x_pr_state not in ('draft', 'submitted')) or (parent.x_pr_state == 'draft' and parent.x_pr_origin != 'procurement_ho')"
                        optional="show"/>
 
                 <!-- Mandatory reason when HO changes recommended qty (PR docs only) -->
@@ -369,7 +369,7 @@
                        column_invisible="not parent.x_is_pr_document or parent.x_is_site_store"
                        invisible="not x_qty_reason_required"
                        required="x_qty_reason_required and parent.x_pr_state == 'submitted'"
-                       readonly="not x_is_ho or (parent.x_pr_state not in ('draft', 'submitted')) or (parent.x_pr_state == 'draft' and parent.x_pr_origin != 'procurement_ho')"
+                       readonly="not parent.x_is_ho or (parent.x_pr_state not in ('draft', 'submitted')) or (parent.x_pr_state == 'draft' and parent.x_pr_origin != 'procurement_ho')"
                        placeholder="Required when recommended qty differs from requested"
                        optional="show"/>
 
@@ -384,7 +384,7 @@
                 <field name="x_approved_qty"
                        string="Approved Qty"
                        column_invisible="parent.x_procurement_type == 'site_procurement' or (not parent.x_is_pr_document and not parent.x_is_site_store and not parent.x_is_alternative_rfq)"
-                       readonly="not x_is_ceo or parent.x_pr_state not in ('ceo_final', 'submitted')"
+                       readonly="not parent.x_is_ceo or parent.x_pr_state not in ('ceo_final', 'submitted')"
                        optional="show"/>
 
                 <!-- Exceeds Recommended warning: CEO only, PR docs only -->

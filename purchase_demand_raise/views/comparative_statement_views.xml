@@ -175,6 +175,12 @@
                                             type="object"
                                             class="btn-sm btn-outline-info"
                                             title="Send RFQ email to this vendor"/>
+                                    <!-- Print RFQ PDF for this vendor -->
+                                    <button name="action_print_rfq"
+                                            string="🖨 Print RFQ"
+                                            type="object"
+                                            class="btn-sm btn-outline-secondary"
+                                            title="Download RFQ PDF for this vendor (vendor details shown at top)"/>
                                 </list>
 
                                 <!-- ── Full per-vendor detail dialog ── -->
@@ -204,6 +210,12 @@
                                                     type="object"
                                                     class="btn btn-outline-secondary"
                                                     title="Send Request for Quotation email to this vendor"/>
+                                            <!-- Print RFQ PDF for this specific vendor -->
+                                            <button name="action_print_rfq"
+                                                    string="🖨 Print RFQ"
+                                                    type="object"
+                                                    class="btn btn-outline-secondary"
+                                                    title="Download RFQ PDF with this vendor's details at the top"/>
                                         </div>
                                     </div>
 

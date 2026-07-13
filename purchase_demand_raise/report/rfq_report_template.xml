@@ -1,148 +1,314 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+    <!--
+        Matracon RFQ Print Template
+
+        Layout:
+          • Vendor details  — TOP  (where Matracon used to be)
+          • REQUEST FOR QUOTATION title — centered
+          • Formal letter body (13 px, key terms bold)
+          • Product table — blue headers, alternating rows, all data right-aligned
+          • Matracon company details — FOOTER (bottom of page)
+
+        NO web.external_layout / web.internal_layout — those inject an auto
+        company-name header row.  We use web.html_container (Bootstrap + Odoo
+        base CSS, no company header) and set page margins via @page CSS.
+
+        Vendor override for CS "Print RFQ" per-vendor button:
+          action_print_rfq() calls
+            report.with_context(rfq_vendor_partner_id=partner.id).report_action(po)
+          The context IS forwarded by the browser to the PDF renderer, so
+          env.context.get('rfq_vendor_partner_id') reliably gives the vendor.
+          Falls back to o.partner_id when called directly from the PO form.
+    -->
     <template id="report_rfq_demand_raise">
         <t t-call="web.html_container">
             <t t-foreach="docs" t-as="o">
-                <t t-call="web.external_layout">
-                    <div class="page">
 
-                        <!-- ── TITLE ── -->
-                        <div class="row mb-3">
-                            <div class="col-12 text-center">
-                                <h2 class="fw-bold">REQUEST FOR QUOTATION</h2>
-                            </div>
-                        </div>
+                <!-- ── Resolve vendor ────────────────────────────────────────────
+                     rfq_vendor_partner_id in context  →  set by CS "Print RFQ"
+                     o.partner_id                       →  set on the PO form
+                ──────────────────────────────────────────────────────────────── -->
+                <t t-set="_rpid"
+                   t-value="env.context.get('rfq_vendor_partner_id') or (o.partner_id.id if o.partner_id else 0)"/>
+                <t t-set="rfq_partner"
+                   t-value="env['res.partner'].browse(_rpid) if _rpid else False"/>
 
-                        <!-- ── HEADER INFO ── -->
-                        <div class="row mb-3">
-                            <div class="col-6">
-                                <table class="table table-sm table-borderless">
-                                    <tr>
-                                        <td class="fw-bold" style="width:42%">RFQ Reference:</td>
-                                        <td><t t-esc="o.name"/></td>
-                                    </tr>
-                                    <tr>
-                                        <td class="fw-bold">Date:</td>
-                                        <td><t t-esc="o.date_order" t-options='{"widget": "date"}'/></td>
-                                    </tr>
-                                    <tr t-if="o.date_approve">
-                                        <td class="fw-bold">Deadline:</td>
-                                        <td><t t-esc="o.date_approve" t-options='{"widget": "date"}'/></td>
-                                    </tr>
-                                    <tr t-if="o.x_category_id">
-                                        <td class="fw-bold">Category:</td>
-                                        <td><t t-esc="o.x_category_id.name"/></td>
-                                    </tr>
-                                    <tr t-if="o.x_project_analytic_account_id">
-                                        <td class="fw-bold">Project:</td>
-                                        <td><t t-esc="o.x_project_analytic_account_id.name"/></td>
-                                    </tr>
-                                </table>
-                            </div>
-                            <div class="col-6" t-if="o.partner_id">
-                                <div class="fw-bold mb-1">To:</div>
-                                <div class="fw-semibold"><t t-esc="o.partner_id.name"/></div>
-                                <t t-if="o.partner_id.street">
-                                    <div><t t-esc="o.partner_id.street"/></div>
-                                </t>
-                                <t t-if="o.partner_id.city or o.partner_id.state_id">
-                                    <div>
-                                        <t t-esc="o.partner_id.city or ''"/>
-                                        <t t-if="o.partner_id.city and o.partner_id.state_id">, </t>
-                                        <t t-esc="o.partner_id.state_id.name or ''"/>
-                                    </div>
-                                </t>
-                                <t t-if="o.partner_id.phone or o.partner_id.mobile">
-                                    <div>Tel: <t t-esc="o.partner_id.phone or o.partner_id.mobile"/></div>
-                                </t>
-                                <t t-if="o.partner_id.email">
-                                    <div>Email: <t t-esc="o.partner_id.email"/></div>
-                                </t>
-                            </div>
-                        </div>
+                <!-- ── Page CSS ──────────────────────────────────────────────── -->
+                <style type="text/css">
+                    @page {
+                        margin: 14mm 20mm 18mm 20mm;
+                    }
+                    body {
+                        font-family: Arial, sans-serif;
+                        font-size: 13px;
+                        color: #222;
+                    }
 
-                        <!-- ── FORMAL LETTER INTRO ── -->
-                        <div class="row mb-3">
-                            <div class="col-12">
-                                <p style="font-size:12px;margin-bottom:6px;">Dear Sir/Madam,</p>
-                                <p style="font-size:12px;margin-bottom:6px;">
-                                    We are pleased to invite your quotation for the supply of the following
-                                    materials/services. Please provide your best competitive rates against each
-                                    item listed below and return the completed form at the earliest.
-                                </p>
-                                <p style="font-size:12px;margin-bottom:0;">
-                                    Kindly include the following in your quotation:
-                                    unit rates, delivery period, warranty details, validity of the offer,
-                                    and installation/testing charges (if applicable).
-                                </p>
-                            </div>
-                        </div>
+                    /* ── RFQ product table ── */
+                    .rfq-table {
+                        width: 100%;
+                        border-collapse: collapse;
+                        font-size: 13px;
+                        margin-bottom: 20px;
+                    }
+                    .rfq-table thead tr {
+                        background: #1a3a5c;
+                        color: #ffffff;
+                    }
+                    .rfq-table th {
+                        text-align: center;
+                        padding: 8px 10px;
+                        border: 1px solid #1a3a5c;
+                        font-size: 13px;
+                        font-weight: bold;
+                    }
+                    .rfq-table td {
+                        border: 1px solid #cccccc;
+                        padding: 6px 10px;
+                        text-align: right;
+                        font-size: 13px;
+                    }
+                    .rfq-table tbody tr:nth-child(odd)  td { background: #ffffff; }
+                    .rfq-table tbody tr:nth-child(even) td { background: #f4f6fa; }
 
-                        <!-- ── LINE ITEMS ── -->
-                        <div class="row mb-3">
-                            <div class="col-12">
-                                <table class="table table-sm table-bordered o_main_table">
-                                    <thead class="table-light">
-                                        <tr>
-                                            <th style="width:4%">#</th>
-                                            <th style="width:30%">Product / Description</th>
-                                            <th style="width:10%" class="text-center">UoM</th>
-                                            <th style="width:11%" class="text-center">Quantity</th>
-                                            <th style="width:15%" class="text-end">Unit Price (PKR)</th>
-                                            <th style="width:12%" class="text-center">Tax %</th>
-                                            <th style="width:18%" class="text-end">Total (PKR)</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <t t-set="line_no" t-value="1"/>
-                                        <t t-foreach="o.order_line" t-as="line">
-                                            <!-- RFQ qty cascade: recommended → requested → product_qty -->
-                                            <t t-set="rfq_qty"
-                                               t-value="line.x_recommended_qty if (line.x_recommended_qty or 0) > 0
-                                                        else (line.x_requested_qty if (line.x_requested_qty or 0) > 0
-                                                        else (line.product_qty or 0))"/>
-                                            <tr>
-                                                <td class="text-center">
-                                                    <t t-esc="line_no"/>
-                                                    <t t-set="line_no" t-value="line_no + 1"/>
-                                                </td>
-                                                <td>
-                                                    <span t-esc="line.product_id.display_name"/>
-                                                    <t t-if="line.name and line.name != line.product_id.display_name">
-                                                        <br/><small class="text-muted"><t t-esc="line.name"/></small>
-                                                    </t>
-                                                </td>
-                                                <td class="text-center">
-                                                    <t t-esc="line.product_uom_id.name"/>
-                                                </td>
-                                                <td class="text-center fw-bold">
-                                                    <t t-esc="'%.4g' % rfq_qty"/>
-                                                </td>
-                                                <!-- Unit Price, Tax %, Total: intentionally BLANK
-                                                     Vendor fills these in when returning their quote. -->
-                                                <td></td>
-                                                <td></td>
-                                                <td></td>
-                                            </tr>
-                                        </t>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
+                    /* ── RFQ info table (ref / date / category / project) ── */
+                    .rfq-meta td {
+                        padding: 3px 14px 3px 0;
+                        font-size: 13px;
+                    }
+                    .rfq-meta td.lbl { font-weight: bold; white-space: nowrap; }
 
-                        <!-- ── FOOTER NOTE ── -->
-                        <div class="row">
-                            <div class="col-12">
-                                <p class="text-muted" style="font-size:11px;">
-                                    Please provide your best quotation along with technical specifications,
-                                    delivery period, warranty details, and validity of offer.
-                                    For queries, contact Matracon Pakistan (Pvt.) Limited Procurement Department.
-                                </p>
-                            </div>
-                        </div>
+                    /* ── Vendor block at top ── */
+                    .vendor-block {
+                        margin-bottom: 18px;
+                        padding-bottom: 10px;
+                        border-bottom: 2px solid #1a3a5c;
+                    }
+                    .vendor-block .vendor-name {
+                        font-size: 15px;
+                        font-weight: bold;
+                        margin-bottom: 3px;
+                    }
 
+                    /* ── Title ── */
+                    .rfq-title {
+                        text-align: center;
+                        font-size: 22px;
+                        font-weight: bold;
+                        margin: 0 0 16px 0;
+                        text-transform: uppercase;
+                        letter-spacing: 1px;
+                        color: #1a3a5c;
+                    }
+
+                    /* ── Matracon footer section ── */
+                    .matracon-footer {
+                        margin-top: 36px;
+                        padding-top: 10px;
+                        border-top: 2px solid #1a3a5c;
+                        text-align: center;
+                        font-size: 12px;
+                        color: #444;
+                    }
+                    .matracon-footer strong {
+                        font-size: 13px;
+                        color: #1a3a5c;
+                    }
+
+                    /* ── Letter body ── */
+                    .letter-body { font-size: 13px; line-height: 1.65; margin-bottom: 16px; }
+                    .letter-body p  { margin: 0 0 8px 0; }
+                    .letter-body ul { margin: 0 0 10px 22px; padding: 0; }
+                    .letter-body li { margin-bottom: 4px; }
+                </style>
+
+                <div class="page" style="padding: 0;">
+
+                    <!-- ══════════════════════════════════════════════════════════
+                         TOP — VENDOR DETAILS
+                         (replaces the former Matracon company-header position)
+                         ══════════════════════════════════════════════════════════ -->
+                    <div class="vendor-block">
+                        <t t-if="rfq_partner">
+                            <div class="vendor-name"><t t-esc="rfq_partner.name"/></div>
+                            <t t-if="rfq_partner.street">
+                                <div><t t-esc="rfq_partner.street"/></div>
+                            </t>
+                            <t t-if="rfq_partner.street2">
+                                <div><t t-esc="rfq_partner.street2"/></div>
+                            </t>
+                            <t t-if="rfq_partner.city or rfq_partner.state_id or rfq_partner.zip">
+                                <div>
+                                    <t t-if="rfq_partner.city"><t t-esc="rfq_partner.city"/></t>
+                                    <t t-if="rfq_partner.state_id">
+                                        <t t-if="rfq_partner.city">, </t>
+                                        <t t-esc="rfq_partner.state_id.name"/>
+                                    </t>
+                                    <t t-if="rfq_partner.zip">
+                                        &#160;<t t-esc="rfq_partner.zip"/>
+                                    </t>
+                                </div>
+                            </t>
+                            <t t-if="rfq_partner.country_id">
+                                <div><t t-esc="rfq_partner.country_id.name"/></div>
+                            </t>
+                            <t t-if="rfq_partner.phone or rfq_partner.mobile">
+                                <div>Tel: <t t-esc="rfq_partner.phone or rfq_partner.mobile"/></div>
+                            </t>
+                            <t t-if="rfq_partner.email">
+                                <div>Email: <t t-esc="rfq_partner.email"/></div>
+                            </t>
+                        </t>
                     </div>
-                </t>
+
+                    <!-- ══════════════════════════════════════════════════════════
+                         TITLE
+                         ══════════════════════════════════════════════════════════ -->
+                    <div class="rfq-title">Request for Quotation</div>
+
+                    <!-- ══════════════════════════════════════════════════════════
+                         RFQ META — reference, date, category, project
+                         ══════════════════════════════════════════════════════════ -->
+                    <table class="rfq-meta" style="margin-bottom:16px;">
+                        <tr>
+                            <td class="lbl">RFQ Reference:</td>
+                            <td><t t-esc="o.name"/></td>
+                        </tr>
+                        <tr>
+                            <td class="lbl">Date:</td>
+                            <td><t t-esc="o.date_order" t-options='{"widget": "date"}'/></td>
+                        </tr>
+                        <tr t-if="o.date_approve">
+                            <td class="lbl">Deadline:</td>
+                            <td><t t-esc="o.date_approve" t-options='{"widget": "date"}'/></td>
+                        </tr>
+                        <tr t-if="o.x_category_id">
+                            <td class="lbl">Category:</td>
+                            <td><t t-esc="o.x_category_id.name"/></td>
+                        </tr>
+                        <tr t-if="o.x_project_analytic_account_id">
+                            <td class="lbl">Project:</td>
+                            <td><t t-esc="o.x_project_analytic_account_id.name"/></td>
+                        </tr>
+                    </table>
+
+                    <!-- ══════════════════════════════════════════════════════════
+                         FORMAL LETTER BODY
+                         Font 13 px — key terms highlighted in bold.
+                         ══════════════════════════════════════════════════════════ -->
+                    <div class="letter-body">
+                        <p>Dear Sir/Madam,</p>
+
+                        <p>
+                            We are pleased to invite your quotation for the supply of
+                            <strong>materials/services</strong> as per the following requirements.
+                        </p>
+
+                        <p>
+                            Please find attached the RFQ document
+                            (<strong><t t-esc="o.name"/></strong>) for your reference.
+                        </p>
+
+                        <p>Kindly provide the following in your quotation:</p>
+                        <ul>
+                            <li><strong>Technical compliance</strong> with specifications</li>
+                            <li><strong>Unit rates</strong> and total quoted price</li>
+                            <li><strong>Delivery period</strong></li>
+                            <li><strong>Warranty details</strong></li>
+                            <li><strong>Validity of the offer</strong></li>
+                            <li>Installation / testing charges (if applicable)</li>
+                        </ul>
+
+                        <p>
+                            We look forward to receiving your
+                            <strong>competitive quotation</strong> at the earliest.
+                        </p>
+
+                        <p>
+                            Best regards,<br/>
+                            <strong>Procurement Department</strong><br/>
+                            Matracon Pakistan (Pvt.) Limited
+                        </p>
+                    </div>
+
+                    <!-- ══════════════════════════════════════════════════════════
+                         LINE ITEMS TABLE
+                         Headers  →  dark blue (#1a3a5c), white text, centered
+                         Data cells →  right-aligned, alternating row shading
+                         ══════════════════════════════════════════════════════════ -->
+                    <table class="rfq-table">
+                        <thead>
+                            <tr>
+                                <th style="width:4%;">#</th>
+                                <th style="width:30%;">Product / Description</th>
+                                <th style="width:10%;">UoM</th>
+                                <th style="width:11%;">Quantity</th>
+                                <th style="width:15%;">Unit Price (PKR)</th>
+                                <th style="width:12%;">Tax %</th>
+                                <th style="width:18%;">Total (PKR)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <t t-set="line_no" t-value="1"/>
+                            <t t-foreach="o.order_line" t-as="line">
+                                <!-- RFQ qty cascade: recommended → requested → product_qty -->
+                                <t t-set="rfq_qty"
+                                   t-value="line.x_recommended_qty if (line.x_recommended_qty or 0) > 0
+                                            else (line.x_requested_qty if (line.x_requested_qty or 0) > 0
+                                            else (line.product_qty or 0))"/>
+                                <tr>
+                                    <td><t t-esc="line_no"/><t t-set="line_no" t-value="line_no + 1"/></td>
+                                    <td>
+                                        <t t-esc="line.product_id.display_name"/>
+                                        <t t-if="line.name and line.name != line.product_id.display_name">
+                                            <br/>
+                                            <span style="font-size:11px; color:#666;">
+                                                <t t-esc="line.name"/>
+                                            </span>
+                                        </t>
+                                    </td>
+                                    <td><t t-esc="line.product_uom_id.name"/></td>
+                                    <td style="font-weight:bold;">
+                                        <t t-esc="'%.4g' % rfq_qty"/>
+                                    </td>
+                                    <!-- Unit Price / Tax % / Total: BLANK — vendor fills in -->
+                                    <td></td>
+                                    <td></td>
+                                    <td></td>
+                                </tr>
+                            </t>
+                        </tbody>
+                    </table>
+
+                    <!-- ══════════════════════════════════════════════════════════
+                         FOOTER — MATRACON COMPANY DETAILS
+                         (moved from the former top-of-page position)
+                         ══════════════════════════════════════════════════════════ -->
+                    <div class="matracon-footer">
+                        <strong><t t-esc="env.company.name"/></strong><br/>
+                        <span>
+                            <t t-if="env.company.street">
+                                <t t-esc="env.company.street"/>
+                            </t>
+                            <t t-if="env.company.city">
+                                <t t-if="env.company.street">,&#160;</t>
+                                <t t-esc="env.company.city"/>
+                            </t>
+                            <t t-if="env.company.zip">
+                                &#160;<t t-esc="env.company.zip"/>
+                            </t>
+                            <t t-if="env.company.country_id">
+                                <t t-if="env.company.city or env.company.street">,&#160;</t>
+                                <t t-esc="env.company.country_id.name"/>
+                            </t>
+                        </span>
+                        <t t-if="env.company.vat">
+                            <br/>NTN: <t t-esc="env.company.vat"/>
+                        </t>
+                    </div>
+
+                </div>
             </t>
         </t>
     </template>

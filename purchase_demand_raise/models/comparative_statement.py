@@ -609,6 +609,26 @@ class CSVendor(models.Model):
         cs.x_recommended_vendor_line_id = self
         return True
 
+    def action_print_rfq(self):
+        """Print the RFQ PDF for THIS specific vendor (from Comparative Statement).
+
+        Passes the vendor partner ID via with_context() so it survives the
+        browser → PDF-renderer round-trip (context IS forwarded; data= is not).
+        The template reads env.context.get('rfq_vendor_partner_id') and renders
+        this vendor's details at the top of the document.
+        """
+        self.ensure_one()
+        po = self.x_cs_id.x_purchase_order_id
+        if not po:
+            raise UserError(_('No Purchase Requisition linked to this Comparative Statement.'))
+        if not self.x_partner_id:
+            raise UserError(_('No vendor selected on this line.'))
+
+        report = self.env.ref('purchase_demand_raise.action_report_rfq_demand_raise')
+        return report.with_context(
+            rfq_vendor_partner_id=self.x_partner_id.id
+        ).report_action(po)
+
     def action_send_rfq(self):
         """Open mail compose dialog to send RFQ to THIS specific vendor."""
         self.ensure_one()
