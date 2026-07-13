@@ -333,23 +333,72 @@ class PettyCashRequest(models.Model):
                 raise UserError(_('Only submitted requests can be CEO-approved.'))
             if not req.ceo_approved_amount or req.ceo_approved_amount <= 0:
                 raise UserError(_('Set the CEO approved amount before approving.'))
-            req.state = 'ceo_approved'
-            req.message_post(
-                body=Markup(_(
-                    'CEO approved petty cash: <b>%s %.2f</b>'
-                )) % (req.currency_id.symbol, req.ceo_approved_amount)
+            req._do_ceo_approve()
+
+    def _do_ceo_approve(self):
+        """Core approval logic — called by both single and bulk approve."""
+        self.ensure_one()
+        self.state = 'ceo_approved'
+        self.message_post(
+            body=Markup(_(
+                'CEO approved petty cash: <b>%s %.2f</b>'
+            )) % (self.currency_id.symbol, self.ceo_approved_amount)
+        )
+        fo_users = self.env['res.users'].search([
+            ('group_ids', 'in', self.env.ref('site_operations.group_finance_ho').id),
+        ])
+        matracon_notify.notify_users(
+            self, fo_users,
+            _('Petty cash <b>%s</b> CEO-approved — release required.') % self.name,
+            summary=_('Petty Cash Approved'),
+        )
+        matracon_notify.schedule_activity(
+            self, fo_users, _('Release petty cash %s') % self.name)
+
+    def action_ceo_bulk_approve(self):
+        """Bulk CEO approve — called from the list-view server action.
+
+        Silently skips records that are not in 'submitted' state so the CEO
+        can select all and click once without worrying about mixed states.
+        Defaults ceo_approved_amount to requested_amount when not set.
+        """
+        if not self.env.user.has_group('purchase_demand_raise.group_ceo_approval'):
+            raise UserError(_('Only the CEO can approve petty cash requests.'))
+        approved = self.env['x.petty.cash.request']
+        skipped = []
+        for req in self:
+            if req.state != 'submitted':
+                skipped.append(req.name)
+                continue
+            # Default approved amount to requested amount if CEO hasn't entered one
+            if not req.ceo_approved_amount or req.ceo_approved_amount <= 0:
+                req.ceo_approved_amount = req.requested_amount
+            req._do_ceo_approve()
+            approved |= req
+
+        if not approved and not skipped:
+            return
+        msg_parts = []
+        if approved:
+            msg_parts.append(
+                _('%d request(s) approved.') % len(approved)
             )
-            # Notify finance HO
-            fo_users = self.env['res.users'].search([
-                ('group_ids', 'in', self.env.ref('site_operations.group_finance_ho').id),
-            ])
-            matracon_notify.notify_users(
-                req, fo_users,
-                _('Petty cash <b>%s</b> CEO-approved — release required.') % req.name,
-                summary=_('Petty Cash Approved'),
+        if skipped:
+            msg_parts.append(
+                _('%d skipped (not in Submitted state): %s') % (
+                    len(skipped), ', '.join(skipped))
             )
-            matracon_notify.schedule_activity(
-                req, fo_users, _('Release petty cash %s') % req.name)
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('CEO Approval'),
+                'message': '  '.join(msg_parts),
+                'type': 'warning' if skipped else 'success',
+                'sticky': False,
+                'next': {'type': 'ir.actions.act_window_close'},
+            },
+        }
 
     def action_submit(self):
         for req in self:
