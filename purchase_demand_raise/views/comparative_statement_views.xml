@@ -256,55 +256,55 @@
                                         <!-- Left column -->
                                         <group string="Delivery &amp; Origin">
                                             <!-- 1. Delivery Basis -->
-                                            <field name="x_delivery_basis_type"
-                                                   string="Delivery Basis"/>
+                                            <field name="x_delivery_basis_opt_id"
+                                                   string="Delivery Basis"
+                                                   options="{'no_create': False, 'no_open': False}"/>
                                             <field name="x_delivery_basis"
-                                                   string="↳ Custom"
-                                                   placeholder="e.g. Onsite, Ex-Factory, FOR site…"/>
+                                                   placeholder="or type manually…"/>
 
                                             <!-- 5. Delivery Time -->
-                                            <field name="x_delivery_time_type"
-                                                   string="Delivery Time"/>
+                                            <field name="x_delivery_time_opt_id"
+                                                   string="Delivery Time"
+                                                   options="{'no_create': False, 'no_open': False}"/>
                                             <field name="x_delivery_period"
-                                                   string="↳ Custom"
-                                                   placeholder="e.g. 4–6 weeks, Immediate…"/>
+                                                   placeholder="or type manually…"/>
 
                                             <!-- 6. Brand / Origin -->
-                                            <field name="x_brand_type"
-                                                   string="Brand / Origin"/>
+                                            <field name="x_brand_opt_id"
+                                                   string="Brand / Origin"
+                                                   options="{'no_create': False, 'no_open': False}"/>
                                             <field name="x_brand_origin"
-                                                   string="↳ Custom"
-                                                   placeholder="e.g. Siemens, Local make…"/>
+                                                   placeholder="or type manually…"/>
                                         </group>
 
                                         <!-- Right column -->
                                         <group string="Payment &amp; Warranty">
                                             <!-- 3. Payment Mode -->
-                                            <field name="x_payment_mode_type"
-                                                   string="Payment Mode"/>
+                                            <field name="x_payment_mode_opt_id"
+                                                   string="Payment Mode"
+                                                   options="{'no_create': False, 'no_open': False}"/>
                                             <field name="x_payment_mode"
-                                                   string="↳ Custom"
-                                                   placeholder="e.g. Cheque, Cash, LC…"/>
+                                                   placeholder="or type manually…"/>
 
-                                            <!-- 4. Payment Terms (Odoo dropdown) -->
+                                            <!-- 4. Payment Terms (Odoo standard) -->
                                             <field name="x_payment_term_id"
                                                    string="Payment Terms"
                                                    options="{'no_create': True, 'no_open': True}"
                                                    placeholder="Select standard payment terms…"/>
 
                                             <!-- 2. Taxes &amp; Duties -->
-                                            <field name="x_tax_type"
-                                                   string="Taxes &amp; Duties"/>
+                                            <field name="x_tax_opt_id"
+                                                   string="Taxes &amp; Duties"
+                                                   options="{'no_create': False, 'no_open': False}"/>
                                             <field name="x_tax_treatment"
-                                                   string="↳ Custom"
-                                                   placeholder="e.g. GST 17% extra, Inclusive…"/>
+                                                   placeholder="or type manually…"/>
 
                                             <!-- 7. Warranty -->
-                                            <field name="x_warranty_type"
-                                                   string="Warranty"/>
+                                            <field name="x_warranty_opt_id"
+                                                   string="Warranty"
+                                                   options="{'no_create': False, 'no_open': False}"/>
                                             <field name="x_warranty"
-                                                   string="↳ Custom"
-                                                   placeholder="e.g. 12 months DLP, As per contract…"/>
+                                                   placeholder="or type manually…"/>
                                         </group>
                                     </group>
 

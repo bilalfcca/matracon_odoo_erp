@@ -1,3 +1,4 @@
+from . import cs_commercial_option
 from . import res_company
 from . import po_signature_config
 from . import product_template

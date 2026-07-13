@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- noupdate="1" means these are only inserted on first install; admins can
+     freely edit/delete them and the next upgrade will not restore them. -->
+<odoo noupdate="1">
+
+    <!-- ── Delivery Basis ──────────────────────────────────────────────── -->
+    <record id="cs_opt_db_onsite" model="x.cs.commercial.option">
+        <field name="category">delivery_basis</field>
+        <field name="name">Onsite</field>
+        <field name="sequence">1</field>
+    </record>
+    <record id="cs_opt_db_ex_factory" model="x.cs.commercial.option">
+        <field name="category">delivery_basis</field>
+        <field name="name">Ex-Factory</field>
+        <field name="sequence">2</field>
+    </record>
+    <record id="cs_opt_db_for_site" model="x.cs.commercial.option">
+        <field name="category">delivery_basis</field>
+        <field name="name">FOR Site</field>
+        <field name="sequence">3</field>
+    </record>
+    <record id="cs_opt_db_fob" model="x.cs.commercial.option">
+        <field name="category">delivery_basis</field>
+        <field name="name">FOB</field>
+        <field name="sequence">4</field>
+    </record>
+    <record id="cs_opt_db_cif" model="x.cs.commercial.option">
+        <field name="category">delivery_basis</field>
+        <field name="name">CIF / DDP</field>
+        <field name="sequence">5</field>
+    </record>
+
+    <!-- ── Taxes &amp; Duties ─────────────────────────────────────────── -->
+    <record id="cs_opt_tax_inclusive" model="x.cs.commercial.option">
+        <field name="category">tax_type</field>
+        <field name="name">Inclusive of All Taxes</field>
+        <field name="sequence">1</field>
+    </record>
+    <record id="cs_opt_tax_exclusive" model="x.cs.commercial.option">
+        <field name="category">tax_type</field>
+        <field name="name">Exclusive of Taxes</field>
+        <field name="sequence">2</field>
+    </record>
+    <record id="cs_opt_tax_gst17" model="x.cs.commercial.option">
+        <field name="category">tax_type</field>
+        <field name="name">GST 17% Extra</field>
+        <field name="sequence">3</field>
+    </record>
+    <record id="cs_opt_tax_exempt" model="x.cs.commercial.option">
+        <field name="category">tax_type</field>
+        <field name="name">Tax Exempt</field>
+        <field name="sequence">4</field>
+    </record>
+    <record id="cs_opt_tax_as_quoted" model="x.cs.commercial.option">
+        <field name="category">tax_type</field>
+        <field name="name">As per Quotation</field>
+        <field name="sequence">5</field>
+    </record>
+
+    <!-- ── Payment Mode ────────────────────────────────────────────────── -->
+    <record id="cs_opt_pm_cash" model="x.cs.commercial.option">
+        <field name="category">payment_mode</field>
+        <field name="name">Cash</field>
+        <field name="sequence">1</field>
+    </record>
+    <record id="cs_opt_pm_cheque" model="x.cs.commercial.option">
+        <field name="category">payment_mode</field>
+        <field name="name">Cheque</field>
+        <field name="sequence">2</field>
+    </record>
+    <record id="cs_opt_pm_bank_transfer" model="x.cs.commercial.option">
+        <field name="category">payment_mode</field>
+        <field name="name">Bank Transfer</field>
+        <field name="sequence">3</field>
+    </record>
+    <record id="cs_opt_pm_lc" model="x.cs.commercial.option">
+        <field name="category">payment_mode</field>
+        <field name="name">Letter of Credit (LC)</field>
+        <field name="sequence">4</field>
+    </record>
+    <record id="cs_opt_pm_advance_balance" model="x.cs.commercial.option">
+        <field name="category">payment_mode</field>
+        <field name="name">Advance + Balance</field>
+        <field name="sequence">5</field>
+    </record>
+    <record id="cs_opt_pm_mixed" model="x.cs.commercial.option">
+        <field name="category">payment_mode</field>
+        <field name="name">Mixed / As Agreed</field>
+        <field name="sequence">6</field>
+    </record>
+
+    <!-- ── Delivery Time ───────────────────────────────────────────────── -->
+    <record id="cs_opt_dt_immediate" model="x.cs.commercial.option">
+        <field name="category">delivery_time</field>
+        <field name="name">Immediate</field>
+        <field name="sequence">1</field>
+    </record>
+    <record id="cs_opt_dt_1_2_weeks" model="x.cs.commercial.option">
+        <field name="category">delivery_time</field>
+        <field name="name">1–2 Weeks</field>
+        <field name="sequence">2</field>
+    </record>
+    <record id="cs_opt_dt_2_4_weeks" model="x.cs.commercial.option">
+        <field name="category">delivery_time</field>
+        <field name="name">2–4 Weeks</field>
+        <field name="sequence">3</field>
+    </record>
+    <record id="cs_opt_dt_4_6_weeks" model="x.cs.commercial.option">
+        <field name="category">delivery_time</field>
+        <field name="name">4–6 Weeks</field>
+        <field name="sequence">4</field>
+    </record>
+    <record id="cs_opt_dt_6_8_weeks" model="x.cs.commercial.option">
+        <field name="category">delivery_time</field>
+        <field name="name">6–8 Weeks</field>
+        <field name="sequence">5</field>
+    </record>
+    <record id="cs_opt_dt_3_months" model="x.cs.commercial.option">
+        <field name="category">delivery_time</field>
+        <field name="name">3 Months</field>
+        <field name="sequence">6</field>
+    </record>
+    <record id="cs_opt_dt_custom" model="x.cs.commercial.option">
+        <field name="category">delivery_time</field>
+        <field name="name">Custom / As per Schedule</field>
+        <field name="sequence">7</field>
+    </record>
+
+    <!-- ── Brand / Origin ─────────────────────────────────────────────── -->
+    <record id="cs_opt_br_local" model="x.cs.commercial.option">
+        <field name="category">brand</field>
+        <field name="name">Local Make</field>
+        <field name="sequence">1</field>
+    </record>
+    <record id="cs_opt_br_imported" model="x.cs.commercial.option">
+        <field name="category">brand</field>
+        <field name="name">Imported</field>
+        <field name="sequence">2</field>
+    </record>
+    <record id="cs_opt_br_as_spec" model="x.cs.commercial.option">
+        <field name="category">brand</field>
+        <field name="name">As per Specification</field>
+        <field name="sequence">3</field>
+    </record>
+    <record id="cs_opt_br_siemens" model="x.cs.commercial.option">
+        <field name="category">brand</field>
+        <field name="name">Siemens</field>
+        <field name="sequence">4</field>
+    </record>
+    <record id="cs_opt_br_abb" model="x.cs.commercial.option">
+        <field name="category">brand</field>
+        <field name="name">ABB</field>
+        <field name="sequence">5</field>
+    </record>
+    <record id="cs_opt_br_schneider" model="x.cs.commercial.option">
+        <field name="category">brand</field>
+        <field name="name">Schneider</field>
+        <field name="sequence">6</field>
+    </record>
+    <record id="cs_opt_br_other" model="x.cs.commercial.option">
+        <field name="category">brand</field>
+        <field name="name">Other</field>
+        <field name="sequence">7</field>
+    </record>
+
+    <!-- ── Warranty ────────────────────────────────────────────────────── -->
+    <record id="cs_opt_wr_12m_dlp" model="x.cs.commercial.option">
+        <field name="category">warranty</field>
+        <field name="name">12 Months DLP</field>
+        <field name="sequence">1</field>
+    </record>
+    <record id="cs_opt_wr_24m_dlp" model="x.cs.commercial.option">
+        <field name="category">warranty</field>
+        <field name="name">24 Months DLP</field>
+        <field name="sequence">2</field>
+    </record>
+    <record id="cs_opt_wr_12m_std" model="x.cs.commercial.option">
+        <field name="category">warranty</field>
+        <field name="name">12 Months Standard</field>
+        <field name="sequence">3</field>
+    </record>
+    <record id="cs_opt_wr_24m_std" model="x.cs.commercial.option">
+        <field name="category">warranty</field>
+        <field name="name">24 Months Standard</field>
+        <field name="sequence">4</field>
+    </record>
+    <record id="cs_opt_wr_as_contract" model="x.cs.commercial.option">
+        <field name="category">warranty</field>
+        <field name="name">As per Contract</field>
+        <field name="sequence">5</field>
+    </record>
+    <record id="cs_opt_wr_none" model="x.cs.commercial.option">
+        <field name="category">warranty</field>
+        <field name="name">No Warranty</field>
+        <field name="sequence">6</field>
+    </record>
+
+</odoo>
