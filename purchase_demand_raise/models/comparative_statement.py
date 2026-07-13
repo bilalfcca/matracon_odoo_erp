@@ -454,29 +454,80 @@ class CSVendor(models.Model):
         help='Mark this vendor as the selected winner.',
     )
 
-    # Commercial terms
-    x_rfq_reference = fields.Char(string='Quotation Reference')
-    x_quote_validity = fields.Date(string='Quote Validity')
-    x_delivery_basis = fields.Char(
+    # ── Commercial terms (7 required CS fields) ──────────────────────────────
+    # Each field has a configurable Many2one quick-pick AND a Char manual-entry.
+    # Picking from the dropdown auto-fills the Char; the Char is the actual
+    # stored value used in reports and auto-copied to PO Quotation Terms.
+    # Options are managed via Purchase → Configuration → CS Commercial Options.
+
+    # 1. Delivery Basis
+    x_delivery_basis_opt_id = fields.Many2one(
+        'x.cs.commercial.option',
         string='Delivery Basis',
-        help='e.g. Ex-Works, FOR, DDP, or any custom delivery terms.',
+        domain=[('category', '=', 'delivery_basis')],
+        ondelete='set null',
     )
-    x_delivery_period = fields.Char(string='Delivery Period')
-    # Payment Terms — Odoo native dropdown (account.payment.term)
+    x_delivery_basis = fields.Char(
+        string='↳ Custom',
+        help='Final delivery basis — auto-filled by dropdown or type manually.',
+    )
+
+    # 2. Taxes & Duties
+    x_tax_opt_id = fields.Many2one(
+        'x.cs.commercial.option',
+        string='Taxes & Duties',
+        domain=[('category', '=', 'tax_type')],
+        ondelete='set null',
+    )
+    x_tax_treatment = fields.Char(string='↳ Custom')
+
+    # 3. Payment Mode
+    x_payment_mode_opt_id = fields.Many2one(
+        'x.cs.commercial.option',
+        string='Payment Mode',
+        domain=[('category', '=', 'payment_mode')],
+        ondelete='set null',
+    )
+    x_payment_mode = fields.Char(string='↳ Custom')
+
+    # 4. Payment Terms — Odoo native dropdown
     x_payment_term_id = fields.Many2one(
         'account.payment.term',
         string='Payment Terms',
-        help='Select from Odoo standard payment terms. '
-             'Use "Custom Payment Notes" below for any extra conditions.',
+        help='Select from standard payment terms.',
     )
-    x_payment_terms = fields.Char(
-        string='Custom Payment Notes',
-        help='Free-text payment conditions not covered by the standard terms above '
-             '(e.g. "50% advance, balance after delivery").',
+
+    # 5. Delivery Time
+    x_delivery_time_opt_id = fields.Many2one(
+        'x.cs.commercial.option',
+        string='Delivery Time',
+        domain=[('category', '=', 'delivery_time')],
+        ondelete='set null',
     )
-    x_warranty = fields.Char(string='Warranty')
-    x_tax_treatment = fields.Char(string='Tax Treatment')
-    x_brand_origin = fields.Char(string='Brand / Origin')
+    x_delivery_period = fields.Char(string='↳ Custom')
+
+    # 6. Brand / Origin
+    x_brand_opt_id = fields.Many2one(
+        'x.cs.commercial.option',
+        string='Brand / Origin',
+        domain=[('category', '=', 'brand')],
+        ondelete='set null',
+    )
+    x_brand_origin = fields.Char(string='↳ Custom')
+
+    # 7. Warranty
+    x_warranty_opt_id = fields.Many2one(
+        'x.cs.commercial.option',
+        string='Warranty',
+        domain=[('category', '=', 'warranty')],
+        ondelete='set null',
+    )
+    x_warranty = fields.Char(string='↳ Custom')
+
+    # Legacy / retained for existing data
+    x_rfq_reference = fields.Char(string='Quotation Reference')
+    x_quote_validity = fields.Date(string='Quote Validity')
+    x_payment_terms = fields.Char(string='Custom Payment Notes')
     x_ancillary_included = fields.Boolean(string='Ancillary Items Included?')
     x_remarks = fields.Text(string='Remarks')
 
@@ -525,6 +576,38 @@ class CSVendor(models.Model):
             }))
         if lines:
             self.x_line_ids = lines
+
+    # ── Dropdown → Char auto-fill onchanges ──────────────────────────────────
+
+    @api.onchange('x_delivery_basis_opt_id')
+    def _onchange_delivery_basis_opt(self):
+        if self.x_delivery_basis_opt_id:
+            self.x_delivery_basis = self.x_delivery_basis_opt_id.name
+
+    @api.onchange('x_tax_opt_id')
+    def _onchange_tax_opt(self):
+        if self.x_tax_opt_id:
+            self.x_tax_treatment = self.x_tax_opt_id.name
+
+    @api.onchange('x_payment_mode_opt_id')
+    def _onchange_payment_mode_opt(self):
+        if self.x_payment_mode_opt_id:
+            self.x_payment_mode = self.x_payment_mode_opt_id.name
+
+    @api.onchange('x_delivery_time_opt_id')
+    def _onchange_delivery_time_opt(self):
+        if self.x_delivery_time_opt_id:
+            self.x_delivery_period = self.x_delivery_time_opt_id.name
+
+    @api.onchange('x_brand_opt_id')
+    def _onchange_brand_opt(self):
+        if self.x_brand_opt_id:
+            self.x_brand_origin = self.x_brand_opt_id.name
+
+    @api.onchange('x_warranty_opt_id')
+    def _onchange_warranty_opt(self):
+        if self.x_warranty_opt_id:
+            self.x_warranty = self.x_warranty_opt_id.name
 
     @api.onchange('x_tc_template_id')
     def _onchange_tc_template(self):
@@ -609,6 +692,26 @@ class CSVendor(models.Model):
         cs.x_recommended_vendor_line_id = self
         return True
 
+    def action_print_rfq(self):
+        """Print the RFQ PDF for THIS specific vendor (from Comparative Statement).
+
+        Passes the vendor partner ID via with_context() so it survives the
+        browser → PDF-renderer round-trip (context IS forwarded; data= is not).
+        The template reads env.context.get('rfq_vendor_partner_id') and renders
+        this vendor's details at the top of the document.
+        """
+        self.ensure_one()
+        po = self.x_cs_id.x_purchase_order_id
+        if not po:
+            raise UserError(_('No Purchase Requisition linked to this Comparative Statement.'))
+        if not self.x_partner_id:
+            raise UserError(_('No vendor selected on this line.'))
+
+        report = self.env.ref('purchase_demand_raise.action_report_rfq_demand_raise')
+        return report.with_context(
+            rfq_vendor_partner_id=self.x_partner_id.id
+        ).report_action(po)
+
     def action_send_rfq(self):
         """Open mail compose dialog to send RFQ to THIS specific vendor."""
         self.ensure_one()
@@ -662,16 +765,32 @@ class CSVendor(models.Model):
         self.x_is_recommended = True
         cs.x_recommended_vendor_line_id = self
 
-        # Copy vendor and terms to the main PR
+        # Copy vendor and all CS commercial terms to the main PR
         pr = cs.x_purchase_order_id
         if pr:
             vals = {'partner_id': self.x_partner_id.id}
+            # Payment Terms (standard Odoo dropdown)
             if self.x_payment_term_id:
                 vals['payment_term_id'] = self.x_payment_term_id.id
+            # T&C (if any set on the vendor row — kept for backward compat)
             if self.x_tc_text:
                 vals['note'] = self.x_tc_text
             if self.x_tc_template_id:
                 vals['x_terms_template_id'] = self.x_tc_template_id.id
+            # ── Auto-fill the 7 CS commercial fields into PO Quotation Terms ──
+            # These populate the "Quotation Terms (CS)" tab on the PO form.
+            if self.x_brand_origin:
+                vals['x_quote_brand'] = self.x_brand_origin
+            if self.x_delivery_basis:
+                vals['x_quote_delivery_basis'] = self.x_delivery_basis
+            if self.x_delivery_period:
+                vals['x_quote_delivery_period'] = self.x_delivery_period
+            if self.x_payment_mode:
+                vals['x_quote_payment_terms'] = self.x_payment_mode
+            if self.x_tax_treatment:
+                vals['x_quote_tax_treatment'] = self.x_tax_treatment
+            if self.x_warranty:
+                vals['x_quote_warranty'] = self.x_warranty
             pr.sudo().write(vals)
 
             # Copy winning prices to PR lines

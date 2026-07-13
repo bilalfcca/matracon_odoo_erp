@@ -337,6 +337,42 @@
         </field>
     </record>
 
+    <!-- ══════════════════════════════════════════════════════════════════════
+         CEO-SPECIFIC: Petty Cash Requests list
+         • Editable: ceo_amount_type + ceo_approved_amount settable inline
+         • Used by action_petty_cash_request_ceo (domain excludes draft)
+         ══════════════════════════════════════════════════════════════════════ -->
+    <record id="view_petty_cash_request_list_ceo" model="ir.ui.view">
+        <field name="name">x.petty.cash.request.list.ceo</field>
+        <field name="model">x.petty.cash.request</field>
+        <field name="arch" type="xml">
+            <list create="0" multi_edit="1"
+                  decoration-warning="state == 'submitted'"
+                  decoration-info="state == 'ceo_approved'"
+                  decoration-primary="state == 'released'"
+                  decoration-success="state == 'confirmed'"
+                  decoration-danger="state == 'rejected'">
+                <field name="name" readonly="1"/>
+                <field name="project_analytic_account_id" string="Site Project" readonly="1"/>
+                <field name="requested_amount" string="Required Amount" readonly="1"/>
+                <!-- CEO editable columns -->
+                <field name="ceo_amount_type" string="Decision Type"
+                       readonly="state not in ('submitted',)"/>
+                <field name="ceo_approved_amount" string="CEO Approved"
+                       readonly="state not in ('submitted',)"/>
+                <field name="released_amount" string="Released Amount" readonly="1"/>
+                <field name="currency_id" invisible="1"/>
+                <field name="state" widget="badge"
+                       readonly="1"
+                       decoration-warning="state == 'submitted'"
+                       decoration-info="state == 'ceo_approved'"
+                       decoration-primary="state == 'released'"
+                       decoration-success="state == 'confirmed'"
+                       decoration-danger="state == 'rejected'"/>
+            </list>
+        </field>
+    </record>
+
     <record id="view_petty_cash_request_search" model="ir.ui.view">
         <field name="name">x.petty.cash.request.search</field>
         <field name="model">x.petty.cash.request</field>
@@ -363,6 +399,32 @@
                         context="{'group_by': 'state'}"/>
             </search>
         </field>
+    </record>
+
+    <!-- CEO window action — excludes Draft, uses CEO editable list -->
+    <record id="action_petty_cash_request_ceo" model="ir.actions.act_window">
+        <field name="name">Petty Cash Requests</field>
+        <field name="res_model">x.petty.cash.request</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('state', '!=', 'draft')]</field>
+        <field name="view_ids" eval="[
+            (5, 0, 0),
+            (0, 0, {'view_mode': 'list', 'view_id': ref('view_petty_cash_request_list_ceo')}),
+        ]"/>
+        <field name="context">{'search_default_group_by_project': 1}</field>
+        <field name="search_view_id" ref="view_petty_cash_request_search"/>
+    </record>
+
+    <!-- Server action: CEO bulk approve — appears in Actions dropdown when
+         one or more requests are selected in any request list view.
+         The Python method itself enforces CEO-group access. -->
+    <record id="action_server_ceo_bulk_approve" model="ir.actions.server">
+        <field name="name">CEO Approve Selected</field>
+        <field name="model_id" ref="site_operations.model_x_petty_cash_request"/>
+        <field name="binding_model_id" ref="site_operations.model_x_petty_cash_request"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_ceo_bulk_approve()</field>
     </record>
 
     <record id="view_petty_cash_expense_search" model="ir.ui.view">

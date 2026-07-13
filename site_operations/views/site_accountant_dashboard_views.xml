@@ -118,23 +118,26 @@
                                         Subcontractor Liabilities
                                     </strong>
                                     <span class="small" style="color:#714B67;">
-                                        Total:
+                                        Outstanding:
                                         <field name="kpi_sub_liability" widget="monetary" nolabel="1" readonly="1" class="oe_inline fw-bold text-danger"/>
                                     </span>
                                 </div>
                                 <div class="card-body p-0">
                                     <field name="sub_liability_line_ids" nolabel="1" readonly="1">
                                         <list create="false" delete="false" edit="false"
-                                              decoration-danger="liability_amount > 0">
+                                              decoration-danger="liability_amount > 0"
+                                              decoration-success="liability_amount &lt;= 0 and paid_amount > 0"
+                                              decoration-muted="liability_amount &lt;= 0 and paid_amount &lt;= 0">
                                             <field name="partner_name" string="Subcontractor"/>
-                                            <field name="total_value" widget="monetary" string="Work Certified"/>
-                                            <field name="liability_amount" widget="monetary" string="Net Payable" sum="Total"/>
+                                            <field name="total_value" widget="monetary" string="Total Owed"/>
+                                            <field name="paid_amount" widget="monetary" string="Paid (JE/Bill)"/>
+                                            <field name="liability_amount" widget="monetary" string="Net Payable" sum="Outstanding"/>
                                         </list>
                                     </field>
                                 </div>
                             </div>
 
-                            <!-- Vendor Liabilities -->
+                            <!-- Vendor Liabilities + JE Payments -->
                             <div class="card border-0 mb-3">
                                 <div class="card-header border-0 py-2 px-3 d-flex justify-content-between align-items-center" style="background:transparent;">
                                     <strong style="color:#714B67;">
@@ -142,16 +145,21 @@
                                         Vendor Liabilities
                                     </strong>
                                     <span class="small" style="color:#714B67;">
-                                        Lump Sum Rem. After Recommendation
+                                        Outstanding:
+                                        <field name="kpi_vendor_liability" widget="monetary" nolabel="1" readonly="1" class="oe_inline fw-bold text-danger"/>
                                     </span>
                                 </div>
                                 <div class="card-body p-0">
                                     <field name="vendor_liability_line_ids" nolabel="1" readonly="1">
                                         <list create="false" delete="false" edit="false"
-                                              decoration-danger="liability_amount > 0">
+                                              decoration-danger="liability_amount > 0"
+                                              decoration-success="liability_amount &lt;= 0 and paid_amount > 0"
+                                              decoration-muted="liability_amount &lt;= 0 and paid_amount &lt;= 0">
                                             <field name="partner_name" string="Vendor Name"/>
                                             <field name="category_label" string="Category"/>
-                                            <field name="liability_amount" widget="monetary" string="PKR Remaining" sum="Total"/>
+                                            <field name="total_value" widget="monetary" string="Total Owed"/>
+                                            <field name="paid_amount" widget="monetary" string="Paid (JE/Bill)"/>
+                                            <field name="liability_amount" widget="monetary" string="Net Payable" sum="Outstanding"/>
                                         </list>
                                     </field>
                                 </div>

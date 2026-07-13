@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ════════════════════════════════════════════════════════════════
+         CS COMMERCIAL OPTIONS — List View
+         Shows all term options grouped by category; admins add/remove
+         options that then appear in the CS vendor dialog dropdowns.
+         ════════════════════════════════════════════════════════════════ -->
+    <record id="view_cs_commercial_option_list" model="ir.ui.view">
+        <field name="name">x.cs.commercial.option.list</field>
+        <field name="model">x.cs.commercial.option</field>
+        <field name="arch" type="xml">
+            <list string="CS Commercial Options"
+                  editable="top"
+                  default_order="category,sequence,name"
+                  decoration-muted="not active">
+                <field name="sequence" widget="handle"/>
+                <field name="category" string="Category" readonly="1" optional="show"/>
+                <field name="name" string="Option"/>
+                <field name="active"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ════════════════════════════════════════════════════════════════
+         CS COMMERCIAL OPTIONS — Form View
+         ════════════════════════════════════════════════════════════════ -->
+    <record id="view_cs_commercial_option_form" model="ir.ui.view">
+        <field name="name">x.cs.commercial.option.form</field>
+        <field name="model">x.cs.commercial.option</field>
+        <field name="arch" type="xml">
+            <form string="CS Commercial Option">
+                <sheet>
+                    <div class="oe_title">
+                        <label for="name"/>
+                        <h1>
+                            <field name="name" placeholder="e.g. Onsite, GST 17% Extra…"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <field name="category"/>
+                        <field name="sequence"/>
+                        <field name="active"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ════════════════════════════════════════════════════════════════
+         CS COMMERCIAL OPTIONS — Search View
+         ════════════════════════════════════════════════════════════════ -->
+    <record id="view_cs_commercial_option_search" model="ir.ui.view">
+        <field name="name">x.cs.commercial.option.search</field>
+        <field name="model">x.cs.commercial.option</field>
+        <field name="arch" type="xml">
+            <search string="CS Commercial Options">
+                <field name="name"/>
+                <field name="category"/>
+                <filter string="Delivery Basis"  name="cat_delivery_basis"  domain="[('category','=','delivery_basis')]"/>
+                <filter string="Taxes &amp; Duties" name="cat_tax"          domain="[('category','=','tax_type')]"/>
+                <filter string="Payment Mode"    name="cat_payment_mode"    domain="[('category','=','payment_mode')]"/>
+                <filter string="Delivery Time"   name="cat_delivery_time"   domain="[('category','=','delivery_time')]"/>
+                <filter string="Brand / Origin"  name="cat_brand"           domain="[('category','=','brand')]"/>
+                <filter string="Warranty"        name="cat_warranty"        domain="[('category','=','warranty')]"/>
+                <separator/>
+                <filter string="Inactive" name="inactive" domain="[('active','=',False)]"/>
+                <separator/>
+                <filter string="Group by Category" name="group_category" context="{'group_by':'category'}"/>
+            </search>
+        </field>
+    </record>
+
+    <!-- ════════════════════════════════════════════════════════════════
+         WINDOW ACTIONS — one per category (for per-category menu items)
+         and one combined action for the top-level "All Options" view.
+         ════════════════════════════════════════════════════════════════ -->
+
+    <!-- All options, grouped by category -->
+    <record id="action_cs_commercial_options_all" model="ir.actions.act_window">
+        <field name="name">CS Commercial Options</field>
+        <field name="res_model">x.cs.commercial.option</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_group_category': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No options yet — add your first one!
+            </p>
+            <p>
+                These options populate the quick-pick dropdowns in the
+                <strong>Comparative Statement</strong> vendor dialog.
+            </p>
+        </field>
+    </record>
+
+    <!-- Per-category shortcut actions -->
+    <record id="action_cs_opt_delivery_basis" model="ir.actions.act_window">
+        <field name="name">Delivery Basis Options</field>
+        <field name="res_model">x.cs.commercial.option</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('category','=','delivery_basis')]</field>
+        <field name="context">{'default_category': 'delivery_basis'}</field>
+    </record>
+    <record id="action_cs_opt_tax" model="ir.actions.act_window">
+        <field name="name">Taxes &amp; Duties Options</field>
+        <field name="res_model">x.cs.commercial.option</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('category','=','tax_type')]</field>
+        <field name="context">{'default_category': 'tax_type'}</field>
+    </record>
+    <record id="action_cs_opt_payment_mode" model="ir.actions.act_window">
+        <field name="name">Payment Mode Options</field>
+        <field name="res_model">x.cs.commercial.option</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('category','=','payment_mode')]</field>
+        <field name="context">{'default_category': 'payment_mode'}</field>
+    </record>
+    <record id="action_cs_opt_delivery_time" model="ir.actions.act_window">
+        <field name="name">Delivery Time Options</field>
+        <field name="res_model">x.cs.commercial.option</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('category','=','delivery_time')]</field>
+        <field name="context">{'default_category': 'delivery_time'}</field>
+    </record>
+    <record id="action_cs_opt_brand" model="ir.actions.act_window">
+        <field name="name">Brand / Origin Options</field>
+        <field name="res_model">x.cs.commercial.option</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('category','=','brand')]</field>
+        <field name="context">{'default_category': 'brand'}</field>
+    </record>
+    <record id="action_cs_opt_warranty" model="ir.actions.act_window">
+        <field name="name">Warranty Options</field>
+        <field name="res_model">x.cs.commercial.option</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('category','=','warranty')]</field>
+        <field name="context">{'default_category': 'warranty'}</field>
+    </record>
+
+    <!-- ════════════════════════════════════════════════════════════════
+         MENU — Purchase > Configuration > CS Commercial Options
+         (with 6 sub-items, one per category)
+         ════════════════════════════════════════════════════════════════ -->
+
+    <!-- Parent: Purchase > Configuration (standard Odoo ID) -->
+    <menuitem id="menu_cs_commercial_options_root"
+              name="CS Commercial Options"
+              parent="purchase.menu_purchase_config"
+              sequence="25"/>
+
+    <menuitem id="menu_cs_opt_all"
+              name="All Options"
+              parent="menu_cs_commercial_options_root"
+              action="action_cs_commercial_options_all"
+              sequence="1"/>
+    <menuitem id="menu_cs_opt_delivery_basis"
+              name="Delivery Basis"
+              parent="menu_cs_commercial_options_root"
+              action="action_cs_opt_delivery_basis"
+              sequence="10"/>
+    <menuitem id="menu_cs_opt_delivery_time"
+              name="Delivery Time"
+              parent="menu_cs_commercial_options_root"
+              action="action_cs_opt_delivery_time"
+              sequence="11"/>
+    <menuitem id="menu_cs_opt_brand"
+              name="Brand / Origin"
+              parent="menu_cs_commercial_options_root"
+              action="action_cs_opt_brand"
+              sequence="12"/>
+    <menuitem id="menu_cs_opt_payment_mode"
+              name="Payment Mode"
+              parent="menu_cs_commercial_options_root"
+              action="action_cs_opt_payment_mode"
+              sequence="13"/>
+    <menuitem id="menu_cs_opt_tax"
+              name="Taxes &amp; Duties"
+              parent="menu_cs_commercial_options_root"
+              action="action_cs_opt_tax"
+              sequence="14"/>
+    <menuitem id="menu_cs_opt_warranty"
+              name="Warranty"
+              parent="menu_cs_commercial_options_root"
+              action="action_cs_opt_warranty"
+              sequence="15"/>
+
+</odoo>

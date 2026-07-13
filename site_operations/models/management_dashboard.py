@@ -289,7 +289,14 @@ class ManagementDashboard(models.TransientModel):
         return primary | fallback
 
     def _period_outbound_for_analytics(self, analytics, date_from, date_to):
-        """Outbound spend in period — allocations + direct payments.
+        """Outbound spend in period — allocations + direct payments + JE payments.
+
+        Sources captured:
+          1. Allocation-based (x.payment.project.allocation records)
+          2. Direct account.payment records with no allocation lines
+          3. Manual journal entries that debit a payable account (SA JEs,
+             HO JEs with analytic set, Excel-imported payment entries)
+             — these are NOT in account.payment so would otherwise be missed.
 
         For direct payments (no allocation lines) we check both
         ``x_fund_project_id`` (primary) and ``x_destination_project_id``
@@ -343,6 +350,37 @@ class ManagementDashboard(models.TransientModel):
         )
         all_direct = Payment.browse(primary_ids) | dest_payments | move_payments
         total += sum(all_direct.mapped('amount'))
+
+        # ── JE-based payments not going through account.payment ───────────────
+        # Captures: SA direct JEs (Dr Payable Cr Bank), HO JEs with analytic set,
+        # and Excel-imported payment journal entries.
+        # am.origin_payment_id IS NULL ensures we do NOT double-count payments
+        # registered via the payment wizard (those JEs have origin_payment_id set).
+        cr = self.env.cr
+        analytic_ids = analytics.ids
+        str_ids = [str(aid) for aid in analytic_ids]
+        cr.execute("""
+            SELECT COALESCE(SUM(aml.debit), 0)
+              FROM account_move_line aml
+              JOIN account_move am  ON am.id  = aml.move_id
+              JOIN account_account aa ON aa.id = aml.account_id
+             WHERE am.state              = 'posted'
+               AND am.origin_payment_id  IS NULL
+               AND aa.account_type  = 'liability_payable'
+               AND aml.debit        > 0
+               AND aml.partner_id   IS NOT NULL
+               AND (
+                   am.x_project_analytic_account_id = ANY(%s::int[])
+                   OR (aml.analytic_distribution IS NOT NULL
+                       AND aml.analytic_distribution ?| %s::text[])
+               )
+               AND (%s::date IS NULL OR am.date >= %s::date)
+               AND (%s::date IS NULL OR am.date <= %s::date)
+        """, [analytic_ids, str_ids,
+              date_from, date_from,
+              date_to, date_to])
+        total += cr.fetchone()[0] or 0.0
+
         return total
 
     def _bank_balances(self):
@@ -374,44 +412,85 @@ class ManagementDashboard(models.TransientModel):
         return total, lines
 
     def _liability_lines_for_analytics(self, analytics):
-        SheetLine = self.env['x.liability.sheet.line']
+        """Compute net outstanding payable balances per partner from partner ledger (GL).
+
+        Single source of truth — matches the Partner Ledger exactly:
+          • Vendor bills (via x_project_analytic_account_id on the move header)
+          • Direct journal entries (via analytic_distribution on the payable line)
+          • Excel-imported entries (captured via the same analytic fields)
+          • Net of ALL payments: account.payment, manual JEs, petty cash advances
+
+        Replaces the old liability-sheet aggregation, which diverged from the
+        partner ledger whenever payments were made via direct journal entries
+        (because those JEs never updated sheet line paid_amount).
+        """
+        if not analytics:
+            return [], []
+
+        cr = self.env.cr
+        analytic_ids = analytics.ids
+        str_ids = [str(aid) for aid in analytic_ids]
+        currency = self.env.company.currency_id
+
+        # Returns ALL vendors/subcontractors with ANY posted payable activity
+        # (bills, JE payments, Excel imports, petty-cash advances).
+        # Includes rows where only a DEBIT exists (pure advance/JE payment, no bill)
+        # so that payments made via journal entry are still visible in the dashboard.
+        cr.execute("""
+            SELECT aml.partner_id,
+                   SUM(aml.credit)              AS total_billed,
+                   SUM(aml.debit)               AS total_paid,
+                   SUM(aml.credit - aml.debit)  AS net_balance
+              FROM account_move_line aml
+              JOIN account_move am  ON am.id  = aml.move_id
+              JOIN account_account aa ON aa.id = aml.account_id
+             WHERE am.state               = 'posted'
+               AND aa.account_type        = 'liability_payable'
+               AND aml.partner_id         IS NOT NULL
+               AND (
+                   am.x_project_analytic_account_id = ANY(%s::int[])
+                   OR (aml.analytic_distribution IS NOT NULL
+                       AND aml.analytic_distribution ?| %s::text[])
+               )
+             GROUP BY aml.partner_id
+            HAVING SUM(aml.credit) > 0.005 OR SUM(aml.debit) > 0.005
+        """, [analytic_ids, str_ids])
+
+        rows = cr.fetchall()
+        if not rows:
+            return [], []
+
+        partner_ids = [r[0] for r in rows]
+        gl_map = {r[0]: {'billed': r[1], 'paid': r[2], 'net': r[3]} for r in rows}
+        partners = self.env['res.partner'].sudo().browse(partner_ids)
+        partner_lookup = {p.id: p for p in partners}
+
         vendor_lines = []
         sub_lines = []
-        if not analytics:
-            return vendor_lines, sub_lines
-        sheet_lines = SheetLine.search([
-            ('sheet_id.project_analytic_account_id', 'in', analytics.ids),
-            ('sheet_id.state', 'in', ('draft', 'submitted', 'approved')),
-        ])
-        partner_map = {}
-        for line in sheet_lines:
-            remaining = max(line.liability_amount - line.paid_amount, 0.0)
-            if remaining <= 0:
+        for pid, row in gl_map.items():
+            partner = partner_lookup.get(pid)
+            if not partner:
                 continue
-            pid = line.partner_id.id
-            key = (pid, self._is_subcontractor(line.partner_id))
-            if key not in partner_map:
-                partner_map[key] = {
-                    'partner_id': pid,
-                    'partner_name': line.partner_id.display_name,
-                    'partner_type': 'subcontractor' if key[1] else 'vendor',
-                    'category_label': line.description or (
-                        line.partner_id.category_id[:1].name if line.partner_id.category_id else ''
-                    ),
-                    'total_value': 0.0,
-                    'paid_amount': 0.0,
-                    'liability_amount': 0.0,
-                }
-            partner_map[key]['total_value'] += line.liability_amount
-            partner_map[key]['paid_amount'] += line.paid_amount
-            partner_map[key]['liability_amount'] += remaining
-
-        for data in partner_map.values():
-            data['currency_id'] = self.env.company.currency_id.id
-            if data['partner_type'] == 'subcontractor':
-                sub_lines.append(data)
+            is_sub = bool(partner.category_id.filtered(
+                lambda c: 'subcontractor' in (c.name or '').lower()
+            ))
+            entry = {
+                'partner_id': pid,
+                'partner_name': partner.display_name,
+                'partner_type': 'subcontractor' if is_sub else 'vendor',
+                'category_label': (
+                    partner.category_id[:1].name if partner.category_id else ''
+                ),
+                'total_value': row['billed'],   # credits on payable (what you owe)
+                'paid_amount': row['paid'],      # debits on payable (payments via any method)
+                'liability_amount': row['net'],  # net balance (positive=outstanding)
+                'currency_id': currency.id,
+            }
+            if is_sub:
+                sub_lines.append(entry)
             else:
-                vendor_lines.append(data)
+                vendor_lines.append(entry)
+
         return vendor_lines, sub_lines
 
     def _bg_status_for_project(self, project):

@@ -316,16 +316,65 @@ class PettyCashRequest(models.Model):
 
     @api.onchange('ceo_amount_type', 'requested_amount')
     def _onchange_ceo_amount_type(self):
-        mapping = {
-            'full': 1.0,
-            'pct_75': 0.75,
-            'pct_50': 0.50,
-            'pct_25': 0.25,
-        }
+        """Form-view live update: recalculate amount when type or requested amount changes."""
         if self.ceo_amount_type and self.ceo_amount_type != 'manual':
             self.ceo_approved_amount = (
-                self.requested_amount * mapping[self.ceo_amount_type]
+                self.requested_amount * self._CEO_AMOUNT_FACTORS.get(self.ceo_amount_type, 1.0)
             )
+
+    @api.onchange('ceo_approved_amount')
+    def _onchange_ceo_approved_amount(self):
+        """Form-view: auto-switch type to Manual when CEO edits the amount directly."""
+        if not self.ceo_amount_type or self.ceo_amount_type == 'manual':
+            return
+        expected = self.requested_amount * self._CEO_AMOUNT_FACTORS.get(self.ceo_amount_type, 1.0)
+        if self.ceo_approved_amount != expected:
+            self.ceo_amount_type = 'manual'
+
+    def write(self, vals):
+        """
+        Sync ceo_approved_amount ↔ ceo_amount_type on every write.
+
+        @api.onchange only fires in the form view (client-side). For list-view
+        multi-edit writes we mirror the same logic here so the two fields always
+        stay consistent regardless of how they are changed.
+
+        Rules:
+        A) Type changes to non-manual AND amount NOT explicitly in same write
+           → compute amount = requested_amount × factor  (per record, since
+             requested_amount differs per record)
+        B) Amount changes explicitly AND type NOT in same write AND current
+           type is non-manual → auto-switch type to 'manual' (so the next
+           form-view open doesn't silently re-calculate over the custom value)
+        """
+        new_type = vals.get('ceo_amount_type')
+        has_amount = 'ceo_approved_amount' in vals
+
+        # Rule A: type changes to a percentage/full → recompute amount per record
+        if new_type and new_type != 'manual' and not has_amount:
+            factor = self._CEO_AMOUNT_FACTORS.get(new_type, 1.0)
+            for rec in self:
+                req = vals.get('requested_amount', rec.requested_amount) or 0.0
+                super(PettyCashRequest, rec).write(
+                    dict(vals, ceo_approved_amount=round(req * factor, 2))
+                )
+            return True
+
+        # Rule B: amount edited directly (no type in same write) → mark as manual
+        if has_amount and not new_type:
+            manual_recs = self.filtered(
+                lambda r: r.ceo_amount_type and r.ceo_amount_type != 'manual'
+            )
+            if manual_recs:
+                super(PettyCashRequest, manual_recs).write(
+                    dict(vals, ceo_amount_type='manual')
+                )
+                rest = self - manual_recs
+                if rest:
+                    super(PettyCashRequest, rest).write(vals)
+                return True
+
+        return super().write(vals)
 
     def action_ceo_approve(self):
         for req in self:
@@ -333,23 +382,72 @@ class PettyCashRequest(models.Model):
                 raise UserError(_('Only submitted requests can be CEO-approved.'))
             if not req.ceo_approved_amount or req.ceo_approved_amount <= 0:
                 raise UserError(_('Set the CEO approved amount before approving.'))
-            req.state = 'ceo_approved'
-            req.message_post(
-                body=Markup(_(
-                    'CEO approved petty cash: <b>%s %.2f</b>'
-                )) % (req.currency_id.symbol, req.ceo_approved_amount)
+            req._do_ceo_approve()
+
+    def _do_ceo_approve(self):
+        """Core approval logic — called by both single and bulk approve."""
+        self.ensure_one()
+        self.state = 'ceo_approved'
+        self.message_post(
+            body=Markup(_(
+                'CEO approved petty cash: <b>%s %.2f</b>'
+            )) % (self.currency_id.symbol, self.ceo_approved_amount)
+        )
+        fo_users = self.env['res.users'].search([
+            ('group_ids', 'in', self.env.ref('site_operations.group_finance_ho').id),
+        ])
+        matracon_notify.notify_users(
+            self, fo_users,
+            _('Petty cash <b>%s</b> CEO-approved — release required.') % self.name,
+            summary=_('Petty Cash Approved'),
+        )
+        matracon_notify.schedule_activity(
+            self, fo_users, _('Release petty cash %s') % self.name)
+
+    def action_ceo_bulk_approve(self):
+        """Bulk CEO approve — called from the list-view server action.
+
+        Silently skips records that are not in 'submitted' state so the CEO
+        can select all and click once without worrying about mixed states.
+        Defaults ceo_approved_amount to requested_amount when not set.
+        """
+        if not self.env.user.has_group('purchase_demand_raise.group_ceo_approval'):
+            raise UserError(_('Only the CEO can approve petty cash requests.'))
+        approved = self.env['x.petty.cash.request']
+        skipped = []
+        for req in self:
+            if req.state != 'submitted':
+                skipped.append(req.name)
+                continue
+            # Default approved amount to requested amount if CEO hasn't entered one
+            if not req.ceo_approved_amount or req.ceo_approved_amount <= 0:
+                req.ceo_approved_amount = req.requested_amount
+            req._do_ceo_approve()
+            approved |= req
+
+        if not approved and not skipped:
+            return
+        msg_parts = []
+        if approved:
+            msg_parts.append(
+                _('%d request(s) approved.') % len(approved)
             )
-            # Notify finance HO
-            fo_users = self.env['res.users'].search([
-                ('group_ids', 'in', self.env.ref('site_operations.group_finance_ho').id),
-            ])
-            matracon_notify.notify_users(
-                req, fo_users,
-                _('Petty cash <b>%s</b> CEO-approved — release required.') % req.name,
-                summary=_('Petty Cash Approved'),
+        if skipped:
+            msg_parts.append(
+                _('%d skipped (not in Submitted state): %s') % (
+                    len(skipped), ', '.join(skipped))
             )
-            matracon_notify.schedule_activity(
-                req, fo_users, _('Release petty cash %s') % req.name)
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('CEO Approval'),
+                'message': '  '.join(msg_parts),
+                'type': 'warning' if skipped else 'success',
+                'sticky': False,
+                'next': {'type': 'ir.actions.act_window_close'},
+            },
+        }
 
     def action_submit(self):
         for req in self:

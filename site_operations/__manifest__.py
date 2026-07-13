@@ -103,6 +103,9 @@
             'site_operations/static/src/js/kpi_amount_widget.js',
             # Progress bar widget: shows precise decimals instead of rounding to "0"
             'site_operations/static/src/js/matracon_progress_bar.js',
+            # Lock analytic filter to site accountant's own project
+            'site_operations/static/src/js/account_report_analytic_lock.js',
+            'site_operations/static/src/xml/account_report_analytic_lock.xml',
         ],
     },
     'demo': [

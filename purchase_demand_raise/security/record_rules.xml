@@ -15,11 +15,11 @@
             <field name="perm_unlink" eval="False"/>
         </record>
 
-        <!-- ── Procurement HO / CEO / Head Office — HO Procurement, non-draft ──
+        <!-- ── Procurement HO / CEO / Head Office — HO Procurement visibility ──
              Site Procurement is internal to site store and never visible to HO/CEO.
-             Draft PRs (site store hasn't submitted yet) are also hidden — they have
-             no action pending at HO level.  Once submitted the HO/CEO can see the
-             record and act; after they act it remains visible in their history.
+             Site-store draft PRs (not yet submitted) are hidden from HO/CEO.
+             HO-raised PRs (x_pr_origin='procurement_ho') are always visible so that
+             HO can create and edit their own draft PRs directly (bypassing site store).
              Individual role-specific list actions (in views/purchase_order_list_view.xml)
              pre-apply filters so each role lands on its own action-needed records. -->
         <record id="rule_po_procurement_ho_all" model="ir.rule">
@@ -30,9 +30,11 @@
                 (4, ref('purchase_demand_raise.group_ceo_approval')),
                 (4, ref('purchase_demand_raise.group_head_office')),
             ]"/>
-            <field name="domain_force">['&amp;',
-                ('x_procurement_type', '=', 'ho_procurement'),
-                ('x_pr_state', 'not in', ['draft'])
+            <field name="domain_force">['|',
+                '&amp;',
+                    ('x_procurement_type', '=', 'ho_procurement'),
+                    ('x_pr_state', 'not in', ['draft']),
+                ('x_pr_origin', '=', 'procurement_ho')
             ]</field>
             <field name="perm_read" eval="True"/>
             <field name="perm_write" eval="True"/>

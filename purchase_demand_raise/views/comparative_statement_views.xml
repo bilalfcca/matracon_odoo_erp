@@ -175,6 +175,12 @@
                                             type="object"
                                             class="btn-sm btn-outline-info"
                                             title="Send RFQ email to this vendor"/>
+                                    <!-- Print RFQ PDF for this vendor -->
+                                    <button name="action_print_rfq"
+                                            string="🖨 Print RFQ"
+                                            type="object"
+                                            class="btn-sm btn-outline-secondary"
+                                            title="Download RFQ PDF for this vendor (vendor details shown at top)"/>
                                 </list>
 
                                 <!-- ── Full per-vendor detail dialog ── -->
@@ -204,6 +210,12 @@
                                                     type="object"
                                                     class="btn btn-outline-secondary"
                                                     title="Send Request for Quotation email to this vendor"/>
+                                            <!-- Print RFQ PDF for this specific vendor -->
+                                            <button name="action_print_rfq"
+                                                    string="🖨 Print RFQ"
+                                                    type="object"
+                                                    class="btn btn-outline-secondary"
+                                                    title="Download RFQ PDF with this vendor's details at the top"/>
                                         </div>
                                     </div>
 
@@ -238,42 +250,63 @@
                                         </group>
                                     </group>
 
-                                    <!-- ── Commercial Terms ── -->
+                                    <!-- ── Commercial Terms (7 required fields) ── -->
                                     <separator string="Commercial Terms"/>
                                     <group>
+                                        <!-- Left column -->
                                         <group string="Delivery &amp; Origin">
-                                            <field name="x_brand_origin"
-                                                   placeholder="e.g. Siemens, Local make"/>
-                                            <field name="x_delivery_basis"/>
+                                            <!-- 1. Delivery Basis -->
+                                            <field name="x_delivery_basis_opt_id"
+                                                   string="Delivery Basis"
+                                                   options="{'no_create': False, 'no_open': False}"/>
+                                            <field name="x_delivery_basis"
+                                                   placeholder="or type manually…"/>
+
+                                            <!-- 5. Delivery Time -->
+                                            <field name="x_delivery_time_opt_id"
+                                                   string="Delivery Time"
+                                                   options="{'no_create': False, 'no_open': False}"/>
                                             <field name="x_delivery_period"
-                                                   placeholder="e.g. 4–6 weeks"/>
-                                            <field name="x_rfq_reference"
-                                                   placeholder="Vendor's quotation number"/>
-                                            <field name="x_quote_validity"/>
+                                                   placeholder="or type manually…"/>
+
+                                            <!-- 6. Brand / Origin -->
+                                            <field name="x_brand_opt_id"
+                                                   string="Brand / Origin"
+                                                   options="{'no_create': False, 'no_open': False}"/>
+                                            <field name="x_brand_origin"
+                                                   placeholder="or type manually…"/>
                                         </group>
+
+                                        <!-- Right column -->
                                         <group string="Payment &amp; Warranty">
+                                            <!-- 3. Payment Mode -->
+                                            <field name="x_payment_mode_opt_id"
+                                                   string="Payment Mode"
+                                                   options="{'no_create': False, 'no_open': False}"/>
+                                            <field name="x_payment_mode"
+                                                   placeholder="or type manually…"/>
+
+                                            <!-- 4. Payment Terms (Odoo standard) -->
                                             <field name="x_payment_term_id"
+                                                   string="Payment Terms"
                                                    options="{'no_create': True, 'no_open': True}"
                                                    placeholder="Select standard payment terms…"/>
-                                            <field name="x_payment_terms"
-                                                   placeholder="Any extra payment conditions…"/>
-                                            <field name="x_warranty"
-                                                   placeholder="e.g. 12 months DLP"/>
+
+                                            <!-- 2. Taxes &amp; Duties -->
+                                            <field name="x_tax_opt_id"
+                                                   string="Taxes &amp; Duties"
+                                                   options="{'no_create': False, 'no_open': False}"/>
                                             <field name="x_tax_treatment"
-                                                   placeholder="e.g. GST 17% extra"/>
+                                                   placeholder="or type manually…"/>
+
+                                            <!-- 7. Warranty -->
+                                            <field name="x_warranty_opt_id"
+                                                   string="Warranty"
+                                                   options="{'no_create': False, 'no_open': False}"/>
+                                            <field name="x_warranty"
+                                                   placeholder="or type manually…"/>
                                         </group>
                                     </group>
-
-                                    <!-- ── T&C Template ── -->
-                                    <separator string="Terms &amp; Conditions"/>
-                                    <group>
-                                        <field name="x_tc_template_id"
-                                               string="T&amp;C Template"
-                                               options="{'no_create': True, 'no_open': True}"
-                                               placeholder="Select a template to auto-fill…"/>
-                                    </group>
-                                    <field name="x_tc_text" widget="html"
-                                           placeholder="Terms and conditions will appear here when a template is selected, or type them directly…"/>
 
                                     <!-- ── Documents ── -->
                                     <separator string="Vendor Quotation Documents"/>

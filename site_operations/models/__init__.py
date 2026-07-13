@@ -41,3 +41,4 @@ from . import account_analytic_account
 from . import account_account  # project-scoped chart of accounts visibility
 from . import account_move_line  # suppress customer-invoice due-date constraint
 from . import employee_backcharge
+from . import account_report_ext  # lock analytic filter for site accountants

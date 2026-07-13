@@ -178,46 +178,73 @@ class SiteAccountantDashboard(models.TransientModel):
                     'currency_id': currency.id,
                 })
 
-        # ── Liabilities ───────────────────────────────────────────────────────
-        SheetLine = self.env['x.liability.sheet.line']
-        sheet_lines = SheetLine.search([
-            ('sheet_id.project_analytic_account_id', '=', analytic.id),
-            ('sheet_id.state', 'in', ('draft', 'submitted', 'approved')),
-        ])
-        partner_map = {}
-        for line in sheet_lines:
-            remaining = max(line.liability_amount - line.paid_amount, 0.0)
-            if remaining <= 0:
-                continue
-            pid = line.partner_id.id
-            is_sub = self._is_subcontractor(line.partner_id)
-            key = (pid, is_sub)
-            if key not in partner_map:
-                partner_map[key] = {
-                    'partner_name': line.partner_id.display_name,
-                    'partner_type': 'subcontractor' if is_sub else 'vendor',
-                    'category_label': line.description or (
-                        line.partner_id.category_id[:1].name
-                        if line.partner_id.category_id else ''
-                    ),
-                    'total_value': 0.0,
-                    'paid_amount': 0.0,
-                    'liability_amount': 0.0,
-                }
-            partner_map[key]['total_value'] += line.liability_amount
-            partner_map[key]['paid_amount'] += line.paid_amount
-            partner_map[key]['liability_amount'] += remaining
+        # ── Liabilities + payments: from partner ledger (GL) ────────────────────
+        # Returns EVERY vendor/subcontractor with ANY posted payable activity
+        # in this project (bill, JE payment, petty-cash advance, Excel import).
+        #
+        # Columns returned:
+        #   total_billed — SUM of credits on payable lines  (what you OWE them)
+        #   total_paid   — SUM of debits  on payable lines  (what you PAID them)
+        #   net_balance  — credit − debit                   (positive = still owe)
+        #
+        # HAVING includes rows where EITHER side > 0 so that a pure advance-
+        # payment JE (debit only, no bill) is still surfaced in the table.
+        cr = self.env.cr
+        analytic_id = analytic.id
+        str_aid = str(analytic_id)
+        cr.execute("""
+            SELECT aml.partner_id,
+                   SUM(aml.credit)              AS total_billed,
+                   SUM(aml.debit)               AS total_paid,
+                   SUM(aml.credit - aml.debit)  AS net_balance
+              FROM account_move_line aml
+              JOIN account_move am  ON am.id  = aml.move_id
+              JOIN account_account aa ON aa.id = aml.account_id
+             WHERE am.state        = 'posted'
+               AND aa.account_type = 'liability_payable'
+               AND aml.partner_id  IS NOT NULL
+               AND (
+                   am.x_project_analytic_account_id = %s
+                   OR (aml.analytic_distribution IS NOT NULL
+                       AND aml.analytic_distribution ? %s)
+               )
+             GROUP BY aml.partner_id
+            HAVING SUM(aml.credit) > 0.005 OR SUM(aml.debit) > 0.005
+        """, [analytic_id, str_aid])
+        gl_rows = cr.fetchall()
+        partner_ids_gl = [r[0] for r in gl_rows]
+        gl_map = {r[0]: {'billed': r[1], 'paid': r[2], 'net': r[3]}
+                  for r in gl_rows}
+        partners_gl = self.env['res.partner'].sudo().browse(partner_ids_gl)
+        partner_lookup_gl = {p.id: p for p in partners_gl}
 
         liability_lines = []
         sub_total = 0.0
         vendor_total = 0.0
-        for data in partner_map.values():
-            data['currency_id'] = currency.id
-            liability_lines.append(data)
-            if data['partner_type'] == 'subcontractor':
-                sub_total += data['liability_amount']
-            else:
-                vendor_total += data['liability_amount']
+        for pid, row in gl_map.items():
+            partner = partner_lookup_gl.get(pid)
+            if not partner:
+                continue
+            is_sub = self._is_subcontractor(partner)
+            net = row['net']
+            entry = {
+                'partner_name': partner.display_name,
+                'partner_type': 'subcontractor' if is_sub else 'vendor',
+                'category_label': (
+                    partner.category_id[:1].name if partner.category_id else ''
+                ),
+                'total_value': row['billed'],   # total billed/owed (credits on payable)
+                'paid_amount': row['paid'],      # total paid (debits on payable, incl. JEs)
+                'liability_amount': net,         # net balance (positive=owe, negative=advance)
+                'currency_id': currency.id,
+            }
+            liability_lines.append(entry)
+            # KPI totals only count genuine outstanding liabilities (net > 0)
+            if net > 0.005:
+                if is_sub:
+                    sub_total += net
+                else:
+                    vendor_total += net
 
         return {
             'kpi_total_employees': total_employees,

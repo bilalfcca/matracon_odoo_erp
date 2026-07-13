@@ -74,6 +74,7 @@ class AccountPaymentSiteOps(models.Model):
     x_ceo_approval_state = fields.Selection([
         ('not_required', 'Not Required'),
         ('pending', 'Pending CEO'),
+        ('submitted', 'Awaiting CEO'),   # FO notified CEO, waiting for approval
         ('approved', 'CEO Approved'),
     ], string='CEO Approval', default='not_required', tracking=True)
 
@@ -391,6 +392,17 @@ class AccountPaymentSiteOps(models.Model):
                 or 'check' in name or 'cheque' in name
             )
 
+    def _compute_show_require_partner_bank(self):
+        """Override: always hide the vendor/customer bank account field.
+
+        Matracon uses x_vendor_bank_account_id (hidden) and routes payments
+        via the Bank Fund tab instead. The standard partner_bank_id widget
+        (Vendor Bank Account) must never appear on the payment form.
+        """
+        for payment in self:
+            payment.show_partner_bank_account = False
+            payment.require_partner_bank_account = False
+
     def _matracon_tax_amount(self, tax, base_amount):
         if not tax or base_amount <= 0:
             return 0.0
@@ -558,18 +570,20 @@ class AccountPaymentSiteOps(models.Model):
                     elif is_fo:
                         vals['x_ceo_approval_state'] = 'pending'
                 elif category == 'vendor':
-                    # Vendor payments by Finance HO require explicit CEO approval
-                    # unless the payment is inherently pre-authorised:
-                    #   • CEO / admin creates it → auto-approved
-                    #   • CEO direct payment flag → auto-approved
-                    #   • Liability sheet set → CEO already approved at sheet level
+                    # Vendor payments require EXPLICIT CEO approval in all cases
+                    # except:
+                    #   • CEO direct payment flag → self-authorised by CEO
                     #   • WHT companion (x_origin_payment_id) → auto-created during posting
+                    #   • Liability sheet already carries CEO approval at sheet level
+                    # NOTE: CEO and Admin creating normal vendor payments must also
+                    # click "Approve (CEO)" explicitly — prevents "CEO Approved" badge
+                    # from appearing before actual approval action is taken.
                     is_ceo_direct = bool(vals.get('x_ceo_direct_payment'))
                     has_liability_sheet = bool(vals.get('x_liability_sheet_id'))
                     is_wht_companion = bool(vals.get('x_origin_payment_id'))
-                    if is_ceo or is_admin or is_ceo_direct or is_wht_companion:
+                    if is_ceo_direct or is_wht_companion:
                         vals['x_ceo_approval_state'] = 'approved'
-                    elif is_fo and not has_liability_sheet:
+                    elif not has_liability_sheet:
                         vals['x_ceo_approval_state'] = 'pending'
         payments = super().create(vals_list)
         payments._matracon_fix_salary_ceo_state()
@@ -619,10 +633,16 @@ class AccountPaymentSiteOps(models.Model):
 
     def action_ceo_approve_payment(self):
         for payment in self:
-            if payment.x_ceo_approval_state != 'pending':
+            if payment.x_ceo_approval_state not in ('pending', 'submitted'):
                 raise UserError(_('This payment is not pending CEO approval.'))
             payment.x_ceo_approval_state = 'approved'
-            payment.message_post(body=_('CEO approved payment.'))
+            vendor = payment.partner_id.name or '—'
+            amount_str = '{:,.2f}'.format(payment.amount)
+            currency_sym = payment.currency_id.symbol or ''
+            payment.message_post(
+                body=_('CEO approved payment to <b>%s</b> (%s %s).') % (
+                    vendor, currency_sym, amount_str)
+            )
             fo_users = self.env['res.users'].search([
                 ('group_ids', 'in', self.env.ref(
                     'site_operations.group_finance_ho').id),
@@ -630,11 +650,66 @@ class AccountPaymentSiteOps(models.Model):
             matracon_notify.notify_users(
                 payment,
                 fo_users,
-                _('CEO approved <b>%s</b> payment — please process.') % payment.name,
+                _('CEO approved payment to <b>%(vendor)s</b> '
+                  '(%(currency)s %(amount)s) — please process.') % {
+                    'vendor': vendor,
+                    'currency': currency_sym,
+                    'amount': amount_str,
+                },
                 summary=_('Payment Approved by CEO'),
             )
             matracon_notify.schedule_activity(
-                payment, fo_users, _('Process payment %s') % payment.name)
+                payment, fo_users,
+                _('Process payment — %s (%s %s)') % (vendor, currency_sym, amount_str)
+            )
+
+    def action_notify_ceo_for_approval(self):
+        """Finance HO: submit/re-notify CEO to approve a pending vendor payment.
+
+        Called from the "Submit to CEO ▶" button (pending state) or the
+        "↻ Re-notify CEO" button (submitted state) on the payment form.
+        Sends a chatter notification to all CEO-group users and schedules
+        an activity, so the CEO sees it in their inbox.
+        After the first click the state moves from 'pending' → 'submitted'
+        so the primary button disappears and "Re-notify" appears instead.
+        """
+        self.ensure_one()
+        if self.x_ceo_approval_state == 'approved':
+            raise UserError(_('This payment is already CEO-approved.'))
+        ceo_users = self.env['res.users'].search([
+            ('group_ids', 'in', self.env.ref(
+                'purchase_demand_raise.group_ceo_approval').id),
+        ])
+        vendor = self.partner_id.name or '—'
+        amount_str = '{:,.2f}'.format(self.amount)
+        currency_sym = self.currency_id.symbol or ''
+        matracon_notify.notify_users(
+            self,
+            ceo_users,
+            _(
+                'Finance HO has submitted a vendor payment to <b>%(vendor)s</b> '
+                '(%(currency)s %(amount)s) for your approval. '
+                'Please open the payment and click <b>"Approve (CEO)"</b>.'
+            ) % {
+                'vendor': vendor,
+                'currency': currency_sym,
+                'amount': amount_str,
+            },
+            summary=_('Payment Awaiting CEO Approval'),
+        )
+        matracon_notify.schedule_activity(
+            self,
+            ceo_users,
+            _('Approve vendor payment — %s (%s %s)') % (vendor, currency_sym, amount_str),
+        )
+        self.message_post(
+            body=_('Payment submitted to CEO for approval by <b>%s</b>.')
+            % self.env.user.name,
+        )
+        # Move to 'submitted' so the primary "Submit to CEO" button disappears
+        # and a softer "Re-notify CEO" button takes its place.
+        if self.x_ceo_approval_state == 'pending':
+            self.x_ceo_approval_state = 'submitted'
 
     def _matracon_ensure_fund_allocations(self):
         """Auto-fill fund allocation from source projects when FO posts payment.
@@ -968,8 +1043,8 @@ class AccountPaymentSiteOps(models.Model):
                         'Payment "%s" has not been approved by the CEO. '
                         'The CEO must click "Approve (CEO)" before Finance HO can proceed.'
                     ) % (payment.name or _('Draft')))
-            elif payment.x_ceo_approval_state == 'pending':
-                # Catch remaining pending payments (salary/petty-cash without a sheet link).
+            elif payment.x_ceo_approval_state in ('pending', 'submitted'):
+                # Catch remaining pending/submitted payments (salary/petty-cash without a sheet link).
                 raise UserError(_(
                     'CEO approval is required before posting this payment.\n\n'
                     'Payment "%s" is awaiting CEO approval. '

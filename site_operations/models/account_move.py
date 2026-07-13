@@ -321,6 +321,38 @@ class AccountMoveSiteOps(models.Model):
                 'Please upload the physical bill document for: %s'
             ) % names)
 
+        # ── HO/Finance JE validation: payable lines must carry an analytic ──────
+        # Without analytic_distribution on the payable line, a Head Office or
+        # Finance journal entry cannot be attributed to any project, so it would
+        # be invisible in dashboards and IPC calculations.
+        # SA JEs are auto-filled by _onchange_line_ids_fill_analytic_for_entry;
+        # this check is a safety net specifically for HO/Finance users.
+        ho_or_finance = (
+            self.env.user.has_group('purchase_demand_raise.group_head_office')
+            or self.env.user.has_group('site_operations.group_finance_ho')
+        )
+        if ho_or_finance:
+            for move in self.filtered(lambda m: m.move_type == 'entry' and m.state != 'posted'):
+                missing = move.line_ids.filtered(
+                    lambda l: (
+                        l.account_id.account_type == 'liability_payable'
+                        and l.partner_id
+                        and not l.analytic_distribution
+                    )
+                )
+                if missing:
+                    partner_names = ', '.join(
+                        l.partner_id.display_name or l.account_id.display_name
+                        for l in missing
+                    )
+                    raise UserError(_(
+                        'Please set an Analytic Account on all payable lines before posting.\n\n'
+                        'Head Office / Finance journal entries must specify a project analytic '
+                        'account so the payment is tracked in the correct project dashboard '
+                        'and IPC calculations.\n\n'
+                        'Missing analytic on lines for: %s'
+                    ) % partner_names)
+
         # Site accountants have group_account_readonly (for Partner Ledger /
         # reporting menus) but Odoo's action_post() hard-checks group_account_invoice.
         # These are mutually exclusive Odoo 19 privilege levels; we cannot grant both.
@@ -337,6 +369,22 @@ class AccountMoveSiteOps(models.Model):
             # (tax lines, payment-term lines) cannot overwrite the distribution.
             # Backcharge-generated bills are excluded — their picking sets analytics.
             if not move.x_source_picking_id:
+                # Last-chance analytic auto-fill: if the bill was created or
+                # imported without a project analytic (e.g. Excel import, or
+                # created by a user with no default), stamp it from the current
+                # (posting) user's default BEFORE applying analytics to lines.
+                # We use direct SQL here because the move is already 'posted'
+                # and Odoo's write lock would otherwise block a normal ORM write.
+                if not move.x_project_analytic_account_id:
+                    user_analytic = self.env.user.x_default_analytic_account_id
+                    if user_analytic:
+                        self.env.cr.execute(
+                            "UPDATE account_move"
+                            "   SET x_project_analytic_account_id = %s"
+                            " WHERE id = %s",
+                            (user_analytic.id, move.id),
+                        )
+                        move.invalidate_recordset(['x_project_analytic_account_id'])
                 move.sudo()._matracon_apply_bill_analytic()
                 move._ensure_liability_sheet_for_bill(notify=True)
                 move._update_project_balance_from_bill()

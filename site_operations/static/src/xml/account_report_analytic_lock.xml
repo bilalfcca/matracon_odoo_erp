@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates>
+    <!--
+        Patch AccountReportFilterAnalytic:
+        When `analytic_accounts_locked` is true (site accountant),
+        replace the interactive Dropdown with a read-only disabled button
+        showing the pre-selected site analytic account.
+        HO / Finance users see the original interactive Dropdown unchanged.
+    -->
+    <t t-name="account_reports.AccountReportFilterAnalytic"
+       t-inherit="account_reports.AccountReportFilterAnalytic"
+       t-inherit-mode="extension">
+        <xpath expr="//Dropdown" position="replace">
+            <t t-if="isAnalyticLocked">
+                <!-- Site accountant: read-only chip — cannot be changed -->
+                <button class="btn btn-secondary disabled pe-none"
+                        title="Analytic account is fixed to your site project">
+                    <i class="fa fa-filter me-1"/>
+                    Analytic: <t t-esc="lockedAnalyticName"/>
+                </button>
+            </t>
+            <t t-else="">
+                <!-- HO / Finance / Admin: original interactive dropdown -->
+                <Dropdown menuClass="'account_report_filter analytic'">
+                    <button class="btn btn-secondary">
+                        <i class="fa fa-filter me-1"/>Analytic
+                    </button>
+                    <t t-set-slot="content">
+                        <div class="dropdown-item gap-2 align-items-center">
+                            <label>Accounts</label>
+                            <MultiRecordSelector t-props="getMultiRecordSelectorProps('account.analytic.account', 'analytic_accounts')"/>
+                        </div>
+                    </t>
+                </Dropdown>
+            </t>
+        </xpath>
+    </t>
+</templates>

@@ -96,8 +96,18 @@ class PurchaseOrderTender(models.Model):
         return orders
 
     def action_print_rfq_no_price(self):
-        """Print RFQ without prices (Matracon internal / vendor quote request)."""
+        """Print RFQ without prices (Matracon internal / vendor quote request).
+
+        Requires a vendor (partner_id) to be selected first so the printed
+        document carries the correct supplier information at the top.
+        """
         self.ensure_one()
+        if not self.partner_id:
+            raise UserError(_(
+                'Please select a vendor before printing the RFQ.\n\n'
+                'The vendor information is printed at the top of the document. '
+                'Set the Vendor field on this RFQ and try again.'
+            ))
         return self.env.ref(
             'purchase_demand_raise.action_report_rfq_demand_raise'
         ).report_action(self)

@@ -300,6 +300,8 @@ class SubcontractorIPC(models.Model):
             def _total_payments(cutoff_date):
                 if not cutoff_date:
                     return 0.0
+                str_analytic_id = str(analytic_id)
+
                 # Bank / vendor payments via account.payment
                 cr.execute("""
                     SELECT COALESCE(SUM(ap.amount), 0)
@@ -324,7 +326,30 @@ class SubcontractorIPC(models.Model):
                 """, (partner_id, cutoff_date, analytic_id))
                 petty_cash = cr.fetchone()[0]
 
-                return vendor_pay + petty_cash
+                # Journal-entry payments (Dr Payable Cr Bank) not via account.payment
+                # Captures SA direct JEs, HO JEs with analytic, Excel-imported entries.
+                # am.origin_payment_id IS NULL prevents double-counting: payment-wizard
+                # JEs have origin_payment_id set and are already counted via account_payment.
+                cr.execute("""
+                    SELECT COALESCE(SUM(aml.debit), 0)
+                      FROM account_move_line aml
+                      JOIN account_move am  ON am.id  = aml.move_id
+                      JOIN account_account aa ON aa.id = aml.account_id
+                     WHERE am.state             = 'posted'
+                       AND am.origin_payment_id IS NULL
+                       AND aa.account_type = 'liability_payable'
+                       AND aml.debit       > 0
+                       AND aml.partner_id  = %s
+                       AND am.date        <= %s
+                       AND (
+                           am.x_project_analytic_account_id = %s
+                           OR (aml.analytic_distribution IS NOT NULL
+                               AND aml.analytic_distribution ? %s)
+                       )
+                """, (partner_id, cutoff_date, analytic_id, str_analytic_id))
+                je_pay = cr.fetchone()[0] or 0.0
+
+                return vendor_pay + petty_cash + je_pay
 
             prev_date = (
                 ipc.previous_ipc_id.ipc_date
