@@ -175,37 +175,108 @@
          Users can remove the filter to see full history.
          ════════════════════════════════════════════════════════ -->
 
-    <!-- Procurement HO: lands on "Pending HO Approval" by default.
-         default_x_pr_origin ensures "New" records open with x_pr_origin='procurement_ho'
-         so x_is_pr_document=True from the first render (shows all PR fields). -->
+    <!-- Common PR action — domain matches purchase.purchase_rfq so every
+         "Purchase Requisitions" menu shows the same records regardless of entry point.
+         search_view_id explicitly set to view_purchase_order_filter (the view our
+         extended search view inherits from) so all custom filters/group-bys are visible.
+         default_x_pr_origin ensures "New" records open as PR documents. -->
     <record id="action_prs_procurement_ho" model="ir.actions.act_window">
         <field name="name">Purchase Requisitions</field>
         <field name="res_model">purchase.order</field>
         <field name="view_mode">list,form</field>
-        <field name="domain">[('x_is_alternative_rfq', '!=', True), ('x_procurement_type', '=', 'ho_procurement')]</field>
-        <field name="context">{'search_default_pending_ho_approval': 1, 'default_x_pr_origin': 'procurement_ho'}</field>
+        <field name="domain">[('x_is_alternative_rfq', '!=', True)]</field>
+        <field name="search_view_id" ref="purchase.view_purchase_order_filter"/>
+        <field name="context">{'default_x_pr_origin': 'procurement_ho'}</field>
     </record>
 
-    <!-- CEO: lands on "Pending CEO Final" by default -->
+    <!-- CEO: all PRs, pre-filtered to "Pending CEO Final" -->
     <record id="action_prs_ceo" model="ir.actions.act_window">
         <field name="name">Purchase Requisitions</field>
         <field name="res_model">purchase.order</field>
         <field name="view_mode">list,form</field>
-        <field name="domain">[('x_is_alternative_rfq', '!=', True), ('x_procurement_type', '=', 'ho_procurement')]</field>
+        <field name="domain">[('x_is_alternative_rfq', '!=', True)]</field>
+        <field name="search_view_id" ref="purchase.view_purchase_order_filter"/>
         <field name="context">{'search_default_ceo_final_review': 1}</field>
     </record>
 
-    <!-- Head Office (general oversight): lands on "Pending HO Approval" by default -->
+    <!-- Head Office (general oversight): all PRs, no pre-filter -->
     <record id="action_prs_head_office" model="ir.actions.act_window">
         <field name="name">Purchase Requisitions</field>
         <field name="res_model">purchase.order</field>
         <field name="view_mode">list,form</field>
-        <field name="domain">[('x_is_alternative_rfq', '!=', True), ('x_procurement_type', '=', 'ho_procurement')]</field>
-        <field name="context">{'search_default_pending_ho_approval': 1}</field>
+        <field name="domain">[('x_is_alternative_rfq', '!=', True)]</field>
+        <field name="search_view_id" ref="purchase.view_purchase_order_filter"/>
+        <field name="context">{}</field>
+    </record>
+
+    <!-- ════════════════════════════════════════════════════════
+         SEARCH VIEW — PR filters on purchase_order_view_search
+         (Purchase Orders screen uses this view, not view_purchase_order_filter)
+         ════════════════════════════════════════════════════════ -->
+    <record id="view_purchase_order_search_demand_raise" model="ir.ui.view">
+        <field name="name">purchase.order.search.demand.raise</field>
+        <field name="model">purchase.order</field>
+        <field name="inherit_id" ref="purchase.purchase_order_view_search"/>
+        <field name="arch" type="xml">
+            <xpath expr="//search" position="inside">
+
+                <field name="x_initiator_id" string="Raised By"/>
+                <field name="x_project_analytic_account_id" string="Project"/>
+                <field name="x_category_id" string="Category"/>
+                <field name="x_procurement_type" string="Procurement Type"/>
+
+                <separator/>
+
+                <filter name="ho_procurement"
+                        string="HO Procurement"
+                        domain="[('x_procurement_type', '=', 'ho_procurement')]"/>
+                <filter name="site_procurement"
+                        string="Site Procurement"
+                        domain="[('x_procurement_type', '=', 'site_procurement')]"/>
+
+                <separator/>
+
+                <filter name="pending_ho_approval"
+                        string="Pending HO Approval"
+                        domain="[('x_ho_status', '=', 'pending'), ('x_pr_state', 'not in', ['draft', 'rejected', 'cancelled'])]"/>
+                <filter name="pending_ceo_approval"
+                        string="Pending CEO Approval"
+                        domain="[('x_ceo_status', '=', 'pending'), ('x_pr_state', 'not in', ['draft', 'rejected', 'cancelled'])]"/>
+                <filter name="ceo_final_review"
+                        string="Pending CEO Final"
+                        domain="[('x_pr_state', '=', 'ceo_final')]"/>
+                <filter name="po_locked"
+                        string="PO Locked — Ready to Dispatch"
+                        domain="[('x_pr_state', '=', 'po_locked')]"/>
+                <filter name="rejected"
+                        string="Rejected"
+                        domain="[('x_pr_state', '=', 'rejected')]"/>
+
+                <separator/>
+
+                <filter name="group_pr_state"
+                        string="Group by PR Status"
+                        context="{'group_by': 'x_pr_state'}"/>
+                <filter name="group_project"
+                        string="Group by Project"
+                        context="{'group_by': 'x_project_analytic_account_id'}"/>
+                <filter name="group_category"
+                        string="Group by Category"
+                        context="{'group_by': 'x_category_id'}"/>
+                <filter name="group_initiator"
+                        string="Group by Raised By"
+                        context="{'group_by': 'x_initiator_id'}"/>
+                <filter name="group_procurement_type"
+                        string="Group by Procurement Type"
+                        context="{'group_by': 'x_procurement_type'}"/>
+
+            </xpath>
+        </field>
     </record>
 
     <!-- ════════════════════════════════════════════════════════
          SEARCH VIEW — PR filters, group-by, and search panel
+         (Purchase Requisitions screens use view_purchase_order_filter)
          ════════════════════════════════════════════════════════ -->
     <record id="view_purchase_rfq_search_demand_raise" model="ir.ui.view">
         <field name="name">purchase.rfq.search.demand.raise</field>
