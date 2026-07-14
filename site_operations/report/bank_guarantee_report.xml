@@ -46,9 +46,9 @@
                             </tr>
                             <tr>
                                 <td style="font-weight:600;">Issue Date</td>
-                                <td><t t-esc="bg.issue_date.strftime('%d %b %Y') if bg.issue_date else '-'"/></td>
+                                <td><t t-esc="bg.issue_date.strftime('%d/%m/%Y') if bg.issue_date else '-'"/></td>
                                 <td style="font-weight:600;">Expiry Date</td>
-                                <td><t t-esc="bg.expiry_date.strftime('%d %b %Y') if bg.expiry_date else '-'"/></td>
+                                <td><t t-esc="bg.expiry_date.strftime('%d/%m/%Y') if bg.expiry_date else '-'"/></td>
                             </tr>
                             <tr>
                                 <td style="font-weight:600;">BG Amount</td>

@@ -26,7 +26,7 @@
                         <table class="table table-sm table-borderless" style="font-size:13px;">
                             <tr>
                                 <td style="width:28%;font-weight:600;">Date</td>
-                                <td><t t-esc="ipt.date.strftime('%d %b %Y') if ipt.date else '-'"/></td>
+                                <td><t t-esc="ipt.date.strftime('%d/%m/%Y') if ipt.date else '-'"/></td>
                                 <td style="width:28%;font-weight:600;">Transfer Type</td>
                                 <td style="text-transform:capitalize;">
                                     <t t-esc="dict(ipt._fields['transfer_type'].selection).get(ipt.transfer_type, ipt.transfer_type or '-')"/>
@@ -49,7 +49,7 @@
                                     <t t-esc="dict(ipt._fields['state'].selection).get(ipt.state, ipt.state)"/>
                                 </td>
                                 <td style="font-weight:600;">Settlement Date</td>
-                                <td><t t-esc="ipt.settlement_date.strftime('%d %b %Y') if ipt.settlement_date else 'Pending'"/></td>
+                                <td><t t-esc="ipt.settlement_date.strftime('%d/%m/%Y') if ipt.settlement_date else 'Pending'"/></td>
                             </tr>
                         </table>
 

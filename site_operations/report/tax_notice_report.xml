@@ -38,9 +38,9 @@
                             </tr>
                             <tr>
                                 <td style="font-weight:600;">Document Date</td>
-                                <td><t t-esc="notice.document_date.strftime('%d %b %Y') if notice.document_date else '-'"/></td>
+                                <td><t t-esc="notice.document_date.strftime('%d/%m/%Y') if notice.document_date else '-'"/></td>
                                 <td style="font-weight:600;">Due Date</td>
-                                <td><t t-esc="notice.due_date.strftime('%d %b %Y') if notice.due_date else '-'"/></td>
+                                <td><t t-esc="notice.due_date.strftime('%d/%m/%Y') if notice.due_date else '-'"/></td>
                             </tr>
                             <tr>
                                 <td style="font-weight:600;">Status</td>

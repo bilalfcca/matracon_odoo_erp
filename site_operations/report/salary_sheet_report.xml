@@ -37,9 +37,9 @@
                                     <tr>
                                         <td style="font-weight:600;">Period</td>
                                         <td>
-                                            <t t-esc="sheet.date_from.strftime('%d %b %Y') if sheet.date_from else '-'"/>
+                                            <t t-esc="sheet.date_from.strftime('%d/%m/%Y') if sheet.date_from else '-'"/>
                                             &#160;–&#160;
-                                            <t t-esc="sheet.date_to.strftime('%d %b %Y') if sheet.date_to else '-'"/>
+                                            <t t-esc="sheet.date_to.strftime('%d/%m/%Y') if sheet.date_to else '-'"/>
                                         </td>
                                     </tr>
                                     <tr>
@@ -160,7 +160,7 @@
                         <p class="text-muted small mt-3 text-center">
                             System-generated — Matracon Pakistan Pvt. Ltd. ·
                             <t t-esc="sheet.name"/> ·
-                            Printed: <t t-esc="context_timestamp(datetime.datetime.now()).strftime('%d %b %Y %H:%M')"/>
+                            Printed: <t t-esc="context_timestamp(datetime.datetime.now()).strftime('%d/%m/%Y %H:%M')"/>
                         </p>
                     </div>
                 </t>
