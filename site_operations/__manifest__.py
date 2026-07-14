@@ -66,6 +66,7 @@
         'views/subcontractor_ho_advance_views.xml',
         'views/employee_backcharge_views.xml',
         'views/material_cost_views.xml',
+        'views/uom_ext_views.xml',
         'views/menus.xml',
         'report/mif_report.xml',
         'report/mif_report_template.xml',
