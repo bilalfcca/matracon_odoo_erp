@@ -372,3 +372,12 @@ def post_migrate_hook(env):
     except Exception as e:
         import logging
         logging.getLogger(__name__).warning('post_migrate_hook: apply_menu_visibility failed: %s', e)
+    # Remove legacy menu_petty_cash_requests (replaced by menu_petty_cash_requests_ceo).
+    # The old record may still exist in staging DBs that were installed before the
+    # 778a46b collapse commit. Unlink it here so the CEO never sees a duplicate.
+    try:
+        old_menu = env.ref('site_operations.menu_petty_cash_requests', raise_if_not_found=False)
+        if old_menu:
+            old_menu.sudo().unlink()
+    except Exception:
+        pass
