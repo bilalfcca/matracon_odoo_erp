@@ -50,7 +50,7 @@
                                     <t t-esc="dict(req._fields['state'].selection).get(req.state, req.state)"/>
                                 </td>
                                 <td style="font-weight:600;">Date</td>
-                                <td><t t-esc="req.create_date.strftime('%d %b %Y') if req.create_date else '-'"/></td>
+                                <td><t t-esc="req.create_date.strftime('%d/%m/%Y') if req.create_date else '-'"/></td>
                             </tr>
                             <tr>
                                 <td style="font-weight:600;">Requested Amount</td>
@@ -128,7 +128,7 @@
                             <div class="col-6 text-end">
                                 <span style="font-weight:600;font-size:13px;">Date: </span>
                                 <span style="font-size:13px;">
-                                    <t t-esc="exp.expense_date.strftime('%d %b %Y') if exp.expense_date else '-'"/>
+                                    <t t-esc="exp.expense_date.strftime('%d/%m/%Y') if exp.expense_date else '-'"/>
                                 </span>
                             </div>
                         </div>

@@ -638,7 +638,7 @@ class SubcontractorIPC(models.Model):
 
         amount = self.net_payable
         date_str = (
-            self.ipc_date.strftime('%d-%b-%Y') if self.ipc_date else '')
+            self.ipc_date.strftime('%d/%m/%Y') if self.ipc_date else '')
         desc = _('IPC No.%s — %s — %s') % (
             self.ipc_number, self.name, date_str)
 

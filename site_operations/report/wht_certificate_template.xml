@@ -39,7 +39,7 @@
                             <p class="text-muted" style="font-size: 12px;">
                                 Certificate No: <strong><t t-esc="o.name"/></strong>
                                 &amp;nbsp;&amp;nbsp;|&amp;nbsp;&amp;nbsp;
-                                Issued On: <strong><t t-esc="o.issue_date"/></strong>
+                                Issued On: <strong><t t-esc="o.issue_date.strftime('%d/%m/%Y') if o.issue_date else '-'"/></strong>
                             </p>
                         </div>
 
@@ -95,7 +95,7 @@
                                         </tr>
                                         <tr>
                                             <td style="font-weight: bold;">Payment Date</td>
-                                            <td><t t-esc="o.payment_date or 'N/A'"/></td>
+                                            <td><t t-esc="o.payment_date.strftime('%d/%m/%Y') if o.payment_date else 'N/A'"/></td>
                                         </tr>
                                         <tr>
                                             <td style="font-weight: bold;">Tax Period</td>

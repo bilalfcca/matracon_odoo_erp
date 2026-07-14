@@ -37,7 +37,7 @@
                                         </tr>
                                         <tr>
                                             <td style="font-weight:600;">Issue Date</td>
-                                            <td><t t-esc="pdc.issue_date.strftime('%d %b %Y') if pdc.issue_date else '-'"/></td>
+                                            <td><t t-esc="pdc.issue_date.strftime('%d/%m/%Y') if pdc.issue_date else '-'"/></td>
                                         </tr>
                                     </table>
                                 </div>
@@ -45,7 +45,7 @@
                                     <table class="table table-sm table-borderless">
                                         <tr>
                                             <td style="width:45%;font-weight:600;">Cheque Date</td>
-                                            <td><t t-esc="pdc.cheque_date.strftime('%d %b %Y') if pdc.cheque_date else '-'"/></td>
+                                            <td><t t-esc="pdc.cheque_date.strftime('%d/%m/%Y') if pdc.cheque_date else '-'"/></td>
                                         </tr>
                                         <tr>
                                             <td style="font-weight:600;">Days to Clear</td>

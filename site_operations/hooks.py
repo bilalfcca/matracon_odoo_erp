@@ -303,7 +303,24 @@ def reprocess_existing_payments(env):
     _logger.info('reprocess_existing_payments: done')
 
 
+def set_date_format(env):
+    """
+    Set DD/MM/YYYY date format on every installed language so the format
+    applies globally: views, list/form fields, format_date() calls, and
+    standard Odoo reports all read res.lang.date_format at render time.
+    Uses raw SQL to bypass ORM write restrictions on res.lang.
+    """
+    import logging
+    _logger = logging.getLogger(__name__)
+    env.cr.execute("UPDATE res_lang SET date_format = '%d/%m/%Y'")
+    _logger.info('set_date_format: applied %%d/%%m/%%Y to all res.lang rows (%d updated)',
+                 env.cr.rowcount)
+    # Invalidate cached language data so the change is picked up immediately
+    env['res.lang'].invalidate_model(['date_format'])
+
+
 def post_init_hook(env):
+    set_date_format(env)
     deduplicate_partner_tags(env)
     try:
         migrate_matracon_admin_group(env)
@@ -328,6 +345,7 @@ def post_init_hook(env):
 
 
 def post_migrate_hook(env):
+    set_date_format(env)
     deduplicate_partner_tags(env)
     reprocess_existing_payments(env)
     # Re-apply production user config (groups + default analytic/warehouse) on every update

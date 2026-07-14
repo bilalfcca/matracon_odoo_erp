@@ -29,9 +29,9 @@
                                     <tr>
                                         <td style="font-weight:600;">Period</td>
                                         <td>
-                                            <t t-esc="sheet.date_from.strftime('%d-%b-%Y') if sheet.date_from else '-'"/>
+                                            <t t-esc="sheet.date_from.strftime('%d/%m/%Y') if sheet.date_from else '-'"/>
                                             &#160;to&#160;
-                                            <t t-esc="sheet.date_to.strftime('%d-%b-%Y') if sheet.date_to else '-'"/>
+                                            <t t-esc="sheet.date_to.strftime('%d/%m/%Y') if sheet.date_to else '-'"/>
                                         </td>
                                     </tr>
                                 </table>
@@ -139,7 +139,7 @@
                                             <t t-esc="sheet.pm_id.name or 'Project Manager'"/> — Project Manager
                                         </div>
                                         <div style="font-size:10px; color:#6c757d; margin-top:8px;">
-                                            Signed: <t t-esc="sheet.pm_signature_date.strftime('%d-%b-%Y %H:%M') if sheet.pm_signature_date else ''"/>
+                                            Signed: <t t-esc="sheet.pm_signature_date.strftime('%d/%m/%Y %H:%M') if sheet.pm_signature_date else ''"/>
                                         </div>
                                     </div>
                                 </t>

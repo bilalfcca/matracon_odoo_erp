@@ -275,7 +275,7 @@ class PurchaseOrderTender(models.Model):
                     val = order.partner_ref or '—'
                 elif field_name == 'x_quote_validity':
                     val = (
-                        order.x_quote_validity.strftime('%d-%b-%Y')
+                        order.x_quote_validity.strftime('%d/%m/%Y')
                         if order.x_quote_validity else '—'
                     )
                 elif field_name == 'x_quote_tax_treatment':
