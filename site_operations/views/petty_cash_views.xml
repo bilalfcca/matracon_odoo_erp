@@ -133,18 +133,35 @@
         </field>
     </record>
 
+    <!-- Unified Requests list — used by all roles via action_petty_cash_request.
+         CEO columns (Decision Type, CEO Approved) are restricted by groups so only
+         CEO sees/edits them inline; everyone else sees a clean read-only list.
+         multi_edit lets CEO bulk-set amounts before using "CEO Approve Selected". -->
     <record id="view_petty_cash_request_list" model="ir.ui.view">
         <field name="name">x.petty.cash.request.list</field>
         <field name="model">x.petty.cash.request</field>
         <field name="arch" type="xml">
-            <list>
-                <field name="name"/>
-                <field name="project_analytic_account_id"/>
-                <field name="requested_amount"/>
-                <field name="ceo_approved_amount" optional="show"/>
-                <field name="released_amount"/>
+            <list multi_edit="1"
+                  decoration-muted="state == 'draft'"
+                  decoration-warning="state == 'submitted'"
+                  decoration-info="state == 'ceo_approved'"
+                  decoration-primary="state == 'released'"
+                  decoration-success="state == 'confirmed'"
+                  decoration-danger="state == 'rejected'">
+                <field name="name" readonly="1"/>
+                <field name="project_analytic_account_id" string="Site Project" readonly="1"/>
+                <field name="requested_amount" string="Required Amount" readonly="1"/>
+                <!-- CEO-only inline edit: visible + editable only when user is CEO -->
+                <field name="ceo_amount_type" string="Decision Type"
+                       groups="purchase_demand_raise.group_ceo_approval"
+                       readonly="state not in ('submitted',)"/>
+                <field name="ceo_approved_amount" string="CEO Approved"
+                       groups="purchase_demand_raise.group_ceo_approval"
+                       readonly="state not in ('submitted',)"/>
+                <field name="released_amount" string="Released Amount" readonly="1" optional="show"/>
                 <field name="currency_id" invisible="1"/>
                 <field name="state" widget="badge"
+                       readonly="1"
                        decoration-muted="state == 'draft'"
                        decoration-warning="state == 'submitted'"
                        decoration-info="state == 'ceo_approved'"
