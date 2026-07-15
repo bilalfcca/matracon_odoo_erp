@@ -159,6 +159,26 @@ action = {
     </record>
 
     <!-- ══════════════════════════════════════════════════════════════════════
+         4a. Chart of Accounts list: hide New/Delete buttons for site accountants.
+             The standard view hardcodes create="1", so an ACL change alone only
+             errors on submit — the button stays visible.  This groups_id-restricted
+             override applies only to group_site_accountant, leaving HO/Admin
+             with the unmodified view (create="1" / delete="1").
+    ══════════════════════════════════════════════════════════════════════════ -->
+    <record id="view_account_list_no_create_site_accountant" model="ir.ui.view">
+        <field name="name">account.account.list.no.create.site.accountant</field>
+        <field name="model">account.account</field>
+        <field name="inherit_id" ref="account.view_account_list"/>
+        <field name="groups_id" eval="[(4, ref('site_operations.group_site_accountant'))]"/>
+        <field name="arch" type="xml">
+            <xpath expr="//list" position="attributes">
+                <attribute name="create">0</attribute>
+                <attribute name="delete">0</attribute>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
          4.  Chart of Accounts list: show x_site_ids as optional column
              (HO can see / edit which sites each account is assigned to).
              Column is hidden by default to keep the list clean.

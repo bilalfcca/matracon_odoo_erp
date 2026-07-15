@@ -249,21 +249,15 @@
               sequence="12"
               groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
-    <!-- Requests menu (CEO): excludes Draft, bulk approve, no New button -->
-    <menuitem id="menu_petty_cash_requests_ceo"
-              name="Requests"
-              parent="site_operations.menu_petty_cash_root"
-              action="site_operations.action_petty_cash_request_ceo"
-              sequence="10"
-              groups="purchase_demand_raise.group_ceo_approval"/>
-
-    <!-- Requests menu (non-CEO): full CRUD, includes Draft — SA, Finance HO, HO, Admin -->
+    <!-- Single Requests menu for ALL roles. Draft visibility is controlled by a
+         record rule (HO/CEO/Admin cannot see draft). Site accountants see their
+         own drafts (site-scoping rule already applied). -->
     <menuitem id="menu_petty_cash_requests"
               name="Requests"
               parent="site_operations.menu_petty_cash_root"
               action="site_operations.action_petty_cash_request"
               sequence="10"
-              groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+              groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
     <menuitem id="menu_petty_cash_expenses"
               name="Expenses"
