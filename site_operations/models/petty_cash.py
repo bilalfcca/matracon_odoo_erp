@@ -489,6 +489,11 @@ class PettyCashRequest(models.Model):
         The payment's destination account is set to the site's dedicated
         petty cash account (Cash in Hand — Project) so the journal entry
         correctly debits that account instead of the generic AP account.
+
+        NOTE: destination_account_id is a computed field that Odoo re-computes
+        whenever the payment is edited (journal, method, etc.) — setting it here
+        is a convenience hint for the Finance HO form view.  The authoritative
+        override happens in _prepare_move_line_default_vals() at posting time.
         """
         self.ensure_one()
         if self.state != 'ceo_approved':
@@ -496,8 +501,17 @@ class PettyCashRequest(models.Model):
         Payment = self.env['account.payment']
         analytic = self.project_analytic_account_id
 
-        # Resolve site petty cash account
+        # Resolve site petty cash account — REQUIRED before releasing
         petty_cash_account = self.fund_id._get_petty_cash_account()
+        if not petty_cash_account:
+            site_name = (analytic.name or self.fund_id.name or 'this site')
+            raise UserError(_(
+                'No Petty Cash Account (Cash in Hand) is configured for "%s".\n\n'
+                'Please go to:\n'
+                '  Configuration → Site Configurations → %s\n'
+                'and set the "Petty Cash Account (Cash in Hand)" field, '
+                'then try releasing again.'
+            ) % (site_name, site_name))
 
         payment_vals = {
             'payment_type': 'outbound',
@@ -511,11 +525,11 @@ class PettyCashRequest(models.Model):
         }
         payment = Payment.create(payment_vals)
 
-        # Override destination account to site's Cash in Hand account.
-        # The core compute sets it from partner AP — we override after create()
-        # so the journal entry debits the correct petty cash account.
-        if petty_cash_account:
-            payment.destination_account_id = petty_cash_account.id
+        # Set destination_account_id as a UI hint so Finance HO sees the correct
+        # account pre-filled on the payment form.  This may be overwritten if the
+        # user changes the journal/method — but _prepare_move_line_default_vals()
+        # enforces the correct account at posting time regardless.
+        payment.destination_account_id = petty_cash_account.id
 
         self.payment_id = payment.id
         return {
@@ -554,6 +568,138 @@ class PettyCashRequest(models.Model):
             req.message_post(
                 body=Markup(_('Petty cash <b>%s</b> released by Finance HO.'))
                 % f'{req.released_amount:,.2f}')
+
+    def action_fix_petty_cash_entry(self):
+        """Create a correcting journal entry when the release payment JE hit the
+        wrong account (AP instead of Cash in Hand).
+
+        This happens when the petty cash account was not configured on the site
+        before the payment was posted, or when Odoo recomputed destination_account_id
+        after action_release() set it.
+
+        The correction:
+          Dr  Cash in Hand (petty cash account)   ← correct account
+          Cr  Wrong account (whatever was debited) ← reversal
+        """
+        self.ensure_one()
+        if not self.payment_id:
+            raise UserError(_('No payment is linked to this request.'))
+        if self.payment_id.state not in ('in_process', 'paid', 'partial', 'posted'):
+            raise UserError(_('The payment must be posted before a correction can be applied.'))
+        if not self.payment_id.move_id:
+            raise UserError(_(
+                'The payment has no journal entry (move_id is empty). '
+                'Nothing to correct.'
+            ))
+
+        pc_account = self.fund_id._get_petty_cash_account()
+        if not pc_account:
+            raise UserError(_(
+                'No Petty Cash Account (Cash in Hand) is configured for this site.\n\n'
+                'Please set it in Configuration → Site Configurations first, '
+                'then run this correction.'
+            ))
+
+        move = self.payment_id.move_id
+
+        # Identify the bank/outstanding line — it is the one using the journal's
+        # default account or the outstanding_account_id.
+        bank_account = (
+            self.payment_id.outstanding_account_id
+            or self.payment_id.journal_id.default_account_id
+        )
+        bank_account_id = bank_account.id if bank_account else None
+
+        # The counterpart line is everything that is not the bank/cash line and
+        # is not already the correct petty cash account.
+        wrong_lines = move.line_ids.filtered(
+            lambda l: l.account_id.id != bank_account_id
+                      and l.account_id.id != pc_account.id
+        )
+
+        if not wrong_lines:
+            # Either already correct or we can't identify the counterpart
+            already_correct = move.line_ids.filtered(
+                lambda l: l.account_id.id == pc_account.id
+            )
+            if already_correct:
+                raise UserError(_(
+                    'The payment journal entry already uses "%s". No correction needed.'
+                ) % pc_account.display_name)
+            raise UserError(_(
+                'Cannot identify the counterpart line in the payment journal entry. '
+                'Please correct it manually via Accounting → Journal Entries.'
+            ))
+
+        # Use the total balance of all wrong counterpart lines as the correction amount
+        correction_amount = sum(abs(l.debit - l.credit) for l in wrong_lines)
+        if correction_amount <= 0:
+            raise UserError(_('Counterpart line balance is zero — nothing to correct.'))
+
+        wrong_account = wrong_lines[0].account_id
+
+        # Build correcting entry in a general journal
+        journal = self.env['account.journal'].search([
+            ('type', '=', 'general'),
+            ('company_id', '=', self.env.company.id),
+        ], limit=1)
+        if not journal:
+            journal = self.payment_id.journal_id
+
+        analytic_distribution = {}
+        if self.project_analytic_account_id:
+            analytic_distribution = {str(self.project_analytic_account_id.id): 100}
+
+        correcting_move = self.env['account.move'].create({
+            'move_type': 'entry',
+            'journal_id': journal.id,
+            'date': self.payment_id.date or fields.Date.today(),
+            'ref': _('Correction: petty cash account for %s') % self.name,
+            'x_project_analytic_account_id': (
+                self.project_analytic_account_id.id
+                if self.project_analytic_account_id else False
+            ),
+            'line_ids': [
+                # Debit the correct Cash in Hand (petty cash) account
+                (0, 0, {
+                    'name': _('Correct: Cash in Hand — %s') % (
+                        self.project_analytic_account_id.name or self.name),
+                    'account_id': pc_account.id,
+                    'debit': correction_amount,
+                    'credit': 0.0,
+                    'analytic_distribution': analytic_distribution or False,
+                }),
+                # Credit (reverse) the wrong account that was incorrectly debited
+                (0, 0, {
+                    'name': _('Reverse wrong account — %s') % self.name,
+                    'account_id': wrong_account.id,
+                    'debit': 0.0,
+                    'credit': correction_amount,
+                    'analytic_distribution': analytic_distribution or False,
+                }),
+            ],
+        })
+        correcting_move.action_post()
+
+        self.message_post(body=Markup(_(
+            'Correcting journal entry <b>%(move)s</b> posted.<br/>'
+            'Amount: <b>%(amount)s</b><br/>'
+            'Wrong account reversed: %(wrong)s<br/>'
+            'Correct account debited: %(correct)s'
+        )) % {
+            'move': correcting_move.name,
+            'amount': f'{correction_amount:,.2f}',
+            'wrong': wrong_account.display_name,
+            'correct': pc_account.display_name,
+        })
+
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Correcting Entry'),
+            'res_model': 'account.move',
+            'view_mode': 'form',
+            'res_id': correcting_move.id,
+        }
 
     def action_print_petty_cash_request(self):
         return self.env.ref(
