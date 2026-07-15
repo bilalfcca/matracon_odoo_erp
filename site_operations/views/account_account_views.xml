@@ -144,11 +144,20 @@ if analytic_id:
     ]
 else:
     domain = []
+# Use the dedicated primary list view that has create="0" / delete="0",
+# so the New and Import buttons are hidden for site accountants.
+# HO users open account.action_account_form (view_id=account.view_account_list)
+# which is untouched, so their New/Import buttons remain visible.
+# NOTE: when view_mode has multiple values, Odoo's generate_views rejects
+# view_id — use the `views` key instead (list of [view_id, view_type] pairs).
+list_view = env.ref('site_operations.view_account_list_site_accountant', raise_if_not_found=False)
+list_view_id = list_view.id if list_view else False
 action = {
     'type': 'ir.actions.act_window',
     'name': 'Chart of Accounts',
     'res_model': 'account.account',
     'view_mode': 'list,form',
+    'views': [[list_view_id, 'list'], [False, 'form']],
     'domain': domain,
     'context': {'default_x_site_ids': []},
     'help': '&lt;p class="o_view_nocontent_smiling_face"&gt;No accounts visible to your site yet.&lt;/p&gt;'
@@ -159,23 +168,35 @@ action = {
     </record>
 
     <!-- ══════════════════════════════════════════════════════════════════════
-         4a. Chart of Accounts list: hide New/Delete buttons for site accountants.
-             The standard view hardcodes create="1", so an ACL change alone only
-             errors on submit — the button stays visible.  This groups_id-restricted
-             override applies only to group_site_accountant, leaving HO/Admin
-             with the unmodified view (create="1" / delete="1").
+         4a. Chart of Accounts list: dedicated PRIMARY view for site accountants.
+             Odoo 19 rules:
+             • Extension views (mode='extension') CANNOT have group_ids on the
+               record — the ORM constraint rejects it.
+             • groups attr on an <xpath> spec node is NOT evaluated during
+               apply_inheritance_specs — it is silently ignored, so the xpath
+               would apply to ALL users, not just site accountants.
+             Solution: use mode='primary'.  A primary inherited view:
+             - Is NOT injected automatically into the standard view hierarchy.
+             - Is only rendered when explicitly referenced via view_id in an
+               ir.actions.act_window (which our server action sets below).
+             - CAN have group_ids on the record, but we don't need it here
+               because we reference it explicitly from the site-accountant action.
+             HO / Admin / Finance users open account.action_account_form, which
+             resolves to account.view_account_list (create="1" intact).
     ══════════════════════════════════════════════════════════════════════════ -->
-    <record id="view_account_list_no_create_site_accountant" model="ir.ui.view">
-        <field name="name">account.account.list.no.create.site.accountant</field>
+    <record id="view_account_list_site_accountant" model="ir.ui.view">
+        <field name="name">account.account.list.site.accountant</field>
         <field name="model">account.account</field>
         <field name="inherit_id" ref="account.view_account_list"/>
+        <field name="mode">primary</field>
         <field name="arch" type="xml">
-            <!-- Odoo 19: groups must be inside the view definition, not on the record.
-                 This xpath is only applied when the current user is in group_site_accountant. -->
-            <xpath expr="//list" position="attributes" groups="site_operations.group_site_accountant">
+            <!-- Remove New / Import / Delete for site accountants.
+                 This arch is processed against account.view_account_list
+                 only when an action explicitly sets view_id to this view. -->
+            <list position="attributes">
                 <attribute name="create">0</attribute>
                 <attribute name="delete">0</attribute>
-            </xpath>
+            </list>
         </field>
     </record>
 
