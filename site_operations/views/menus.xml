@@ -355,6 +355,21 @@
               sequence="34"
               groups="site_operations.group_site_accountant"/>
 
+    <!-- ── CEO Chart of Accounts access ────────────────────────────────────────
+         CEO has account.group_account_readonly + group_account_invoice but NOT
+         account.group_account_manager, so the standard Configuration → Accounting
+         parent menus are invisible to them.  Add CEO to those menu gates so they
+         can reach Configuration → Accounting → Chart of Accounts.
+         Finance HO and Admin already have group_account_manager, so adding CEO
+         group here has no visible effect for them (they already see the menus).
+    ─────────────────────────────────────────────────────────────────────────── -->
+    <record id="account.menu_finance_configuration" model="ir.ui.menu">
+        <field name="group_ids" eval="[(4, ref('purchase_demand_raise.group_ceo_approval'))]"/>
+    </record>
+    <record id="account.account_account_menu" model="ir.ui.menu">
+        <field name="group_ids" eval="[(4, ref('purchase_demand_raise.group_ceo_approval'))]"/>
+    </record>
+
     <!-- Accounting → Reporting → Material Cost Consumption -->
     <menuitem id="menu_material_cost_report"
               name="Material Cost Consumption"
