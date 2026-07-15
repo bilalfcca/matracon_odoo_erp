@@ -1166,7 +1166,7 @@ class AccountPaymentSiteOps(models.Model):
         self._validate_fund_allocations()
         # In Odoo 19 Enterprise (with 'accountant' module installed),
         # outstanding_account_id is NOT automatically set from the payment method
-        # unless the payment method has a payment_account configured.
+        # unless the payment method line has a payment_account configured.
         # Without it, _generate_journal_entry() silently skips creation and
         # the payment never appears in the partner ledger or general ledger.
         # We force-set it here so the state transition triggers journal entry creation.
@@ -1176,13 +1176,26 @@ class AccountPaymentSiteOps(models.Model):
                 if outstanding:
                     payment.outstanding_account_id = outstanding.id
             except Exception:
-                pass  # If no outstanding account can be resolved, let super() handle it.
+                pass  # If chart-template lookup fails, fall through to journal fallback.
+            # Final fallback: use the journal's own bank/cash account.
+            # This ensures a JE is always created when posting against a bank/cash
+            # journal whose payment-method line has no payment_account_id configured
+            # (e.g. "Checks" method without a Cheques-in-Transit account).
+            # Produces a direct Dr/Cr entry (no outstanding-transit step), which is
+            # correct for Matracon's payment workflow.
+            if not payment.outstanding_account_id and payment.journal_id.default_account_id:
+                payment.outstanding_account_id = payment.journal_id.default_account_id
         res = super().action_post()
         # Belt-and-suspenders: if any payment is now active but still has no journal
         # entry, generate it now (covers edge cases where write() hook was bypassed).
         no_move = self.filtered(lambda p: p.state in _POSTED_STATES and not p.move_id)
         if no_move:
-            no_move._generate_journal_entry()
+            # Ensure outstanding_account_id is set before generating the JE —
+            # _generate_journal_entry() is a no-op when the field is empty.
+            for payment in no_move:
+                if not payment.outstanding_account_id and payment.journal_id.default_account_id:
+                    payment.outstanding_account_id = payment.journal_id.default_account_id
+            no_move.filtered(lambda p: p.outstanding_account_id)._generate_journal_entry()
             no_move.move_id.filtered(lambda m: m.state == 'draft').action_post()
         for payment in self.filtered(lambda p: p.state in _POSTED_STATES):
             payment._matracon_ensure_fund_allocations()
