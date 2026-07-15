@@ -82,6 +82,17 @@
                             <span class="o_stat_text">Entry</span>
                         </div>
                     </button>
+                    <!-- Journal entry smart button -->
+                    <button type="object"
+                            name="action_open_journal_entry"
+                            class="oe_stat_button"
+                            icon="fa-book"
+                            invisible="not move_id">
+                        <div class="o_stat_info">
+                            <span class="o_stat_text">Journal</span>
+                            <span class="o_stat_text">Entry</span>
+                        </div>
+                    </button>
                 </div>
                 <field name="x_wht_payment_id" invisible="1"/>
                 <field name="x_origin_payment_id" invisible="1"/>

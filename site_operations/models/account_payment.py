@@ -1384,6 +1384,16 @@ class AccountPaymentSiteOps(models.Model):
             'res_id': self.x_tax_deduction_move_id.id,
         }
 
+    def action_open_journal_entry(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Journal Entry'),
+            'res_model': 'account.move',
+            'view_mode': 'form',
+            'res_id': self.move_id.id,
+        }
+
     def action_mark_paid(self):
         self.write({'x_payment_status': 'paid'})
         for payment in self.filtered(lambda p: p.state in _POSTED_STATES):
