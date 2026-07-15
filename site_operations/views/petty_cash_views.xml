@@ -71,6 +71,12 @@
                     <button name="action_confirm_receipt" type="object" string="Confirm Receipt"
                             class="btn-success" invisible="state != 'released'"
                             groups="site_operations.group_site_accountant"/>
+                    <button name="action_fix_petty_cash_entry" type="object"
+                            string="Fix GL Entry"
+                            class="btn-warning"
+                            invisible="state not in ('released', 'confirmed') or not payment_id"
+                            groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"
+                            confirm="This will create a correcting journal entry to move the released amount to the site's Petty Cash (Cash in Hand) account. Proceed?"/>
                     <button name="action_print_petty_cash_request" type="object"
                             string="Print Report" class="btn-secondary"
                             icon="fa-print"/>

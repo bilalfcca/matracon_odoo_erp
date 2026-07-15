@@ -1228,6 +1228,30 @@ class AccountPaymentSiteOps(models.Model):
             force_balance=force_balance,
         )
 
+        # ── Petty cash replenishment: always force the petty cash (Cash in Hand) account ──
+        # destination_account_id is a computed stored field — it gets re-computed to
+        # the default AP account whenever Finance HO edits the payment after creation
+        # (e.g. changes journal, payment method, or bank allocations).
+        # Setting it in action_release() is therefore NOT sufficient.  We override the
+        # JE counterpart line here, right before Odoo finalises the journal entry, so
+        # the correct Cash-in-Hand account is ALWAYS used regardless of how many times
+        # the payment was edited before being posted.
+        if self.x_petty_cash_request_id and self.payment_type == 'outbound':
+            pc_account = self.x_petty_cash_request_id.fund_id._get_petty_cash_account()
+            if pc_account:
+                # Identify the bank/outstanding side by account ID so we can leave it
+                # untouched and fix only the counterpart (destination) line.
+                bank_account_id = (
+                    self.outstanding_account_id.id
+                    if self.outstanding_account_id
+                    else (self.journal_id.default_account_id.id if self.journal_id else None)
+                )
+                for vals in line_vals_list:
+                    if (vals.get('account_id') != bank_account_id
+                            and vals.get('account_id') != pc_account.id):
+                        vals['account_id'] = pc_account.id
+                        break  # Only the first counterpart line
+
         # ── Substitute manually-chosen expense account on the payable/receivable line ──
         # When x_expense_account_id is set, override the auto-computed counterpart so
         # the payment JE hits the selected account (e.g. "Payable to Subcontractors"
