@@ -1304,21 +1304,30 @@ class AccountPaymentSiteOps(models.Model):
                         else None
                     )
                 )
+                # Odoo 19 line vals use 'balance' (negative = credit for outbound).
+                # There is no 'credit'/'debit' key — checking credit > 0 always fails.
+                # The bank/liquidity line has account_id == outstanding_account_id and
+                # balance < 0 (money going out).
                 bank_line_idx = next(
                     (
                         i for i, v in enumerate(line_vals_list)
                         if v.get('account_id') == bank_acct_id
-                        and (v.get('credit') or 0) > 0
+                        and (v.get('balance') or 0) < 0
                     ),
                     None,
                 )
                 if bank_line_idx is not None:
                     base = line_vals_list.pop(bank_line_idx)
+                    # Convert alloc amounts to company currency (PKR = same here).
+                    # balance is negative for outbound (credit side).
                     for alloc in allocs:
                         split = dict(base)
                         split['account_id'] = alloc.journal_id.default_account_id.id
-                        split['credit'] = alloc.allocation_amount
-                        split['debit'] = 0.0
+                        split['balance'] = -alloc.allocation_amount
+                        split['amount_currency'] = -alloc.allocation_amount
+                        # Remove stale debit/credit keys if any ancestor set them.
+                        split.pop('debit', None)
+                        split.pop('credit', None)
                         # Keep the original label (e.g. "Manual Payment") but
                         # append the bank journal name so each line is identifiable.
                         base_name = base.get('name') or ''
