@@ -379,3 +379,48 @@ faf6559  Fix: employee online presence — reliable last_poll-based detection + 
 
 ### Pending — odoosh-push blocked
 All commits are **local only**. Enable **AI Code Push** in Odoo.sh project settings, then run `odoosh-push`.
+
+---
+
+## Session Notes — 2026-07-15
+
+### Petty Cash Release — GL Account Not Hit (Production Bug)
+
+#### Root Cause
+`destination_account_id` on `account.payment` is a **computed stored field** in Odoo 19. `action_release()` set it to the site's Cash in Hand account immediately after `Payment.create()`, but every time Finance HO edited the draft payment (changed payment method Manual → Checks, added bank allocations, changed journal), Odoo **re-computed it back to the default AP/payable account**. The JE therefore debited AP instead of the petty cash GL account — so account 112634 "Cash at MCH Bahawalnagar" remained at 0.
+
+#### Pattern: Never rely on destination_account_id being stable on a draft payment
+Any FO edit after creation re-triggers `_compute_destination_account_id`. The only safe place to enforce the petty cash account is **at JE creation time** in `_prepare_move_line_default_vals()`.
+
+#### Files changed
+
+**`models/account_payment.py`** — `_prepare_move_line_default_vals()`:
+- When `x_petty_cash_request_id` is set, look up the fund's `_get_petty_cash_account()`
+- Identify the bank/outstanding line by `outstanding_account_id` or `journal.default_account_id`
+- Override the counterpart line's `account_id` to the petty cash account
+- This fires right before Odoo finalises JE lines — regardless of what `destination_account_id` was at that moment
+
+**`models/petty_cash.py`** — `action_release()`:
+- Added `UserError` if no petty cash account is configured: "Please go to Configuration → Site Configurations → [site] and set the Petty Cash Account (Cash in Hand) field"
+- `destination_account_id` is still set as a convenience UI hint for Finance HO — no longer the authoritative mechanism
+
+**`models/petty_cash.py`** — new `action_fix_petty_cash_entry()` on `x.petty.cash.request`:
+- Creates a correcting journal entry for already-posted payments that hit the wrong account
+- JE: Dr Cash in Hand (petty cash account) / Cr wrong account (whatever was incorrectly debited)
+- Identifies counterpart line by excluding `outstanding_account_id` and `journal.default_account_id`
+- Posts automatically and logs to chatter
+
+**`views/petty_cash_views.xml`**:
+- "Fix GL Entry" button on PCR form — visible when state in ('released', 'confirmed') and payment_id is set
+- Restricted to Finance HO + Matracon Admin groups
+- Has confirm dialog to prevent accidental clicks
+
+#### Production fix for PCR/MCH/00001 (PAY00001)
+1. Go to **Configuration → Site Configurations → MCH - BAHAWALNAGAR** → set "Petty Cash Account (Cash in Hand)" to account **112634 Cash at MCH Bahawalnagar**
+2. Open **PCR/MCH/00001** → click **"Fix GL Entry"** → confirm
+3. A correcting JE is posted: Dr 112634 / Cr wrong account → balance on 112634 becomes +1,550,000
+
+#### Commit
+```
+abf8fa2  Fix: petty cash release — enforce Cash-in-Hand account on JE at posting time
+```
