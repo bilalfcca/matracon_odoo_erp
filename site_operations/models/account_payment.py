@@ -1277,6 +1277,58 @@ class AccountPaymentSiteOps(models.Model):
                     vals['account_id'] = self.x_expense_account_id.id
                     break  # Only the first payable/receivable line (the counterpart)
 
+        # ── Multi-bank split: one Cr line per bank allocation ──────────────────
+        # Standard Odoo produces a single bank credit line keyed to journal_id
+        # (which is auto-set to the first bank in the Bank Fund tab).  When the
+        # user has split the payment across multiple banks, we must replace that
+        # single line with N credit lines — one per bank allocation — so the JE
+        # accurately reflects each bank's contribution.
+        #
+        # E.g.:  Dr AP/Petty Cash  22,334,455
+        #        Cr JS Bank  4397   7,891,203   ← was: Cr JS Bank 22,334,455
+        #        Cr Soneri   2458   6,402,118   ← new
+        #        Cr Alfalah  0040   8,041,134   ← new
+        if self.payment_type == 'outbound' and len(self.x_bank_allocation_ids) > 1:
+            allocs = self.x_bank_allocation_ids.filtered(
+                lambda a: a.allocation_amount > 0 and a.journal_id.default_account_id
+            )
+            if len(allocs) > 1:
+                # The bank-side line account equals outstanding_account_id when set
+                # (we force-set it in action_post to journal.default_account_id).
+                bank_acct_id = (
+                    self.outstanding_account_id.id
+                    if self.outstanding_account_id
+                    else (
+                        self.journal_id.default_account_id.id
+                        if self.journal_id
+                        else None
+                    )
+                )
+                bank_line_idx = next(
+                    (
+                        i for i, v in enumerate(line_vals_list)
+                        if v.get('account_id') == bank_acct_id
+                        and (v.get('credit') or 0) > 0
+                    ),
+                    None,
+                )
+                if bank_line_idx is not None:
+                    base = line_vals_list.pop(bank_line_idx)
+                    for alloc in allocs:
+                        split = dict(base)
+                        split['account_id'] = alloc.journal_id.default_account_id.id
+                        split['credit'] = alloc.allocation_amount
+                        split['debit'] = 0.0
+                        # Keep the original label (e.g. "Manual Payment") but
+                        # append the bank journal name so each line is identifiable.
+                        base_name = base.get('name') or ''
+                        split['name'] = (
+                            '%s - %s' % (base_name, alloc.journal_id.name)
+                            if base_name
+                            else alloc.journal_id.name
+                        )
+                        line_vals_list.append(split)
+
         analytic = None
         if self.payment_type == 'inbound':
             analytic = self.x_fund_project_id
