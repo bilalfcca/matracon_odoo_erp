@@ -148,13 +148,16 @@ else:
 # so the New and Import buttons are hidden for site accountants.
 # HO users open account.action_account_form (view_id=account.view_account_list)
 # which is untouched, so their New/Import buttons remain visible.
+# NOTE: when view_mode has multiple values, Odoo's generate_views rejects
+# view_id — use the `views` key instead (list of [view_id, view_type] pairs).
 list_view = env.ref('site_operations.view_account_list_site_accountant', raise_if_not_found=False)
+list_view_id = list_view.id if list_view else False
 action = {
     'type': 'ir.actions.act_window',
     'name': 'Chart of Accounts',
     'res_model': 'account.account',
     'view_mode': 'list,form',
-    'view_id': list_view.id if list_view else False,
+    'views': [[list_view_id, 'list'], [False, 'form']],
     'domain': domain,
     'context': {'default_x_site_ids': []},
     'help': '&lt;p class="o_view_nocontent_smiling_face"&gt;No accounts visible to your site yet.&lt;/p&gt;'
