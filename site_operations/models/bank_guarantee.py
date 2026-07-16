@@ -390,6 +390,10 @@ class BankGuarantee(models.Model):
                 ('journal_id', '=', self.journal_id.id),
             ], limit=1)
             self.facility_id = facility
+            if facility:
+                # Pre-fill rates from the facility — user can still edit them
+                self.cash_margin_percent = facility.cash_margin_percent
+                self.pricing_percent = facility.commission_percent
 
     @api.onchange('beneficiary_id')
     def _onchange_beneficiary_id(self):
