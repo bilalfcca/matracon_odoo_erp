@@ -281,7 +281,7 @@
               name="Compliance"
               web_icon="site_operations,static/description/compliance_icon.png"
               sequence="70"
-              groups="site_operations.group_mtr_app_compliance"/>
+              groups="site_operations.group_mtr_app_compliance,purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_ceo_approval,site_operations.group_finance_ho,base.group_system"/>
 
     <menuitem id="menu_bank_guarantees"
               name="Bank Guarantees"
@@ -302,35 +302,35 @@
               parent="site_operations.menu_compliance_root"
               action="site_operations.action_wht_certificate"
               sequence="30"
-              groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
     <menuitem id="menu_postdated_cheques"
               name="Post-Dated Cheques"
               parent="site_operations.menu_compliance_root"
               action="site_operations.action_postdated_cheque"
               sequence="40"
-              groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
     <!-- Compliance → Configuration -->
     <menuitem id="menu_compliance_config"
               name="Configuration"
               parent="site_operations.menu_compliance_root"
               sequence="90"
-              groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
     <menuitem id="menu_bank_guarantee_facility"
               name="Bank Facility Limits"
               parent="site_operations.menu_compliance_config"
               action="site_operations.action_bank_guarantee_facility"
               sequence="10"
-              groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
     <menuitem id="menu_cheque_series"
               name="Cheque Series"
               parent="site_operations.menu_compliance_config"
               action="site_operations.action_cheque_series"
               sequence="20"
-              groups="purchase_demand_raise.group_matracon_admin,base.group_system,site_operations.group_finance_ho"/>
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
     <!-- Accounting → Vendors → Subcontractor IPCs -->
     <menuitem id="menu_subcontractor_ipc"
