@@ -274,6 +274,57 @@ class BankGuarantee(models.Model):
     days_to_expiry = fields.Integer(compute='_compute_days_to_expiry')
     is_expiring_soon = fields.Boolean(
         compute='_compute_days_to_expiry', search='_search_is_expiring_soon')
+
+    # ── Project details — available in export dialog (not shown in list by default) ──
+    x_proj_start_date = fields.Date(
+        string='Project Start Date',
+        related='project_id.x_site_config_id.x_project_start_date',
+        store=False, readonly=True,
+        help='Project commencement date (from Site Configuration → Project Details).')
+    x_proj_original_deadline = fields.Date(
+        string='Project Original Deadline',
+        related='project_id.x_site_config_id.x_project_deadline',
+        store=False, readonly=True,
+        help='Baseline contractual deadline before any EOTs.')
+    x_proj_current_deadline = fields.Date(
+        string='Project Current Deadline',
+        related='project_id.x_site_config_id.x_current_deadline',
+        store=False, readonly=True,
+        help='Deadline after applying all approved Extensions of Time.')
+    x_proj_contract_value = fields.Monetary(
+        string='Contract Value',
+        related='project_id.x_contract_value',
+        currency_field='currency_id',
+        store=False, readonly=True,
+        help='Total project contract value with the client.')
+    x_proj_billed_to_client = fields.Monetary(
+        string='Billed to Client',
+        related='project_id.x_billed_to_client',
+        currency_field='currency_id',
+        store=False, readonly=True,
+        help='Cumulative client invoices posted for this project.')
+    x_proj_work_completion_pct = fields.Float(
+        string='Work Completion (%)',
+        related='project_id.x_work_completion_pct',
+        digits=(5, 1),
+        store=False, readonly=True,
+        help='Manual physical work completion percentage.')
+    x_proj_financial_completion_pct = fields.Float(
+        string='Financial Completion (%)',
+        related='project_id.x_financial_completion_pct',
+        digits=(16, 2),
+        store=False, readonly=True,
+        help='Billed to Client ÷ Contract Value × 100.')
+    x_proj_remaining_to_bill = fields.Monetary(
+        string='Remaining to Bill',
+        related='project_id.x_remaining_work_value',
+        currency_field='currency_id',
+        store=False, readonly=True,
+        help='Contract Value − Billed to Client.')
+    x_proj_analytic_account = fields.Char(
+        string='Project Analytic Account',
+        related='project_id.x_analytic_account_id.name',
+        store=False, readonly=True)
     validated = fields.Boolean(default=False, tracking=True, copy=False)
     validated_by_id = fields.Many2one('res.users', readonly=True, copy=False)
     validated_date = fields.Datetime(readonly=True, copy=False)
