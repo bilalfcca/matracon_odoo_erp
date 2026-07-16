@@ -56,13 +56,13 @@
                                 <td style="font-weight:600;">Requested Amount</td>
                                 <td class="fw-bold">
                                     <t t-esc="req.currency_id.symbol"/>
-                                    <t t-esc="'{:,.2f}'.format(req.requested_amount)"/>
+                                    <t t-esc="'{:,.0f}'.format(req.requested_amount)"/>
                                 </td>
                                 <td style="font-weight:600;">CEO Approved Amount</td>
                                 <td class="fw-bold">
                                     <t t-if="req.ceo_approved_amount">
                                         <t t-esc="req.currency_id.symbol"/>
-                                        <t t-esc="'{:,.2f}'.format(req.ceo_approved_amount)"/>
+                                        <t t-esc="'{:,.0f}'.format(req.ceo_approved_amount)"/>
                                     </t>
                                     <t t-else="">Pending</t>
                                 </td>
@@ -72,14 +72,14 @@
                                 <td class="fw-bold text-success">
                                     <t t-if="req.released_amount">
                                         <t t-esc="req.currency_id.symbol"/>
-                                        <t t-esc="'{:,.2f}'.format(req.released_amount)"/>
+                                        <t t-esc="'{:,.0f}'.format(req.released_amount)"/>
                                     </t>
                                     <t t-else="">—</t>
                                 </td>
                                 <td style="font-weight:600;">Current Balance</td>
                                 <td>
                                     <t t-esc="req.currency_id.symbol"/>
-                                    <t t-esc="'{:,.2f}'.format(req.current_balance)"/>
+                                    <t t-esc="'{:,.0f}'.format(req.current_balance)"/>
                                 </td>
                             </tr>
                         </table>
@@ -89,7 +89,7 @@
                         </div>
                         <!-- ── Signatures ── -->
                         <t t-call="site_operations.report_sig_3col"/>
-                        <p class="text-muted small mt-3">System-generated — Matracon Pakistan Pvt. Ltd.</p>
+                        <p class="text-muted small mt-3">System-generated — Matracon Pakistan Pvt. Ltd. · Printed: <t t-esc="context_timestamp(datetime.datetime.now()).strftime('%d/%m/%Y')"/></p>
                     </div>
                 </t>
             </t>
@@ -233,11 +233,11 @@
                                 <tr style="background:#eaf4ff;">
                                     <td style="width:22%;font-weight:700;">Amount</td>
                                     <td class="fw-bold fs-5 text-success">
-                                        <t t-esc="exp.currency_id.symbol"/>&#160;<t t-esc="'{:,.2f}'.format(exp.amount)"/>
+                                        <t t-esc="exp.currency_id.symbol"/>&#160;<t t-esc="'{:,.0f}'.format(exp.amount)"/>
                                     </td>
                                     <td style="width:22%;font-weight:600;">Balance Before</td>
                                     <td>
-                                        <t t-esc="exp.currency_id.symbol"/>&#160;<t t-esc="'{:,.2f}'.format(exp.x_balance_before or exp.available_balance + exp.amount)"/>
+                                        <t t-esc="exp.currency_id.symbol"/>&#160;<t t-esc="'{:,.0f}'.format(exp.x_balance_before or exp.available_balance + exp.amount)"/>
                                     </td>
                                 </tr>
                                 <tr style="background:#eaf4ff;">
@@ -245,7 +245,7 @@
                                     <td></td>
                                     <td style="font-weight:600;">Balance After</td>
                                     <td class="fw-bold">
-                                        <t t-esc="exp.currency_id.symbol"/>&#160;<t t-esc="'{:,.2f}'.format(exp.x_balance_after or exp.available_balance)"/>
+                                        <t t-esc="exp.currency_id.symbol"/>&#160;<t t-esc="'{:,.0f}'.format(exp.x_balance_after or exp.available_balance)"/>
                                     </td>
                                 </tr>
                             </tbody>
@@ -255,7 +255,7 @@
                         <t t-call="site_operations.report_sig_4col">
                             <t t-set="extra_label">Received By</t>
                         </t>
-                        <p class="text-muted small mt-3">System-generated — Matracon Pakistan Pvt. Ltd.</p>
+                        <p class="text-muted small mt-3">System-generated — Matracon Pakistan Pvt. Ltd. · Printed: <t t-esc="context_timestamp(datetime.datetime.now()).strftime('%d/%m/%Y')"/></p>
                     </div>
                 </t>
             </t>

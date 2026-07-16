@@ -66,7 +66,7 @@
                         <div class="col-12">
                             <strong><t t-esc="o.currency_id.name"/>:</strong>
                             <span class="ms-1">
-                                <t t-esc="o.currency_id.symbol"/>&#160;<t t-esc="'%,.2f' % o.amount"/>
+                                <t t-esc="o.currency_id.symbol"/>&#160;<t t-esc="'%,.0f' % o.amount"/>
                             </span>
                         </div>
                     </div>
@@ -75,6 +75,7 @@
                     <t t-call="site_operations.report_sig_4col">
                         <t t-set="extra_label">Received By</t>
                     </t>
+                    <p class="text-muted small mt-3">System-generated — Matracon Pakistan Pvt. Ltd. · Printed: <t t-esc="context_timestamp(datetime.datetime.now()).strftime('%d/%m/%Y')"/></p>
 
                 </div>
             </t>

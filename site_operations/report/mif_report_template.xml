@@ -79,7 +79,7 @@
                                         <td style="font-weight:bold;">Backcharge:</td>
                                         <td>
                                             <t t-if="picking.x_backcharge_applicable">
-                                                Yes — <t t-esc="'{:,.2f}'.format(picking.x_backcharge_amount)"/>
+                                                Yes — <t t-esc="'{:,.0f}'.format(picking.x_backcharge_amount)"/>
                                             </t>
                                             <t t-else="">No</t>
                                         </td>
@@ -160,18 +160,18 @@
                                                     <t t-esc="move.product_uom.name"/>
                                                 </td>
                                                 <td style="text-align:right;">
-                                                    <t t-esc="'{:,.2f}'.format(move.product_uom_qty)"/>
+                                                    <t t-esc="'{:,.0f}'.format(move.product_uom_qty)"/>
                                                 </td>
                                                 <td style="text-align:right;">
-                                                    <t t-esc="'{:,.2f}'.format(move.quantity)"/>
+                                                    <t t-esc="'{:,.0f}'.format(move.quantity)"/>
                                                 </td>
                                                 <td t-if="picking.x_backcharge_applicable"
                                                     style="text-align:right;">
-                                                    <t t-esc="'{:,.2f}'.format(move.x_unit_cost)"/>
+                                                    <t t-esc="'{:,.0f}'.format(move.x_unit_cost)"/>
                                                 </td>
                                                 <td t-if="picking.x_backcharge_applicable"
                                                     style="text-align:right;">
-                                                    <t t-esc="'{:,.2f}'.format(move.x_line_backcharge_amount)"/>
+                                                    <t t-esc="'{:,.0f}'.format(move.x_line_backcharge_amount)"/>
                                                 </td>
                                             </tr>
                                         </t>
@@ -180,7 +180,7 @@
                                         <tr style="font-weight:bold;">
                                             <td colspan="7" style="text-align:right;">Total Backcharge Amount:</td>
                                             <td style="text-align:right;">
-                                                <t t-esc="'{:,.2f}'.format(picking.x_backcharge_amount)"/>
+                                                <t t-esc="'{:,.0f}'.format(picking.x_backcharge_amount)"/>
                                             </td>
                                         </tr>
                                     </tfoot>
@@ -224,6 +224,7 @@
                         <t t-call="site_operations.report_sig_4col">
                             <t t-set="extra_label" t-value="'Return By' if picking.x_is_return_transfer else 'Received By'"/>
                         </t>
+                        <p class="text-muted small mt-3">System-generated — Matracon Pakistan Pvt. Ltd. · Printed: <t t-esc="context_timestamp(datetime.datetime.now()).strftime('%d/%m/%Y')"/></p>
 
                     </div>
                 </t>
@@ -324,7 +325,7 @@
                                                     <t t-esc="move.product_uom.name"/>
                                                 </td>
                                                 <td style="text-align:right;">
-                                                    <t t-esc="'{:,.2f}'.format(move.quantity or move.product_uom_qty)"/>
+                                                    <t t-esc="'{:,.0f}'.format(move.quantity or move.product_uom_qty)"/>
                                                 </td>
                                                 <td></td>
                                             </tr>
@@ -363,6 +364,7 @@
                         <t t-call="site_operations.report_sig_4col">
                             <t t-set="extra_label">Received By</t>
                         </t>
+                        <p class="text-muted small mt-3">System-generated — Matracon Pakistan Pvt. Ltd. · Printed: <t t-esc="context_timestamp(datetime.datetime.now()).strftime('%d/%m/%Y')"/></p>
 
                     </div>
                 </t>
@@ -404,7 +406,9 @@
                                     <tr>
                                         <td style="font-weight:bold;">Period:</td>
                                         <td>
-                                            <t t-esc="sheet.date_from"/> to <t t-esc="sheet.date_to"/>
+                                            <t t-esc="sheet.date_from.strftime('%d/%m/%Y') if sheet.date_from else '-'"/>
+                                            to
+                                            <t t-esc="sheet.date_to.strftime('%d/%m/%Y') if sheet.date_to else '-'"/>
                                         </td>
                                     </tr>
                                     <tr>
@@ -419,19 +423,19 @@
                                 <table class="table table-borderless table-sm" style="font-size:13px;">
                                     <tr>
                                         <td style="font-weight:bold; width:160px;">Total Liability:</td>
-                                        <td><t t-esc="'{:,.2f}'.format(sheet.total_liability)"/></td>
+                                        <td><t t-esc="'{:,.0f}'.format(sheet.total_liability)"/></td>
                                     </tr>
                                     <tr>
                                         <td style="font-weight:bold;">Total Recommended:</td>
-                                        <td><t t-esc="'{:,.2f}'.format(sheet.total_recommended)"/></td>
+                                        <td><t t-esc="'{:,.0f}'.format(sheet.total_recommended)"/></td>
                                     </tr>
                                     <tr>
                                         <td style="font-weight:bold;">Total Approved:</td>
-                                        <td><t t-esc="'{:,.2f}'.format(sheet.total_approved)"/></td>
+                                        <td><t t-esc="'{:,.0f}'.format(sheet.total_approved)"/></td>
                                     </tr>
                                     <tr>
                                         <td style="font-weight:bold;">Total Paid:</td>
-                                        <td><t t-esc="'{:,.2f}'.format(sheet.total_paid)"/></td>
+                                        <td><t t-esc="'{:,.0f}'.format(sheet.total_paid)"/></td>
                                     </tr>
                                 </table>
                             </div>
@@ -463,26 +467,26 @@
                                                 <td><t t-esc="line.description or ''"/></td>
                                                 <td><t t-esc="line.partner_id.name"/></td>
                                                 <td style="text-align:right;">
-                                                    <t t-esc="'{:,.2f}'.format(line.opening_balance)"/>
+                                                    <t t-esc="'{:,.0f}'.format(line.opening_balance)"/>
                                                 </td>
                                                 <td style="text-align:right;">
-                                                    <t t-esc="'{:,.2f}'.format(line.new_liability)"/>
+                                                    <t t-esc="'{:,.0f}'.format(line.new_liability)"/>
                                                 </td>
                                                 <td style="text-align:right; font-weight:bold;">
-                                                    <t t-esc="'{:,.2f}'.format(line.liability_amount)"/>
+                                                    <t t-esc="'{:,.0f}'.format(line.liability_amount)"/>
                                                 </td>
                                                 <td style="text-align:right;">
-                                                    <t t-esc="'{:,.2f}'.format(line.recommended_amount)"/>
+                                                    <t t-esc="'{:,.0f}'.format(line.recommended_amount)"/>
                                                 </td>
                                                 <td style="text-align:right; font-weight:bold;">
-                                                    <t t-esc="'{:,.2f}'.format(line.approved_amount)"/>
+                                                    <t t-esc="'{:,.0f}'.format(line.approved_amount)"/>
                                                 </td>
                                                 <td><t t-esc="line.remarks or ''"/></td>
                                                 <td style="text-align:right;">
-                                                    <t t-esc="'{:,.2f}'.format(line.paid_amount)"/>
+                                                    <t t-esc="'{:,.0f}'.format(line.paid_amount)"/>
                                                 </td>
                                                 <td style="text-align:right;">
-                                                    <t t-esc="'{:,.2f}'.format(line.balance)"/>
+                                                    <t t-esc="'{:,.0f}'.format(line.balance)"/>
                                                 </td>
                                             </tr>
                                         </t>
@@ -491,17 +495,17 @@
                                         <tr>
                                             <td colspan="5" style="text-align:right;">TOTALS:</td>
                                             <td style="text-align:right;">
-                                                <t t-esc="'{:,.2f}'.format(sheet.total_liability)"/>
+                                                <t t-esc="'{:,.0f}'.format(sheet.total_liability)"/>
                                             </td>
                                             <td style="text-align:right;">
-                                                <t t-esc="'{:,.2f}'.format(sheet.total_recommended)"/>
+                                                <t t-esc="'{:,.0f}'.format(sheet.total_recommended)"/>
                                             </td>
                                             <td style="text-align:right;">
-                                                <t t-esc="'{:,.2f}'.format(sheet.total_approved)"/>
+                                                <t t-esc="'{:,.0f}'.format(sheet.total_approved)"/>
                                             </td>
                                             <td></td>
                                             <td style="text-align:right;">
-                                                <t t-esc="'{:,.2f}'.format(sheet.total_paid)"/>
+                                                <t t-esc="'{:,.0f}'.format(sheet.total_paid)"/>
                                             </td>
                                             <td></td>
                                         </tr>
@@ -512,6 +516,7 @@
 
                         <!-- ── Signatures ── -->
                         <t t-call="site_operations.report_sig_3col"/>
+                        <p class="text-muted small mt-3">System-generated — Matracon Pakistan Pvt. Ltd. · Printed: <t t-esc="context_timestamp(datetime.datetime.now()).strftime('%d/%m/%Y')"/></p>
 
                     </div>
                 </t>

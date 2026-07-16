@@ -59,7 +59,7 @@
                                 <div style="border:1px solid #dee2e6; border-radius:4px; padding:8px; background:#f8f9fa;">
                                     <div style="font-size:11px; color:#6c757d; text-transform:uppercase; font-weight:600;">Total Liability</div>
                                     <div style="font-size:16px; font-weight:700;">
-                                        <t t-esc="'{:,.2f}'.format(sheet.total_liability)"/>
+                                        <t t-esc="'{:,.0f}'.format(sheet.total_liability)"/>
                                     </div>
                                 </div>
                             </div>
@@ -67,7 +67,7 @@
                                 <div style="border:1px solid #dee2e6; border-radius:4px; padding:8px; background:#fff3cd;">
                                     <div style="font-size:11px; color:#6c757d; text-transform:uppercase; font-weight:600;">Recommended</div>
                                     <div style="font-size:16px; font-weight:700;">
-                                        <t t-esc="'{:,.2f}'.format(sheet.total_recommended)"/>
+                                        <t t-esc="'{:,.0f}'.format(sheet.total_recommended)"/>
                                     </div>
                                 </div>
                             </div>
@@ -99,24 +99,24 @@
                                             <t t-esc="line.description or '-'"/>
                                         </td>
                                         <td class="text-right">
-                                            <t t-esc="'{:,.2f}'.format(line.opening_balance)"/>
+                                            <t t-esc="'{:,.0f}'.format(line.opening_balance)"/>
                                         </td>
                                         <td class="text-right">
-                                            <t t-esc="'{:,.2f}'.format(line.new_liability)"/>
+                                            <t t-esc="'{:,.0f}'.format(line.new_liability)"/>
                                         </td>
                                         <td class="text-right" style="font-weight:600;">
-                                            <t t-esc="'{:,.2f}'.format(line.liability_amount)"/>
+                                            <t t-esc="'{:,.0f}'.format(line.liability_amount)"/>
                                         </td>
                                         <td class="text-right">
-                                            <t t-esc="'{:,.2f}'.format(line.recommended_amount)"/>
+                                            <t t-esc="'{:,.0f}'.format(line.recommended_amount)"/>
                                         </td>
                                     </tr>
                                 </t>
                                 <!-- Totals row -->
                                 <tr style="background:#e9ecef; font-weight:700; border-top:2px solid #adb5bd;">
                                     <td colspan="5" class="text-right" style="font-size:12px;">TOTALS</td>
-                                    <td class="text-right"><t t-esc="'{:,.2f}'.format(sheet.total_liability)"/></td>
-                                    <td class="text-right"><t t-esc="'{:,.2f}'.format(sheet.total_recommended)"/></td>
+                                    <td class="text-right"><t t-esc="'{:,.0f}'.format(sheet.total_liability)"/></td>
+                                    <td class="text-right"><t t-esc="'{:,.0f}'.format(sheet.total_recommended)"/></td>
                                 </tr>
                             </tbody>
                         </table>
@@ -159,6 +159,7 @@
                                 </t>
                             </div>
                         </div>
+                        <p class="text-muted small mt-3">System-generated — Matracon Pakistan Pvt. Ltd. · Printed: <t t-esc="context_timestamp(datetime.datetime.now()).strftime('%d/%m/%Y')"/></p>
 
                     </div>
                 </t>

@@ -186,6 +186,7 @@
                                 </div>
                             </div>
                         </div>
+                        <p class="text-muted small mt-3">System-generated — Matracon Pakistan Pvt. Ltd. · Printed: <t t-esc="context_timestamp(datetime.datetime.now()).strftime('%d/%m/%Y')"/></p>
 
                     </div>
                 </t>

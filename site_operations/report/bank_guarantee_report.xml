@@ -54,11 +54,11 @@
                                 <td style="font-weight:600;">BG Amount</td>
                                 <td class="fw-bold fs-5">
                                     <t t-esc="bg.currency_id.symbol"/>
-                                    <t t-esc="'{:,.2f}'.format(bg.bg_amount)"/>
+                                    <t t-esc="'{:,.0f}'.format(bg.bg_amount)"/>
                                 </td>
                                 <td style="font-weight:600;">Cash Margin</td>
                                 <td>
-                                    <t t-esc="'{:,.2f}'.format(bg.margin_amount)"/>
+                                    <t t-esc="'{:,.0f}'.format(bg.margin_amount)"/>
                                     &amp;nbsp;(<t t-esc="bg.cash_margin_percent"/>%)
                                 </td>
                             </tr>
@@ -71,7 +71,7 @@
                         </table>
                         <!-- ── Signatures ── -->
                         <t t-call="site_operations.report_sig_3col"/>
-                        <p class="text-muted small mt-3">System-generated — Matracon Pakistan Pvt. Ltd.</p>
+                        <p class="text-muted small mt-3">System-generated — Matracon Pakistan Pvt. Ltd. · Printed: <t t-esc="context_timestamp(datetime.datetime.now()).strftime('%d/%m/%Y')"/></p>
                     </div>
                 </t>
             </t>
