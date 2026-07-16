@@ -478,16 +478,18 @@ class AccountMoveSiteOps(models.Model):
         if not amount:
             return
 
-        bill_date = self.invoice_date or fields.Date.today()
-        month_start = bill_date.replace(day=1)
+        today = fields.Date.today()
+        month_start = today.replace(day=1)
         month_end = (month_start + relativedelta(months=1)) - relativedelta(days=1)
 
         LiabilitySheet = self.env['x.liability.sheet'].sudo()
+        # Find the current active (non-paid) sheet for this project — regardless of
+        # which month it covers.  One sheet per project stays open until FO marks it
+        # paid; only then does the next sheet get auto-created with opening balances.
         sheet = LiabilitySheet.search([
             ('project_analytic_account_id', '=', self.x_project_analytic_account_id.id),
-            ('date_from', '=', month_start),
-            ('state', 'in', ['draft', 'submitted']),
-        ], limit=1)
+            ('state', 'not in', ['paid']),
+        ], order='date_from desc', limit=1)
 
         created = False
         if not sheet:
@@ -505,6 +507,14 @@ class AccountMoveSiteOps(models.Model):
         if self.state == 'posted':
             if self.x_liability_registered and self.x_liability_sheet_id == sheet:
                 return
+
+            # Sheet is CEO-approved (locked) — link bill for reference but don't
+            # touch locked lines.  The SA will run "Refresh from Ledger" on the
+            # next sheet after this one is marked paid.
+            if sheet.state == 'approved':
+                self.x_liability_sheet_id = sheet.id
+                return
+
             delta = amount
             if existing_line:
                 existing_line[0].write({
@@ -658,18 +668,23 @@ class AccountMoveSiteOps(models.Model):
             if not analytic.exists():
                 continue
 
-            # Find or create the draft/submitted liability sheet for this month + project
+            # Find the current active (non-paid) sheet for this project.
+            # One sheet stays open until FO marks it paid — month boundary is ignored.
             sheet = LiabilitySheet.search([
                 ('project_analytic_account_id', '=', analytic_id),
-                ('date_from', '=', month_start),
-                ('state', 'in', ['draft', 'submitted']),
-            ], limit=1)
+                ('state', 'not in', ['paid']),
+            ], order='date_from desc', limit=1)
             if not sheet:
                 sheet = LiabilitySheet.create({
                     'project_analytic_account_id': analytic_id,
                     'date_from': month_start,
                     'date_to': month_end,
                 })
+
+            # If sheet is CEO-approved (lines locked) skip line updates — the
+            # amounts will be captured on the next sheet via Refresh from Ledger.
+            if sheet.state == 'approved':
+                continue
 
             str_analytic_id = str(analytic_id)
 

@@ -269,18 +269,24 @@ class LiabilitySheet(models.Model):
             ))
 
     def _create_next_period_sheet(self):
-        """Copy all partners; opening balance = remaining liability after payments."""
-        self.ensure_one()
-        if not self.date_to:
-            return self.env['x.liability.sheet']
-        date_from = self.date_to + relativedelta(days=1)
-        period_days = (self.date_to - self.date_from).days + 1
-        date_to = date_from + relativedelta(days=period_days - 1)
+        """Auto-create the next sheet when this one is marked paid.
 
+        - date_from = first day of the current calendar month (today)
+        - date_to   = last day of that month
+        - Every vendor line is carried forward; opening_balance = unpaid remainder
+        - new_liability starts at 0 — SA runs "Refresh from Ledger" to pull in
+          any bills that arrived while this sheet was in approved/paid state.
+        """
+        self.ensure_one()
+        today = fields.Date.today()
+        date_from = today.replace(day=1)
+        date_to = (date_from + relativedelta(months=1)) - relativedelta(days=1)
+
+        # Safety: if a non-paid sheet already exists for this project don't duplicate.
         existing = self.search([
             ('project_analytic_account_id', '=', self.project_analytic_account_id.id),
-            ('date_from', '=', date_from),
-            ('state', '=', 'draft'),
+            ('state', 'not in', ['paid']),
+            ('id', '!=', self.id),
         ], limit=1)
         if existing:
             return existing
