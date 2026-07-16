@@ -722,10 +722,13 @@ class BankGuarantee(models.Model):
 class BankGuaranteeAmendment(models.Model):
     _name = 'x.bank.guarantee.amendment'
     _description = 'Bank Guarantee Amendment'
-    _order = 'amendment_date desc, id desc'
+    _order = 'amendment_date asc, id asc'
 
     guarantee_id = fields.Many2one(
         'x.bank.guarantee', required=True, ondelete='cascade', index=True)
+    amendment_no = fields.Integer(
+        string='No.', readonly=True, copy=False,
+        help='Sequential amendment number within this bank guarantee (auto-assigned).')
     amendment_date = fields.Date(
         string='Date', required=True, default=fields.Date.context_today)
     amendment_type = fields.Selection([
@@ -748,6 +751,14 @@ class BankGuaranteeAmendment(models.Model):
         string='Supporting Documents',
         help='Attach bank letters, extensions, or other supporting documentation for this amendment.',
     )
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        for vals in vals_list:
+            if not vals.get('amendment_no') and vals.get('guarantee_id'):
+                existing = self.search_count([('guarantee_id', '=', vals['guarantee_id'])])
+                vals['amendment_no'] = existing + 1
+        return super().create(vals_list)
 
     def action_apply_extension(self):
         today = fields.Date.context_today(self)

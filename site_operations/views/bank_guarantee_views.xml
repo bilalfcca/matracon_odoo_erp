@@ -218,6 +218,7 @@
                         <page string="Amendment History" name="amendments">
                             <field name="amendment_ids">
                                 <list editable="bottom">
+                                    <field name="amendment_no" string="No." readonly="1" width="48px"/>
                                     <field name="amendment_date"/>
                                     <field name="amendment_type"/>
                                     <field name="description"/>
@@ -379,6 +380,7 @@
             <form string="Amendment">
                 <group>
                     <field name="guarantee_id" readonly="1"/>
+                    <field name="amendment_no" readonly="1" string="Amendment No."/>
                     <field name="amendment_date"/>
                     <field name="amendment_type"/>
                     <field name="description"/>
