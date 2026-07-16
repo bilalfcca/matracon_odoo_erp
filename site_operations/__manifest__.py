@@ -76,6 +76,8 @@
         'report/mtn_report_template.xml',
         'report/cheque_report.xml',
         'report/cheque_report_template.xml',
+        'report/bank_payment_voucher_report.xml',
+        'report/bank_payment_voucher_template.xml',
         'report/liability_sheet_report.xml',
         'report/liability_sheet_template.xml',
         'report/salary_sheet_report.xml',
