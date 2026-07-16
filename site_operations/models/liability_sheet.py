@@ -358,19 +358,87 @@ class LiabilitySheet(models.Model):
                         p.x_gross_approved_amount or p.amount for p in payments
                     )
 
+    def _is_ho_role(self):
+        """Return True if the current user holds any Head Office role."""
+        u = self.env.user
+        return (
+            u.has_group('purchase_demand_raise.group_matracon_admin')
+            or u.has_group('purchase_demand_raise.group_ceo_approval')
+            or u.has_group('site_operations.group_finance_ho')
+            or u.has_group('purchase_demand_raise.group_procurement_ho')
+        )
+
     def action_reset_draft(self):
+        """Standard reset — available to Site Accountant and HO roles.
+
+        Blocked if posted payments exist (use action_force_reset_draft for that).
+        """
         for sheet in self:
             if sheet.state not in ('submitted', 'approved'):
                 raise UserError(_('Only submitted or approved sheets can be reset.'))
             draft_payments = sheet.payment_ids.filtered(lambda p: p.state == 'draft')
-            if sheet.payment_ids.filtered(lambda p: p.state == 'posted'):
+            if sheet.payment_ids.filtered(lambda p: p.state in ('in_process', 'paid')):
                 raise UserError(_(
-                    'Cannot reset — one or more vendor payments are already posted.'
+                    'Cannot reset — one or more vendor payments are already posted. '
+                    'Use "Force Reset to Draft" if you are sure.'
                 ))
             draft_payments.unlink()
             sheet.line_ids.write({'is_locked': False, 'payment_id': False})
+            prev_state = dict(sheet._fields['state'].selection).get(sheet.state, sheet.state)
             sheet.state = 'draft'
-            sheet.message_post(body=_('Liability Sheet reset to Draft.'))
+            sheet.message_post(body=Markup(_(
+                'Liability Sheet reset to <b>Draft</b> by <b>%(user)s</b> '
+                '(was: <i>%(prev)s</i>).'
+            )) % {'user': self.env.user.name, 'prev': prev_state})
+
+    def action_force_reset_draft(self):
+        """HO-only force reset — works from any state, even with posted payments.
+
+        Posted payments are NOT cancelled (they remain as legitimate accounting
+        entries). Lines are unlocked so the sheet can be corrected and re-submitted.
+        Full audit trail is written to the chatter.
+        """
+        for sheet in self:
+            if not self._is_ho_role():
+                raise UserError(_(
+                    'Only Head Office roles (Admin, CEO, Finance HO, Procurement HO) '
+                    'can force-reset a liability sheet.'
+                ))
+            if sheet.state == 'draft':
+                continue  # nothing to do
+
+            prev_state = dict(sheet._fields['state'].selection).get(sheet.state, sheet.state)
+
+            # Cancel draft payments; leave posted ones intact as accounting history.
+            draft_payments = sheet.payment_ids.filtered(
+                lambda p: p.state == 'draft'
+            )
+            posted_payments = sheet.payment_ids.filtered(
+                lambda p: p.state in ('in_process', 'paid')
+            )
+            draft_payments.unlink()
+
+            # Unlock all lines and clear draft payment links.
+            sheet.line_ids.write({'is_locked': False, 'payment_id': False})
+            sheet.state = 'draft'
+
+            # Build detailed chatter message — always preserved.
+            msg_parts = [Markup(_(
+                'Liability Sheet <b>force-reset to Draft</b> by <b>%(user)s</b> '
+                '(was: <i>%(prev)s</i>).'
+            )) % {'user': self.env.user.name, 'prev': prev_state}]
+
+            if posted_payments:
+                msg_parts.append(Markup(_(
+                    '<br/>⚠️ <b>%(n)d posted payment(s) were NOT cancelled</b> and '
+                    'remain in accounting: %(names)s. '
+                    'Adjust or reconcile them manually if needed.'
+                )) % {
+                    'n': len(posted_payments),
+                    'names': ', '.join(posted_payments.mapped('name')),
+                })
+
+            sheet.message_post(body=Markup('').join(msg_parts))
 
     def action_download_pdf(self):
         """Download unsigned sheet for offline PM signature."""

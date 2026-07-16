@@ -36,12 +36,22 @@
                             groups="purchase_demand_raise.group_ceo_approval"
                             invisible="state != 'submitted'"/>
 
+                    <!-- Standard reset: SA + HO — only while no posted payments -->
                     <button name="action_reset_draft"
                             type="object"
                             string="Reset to Draft"
                             class="btn-warning"
                             groups="site_operations.group_site_accountant,purchase_demand_raise.group_head_office"
                             invisible="state not in ['submitted', 'approved']"/>
+
+                    <!-- Force reset: HO roles only — any state, even with posted payments -->
+                    <button name="action_force_reset_draft"
+                            type="object"
+                            string="Force Reset to Draft"
+                            class="btn-danger"
+                            groups="purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_ceo_approval,site_operations.group_finance_ho,purchase_demand_raise.group_procurement_ho"
+                            invisible="state == 'draft'"
+                            confirm="This will unlock all lines and reset the sheet to Draft. Posted payments will NOT be cancelled — they remain in accounting. Continue?"/>
 
                     <button name="action_refresh_from_ledger"
                             type="object"
