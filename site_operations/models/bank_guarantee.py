@@ -37,11 +37,13 @@ class BankGuaranteeFacility(models.Model):
     _name = 'x.bank.guarantee.facility'
     _description = 'Bank Guarantee Facility Limit'
     _inherit = ['mail.thread', 'mail.activity.mixin']
-    _order = 'bank_id'
+    _order = 'journal_id'
 
     name = fields.Char(compute='_compute_name', store=True, readonly=True)
-    bank_id = fields.Many2one(
-        'res.bank', string='Bank', required=True, tracking=True, index=True)
+    journal_id = fields.Many2one(
+        'account.journal', string='Bank / Journal', required=True, tracking=True,
+        index=True, domain=[('type', '=', 'bank')],
+    )
     total_limit = fields.Monetary(
         string='Total Sanctioned Limit', required=True, tracking=True,
         currency_field='currency_id',
@@ -63,14 +65,14 @@ class BankGuaranteeFacility(models.Model):
     active = fields.Boolean(default=True)
 
     _bank_unique = models.Constraint(
-        'unique(bank_id)',
-        'Each bank can have only one facility limit record.',
+        'unique(journal_id)',
+        'Each bank journal can have only one facility limit record.',
     )
 
-    @api.depends('bank_id')
+    @api.depends('journal_id')
     def _compute_name(self):
         for rec in self:
-            rec.name = rec.bank_id.name or _('Bank Facility')
+            rec.name = rec.journal_id.name or _('Bank Facility')
 
     @api.depends(
         'guarantee_ids.state', 'guarantee_ids.bg_amount', 'total_limit',
@@ -96,7 +98,7 @@ class BankGuaranteeFacility(models.Model):
             'res_model': 'x.bank.guarantee',
             'view_mode': 'list,form',
             'domain': [('facility_id', '=', self.id)],
-            'context': {'default_facility_id': self.id, 'default_bank_id': self.bank_id.id},
+            'context': {'default_facility_id': self.id, 'default_journal_id': self.journal_id.id},
         }
 
 
@@ -111,8 +113,10 @@ class BankGuarantee(models.Model):
     sr_no = fields.Char(
         string='Sr No', readonly=True, copy=False,
         help='Serial number within the financial year.')
-    bank_id = fields.Many2one(
-        'res.bank', string='Bank Name', required=True, tracking=True, index=True)
+    journal_id = fields.Many2one(
+        'account.journal', string='Bank', required=True, tracking=True,
+        index=True, domain=[('type', '=', 'bank')],
+    )
     facility_id = fields.Many2one(
         'x.bank.guarantee.facility', string='Bank Facility',
         ondelete='restrict', index=True)
@@ -227,11 +231,11 @@ class BankGuarantee(models.Model):
             ('expiry_date', '>', limit),
         ]
 
-    @api.onchange('bank_id')
-    def _onchange_bank_id(self):
-        if self.bank_id:
+    @api.onchange('journal_id')
+    def _onchange_journal_id(self):
+        if self.journal_id:
             facility = self.env['x.bank.guarantee.facility'].search([
-                ('bank_id', '=', self.bank_id.id),
+                ('journal_id', '=', self.journal_id.id),
             ], limit=1)
             self.facility_id = facility
 
@@ -275,10 +279,10 @@ class BankGuarantee(models.Model):
                 vals['name'] = Analytic._matracon_ref_with_site('x.bank.guarantee', site_code)
             if not vals.get('sr_no'):
                 vals['sr_no'] = self.env['ir.sequence'].next_by_code('x.bank.guarantee.sr') or ''
-            bank_id = vals.get('bank_id')
-            if bank_id and not vals.get('facility_id'):
+            journal_id = vals.get('journal_id')
+            if journal_id and not vals.get('facility_id'):
                 facility = self.env['x.bank.guarantee.facility'].search([
-                    ('bank_id', '=', bank_id),
+                    ('journal_id', '=', journal_id),
                 ], limit=1)
                 if facility:
                     vals['facility_id'] = facility.id
@@ -310,24 +314,24 @@ class BankGuarantee(models.Model):
 
     def _ensure_facility(self):
         for rec in self:
-            if not rec.bank_id:
-                raise UserError(_('Select a bank before submitting the guarantee.'))
+            if not rec.journal_id:
+                raise UserError(_('Select a bank / journal before submitting the guarantee.'))
             facility = self.env['x.bank.guarantee.facility'].search([
-                ('bank_id', '=', rec.bank_id.id),
+                ('journal_id', '=', rec.journal_id.id),
             ], limit=1)
             if not facility:
                 raise UserError(_(
                     'No facility limit is configured for %(bank)s. '
                     'Ask Finance to set the bank\'s sanctioned BG limit first '
                     '(Accounting → Compliance → Bank Facility Limits).',
-                    bank=rec.bank_id.display_name,
+                    bank=rec.journal_id.display_name,
                 ))
             if not rec.facility_id:
                 rec.facility_id = facility
             if facility.total_limit <= 0:
                 raise UserError(_(
                     'Bank facility limit for %(bank)s is zero. Set the sanctioned limit first.',
-                    bank=rec.bank_id.display_name,
+                    bank=rec.journal_id.display_name,
                 ))
 
     def action_submit(self):

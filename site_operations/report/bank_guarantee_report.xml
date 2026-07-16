@@ -32,7 +32,7 @@
                             </tr>
                             <tr>
                                 <td style="font-weight:600;">Bank</td>
-                                <td><t t-esc="bg.bank_id.name or '-'"/></td>
+                                <td><t t-esc="bg.journal_id.name or '-'"/></td>
                                 <td style="font-weight:600;">Nature</td>
                                 <td style="text-transform:capitalize;">
                                     <t t-esc="bg.nature_id.name or '-'"/>

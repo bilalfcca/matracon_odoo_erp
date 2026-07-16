@@ -620,7 +620,7 @@
                                     <list create="false" delete="false" edit="false"
                                           decoration-warning="is_expiring_soon">
                                         <field name="name"/>
-                                        <field name="bank_id"/>
+                                        <field name="journal_id" string="Bank"/>
                                         <field name="guarantee_number"/>
                                         <field name="project_id"/>
                                         <field name="bg_amount" widget="monetary"/>

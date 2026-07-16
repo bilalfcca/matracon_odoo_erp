@@ -10,7 +10,7 @@
         <field name="model">x.bank.guarantee.facility</field>
         <field name="arch" type="xml">
             <list string="Bank Facility Limits">
-                <field name="bank_id"/>
+                <field name="journal_id" string="Bank / Journal"/>
                 <field name="total_limit" sum="Total Limit"/>
                 <field name="utilized_amount" sum="Utilized"/>
                 <field name="available_limit" sum="Available"/>
@@ -34,7 +34,7 @@
                     </div>
                     <group>
                         <group>
-                            <field name="bank_id"/>
+                            <field name="journal_id" string="Bank / Journal"/>
                             <field name="total_limit"/>
                             <field name="currency_id" groups="base.group_multi_currency"/>
                         </group>
@@ -68,7 +68,7 @@
                   decoration-danger="is_expiring_soon"
                   decoration-muted="state in ('released', 'expired', 'cancelled')">
                 <field name="sr_no" string="Sr No"/>
-                <field name="bank_id"/>
+                <field name="journal_id" string="Bank"/>
                 <field name="state" widget="badge"
                        decoration-success="state == 'active'"
                        decoration-info="state == 'released'"
@@ -137,7 +137,7 @@
                     <group>
                         <group string="Guarantee Details">
                             <field name="sr_no" readonly="1"/>
-                            <field name="bank_id"/>
+                            <field name="journal_id" string="Bank"/>
                             <field name="facility_id" readonly="1"/>
                             <field name="nature_id"/>
                             <field name="guarantee_number"/>
@@ -202,7 +202,7 @@
             <search string="Bank Guarantees">
                 <field name="name"/>
                 <field name="guarantee_number"/>
-                <field name="bank_id"/>
+                <field name="journal_id" string="Bank"/>
                 <field name="project_id"/>
                 <field name="beneficiary_name"/>
                 <field name="jv_name"/>
@@ -220,7 +220,7 @@
                 <filter string="Mob Advance Security" name="filter_mob"
                         domain="[('nature_id.code', '=', 'mob_advance')]"/>
                 <separator/>
-                <filter string="Group by Bank" name="group_bank" context="{'group_by': 'bank_id'}"/>
+                <filter string="Group by Bank" name="group_bank" context="{'group_by': 'journal_id'}"/>
                 <filter string="Group by Project" name="group_project" context="{'group_by': 'project_id'}"/>
                 <filter string="Group by Status" name="group_state" context="{'group_by': 'state'}"/>
                 <filter string="Group by Nature" name="group_nature" context="{'group_by': 'nature_id'}"/>

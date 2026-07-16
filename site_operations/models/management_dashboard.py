@@ -843,7 +843,7 @@ class ManagementDashboard(models.TransientModel):
             pct = (fac.utilized_amount / fac.total_limit * 100.0) if fac.total_limit else 0.0
             bg_facility_line_vals.append({
                 'facility_id': fac.id,
-                'bank_name': fac.bank_id.name or fac.name,
+                'bank_name': fac.journal_id.name or fac.name,
                 'total_limit': fac.total_limit,
                 'utilized_amount': fac.utilized_amount,
                 'margin_amount': margin,
