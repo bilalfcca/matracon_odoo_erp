@@ -502,7 +502,12 @@ class AccountMoveSiteOps(models.Model):
 
         existing_line = sheet.line_ids.filtered(
             lambda l: l.partner_id.id == self.partner_id.id)
-        desc = self.ref or self.name or _('Vendor Bill — %s') % self.partner_id.name
+        # Description always comes from the contact's x_description, not from the
+        # bill reference — so the label stays stable regardless of which entry
+        # (bill, IPC, material issuance, etc.) last touched the line.
+        partner_desc = (
+            self.partner_id.x_description or self.partner_id.name or ''
+        ).strip()
 
         if self.state == 'posted':
             if self.x_liability_registered and self.x_liability_sheet_id == sheet:
@@ -519,11 +524,12 @@ class AccountMoveSiteOps(models.Model):
             if existing_line:
                 existing_line[0].write({
                     'new_liability': existing_line[0].new_liability + delta,
-                    'description': desc,
+                    # description is intentionally NOT updated — it stays as set
+                    # from the contact record and is never overwritten by a bill ref.
                 })
             else:
                 sheet.write({'line_ids': [(0, 0, {
-                    'description': desc,
+                    'description': partner_desc,
                     'partner_id': self.partner_id.id,
                     'new_liability': delta,
                 })]})
@@ -552,7 +558,7 @@ class AccountMoveSiteOps(models.Model):
                 )
         elif created:
             sheet.write({'line_ids': [(0, 0, {
-                'description': desc,
+                'description': partner_desc,
                 'partner_id': self.partner_id.id,
                 'new_liability': 0.0,
             })]})

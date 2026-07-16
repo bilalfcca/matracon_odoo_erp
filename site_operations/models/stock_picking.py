@@ -1880,10 +1880,14 @@ class StockPickingSiteOps(models.Model):
                 )
             )
         else:
-            desc = self.x_backcharge_description or _('Material Issuance - %s') % self.name
+            # Description always from the contact's x_description — never from
+            # the picking name — so the label stays stable across all entries.
+            partner_desc = (
+                self.x_contact_id.x_description or self.x_contact_id.name or ''
+            ).strip()
             sheet.write({
                 'line_ids': [(0, 0, {
-                    'description': desc,
+                    'description': partner_desc,
                     'partner_id': self.x_contact_id.id,
                     'new_liability': amount,
                     'recommended_amount': amount,
@@ -1891,7 +1895,7 @@ class StockPickingSiteOps(models.Model):
             })
             self.message_post(
                 body=Markup(_('Line added to Liability Sheet <b>%s</b>: %s — %s')) % (
-                    sheet.name, desc, f'{amount:,.2f}')
+                    sheet.name, partner_desc, f'{amount:,.2f}')
             )
 
     def _auto_adjust_liability_sheet_on_return(self, adj_amount, original):
