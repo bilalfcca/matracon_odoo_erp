@@ -50,6 +50,10 @@ access_site_store_dashboard_matracon_admin,site.store.dashboard.matracon.admin,m
 access_site_store_dashboard_admin,site.store.dashboard.admin,model_x_site_store_dashboard,base.group_system,1,1,1,1
 access_procurement_ho_dashboard_matracon_admin,x.procurement.ho.dashboard matracon admin,purchase_demand_raise.model_x_procurement_ho_dashboard,purchase_demand_raise.group_matracon_admin,1,1,1,1
 access_project_site_config_matracon_admin,x.project.site.config matracon admin,purchase_demand_raise.model_x_project_site_config,purchase_demand_raise.group_matracon_admin,1,1,1,1
+access_bg_nature_fo,bg.nature.fo,model_x_bg_nature,site_operations.group_finance_ho,1,1,1,1
+access_bg_nature_ceo,bg.nature.ceo,model_x_bg_nature,purchase_demand_raise.group_ceo_approval,1,0,0,0
+access_bg_nature_admin,bg.nature.admin,model_x_bg_nature,purchase_demand_raise.group_matracon_admin,1,1,1,1
+access_bg_nature_site_accountant,bg.nature.site.accountant,model_x_bg_nature,site_operations.group_site_accountant,1,0,0,0
 access_bank_guarantee_facility_site_accountant,bank.guarantee.facility.site.accountant,model_x_bank_guarantee_facility,site_operations.group_site_accountant,1,0,0,0
 access_bank_guarantee_facility_fo,bank.guarantee.facility.fo,model_x_bank_guarantee_facility,site_operations.group_finance_ho,1,1,1,1
 access_bank_guarantee_facility_ceo,bank.guarantee.facility.ceo,model_x_bank_guarantee_facility,purchase_demand_raise.group_ceo_approval,1,1,1,1

@@ -318,6 +318,13 @@
               sequence="90"
               groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
+    <menuitem id="menu_bg_nature"
+              name="Nature of BG"
+              parent="site_operations.menu_compliance_config"
+              action="site_operations.action_bg_nature"
+              sequence="5"
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
     <menuitem id="menu_bank_guarantee_facility"
               name="Bank Facility Limits"
               parent="site_operations.menu_compliance_config"

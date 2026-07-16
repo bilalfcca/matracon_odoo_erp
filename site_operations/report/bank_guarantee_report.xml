@@ -35,7 +35,7 @@
                                 <td><t t-esc="bg.bank_id.name or '-'"/></td>
                                 <td style="font-weight:600;">Nature</td>
                                 <td style="text-transform:capitalize;">
-                                    <t t-esc="dict(bg._fields['nature'].selection).get(bg.nature, bg.nature or '-')"/>
+                                    <t t-esc="bg.nature_id.name or '-'"/>
                                 </td>
                             </tr>
                             <tr>

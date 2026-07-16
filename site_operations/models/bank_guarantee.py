@@ -8,6 +8,30 @@ from odoo.exceptions import UserError, ValidationError
 from . import matracon_notifications as matracon_notify
 
 
+class BankGuaranteeNature(models.Model):
+    """Configurable Nature of BG types (Bid Security, Performance, etc.)."""
+    _name = 'x.bg.nature'
+    _description = 'Bank Guarantee Nature'
+    _order = 'sequence, name'
+
+    name = fields.Char(string='Nature', required=True, translate=True)
+    sequence = fields.Integer(default=10)
+    active = fields.Boolean(default=True)
+    # Internal code used by dashboards — set only on seed records, never edited
+    code = fields.Char(string='Code', readonly=True, copy=False)
+
+    guarantee_count = fields.Integer(compute='_compute_guarantee_count')
+
+    def _compute_guarantee_count(self):
+        BG = self.env['x.bank.guarantee'].sudo()
+        for rec in self:
+            rec.guarantee_count = BG.search_count([('nature_id', '=', rec.id)])
+
+    _name_unique = models.Constraint(
+        'unique(name)', 'Each nature type must have a unique name.'
+    )
+
+
 class BankGuaranteeFacility(models.Model):
     """Sanctioned BG limit per bank — utilized amount rolls up from live guarantees."""
     _name = 'x.bank.guarantee.facility'
@@ -92,14 +116,12 @@ class BankGuarantee(models.Model):
     facility_id = fields.Many2one(
         'x.bank.guarantee.facility', string='Bank Facility',
         ondelete='restrict', index=True)
-    nature = fields.Selection([
-        ('bid_bond', 'Bid Bond / Bid Guarantee'),
-        ('performance', 'Performance BG'),
-        ('advance_payment', 'Advance Payment Guarantee'),
-        ('financial', 'Financial BG'),
-        ('retention', 'Retention Money Guarantee'),
-        ('other', 'Other'),
-    ], string='Nature of BG', required=True, default='performance', tracking=True)
+    nature_id = fields.Many2one(
+        'x.bg.nature', string='Nature of BG', required=True, tracking=True,
+        ondelete='restrict',
+        default=lambda self: self.env.ref(
+            'site_operations.bg_nature_performance', raise_if_not_found=False),
+    )
     guarantee_number = fields.Char(
         string='Guarantee No', required=True, tracking=True, index=True,
         help='Bank-issued guarantee reference number.')

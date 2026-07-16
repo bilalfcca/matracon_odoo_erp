@@ -35,6 +35,7 @@
         'data/ho_advance_sequence.xml',
         'data/app_visibility_data.xml',
         'data/currency_precision.xml',
+        'data/bg_nature_data.xml',
         'data/presence_cron.xml',
         'views/hr_employee_views.xml',
         'views/attendance_views.xml',

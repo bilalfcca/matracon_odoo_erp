@@ -826,10 +826,14 @@ class ManagementDashboard(models.TransientModel):
             ('state', '=', 'released'),
         ])
 
+        _perf = self.env.ref('site_operations.bg_nature_performance', raise_if_not_found=False)
+        _mob  = self.env.ref('site_operations.bg_nature_mob_advance',  raise_if_not_found=False)
+        _bid  = self.env.ref('site_operations.bg_nature_bid_security', raise_if_not_found=False)
         performance_bg = sum(active_bgs.filtered(
-            lambda g: g.nature == 'performance').mapped('bg_amount'))
+            lambda g: _perf and g.nature_id == _perf).mapped('bg_amount'))
         mobilization_bg = sum(active_bgs.filtered(
-            lambda g: g.nature in ('advance_payment', 'bid_bond')).mapped('bg_amount'))
+            lambda g: ((_mob and g.nature_id == _mob) or (_bid and g.nature_id == _bid))
+        ).mapped('bg_amount'))
 
         bg_facility_line_vals = []
         for fac in facilities:
@@ -853,12 +857,11 @@ class ManagementDashboard(models.TransientModel):
             ('project_id', 'in', projects.ids),
             ('state', 'in', ('pending', 'active', 'locked', 'expired')),
         ])
-        nature_labels = dict(self.env['x.bank.guarantee'].sudo()._fields['nature'].selection)
         for bg in project_bgs:
             bg_project_line_vals.append({
                 'guarantee_id': bg.id,
                 'project_name': bg.project_id.name or '',
-                'nature_label': nature_labels.get(bg.nature, bg.nature),
+                'nature_label': bg.nature_id.name or '',
                 'guarantee_number': bg.guarantee_number,
                 'bg_amount': bg.bg_amount,
                 'expiry_date': bg.expiry_date,

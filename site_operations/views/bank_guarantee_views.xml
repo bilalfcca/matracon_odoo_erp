@@ -74,7 +74,7 @@
                        decoration-info="state == 'released'"
                        decoration-warning="state == 'pending'"
                        decoration-danger="state == 'expired'"/>
-                <field name="nature"/>
+                <field name="nature_id"/>
                 <field name="guarantee_number"/>
                 <field name="issue_date"/>
                 <field name="expiry_date"/>
@@ -139,7 +139,7 @@
                             <field name="sr_no" readonly="1"/>
                             <field name="bank_id"/>
                             <field name="facility_id" readonly="1"/>
-                            <field name="nature"/>
+                            <field name="nature_id"/>
                             <field name="guarantee_number"/>
                             <field name="jv_type"/>
                             <field name="jv_name" invisible="jv_type != 'jv'" required="jv_type == 'jv'"/>
@@ -213,13 +213,17 @@
                 <filter string="Released" name="filter_released" domain="[('state', '=', 'released')]"/>
                 <filter string="Expired" name="filter_expired" domain="[('state', '=', 'expired')]"/>
                 <separator/>
-                <filter string="Performance BG" name="filter_performance" domain="[('nature', '=', 'performance')]"/>
-                <filter string="Bid Bond" name="filter_bid" domain="[('nature', '=', 'bid_bond')]"/>
+                <filter string="Performance Security" name="filter_performance"
+                        domain="[('nature_id.code', '=', 'performance')]"/>
+                <filter string="Bid Security" name="filter_bid"
+                        domain="[('nature_id.code', '=', 'bid_security')]"/>
+                <filter string="Mob Advance Security" name="filter_mob"
+                        domain="[('nature_id.code', '=', 'mob_advance')]"/>
                 <separator/>
                 <filter string="Group by Bank" name="group_bank" context="{'group_by': 'bank_id'}"/>
                 <filter string="Group by Project" name="group_project" context="{'group_by': 'project_id'}"/>
                 <filter string="Group by Status" name="group_state" context="{'group_by': 'state'}"/>
-                <filter string="Group by Nature" name="group_nature" context="{'group_by': 'nature'}"/>
+                <filter string="Group by Nature" name="group_nature" context="{'group_by': 'nature_id'}"/>
             </search>
         </field>
     </record>
@@ -233,6 +237,48 @@
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">Register a new bank guarantee</p>
             <p>Track performance bonds, bid bonds, and advance payment guarantees with bank facility limits.</p>
+        </field>
+    </record>
+
+    <!-- ── Nature of BG configuration ─────────────────────────────────────── -->
+    <record id="view_bg_nature_list" model="ir.ui.view">
+        <field name="name">x.bg.nature.list</field>
+        <field name="model">x.bg.nature</field>
+        <field name="arch" type="xml">
+            <list string="Nature of BG" editable="bottom">
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="guarantee_count" string="BGs" readonly="1"/>
+                <field name="active" column_invisible="True"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_bg_nature_form" model="ir.ui.view">
+        <field name="name">x.bg.nature.form</field>
+        <field name="model">x.bg.nature</field>
+        <field name="arch" type="xml">
+            <form string="Nature of BG">
+                <sheet>
+                    <group>
+                        <field name="name" string="Nature"/>
+                        <field name="sequence"/>
+                        <field name="active"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_bg_nature" model="ir.actions.act_window">
+        <field name="name">Nature of BG</field>
+        <field name="res_model">x.bg.nature</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create a new Nature of BG type
+            </p>
+            <p>Define the types that appear in the Nature dropdown on Bank Guarantees.</p>
         </field>
     </record>
 
