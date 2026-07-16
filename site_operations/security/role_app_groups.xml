@@ -92,10 +92,16 @@
             ]"/>
         </record>
 
-        <!-- Matracon Admin: all apps + Settings (replaces purchase_demand_raise base implied_ids) -->
+        <!-- Matracon Admin: all apps + Settings + System (replaces purchase_demand_raise base implied_ids)
+             base.group_system is intentionally included so that:
+               - All ir.rule bypass rules keyed on base.group_system automatically apply
+               - ACL rows that only grant base.group_system access are covered
+               - Settings → Technical menus are accessible
+               - Odoo treats this role as a true superadmin across every installed app -->
         <record id="purchase_demand_raise.group_matracon_admin" model="res.groups">
             <field name="implied_ids" eval="[
                 (6, 0, [
+                    ref('base.group_system'),
                     ref('purchase_demand_raise.group_head_office'),
                     ref('purchase_demand_raise.group_procurement_ho'),
                     ref('purchase_demand_raise.group_ceo_approval'),
