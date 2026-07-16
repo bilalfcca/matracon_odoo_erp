@@ -226,3 +226,8 @@ access_salary_sheet_import_site_accountant,salary.sheet.import.site.accountant,m
 access_salary_sheet_import_finance_ho,salary.sheet.import.finance.ho,model_x_salary_sheet_import,site_operations.group_finance_ho,1,1,1,1
 access_salary_sheet_import_head_office,salary.sheet.import.head.office,model_x_salary_sheet_import,purchase_demand_raise.group_head_office,1,1,1,1
 access_salary_sheet_import_admin,salary.sheet.import.admin,model_x_salary_sheet_import,purchase_demand_raise.group_matracon_admin,1,1,1,1
+access_project_eot_fo,project.eot.fo,model_x_project_eot,site_operations.group_finance_ho,1,1,1,1
+access_project_eot_ceo,project.eot.ceo,model_x_project_eot,purchase_demand_raise.group_ceo_approval,1,1,1,1
+access_project_eot_admin,project.eot.admin,model_x_project_eot,purchase_demand_raise.group_matracon_admin,1,1,1,1
+access_project_eot_head_office,project.eot.head.office,model_x_project_eot,purchase_demand_raise.group_head_office,1,0,0,0
+access_project_eot_site_accountant,project.eot.site.accountant,model_x_project_eot,site_operations.group_site_accountant,1,0,0,0
