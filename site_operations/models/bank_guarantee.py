@@ -75,6 +75,9 @@ class BankGuaranteeFacility(models.Model):
     security_details = fields.Html(
         string='Security Details',
         help='Details of collateral / security pledged against this facility.')
+    renewal_ids = fields.One2many(
+        'x.bank.guarantee.facility.renewal', 'facility_id',
+        string='Renewal History')
     guarantee_ids = fields.One2many(
         'x.bank.guarantee', 'facility_id', string='Guarantees')
     guarantee_count = fields.Integer(compute='_compute_guarantee_count')
@@ -107,6 +110,36 @@ class BankGuaranteeFacility(models.Model):
     def _compute_guarantee_count(self):
         for rec in self:
             rec.guarantee_count = len(rec.guarantee_ids)
+
+    def action_renew_facility(self):
+        """Archive the current facility letter into Renewal History and clear
+        the header fields so the user can enter the new sanction letter details."""
+        self.ensure_one()
+        if not (self.reference_no or self.date_of_issuance or self.expiry_date):
+            raise UserError(_(
+                'Please fill in at least the Reference No or dates before renewing — '
+                'there is no current letter to archive.'
+            ))
+        self.env['x.bank.guarantee.facility.renewal'].create({
+            'facility_id': self.id,
+            'reference_no': self.reference_no,
+            'date_of_issuance': self.date_of_issuance,
+            'expiry_date': self.expiry_date,
+            'total_limit': self.total_limit,
+            'cash_margin_percent': self.cash_margin_percent,
+            'commission_percent': self.commission_percent,
+        })
+        # Clear the header so the user fills the new letter's details
+        self.write({
+            'reference_no': False,
+            'date_of_issuance': False,
+            'expiry_date': False,
+        })
+        self.message_post(body=_(
+            'Facility renewed. Previous sanction letter details have been '
+            'archived in the <b>Renewal History</b> tab. '
+            'Please enter the new letter details above.'
+        ))
 
     def action_view_guarantees(self):
         self.ensure_one()
@@ -507,7 +540,7 @@ class BankGuaranteeAmendment(models.Model):
     amendment_date = fields.Date(
         string='Date', required=True, default=fields.Date.context_today)
     amendment_type = fields.Selection([
-        ('initial', 'Initial'),
+        ('initial', 'Original'),
         ('extension', 'Extension'),
         ('increase', 'Increase'),
         ('decrease', 'Decrease'),
@@ -532,3 +565,26 @@ class BankGuaranteeAmendment(models.Model):
             rec.guarantee_id.expiry_date = rec.new_expiry_date
             if rec.guarantee_id.state == 'expired':
                 rec.guarantee_id.state = 'active'
+
+
+class BankGuaranteeFacilityRenewal(models.Model):
+    """Historical record of each facility sanction letter before renewal."""
+    _name = 'x.bank.guarantee.facility.renewal'
+    _description = 'Bank Guarantee Facility Renewal History'
+    _order = 'date_of_issuance desc, id desc'
+
+    facility_id = fields.Many2one(
+        'x.bank.guarantee.facility', required=True,
+        ondelete='cascade', index=True)
+    reference_no = fields.Char(string='Reference No')
+    date_of_issuance = fields.Date(string='Date of Issuance')
+    expiry_date = fields.Date(string='Expiry Date')
+    total_limit = fields.Monetary(
+        string='Sanctioned Limit', currency_field='currency_id')
+    cash_margin_percent = fields.Float(
+        string='Cash Margin (%)', digits=(5, 2))
+    commission_percent = fields.Float(
+        string='Commission (%)', digits=(5, 2))
+    notes = fields.Text(string='Notes')
+    currency_id = fields.Many2one(
+        related='facility_id.currency_id', store=True, readonly=True)
