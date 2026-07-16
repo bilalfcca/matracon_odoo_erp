@@ -11,6 +11,11 @@
         <field name="arch" type="xml">
             <list string="Bank Facility Limits">
                 <field name="journal_id" string="Bank / Journal"/>
+                <field name="reference_no" string="Reference No"/>
+                <field name="date_of_issuance" string="Date of Issuance"/>
+                <field name="expiry_date" string="Expiry"/>
+                <field name="cash_margin_percent" string="Cash Margin %"/>
+                <field name="commission_percent" string="Commission %"/>
                 <field name="total_limit" sum="Total Limit"/>
                 <field name="utilized_amount" sum="Utilized"/>
                 <field name="available_limit" sum="Available"/>
@@ -32,17 +37,32 @@
                             <field name="guarantee_count" widget="statinfo" string="Guarantees"/>
                         </button>
                     </div>
-                    <group>
+                    <group string="Facility Details">
                         <group>
                             <field name="journal_id" string="Bank / Journal"/>
-                            <field name="total_limit"/>
-                            <field name="currency_id" groups="base.group_multi_currency"/>
+                            <field name="reference_no"/>
+                            <field name="date_of_issuance"/>
+                            <field name="expiry_date"/>
                         </group>
                         <group>
-                            <field name="utilized_amount"/>
-                            <field name="available_limit"/>
+                            <field name="cash_margin_percent"/>
+                            <field name="commission_percent"/>
+                            <field name="currency_id" groups="base.group_multi_currency"/>
                             <field name="active"/>
                         </group>
+                    </group>
+                    <group string="Sanctioned Limit &amp; Utilization">
+                        <group>
+                            <field name="total_limit"/>
+                            <field name="utilized_amount"/>
+                        </group>
+                        <group>
+                            <field name="available_limit"/>
+                        </group>
+                    </group>
+                    <group string="Security Details">
+                        <field name="security_details" nolabel="1" colspan="2"
+                               placeholder="Enter details of collateral, security deposits, or any pledged assets against this facility…"/>
                     </group>
                 </sheet>
                 <chatter/>

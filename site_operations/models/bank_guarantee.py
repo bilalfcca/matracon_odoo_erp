@@ -44,6 +44,21 @@ class BankGuaranteeFacility(models.Model):
         'account.journal', string='Bank / Journal', required=True, tracking=True,
         index=True, domain=[('type', '=', 'bank')],
     )
+    reference_no = fields.Char(
+        string='Reference No', tracking=True,
+        help='Bank-issued facility reference / sanction letter number.')
+    date_of_issuance = fields.Date(
+        string='Date of Issuance', tracking=True,
+        help='Date the facility was sanctioned / issued by the bank.')
+    expiry_date = fields.Date(
+        string='Expiry Date', tracking=True,
+        help='Date on which the facility limit expires.')
+    cash_margin_percent = fields.Float(
+        string='Cash Margin (%)', digits=(5, 2), tracking=True,
+        help='Default cash margin percentage applicable under this facility.')
+    commission_percent = fields.Float(
+        string='Commission (Bank) / Pricing (%)', digits=(5, 2), tracking=True,
+        help='Bank commission / pricing rate applicable under this facility.')
     total_limit = fields.Monetary(
         string='Total Sanctioned Limit', required=True, tracking=True,
         currency_field='currency_id',
@@ -57,6 +72,9 @@ class BankGuaranteeFacility(models.Model):
         compute='_compute_utilization', store=True,
         currency_field='currency_id',
     )
+    security_details = fields.Html(
+        string='Security Details',
+        help='Details of collateral / security pledged against this facility.')
     guarantee_ids = fields.One2many(
         'x.bank.guarantee', 'facility_id', string='Guarantees')
     guarantee_count = fields.Integer(compute='_compute_guarantee_count')
