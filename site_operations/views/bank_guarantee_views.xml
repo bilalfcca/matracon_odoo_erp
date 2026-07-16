@@ -141,7 +141,7 @@
                             <field name="facility_id" readonly="1"/>
                             <field name="nature_id"/>
                             <field name="guarantee_number"/>
-                            <field name="jv_type"/>
+                            <field name="jv_type" widget="radio" string="JV Type"/>
                             <field name="jv_name" invisible="jv_type != 'jv'" required="jv_type == 'jv'"/>
                             <field name="project_id"/>
                             <field name="beneficiary_id"/>
@@ -151,9 +151,12 @@
                             <field name="issue_date"/>
                             <field name="expiry_date" decoration-danger="is_expiring_soon"/>
                             <field name="bg_amount"/>
-                            <field name="cash_margin_percent"/>
-                            <field name="pricing_percent"/>
-                            <field name="margin_amount"/>
+                            <field name="cash_margin_percent" string="Cash Margin (%)"/>
+                            <field name="margin_amount" string="Cash Margin Amount" readonly="1"/>
+                            <field name="pricing_percent" string="Bank Commission/Pricing (%)"/>
+                            <field name="commission_amount" string="Commission Amount" readonly="1"/>
+                            <field name="fed_percent" string="FED (%)"/>
+                            <field name="fed_amount" string="FED Amount" readonly="1"/>
                             <field name="days_to_expiry" invisible="state not in ('active', 'locked', 'pending')"/>
                             <field name="release_date" invisible="state != 'released'"/>
                             <field name="currency_id" groups="base.group_multi_currency"/>

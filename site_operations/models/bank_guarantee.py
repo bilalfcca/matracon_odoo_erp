@@ -161,11 +161,25 @@ class BankGuarantee(models.Model):
         currency_field='currency_id')
     cash_margin_percent = fields.Float(
         string='Cash Margin (%)', digits=(5, 2), tracking=True)
-    pricing_percent = fields.Float(
-        string='Pricing (% p.a.)', digits=(5, 2), tracking=True,
-        help='Bank commission / pricing percentage per annum.')
     margin_amount = fields.Monetary(
-        compute='_compute_margin_amount', store=True,
+        string='Cash Margin Amount',
+        compute='_compute_charges', store=True,
+        currency_field='currency_id',
+    )
+    pricing_percent = fields.Float(
+        string='Bank Commission/Pricing (%)', digits=(5, 2), tracking=True,
+        help='Bank commission / pricing percentage applied on BG amount.')
+    commission_amount = fields.Monetary(
+        string='Commission Amount',
+        compute='_compute_charges', store=True,
+        currency_field='currency_id',
+    )
+    fed_percent = fields.Float(
+        string='FED (%)', digits=(5, 2), tracking=True,
+        help='Federal Excise Duty percentage applied on commission amount.')
+    fed_amount = fields.Monetary(
+        string='FED Amount',
+        compute='_compute_charges', store=True,
         currency_field='currency_id',
     )
     total_limit = fields.Monetary(
@@ -193,10 +207,12 @@ class BankGuarantee(models.Model):
         'res.company', default=lambda self: self.env.company, required=True)
     notes = fields.Text()
 
-    @api.depends('bg_amount', 'cash_margin_percent')
-    def _compute_margin_amount(self):
+    @api.depends('bg_amount', 'cash_margin_percent', 'pricing_percent', 'fed_percent')
+    def _compute_charges(self):
         for rec in self:
             rec.margin_amount = rec.bg_amount * (rec.cash_margin_percent or 0.0) / 100.0
+            rec.commission_amount = rec.bg_amount * (rec.pricing_percent or 0.0) / 100.0
+            rec.fed_amount = rec.commission_amount * (rec.fed_percent or 0.0) / 100.0
 
     @api.depends('expiry_date', 'state')
     def _compute_days_to_expiry(self):

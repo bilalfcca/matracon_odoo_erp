@@ -63,6 +63,18 @@
                                 </td>
                             </tr>
                             <tr>
+                                <td style="font-weight:600;">Bank Commission</td>
+                                <td>
+                                    <t t-esc="'{:,.0f}'.format(bg.commission_amount)"/>
+                                    &amp;nbsp;(<t t-esc="bg.pricing_percent"/>%)
+                                </td>
+                                <td style="font-weight:600;">FED</td>
+                                <td>
+                                    <t t-esc="'{:,.0f}'.format(bg.fed_amount)"/>
+                                    &amp;nbsp;(<t t-esc="bg.fed_percent"/>%)
+                                </td>
+                            </tr>
+                            <tr>
                                 <td style="font-weight:600;">Status</td>
                                 <td class="fw-bold" colspan="3" style="text-transform:capitalize;">
                                     <t t-esc="dict(bg._fields['state'].selection).get(bg.state, bg.state)"/>
