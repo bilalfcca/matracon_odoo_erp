@@ -328,45 +328,8 @@
                             </p>
                         </div>
 
-                        <!-- ── Signatures ─────────────────────────────────── -->
-                        <div class="row mt-5">
-                            <div class="col-3 text-center">
-                                <div style="border-top:1px solid #000;
-                                            padding-top:4px; margin-top:50px;">
-                                    <p style="font-size:11px; font-weight:bold; margin:0;">
-                                        Prepared By</p>
-                                    <p style="font-size:10px; color:#555; margin:0;">
-                                        Site Accountant</p>
-                                </div>
-                            </div>
-                            <div class="col-3 text-center">
-                                <div style="border-top:1px solid #000;
-                                            padding-top:4px; margin-top:50px;">
-                                    <p style="font-size:11px; font-weight:bold; margin:0;">
-                                        Recommended By</p>
-                                    <p style="font-size:10px; color:#555; margin:0;">
-                                        Accounts Manager</p>
-                                </div>
-                            </div>
-                            <div class="col-3 text-center">
-                                <div style="border-top:1px solid #000;
-                                            padding-top:4px; margin-top:50px;">
-                                    <p style="font-size:11px; font-weight:bold; margin:0;">
-                                        Verified By</p>
-                                    <p style="font-size:10px; color:#555; margin:0;">
-                                        Finance HO</p>
-                                </div>
-                            </div>
-                            <div class="col-3 text-center">
-                                <div style="border-top:1px solid #000;
-                                            padding-top:4px; margin-top:50px;">
-                                    <p style="font-size:11px; font-weight:bold; margin:0;">
-                                        Approved By</p>
-                                    <p style="font-size:10px; color:#555; margin:0;">
-                                        CEO</p>
-                                </div>
-                            </div>
-                        </div>
+                        <!-- ── Signatures ── -->
+                        <t t-call="site_operations.report_sig_3col"/>
 
                     </div>
                 </t>

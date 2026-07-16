@@ -82,6 +82,7 @@
         'report/employee_card_report.xml',
         'report/employee_card_template.xml',
         'report/wht_certificate_report.xml',
+        'report/signature_block.xml',
         'report/wht_certificate_template.xml',
         'report/subcontractor_ipc_report.xml',
         'report/attendance_sheet_report.xml',

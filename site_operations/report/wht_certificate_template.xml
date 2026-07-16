@@ -147,21 +147,8 @@
                             </p>
                         </div>
 
-                        <!-- Signature Block -->
-                        <div class="row mt-5">
-                            <div class="col-6 text-center">
-                                <div style="border-top: 1px solid #333; margin: 0 30px; padding-top: 6px; font-size: 11px;">
-                                    <strong>Finance Officer</strong><br/>
-                                    <t t-esc="company.name"/>
-                                </div>
-                            </div>
-                            <div class="col-6 text-center">
-                                <div style="border-top: 1px solid #333; margin: 0 30px; padding-top: 6px; font-size: 11px;">
-                                    <strong>Authorized Signatory</strong><br/>
-                                    <t t-esc="company.name"/>
-                                </div>
-                            </div>
-                        </div>
+                        <!-- ── Signatures ── -->
+                        <t t-call="site_operations.report_sig_3col"/>
 
                     </div>
                 </t>

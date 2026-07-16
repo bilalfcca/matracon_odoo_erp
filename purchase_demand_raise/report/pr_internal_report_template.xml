@@ -92,34 +92,8 @@
                         </div>
 
                         <!-- ── SIGNATURE SECTION ── -->
-                        <div class="row mt-5">
-                            <div class="col-12">
-                                <h5 class="fw-bold border-bottom pb-1">Signatures</h5>
-                            </div>
-                        </div>
-
                         <!-- ── Signatures ── -->
-                        <div class="row mt-5">
-                            <div class="col-6 text-center">
-                                <div style="border-top:2px solid #000; margin-top:60px; padding-top:8px;">
-                                    <div style="font-weight:700; font-size:13px;">Prepared By</div>
-                                    <div style="font-size:11px; color:#555; margin-top:2px;">
-                                        Store Keeper
-                                        <t t-if="o.x_initiator_id"> — <t t-esc="o.x_initiator_id.name"/></t>
-                                    </div>
-                                    <div style="font-size:11px; color:#6c757d; margin-top:14px;">Name: ___________________________</div>
-                                    <div style="font-size:11px; color:#6c757d; margin-top:4px;">Date: ___________________________</div>
-                                </div>
-                            </div>
-                            <div class="col-6 text-center">
-                                <div style="border-top:2px solid #000; margin-top:60px; padding-top:8px;">
-                                    <div style="font-weight:700; font-size:13px;">Approved By</div>
-                                    <div style="font-size:11px; color:#555; margin-top:2px;">Project Manager</div>
-                                    <div style="font-size:11px; color:#6c757d; margin-top:14px;">Name: ___________________________</div>
-                                    <div style="font-size:11px; color:#6c757d; margin-top:4px;">Date: ___________________________</div>
-                                </div>
-                            </div>
-                        </div>
+                        <t t-call="site_operations.report_sig_3col"/>
 
                     </div>
                 </t>

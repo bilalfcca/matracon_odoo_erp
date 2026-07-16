@@ -87,17 +87,8 @@
                             <strong>Reason / Purpose:</strong><br/>
                             <t t-esc="req.reason or '-'"/>
                         </div>
-                        <div class="row mt-5">
-                            <div class="col-4 text-center">
-                                <div style="border-top:1px solid #000;padding-top:4px;margin-top:40px;">Requested By (Site Accountant)</div>
-                            </div>
-                            <div class="col-4 text-center">
-                                <div style="border-top:1px solid #000;padding-top:4px;margin-top:40px;">Approved By (CEO)</div>
-                            </div>
-                            <div class="col-4 text-center">
-                                <div style="border-top:1px solid #000;padding-top:4px;margin-top:40px;">Released By (Finance HO)</div>
-                            </div>
-                        </div>
+                        <!-- ── Signatures ── -->
+                        <t t-call="site_operations.report_sig_3col"/>
                         <p class="text-muted small mt-3">System-generated — Matracon Pakistan Pvt. Ltd.</p>
                     </div>
                 </t>
@@ -261,32 +252,9 @@
                         </table>
 
                         <!-- ── Signatures ── -->
-                        <div class="row mt-5">
-                            <div class="col-4 text-center">
-                                <div style="border-top:2px solid #000; margin-top:60px; padding-top:8px;">
-                                    <div style="font-weight:700; font-size:13px;">Prepared By</div>
-                                    <div style="font-size:11px; color:#555; margin-top:2px;">Site Accountant</div>
-                                    <div style="font-size:11px; color:#6c757d; margin-top:14px;">Name: _______________________</div>
-                                    <div style="font-size:11px; color:#6c757d; margin-top:4px;">Date: ________________________</div>
-                                </div>
-                            </div>
-                            <div class="col-4 text-center">
-                                <div style="border-top:2px solid #000; margin-top:60px; padding-top:8px;">
-                                    <div style="font-weight:700; font-size:13px;">Received By</div>
-                                    <div style="font-size:11px; color:#555; margin-top:2px;">Recipient / Employee</div>
-                                    <div style="font-size:11px; color:#6c757d; margin-top:14px;">Name: _______________________</div>
-                                    <div style="font-size:11px; color:#6c757d; margin-top:4px;">Date: ________________________</div>
-                                </div>
-                            </div>
-                            <div class="col-4 text-center">
-                                <div style="border-top:2px solid #000; margin-top:60px; padding-top:8px;">
-                                    <div style="font-weight:700; font-size:13px;">Approved By</div>
-                                    <div style="font-size:11px; color:#555; margin-top:2px;">Finance HO</div>
-                                    <div style="font-size:11px; color:#6c757d; margin-top:14px;">Name: _______________________</div>
-                                    <div style="font-size:11px; color:#6c757d; margin-top:4px;">Date: ________________________</div>
-                                </div>
-                            </div>
-                        </div>
+                        <t t-call="site_operations.report_sig_4col">
+                            <t t-set="extra_label">Received By</t>
+                        </t>
                         <p class="text-muted small mt-3">System-generated — Matracon Pakistan Pvt. Ltd.</p>
                     </div>
                 </t>

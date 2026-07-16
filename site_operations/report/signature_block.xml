@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        Shared signature block templates used by all Matracon print documents.
+        Convention (no role labels):
+            3-col: Prepared By | Checked By | Approved By
+            4-col: Prepared By | Checked By | Approved By | [extra_label]
+                   where extra_label = "Received By" or "Return By"
+    -->
+
+    <!-- ── 3-column block ───────────────────────────────────────────────── -->
+    <template id="report_sig_3col">
+        <div class="row mt-5">
+            <div class="col-4 text-center">
+                <div style="border-top:2px solid #000; margin-top:60px; padding-top:8px;">
+                    <div style="font-weight:700; font-size:13px;">Prepared By</div>
+                    <div style="font-size:11px; color:#6c757d; margin-top:16px;">Name: _______________________</div>
+                    <div style="font-size:11px; color:#6c757d; margin-top:4px;">Date: ________________________</div>
+                </div>
+            </div>
+            <div class="col-4 text-center">
+                <div style="border-top:2px solid #000; margin-top:60px; padding-top:8px;">
+                    <div style="font-weight:700; font-size:13px;">Checked By</div>
+                    <div style="font-size:11px; color:#6c757d; margin-top:16px;">Name: _______________________</div>
+                    <div style="font-size:11px; color:#6c757d; margin-top:4px;">Date: ________________________</div>
+                </div>
+            </div>
+            <div class="col-4 text-center">
+                <div style="border-top:2px solid #000; margin-top:60px; padding-top:8px;">
+                    <div style="font-weight:700; font-size:13px;">Approved By</div>
+                    <div style="font-size:11px; color:#6c757d; margin-top:16px;">Name: _______________________</div>
+                    <div style="font-size:11px; color:#6c757d; margin-top:4px;">Date: ________________________</div>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <!-- ── 4-column block ───────────────────────────────────────────────── -->
+    <!-- Usage:
+         <t t-call="site_operations.report_sig_4col">
+             <t t-set="extra_label">Received By</t>
+         </t>
+    -->
+    <template id="report_sig_4col">
+        <div class="row mt-5">
+            <div class="col-3 text-center">
+                <div style="border-top:2px solid #000; margin-top:60px; padding-top:8px;">
+                    <div style="font-weight:700; font-size:13px;">Prepared By</div>
+                    <div style="font-size:11px; color:#6c757d; margin-top:16px;">Name: __________________</div>
+                    <div style="font-size:11px; color:#6c757d; margin-top:4px;">Date: ___________________</div>
+                </div>
+            </div>
+            <div class="col-3 text-center">
+                <div style="border-top:2px solid #000; margin-top:60px; padding-top:8px;">
+                    <div style="font-weight:700; font-size:13px;">Checked By</div>
+                    <div style="font-size:11px; color:#6c757d; margin-top:16px;">Name: __________________</div>
+                    <div style="font-size:11px; color:#6c757d; margin-top:4px;">Date: ___________________</div>
+                </div>
+            </div>
+            <div class="col-3 text-center">
+                <div style="border-top:2px solid #000; margin-top:60px; padding-top:8px;">
+                    <div style="font-weight:700; font-size:13px;">Approved By</div>
+                    <div style="font-size:11px; color:#6c757d; margin-top:16px;">Name: __________________</div>
+                    <div style="font-size:11px; color:#6c757d; margin-top:4px;">Date: ___________________</div>
+                </div>
+            </div>
+            <div class="col-3 text-center">
+                <div style="border-top:2px solid #000; margin-top:60px; padding-top:8px;">
+                    <div style="font-weight:700; font-size:13px;"><t t-esc="extra_label or 'Received By'"/></div>
+                    <div style="font-size:11px; color:#6c757d; margin-top:16px;">Name: __________________</div>
+                    <div style="font-size:11px; color:#6c757d; margin-top:4px;">Date: ___________________</div>
+                </div>
+            </div>
+        </div>
+    </template>
+
+</odoo>
