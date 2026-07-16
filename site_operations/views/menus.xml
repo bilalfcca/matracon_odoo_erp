@@ -332,6 +332,13 @@
               sequence="10"
               groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
+    <menuitem id="menu_bg_expiry_config"
+              name="BG Expiry Notifications"
+              parent="site_operations.menu_compliance_config"
+              action="site_operations.action_bg_expiry_config"
+              sequence="15"
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
     <menuitem id="menu_cheque_series"
               name="Cheque Series"
               parent="site_operations.menu_compliance_config"

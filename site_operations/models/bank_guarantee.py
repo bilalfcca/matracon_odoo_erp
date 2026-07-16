@@ -8,6 +8,35 @@ from odoo.exceptions import UserError, ValidationError
 from . import matracon_notifications as matracon_notify
 
 
+ALERT_DAYS = 10  # days before expiry to trigger alert email + activity
+
+
+class BgExpiryConfig(models.Model):
+    """Singleton — configure extra recipients for BG expiry alert emails.
+    Finance HO, CEO and Admin are always included automatically."""
+    _name = 'x.bg.expiry.config'
+    _description = 'BG Expiry Notification Configuration'
+
+    name = fields.Char(default='BG Expiry Notification Settings', readonly=True)
+    recipient_partner_ids = fields.Many2many(
+        'res.partner', string='Additional Recipients',
+        help='Odoo contacts (users or external) to CC on BG expiry alerts. '
+             'Finance HO, CEO and Admin are always included automatically.',
+    )
+    extra_emails = fields.Text(
+        string='Extra Email Addresses (one per line)',
+        help='Raw email addresses for persons not in Odoo at all '
+             '(e.g. CFO, external auditor). One email per line.',
+    )
+
+    @api.model
+    def _get_config(self):
+        config = self.search([], limit=1)
+        if not config:
+            config = self.sudo().create({'name': 'BG Expiry Notification Settings'})
+        return config
+
+
 class BankGuaranteeNature(models.Model):
     """Configurable Nature of BG types (Bid Security, Performance, etc.)."""
     _name = 'x.bg.nature'
@@ -250,6 +279,11 @@ class BankGuarantee(models.Model):
     validated_date = fields.Datetime(readonly=True, copy=False)
     release_date = fields.Date(readonly=True, copy=False, tracking=True)
     release_notes = fields.Text(readonly=True, copy=False)
+    x_expiry_alert_sent = fields.Boolean(
+        string='Expiry Alert Sent', default=False, copy=False,
+        help='True once the 10-day expiry alert email has been dispatched. '
+             'Auto-reset when expiry date is extended.',
+    )
     amendment_ids = fields.One2many(
         'x.bank.guarantee.amendment', 'guarantee_id', string='Amendment History')
     currency_id = fields.Many2one(
@@ -271,7 +305,7 @@ class BankGuarantee(models.Model):
         for rec in self:
             if rec.expiry_date and rec.state in ('active', 'locked', 'pending'):
                 rec.days_to_expiry = (rec.expiry_date - today).days
-                rec.is_expiring_soon = 0 <= rec.days_to_expiry <= 30
+                rec.is_expiring_soon = 0 <= rec.days_to_expiry <= ALERT_DAYS
             else:
                 rec.days_to_expiry = 0
                 rec.is_expiring_soon = False
@@ -281,7 +315,7 @@ class BankGuarantee(models.Model):
         if operator not in ('=', '!='):
             return []
         today = fields.Date.context_today(self)
-        limit = today + timedelta(days=30)
+        limit = today + timedelta(days=ALERT_DAYS)
         active_states = ('active', 'locked', 'pending')
         expiring_domain = [
             ('state', 'in', active_states),
@@ -481,22 +515,153 @@ class BankGuarantee(models.Model):
     def action_cancel(self):
         self.filtered(lambda r: r.state in ('draft', 'pending')).write({'state': 'cancelled'})
 
+    # ── Notification helpers ─────────────────────────────────────────────────
+
+    @api.model
+    def _get_expiry_alert_recipients(self):
+        """Return set of all email addresses for BG expiry notifications."""
+        config = self.env['x.bg.expiry.config'].sudo()._get_config()
+        emails = set()
+        for gid in [
+            'site_operations.group_finance_ho',
+            'purchase_demand_raise.group_ceo_approval',
+            'purchase_demand_raise.group_matracon_admin',
+        ]:
+            grp = self.env.ref(gid, raise_if_not_found=False)
+            if grp:
+                for u in grp.sudo().users.filtered('active'):
+                    if u.email:
+                        emails.add(u.email)
+        for p in config.recipient_partner_ids:
+            if p.email:
+                emails.add(p.email)
+        if config.extra_emails:
+            for line in config.extra_emails.splitlines():
+                e = line.strip()
+                if e and '@' in e:
+                    emails.add(e)
+        return emails
+
+    def _send_expiry_notification_email(self, subject, intro_html):
+        """Send a BG expiry alert email for each record in self."""
+        recipient_emails = self._get_expiry_alert_recipients()
+        if not recipient_emails:
+            return
+        email_to = ','.join(recipient_emails)
+        for rec in self:
+            body = Markup("""
+<div style="font-family:Arial,sans-serif;font-size:14px;">
+  <p>{intro}</p>
+  <table style="border-collapse:collapse;width:480px;font-size:13px;">
+    <tr style="background:#f8f8f8;">
+      <td style="padding:6px 14px;font-weight:bold;width:40%;">Reference</td>
+      <td style="padding:6px 14px;">{name}</td></tr>
+    <tr>
+      <td style="padding:6px 14px;font-weight:bold;">Guarantee No</td>
+      <td style="padding:6px 14px;">{gno}</td></tr>
+    <tr style="background:#f8f8f8;">
+      <td style="padding:6px 14px;font-weight:bold;">Bank</td>
+      <td style="padding:6px 14px;">{bank}</td></tr>
+    <tr>
+      <td style="padding:6px 14px;font-weight:bold;">Project</td>
+      <td style="padding:6px 14px;">{project}</td></tr>
+    <tr style="background:#f8f8f8;">
+      <td style="padding:6px 14px;font-weight:bold;">Nature</td>
+      <td style="padding:6px 14px;">{nature}</td></tr>
+    <tr>
+      <td style="padding:6px 14px;font-weight:bold;">BG Amount</td>
+      <td style="padding:6px 14px;">{amount}</td></tr>
+    <tr style="background:#fff3cd;">
+      <td style="padding:6px 14px;font-weight:bold;">Expiry Date</td>
+      <td style="padding:6px 14px;color:#dc3545;font-weight:bold;">{expiry}</td></tr>
+  </table>
+  <p style="font-size:11px;color:#888;margin-top:16px;">
+    — Matracon Pakistan Pvt. Ltd. · System Notification
+  </p>
+</div>""").format(
+                intro=Markup(intro_html),
+                name=rec.name,
+                gno=rec.guarantee_number or '-',
+                bank=rec.journal_id.name or '-',
+                project=rec.project_id.name or '-',
+                nature=rec.nature_id.name or '-',
+                amount=f'{rec.bg_amount:,.0f} {rec.currency_id.symbol}',
+                expiry=rec.expiry_date.strftime('%d %b %Y') if rec.expiry_date else '-',
+            )
+            self.env['mail.mail'].sudo().create({
+                'subject': subject.format(ref=rec.name, guarantee=rec.guarantee_number or '-'),
+                'body_html': body,
+                'email_to': email_to,
+                'auto_delete': True,
+            }).send()
+
+    def _cancel_expiry_activities(self):
+        """Cancel all pending expiry-related mail activities on self."""
+        self.env['mail.activity'].search([
+            ('res_model', '=', 'x.bank.guarantee'),
+            ('res_id', 'in', self.ids),
+            ('summary', 'ilike', 'BG expir'),
+        ]).unlink()
+
     def _schedule_expiry_alert(self):
+        """Schedule Odoo activity for users 10 days before expiry
+        and a second one on the actual expiry date."""
+        today = fields.Date.context_today(self)
+        fin_grp = self.env.ref('site_operations.group_finance_ho', raise_if_not_found=False)
+        ceo_grp = self.env.ref('purchase_demand_raise.group_ceo_approval', raise_if_not_found=False)
+        adm_grp = self.env.ref('purchase_demand_raise.group_matracon_admin', raise_if_not_found=False)
+        group_ids = [g.id for g in (fin_grp, ceo_grp, adm_grp) if g]
+        users = self.env['res.users'].search([('group_ids', 'in', group_ids)])
+
         for rec in self.filtered(lambda r: r.expiry_date and r.state == 'active'):
-            alert_date = rec.expiry_date - timedelta(days=30)
-            if alert_date >= fields.Date.context_today(rec):
-                users = self.env['res.users'].search([
-                    ('group_ids', 'in', [
-                        self.env.ref('site_operations.group_finance_ho').id,
-                        self.env.ref('purchase_demand_raise.group_ceo_approval').id,
-                    ]),
-                ])
+            alert_date = rec.expiry_date - timedelta(days=ALERT_DAYS)
+            if alert_date >= today:
+                # Activity: 10-day advance warning
                 matracon_notify.schedule_activity(
                     rec, users,
                     _('BG expiring on %(date)s', date=rec.expiry_date),
-                    note=_('Bank Guarantee %(ref)s (%(guarantee)s) expires in 30 days.',
+                    note=_('Bank Guarantee %(ref)s (%(guarantee)s) expires in %(days)s days.',
+                           ref=rec.name, guarantee=rec.guarantee_number,
+                           days=ALERT_DAYS),
+                )
+            if rec.expiry_date >= today:
+                # Activity: on the actual expiry date
+                matracon_notify.schedule_activity(
+                    rec, users,
+                    _('BG EXPIRED: %(ref)s', ref=rec.name),
+                    note=_('Bank Guarantee %(ref)s (%(guarantee)s) expired today. '
+                           'Arrange release or renewal immediately.',
                            ref=rec.name, guarantee=rec.guarantee_number),
                 )
+
+    @api.model
+    def _cron_alert_expiring_bgs(self):
+        """Daily cron: send email alert for BGs entering the %(days)s-day expiry window."""
+        today = fields.Date.context_today(self)
+        threshold = today + timedelta(days=ALERT_DAYS)
+        entering = self.search([
+            ('state', 'in', ('active', 'locked')),
+            ('expiry_date', '>', today),
+            ('expiry_date', '<=', threshold),
+            ('x_expiry_alert_sent', '=', False),
+        ])
+        for rec in entering:
+            rec._send_expiry_notification_email(
+                subject='⚠️ BG Expiry Alert — {ref} expires in %d days' % ALERT_DAYS,
+                intro_html=(
+                    'Bank Guarantee <strong>{ref}</strong> '
+                    '(Guarantee No: <strong>{guarantee}</strong>) is expiring in '
+                    '<strong>%d day(s)</strong>. Please arrange renewal or release.'
+                ) % ALERT_DAYS,
+            )
+            rec.x_expiry_alert_sent = True
+            # Push in-app notification as well
+            matracon_notify.notify_group(
+                rec, 'site_operations.group_finance_ho',
+                _('<b>%(ref)s</b> expires in %(days)s days — action required.',
+                  ref=rec.name, days=ALERT_DAYS),
+                summary=_('BG Expiry Alert'),
+            )
 
     @api.model
     def _cron_expire_guarantees(self):
@@ -505,13 +670,37 @@ class BankGuarantee(models.Model):
             ('state', 'in', ('active', 'locked')),
             ('expiry_date', '<', today),
         ])
+        fin_grp = self.env.ref('site_operations.group_finance_ho', raise_if_not_found=False)
+        ceo_grp = self.env.ref('purchase_demand_raise.group_ceo_approval', raise_if_not_found=False)
+        adm_grp = self.env.ref('purchase_demand_raise.group_matracon_admin', raise_if_not_found=False)
+        group_ids = [g.id for g in (fin_grp, ceo_grp, adm_grp) if g]
+        users = self.env['res.users'].search([('group_ids', 'in', group_ids)])
         for rec in expiring:
             rec.state = 'expired'
-            matracon_notify.notify_group(
-                rec, 'site_operations.group_finance_ho',
+            # In-app notification + push
+            matracon_notify.notify_users(
+                rec, users,
                 _('Bank Guarantee <b>%(ref)s</b> has <b>expired</b> on %(date)s.',
                   ref=rec.name, date=rec.expiry_date),
                 summary=_('BG Expired'),
+            )
+            # Odoo activity on expiry day
+            matracon_notify.schedule_activity(
+                rec, users,
+                _('BG EXPIRED: %(ref)s', ref=rec.name),
+                note=_('Bank Guarantee %(ref)s expired on %(date)s. '
+                       'Take immediate action — release or renew.',
+                       ref=rec.name, date=rec.expiry_date),
+            )
+            # Email to all configured recipients
+            rec._send_expiry_notification_email(
+                subject='🔴 BG Expired — {ref} ({guarantee})',
+                intro_html=(
+                    'Bank Guarantee <strong>{ref}</strong> '
+                    '(Guarantee No: <strong>{guarantee}</strong>) has '
+                    '<span style="color:#dc3545;font-weight:bold;">EXPIRED</span>. '
+                    'Immediate action required — release or renewal.'
+                ),
             )
 
     def action_print_bank_guarantee(self):
@@ -561,10 +750,18 @@ class BankGuaranteeAmendment(models.Model):
     )
 
     def action_apply_extension(self):
+        today = fields.Date.context_today(self)
         for rec in self.filtered(lambda a: a.new_expiry_date and a.guarantee_id):
-            rec.guarantee_id.expiry_date = rec.new_expiry_date
-            if rec.guarantee_id.state == 'expired':
-                rec.guarantee_id.state = 'active'
+            bg = rec.guarantee_id
+            bg.expiry_date = rec.new_expiry_date
+            if bg.state == 'expired':
+                bg.state = 'active'
+            # Cancel any pending expiry activities — they were based on old date
+            bg._cancel_expiry_activities()
+            # Reset alert flag so the cron re-triggers if still within window
+            bg.x_expiry_alert_sent = False
+            # Re-schedule activities with updated expiry date
+            bg._schedule_expiry_alert()
 
 
 class BankGuaranteeFacilityRenewal(models.Model):

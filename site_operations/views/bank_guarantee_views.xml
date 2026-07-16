@@ -286,6 +286,50 @@
         </field>
     </record>
 
+    <!-- ── BG Expiry Notification Configuration ──────────────────────────── -->
+    <record id="view_bg_expiry_config_form" model="ir.ui.view">
+        <field name="name">x.bg.expiry.config.form</field>
+        <field name="model">x.bg.expiry.config</field>
+        <field name="arch" type="xml">
+            <form string="BG Expiry Notification Settings" create="false" delete="false">
+                <sheet>
+                    <div class="oe_title">
+                        <h2>BG Expiry Notification Settings</h2>
+                        <p class="text-muted">
+                            Finance HO, CEO and Admin users are <strong>always</strong>
+                            notified. Add extra recipients below for external contacts
+                            (e.g. CFO, auditors) who are not Odoo users.
+                        </p>
+                    </div>
+                    <group string="Additional Odoo Recipients">
+                        <field name="recipient_partner_ids" nolabel="1" colspan="2"
+                               widget="many2many_tags"
+                               placeholder="Search contacts to add…"/>
+                    </group>
+                    <group string="Extra Email Addresses (non-Odoo users)">
+                        <field name="extra_emails" nolabel="1" colspan="2"
+                               placeholder="cfo@example.com&#10;auditor@example.com&#10;(one email per line)"/>
+                    </group>
+                    <div class="alert alert-info mt-2">
+                        <i class="fa fa-info-circle"/> Emails are sent automatically:
+                        <ul class="mb-0 mt-1">
+                            <li>Daily cron when a BG enters the <strong>10-day expiry window</strong> (once per BG)</li>
+                            <li>On the <strong>actual expiry date</strong> when the BG is marked Expired</li>
+                            <li>Alert is reset automatically when the expiry date is extended via Amendment</li>
+                        </ul>
+                    </div>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_bg_expiry_config" model="ir.actions.act_window">
+        <field name="name">BG Expiry Notification Settings</field>
+        <field name="res_model">x.bg.expiry.config</field>
+        <field name="view_mode">form</field>
+        <field name="target">current</field>
+    </record>
+
     <!-- ── Nature of BG configuration ─────────────────────────────────────── -->
     <record id="view_bg_nature_list" model="ir.ui.view">
         <field name="name">x.bg.nature.list</field>
