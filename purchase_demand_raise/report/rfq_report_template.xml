@@ -282,10 +282,17 @@
                     </table>
 
                     <!-- ══════════════════════════════════════════════════════════
-                         FOOTER — MATRACON COMPANY DETAILS
+                         FOOTER — MATRACON LOGO + COMPANY DETAILS
                          (moved from the former top-of-page position)
                          ══════════════════════════════════════════════════════════ -->
                     <div class="matracon-footer">
+                        <!-- Company logo -->
+                        <t t-if="env.company.logo">
+                            <div style="margin-bottom:6px;">
+                                <img t-att-src="image_data_uri(env.company.logo)"
+                                     style="max-height:48px; max-width:160px; object-fit:contain;"/>
+                            </div>
+                        </t>
                         <strong><t t-esc="env.company.name"/></strong><br/>
                         <span>
                             <t t-if="env.company.street">
@@ -303,8 +310,14 @@
                                 <t t-esc="env.company.country_id.name"/>
                             </t>
                         </span>
+                        <t t-if="env.company.phone">
+                            <br/>Tel: <t t-esc="env.company.phone"/>
+                        </t>
                         <t t-if="env.company.vat">
                             <br/>NTN: <t t-esc="env.company.vat"/>
+                        </t>
+                        <t t-if="env.company.website">
+                            <br/><t t-esc="env.company.website"/>
                         </t>
                     </div>
 
