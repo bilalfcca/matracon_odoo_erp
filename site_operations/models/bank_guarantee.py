@@ -758,10 +758,25 @@ class BankGuaranteeAmendment(models.Model):
             if not vals.get('amendment_no') and vals.get('guarantee_id'):
                 existing = self.search_count([('guarantee_id', '=', vals['guarantee_id'])])
                 vals['amendment_no'] = existing + 1
-        return super().create(vals_list)
+        records = super().create(vals_list)
+        # Auto-apply extension immediately when added via inline list or any other path
+        records.filtered(
+            lambda a: a.amendment_type == 'extension' and a.new_expiry_date
+        )._do_apply_extension()
+        return records
 
-    def action_apply_extension(self):
-        today = fields.Date.context_today(self)
+    def write(self, vals):
+        result = super().write(vals)
+        # Re-apply whenever new_expiry_date or amendment_type changes on an extension line
+        if 'new_expiry_date' in vals or 'amendment_type' in vals:
+            self.filtered(
+                lambda a: a.amendment_type == 'extension' and a.new_expiry_date
+            )._do_apply_extension()
+        return result
+
+    def _do_apply_extension(self):
+        """Core logic: update parent BG expiry date and reschedule alerts.
+        Called both from action_apply_extension (button) and from create/write hooks."""
         for rec in self.filtered(lambda a: a.new_expiry_date and a.guarantee_id):
             bg = rec.guarantee_id
             bg.expiry_date = rec.new_expiry_date
@@ -773,6 +788,10 @@ class BankGuaranteeAmendment(models.Model):
             bg.x_expiry_alert_sent = False
             # Re-schedule activities with updated expiry date
             bg._schedule_expiry_alert()
+
+    def action_apply_extension(self):
+        """Button handler — delegates to _do_apply_extension."""
+        self._do_apply_extension()
 
 
 class BankGuaranteeFacilityRenewal(models.Model):
