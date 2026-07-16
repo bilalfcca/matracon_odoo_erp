@@ -79,7 +79,7 @@ class AccountMoveSiteOps(models.Model):
     x_liability_registered = fields.Boolean(
         string='Liability Registered', default=False, readonly=True, copy=False)
     x_liability_amount_registered = fields.Float(
-        string='Liability Amount Registered', default=0.0, readonly=True, copy=False)
+        string='Liability Amount Registered', default=0.0, readonly=True, copy=False, digits=(16, 0))
     x_source_picking_id = fields.Many2one(
         'stock.picking', string='Source Material Issuance',
         readonly=True, copy=False, index=True,

@@ -77,13 +77,13 @@ class LiabilitySheet(models.Model):
         'x.liability.sheet.line', 'sheet_id', string='Liability Lines')
 
     total_liability = fields.Float(
-        string='Total Liability', compute='_compute_totals', store=True)
+        string='Total Liability', compute='_compute_totals', store=True, digits=(16, 0))
     total_recommended = fields.Float(
-        string='Total Recommended', compute='_compute_totals', store=True)
+        string='Total Recommended', compute='_compute_totals', store=True, digits=(16, 0))
     total_approved = fields.Float(
-        string='Total Approved', compute='_compute_totals', store=True)
+        string='Total Approved', compute='_compute_totals', store=True, digits=(16, 0))
     total_paid = fields.Float(
-        string='Total Paid', compute='_compute_totals', store=True)
+        string='Total Paid', compute='_compute_totals', store=True, digits=(16, 0))
 
     payment_ids = fields.One2many(
         'account.payment', 'x_liability_sheet_id', string='Payment Drafts',
@@ -533,14 +533,14 @@ class LiabilitySheetLine(models.Model):
         domain="[('category_id.name', 'in', ['Vendor', 'Subcontractor'])]",
     )
 
-    opening_balance = fields.Float(string='Opening Balance')
-    new_liability = fields.Float(string='New Liability (Bills)')
+    opening_balance = fields.Float(string='Opening Balance', digits=(16, 0))
+    new_liability = fields.Float(string='New Liability (Bills)', digits=(16, 0))
     liability_amount = fields.Float(
         string='Total Liability',
-        compute='_compute_liability_amount', store=True)
+        compute='_compute_liability_amount', store=True, digits=(16, 0))
 
     # Recommended: entered manually by Site Accountant
-    recommended_amount = fields.Float(string='Recommended Amount')
+    recommended_amount = fields.Float(string='Recommended Amount', digits=(16, 0))
 
     payment_id = fields.Many2one(
         'account.payment', string='Payment Draft', readonly=True, copy=False)
@@ -548,12 +548,12 @@ class LiabilitySheetLine(models.Model):
     x_is_ceo = fields.Boolean(compute='_compute_role_flags')
 
     # Approved: entered manually by CEO — no auto-compute, no percentage/decision helpers
-    approved_amount = fields.Float(string='Approved Amount')
+    approved_amount = fields.Float(string='Approved Amount', digits=(16, 0))
 
     remarks = fields.Text(string='Remarks')
-    paid_amount = fields.Float(string='Paid Amount')
+    paid_amount = fields.Float(string='Paid Amount', digits=(16, 0))
     balance = fields.Float(
-        string='Balance', compute='_compute_balance', store=True)
+        string='Balance', compute='_compute_balance', store=True, digits=(16, 0))
 
     # ─────────────────────────────────────────────────────────────────────────
     # COMPUTE
