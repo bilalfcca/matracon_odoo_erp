@@ -128,6 +128,13 @@
                   import="0"
                   decoration-danger="is_expiring_soon"
                   decoration-muted="state in ('released', 'expired', 'cancelled')">
+                <header>
+                    <button name="action_open_import_wizard" type="object"
+                            string="Import BGs"
+                            icon="fa-upload"
+                            class="btn-secondary"
+                            groups="site_operations.group_matracon_admin,base.group_system"/>
+                </header>
                 <field name="sr_no" string="Sr No"/>
                 <field name="journal_id" string="Bank"/>
                 <field name="state" widget="badge"

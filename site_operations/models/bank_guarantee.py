@@ -827,6 +827,16 @@ class BankGuarantee(models.Model):
         self.unlink()
         return {'type': 'ir.actions.act_window_close'}
 
+    def action_open_import_wizard(self):
+        """Open the BG import wizard — called from the list view header button."""
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Import BGs from Excel',
+            'res_model': 'x.bg.import.wizard',
+            'view_mode': 'form',
+            'target': 'new',
+        }
+
 
 class BankGuaranteeAmendment(models.Model):
     _name = 'x.bank.guarantee.amendment'
