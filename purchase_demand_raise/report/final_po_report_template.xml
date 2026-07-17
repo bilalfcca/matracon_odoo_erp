@@ -147,8 +147,8 @@
                             <t t-if="o.partner_id.country_id">
                                 <div><t t-esc="o.partner_id.country_id.name"/></div>
                             </t>
-                            <t t-if="o.partner_id.phone or o.partner_id.mobile">
-                                <div>Tel: <t t-esc="o.partner_id.phone or o.partner_id.mobile"/></div>
+                            <t t-if="o.partner_id.phone">
+                                <div>Tel: <t t-esc="o.partner_id.phone"/></div>
                             </t>
                             <t t-if="o.partner_id.email">
                                 <div>Email: <t t-esc="o.partner_id.email"/></div>
