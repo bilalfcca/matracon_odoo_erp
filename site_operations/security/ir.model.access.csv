@@ -81,9 +81,7 @@ access_bg_facility_margin_slab_sa,bg.facility.margin.slab.sa,model_x_bg_facility
 access_bg_facility_margin_slab_fo,bg.facility.margin.slab.fo,model_x_bg_facility_cash_margin_slab,site_operations.group_finance_ho,1,1,1,1
 access_bg_facility_margin_slab_ceo,bg.facility.margin.slab.ceo,model_x_bg_facility_cash_margin_slab,purchase_demand_raise.group_ceo_approval,1,1,1,1
 access_bg_facility_margin_slab_admin,bg.facility.margin.slab.admin,model_x_bg_facility_cash_margin_slab,purchase_demand_raise.group_matracon_admin,1,1,1,1
-access_bg_import_wizard_fo,bg.import.wizard.fo,model_x_bg_import_wizard,site_operations.group_finance_ho,1,1,1,1
-access_bg_import_wizard_ceo,bg.import.wizard.ceo,model_x_bg_import_wizard,purchase_demand_raise.group_ceo_approval,1,1,1,1
-access_bg_import_wizard_admin,bg.import.wizard.admin,model_x_bg_import_wizard,purchase_demand_raise.group_matracon_admin,1,1,1,1
+access_bg_import_wizard_all,bg.import.wizard.all,model_x_bg_import_wizard,base.group_user,1,1,1,1
 access_bg_export_wizard_fo,bg.export.wizard.fo,model_x_bg_export_wizard,site_operations.group_finance_ho,1,1,1,1
 access_bg_export_wizard_ceo,bg.export.wizard.ceo,model_x_bg_export_wizard,purchase_demand_raise.group_ceo_approval,1,1,1,1
 access_bg_export_wizard_admin,bg.export.wizard.admin,model_x_bg_export_wizard,purchase_demand_raise.group_matracon_admin,1,1,1,1
