@@ -171,8 +171,10 @@
                 <attribute name="invisible">x_is_pr_document</attribute>
             </xpath>
 
-            <!-- Reset to Draft — Site Store: only while HO hasn't acted yet -->
+            <!-- ── Reset / Undo buttons (role-specific) ── -->
             <xpath expr="//header/button[@name='button_cancel']" position="after">
+
+                <!-- Site Store: undo submission → back to Draft (only while HO hasn't acted) -->
                 <button name="action_reset_to_draft"
                         string="↩ Reset to Draft"
                         type="object"
@@ -181,14 +183,33 @@
                         groups="purchase_demand_raise.group_site_store"
                         invisible="x_pr_state not in ('submitted', 'cancelled', 'rejected') or x_ho_status != 'pending'"/>
 
-                <!-- Reset to Draft — CEO / Matracon Admin: from any non-draft state -->
+                <!-- HO Procurement: undo their own approval → back to Submitted (only if CEO hasn't acted) -->
                 <button name="action_reset_to_draft"
-                        string="↩ Reset to Draft"
+                        string="↩ Undo HO Approval"
                         type="object"
                         class="btn-secondary"
-                        confirm="Reset this PR back to Draft? All approval statuses will be cleared."
-                        groups="purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,base.group_system"
+                        confirm="Undo your HO approval? The PR will return to Submitted state for re-evaluation."
+                        groups="purchase_demand_raise.group_procurement_ho"
+                        invisible="x_ho_status != 'approved' or x_ceo_status != 'pending'"/>
+
+                <!-- CEO: undo their own approval/rejection → back to Pending CEO Approval -->
+                <button name="action_reset_to_draft"
+                        string="↩ Undo CEO Decision"
+                        type="object"
+                        class="btn-secondary"
+                        confirm="Undo your CEO decision? The PR will return to Pending CEO Approval state."
+                        groups="purchase_demand_raise.group_ceo_approval"
+                        invisible="x_ceo_status not in ('approved', 'rejected')"/>
+
+                <!-- Matracon Admin / System: full reset to Draft from any state -->
+                <button name="action_reset_to_draft"
+                        string="↩ Full Reset to Draft"
+                        type="object"
+                        class="btn-secondary"
+                        confirm="Full reset: ALL approval statuses will be cleared and PR returned to Draft. Continue?"
+                        groups="purchase_demand_raise.group_matracon_admin,base.group_system"
                         invisible="x_pr_state == 'draft'"/>
+
             </xpath>
             <!-- Hide duplicate standard Print Quotation buttons — use Print RFQ instead -->
             <xpath expr="//header/button[@name='print_quotation']" position="attributes">
