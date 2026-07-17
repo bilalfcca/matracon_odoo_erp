@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_bg_import_wizard_form" model="ir.ui.view">
+        <field name="name">x.bg.import.wizard.form</field>
+        <field name="model">x.bg.import.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Import Bank Guarantees from Excel">
+
+                <!-- ── Upload screen ─────────────────────────────────────── -->
+                <group invisible="state != 'draft'">
+                    <group string="Upload File">
+                        <field name="excel_file" widget="binary" filename="excel_filename"
+                               string="Excel File (.xlsx)"
+                               help="Upload your 'Bank Wise Outstanding' Excel file.
+The file must have:  column B = Sr No. · C = Bank Name · D = LG Reference No.
+E = Nature · F = Original Amount · G = O/S Amount · I = JV · J = Beneficiary
+K = Project Description · L = Status · N = Issue Date · O = Expiry Date
+P = Total Limit · S = Cash Margin %"/>
+                        <field name="excel_filename" invisible="1"/>
+                    </group>
+                    <group string="Options">
+                        <field name="skip_existing"/>
+                        <field name="update_facility_limits"/>
+                    </group>
+                    <div class="alert alert-info" role="alert">
+                        <i class="fa fa-info-circle me-1"/>
+                        <b>Expected format:</b> Matracon "Bank Wise Outstanding" Excel sheet.
+                        Rows where column B (Sr No.) is a positive integer are imported.
+                        All other rows (titles, totals, blank lines, N/A placeholders) are skipped
+                        automatically. Cash Margin % is read as a decimal fraction
+                        (0.05 → 5%, 0.10 → 10%).
+                    </div>
+                </group>
+
+                <!-- ── Result screen ─────────────────────────────────────── -->
+                <group invisible="state != 'done'">
+                    <div class="row mb-2">
+                        <div class="col-4 text-center">
+                            <div class="bg-success text-white rounded p-2">
+                                <div style="font-size:24px;font-weight:bold;">
+                                    <field name="imported_count" readonly="1" nolabel="1"/>
+                                </div>
+                                <div>Imported</div>
+                            </div>
+                        </div>
+                        <div class="col-4 text-center">
+                            <div class="bg-warning text-white rounded p-2">
+                                <div style="font-size:24px;font-weight:bold;">
+                                    <field name="skipped_count" readonly="1" nolabel="1"/>
+                                </div>
+                                <div>Skipped</div>
+                            </div>
+                        </div>
+                        <div class="col-4 text-center">
+                            <div class="bg-danger text-white rounded p-2">
+                                <div style="font-size:24px;font-weight:bold;">
+                                    <field name="error_count" readonly="1" nolabel="1"/>
+                                </div>
+                                <div>Errors</div>
+                            </div>
+                        </div>
+                    </div>
+                    <field name="result_html" nolabel="1" colspan="2" readonly="1"/>
+                </group>
+
+                <footer>
+                    <!-- Draft: Import button -->
+                    <button name="action_import" type="object"
+                            string="Import"
+                            class="btn-primary"
+                            icon="fa-upload"
+                            invisible="state != 'draft'"
+                            confirm="This will create BG records from the uploaded file. Continue?"/>
+                    <!-- Done: view records + close -->
+                    <button name="action_view_bgs" type="object"
+                            string="View Bank Guarantees"
+                            class="btn-success"
+                            invisible="state != 'done' or imported_count == 0"/>
+                    <button string="Close" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_bg_import_wizard" model="ir.actions.act_window">
+        <field name="name">Import BG from Excel</field>
+        <field name="res_model">x.bg.import.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+    <!-- Server action → appears in Action menu on BG list view -->
+    <record id="server_action_bg_import" model="ir.actions.server">
+        <field name="name">Import BGs from Excel</field>
+        <field name="model_id" ref="model_x_bank_guarantee"/>
+        <field name="binding_model_id" ref="model_x_bank_guarantee"/>
+        <field name="binding_type">action</field>
+        <field name="state">code</field>
+        <field name="code">
+action = {
+    'type': 'ir.actions.act_window',
+    'name': 'Import BGs from Excel',
+    'res_model': 'x.bg.import.wizard',
+    'view_mode': 'form',
+    'target': 'new',
+}
+        </field>
+    </record>
+
+</odoo>
