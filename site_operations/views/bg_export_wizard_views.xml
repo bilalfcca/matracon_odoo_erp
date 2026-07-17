@@ -13,11 +13,24 @@
                 <group string="Data Filter">
                     <field name="include_released"/>
                 </group>
+                <group string="Optional Columns">
+                    <field name="col_project_timeline"/>
+                    <field name="col_project_financials"/>
+                </group>
                 <div class="alert alert-info mt-2" role="alert">
                     <i class="fa fa-info-circle"/>
-                    Select both options to get a <strong>Bank → Project</strong> two-level
+                    Select both grouping options to get a <strong>Bank → Project</strong> two-level
                     grouping in Excel with subtotals at each level.
-                    Each group section shows BG Amount, Cash Margin, Commission and FED subtotals.
+                    Each group section shows BG Amount, Cash Margin, Commission, FED subtotals —
+                    plus Contract Value, Billed to Client, and Remaining to Bill when
+                    <strong>Project Financials</strong> is enabled.
+                </div>
+                <div class="alert alert-secondary mt-1" role="alert" style="font-size:12px;">
+                    <i class="fa fa-columns me-1"/>
+                    <strong>Project Timeline</strong> — appends:
+                    Project Start Date · Original Deadline (Baseline) · Current Deadline (after EOTs)<br/>
+                    <strong>Project Financials</strong> — appends:
+                    Contract Value · Billed to Client · Work Completion % · Financial Completion % · Remaining to Bill
                 </div>
                 <footer>
                     <button name="action_export" type="object"

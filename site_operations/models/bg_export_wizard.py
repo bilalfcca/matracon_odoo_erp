@@ -4,6 +4,9 @@ Bank Guarantee Registry — Excel Export Wizard
 Generates a formatted XLSX file with optional grouping by Bank and/or Project.
 Each grouping level gets a section header row and a subtotal row.
 Both groupings together produce a Bank → Project two-level hierarchy.
+
+Optional column groups let users append Project Timeline and/or Project
+Financial columns to the standard registry columns.
 """
 import base64
 import datetime as dt
@@ -18,9 +21,11 @@ from odoo.exceptions import UserError
 
 _logger = logging.getLogger(__name__)
 
+# ── Base columns (always exported) ─────────────────────────────────────────────
 # (column_header, bg_field_path, col_width_chars, fmt_type)
 # fmt_type: 'text' | 'num' | 'pct' | 'date'
-_COLUMNS = [
+# bg_field_path: dot-separated path resolved via _get(); direct attr for related fields
+_BASE_COLUMNS = [
     ('Sr No',              'sr_no',               10, 'text'),
     ('Guarantee No',       'guarantee_number',     18, 'text'),
     ('Nature',             'nature_id.name',       15, 'text'),
@@ -40,10 +45,26 @@ _COLUMNS = [
     ('Status',             'state',                12, 'text'),
 ]
 
-# Column indices for amounts that get summed in subtotal rows
-_FIELD_IDX = {field: i for i, (_, field, _, _) in enumerate(_COLUMNS)}
-_AMT_COLS = [_FIELD_IDX[f] for f in ('bg_amount', 'margin_amount', 'commission_amount', 'fed_amount')]
-_FIRST_AMT = _AMT_COLS[0]   # index 9 — merge label up to here
+# ── Optional: Project Timeline (from Site Project Configuration) ────────────────
+_OPT_TIMELINE = [
+    ('Project Start Date',   'x_proj_start_date',          14, 'date'),
+    ('Original Deadline',    'x_proj_original_deadline',   14, 'date'),
+    ('Current Deadline',     'x_proj_current_deadline',    14, 'date'),
+]
+
+# ── Optional: Project Financials (from linked Odoo project) ────────────────────
+# Note: 'num' columns are included in group subtotals; 'pct' columns are not.
+_OPT_FINANCIALS = [
+    ('Contract Value',        'x_proj_contract_value',           18, 'num'),
+    ('Billed to Client',      'x_proj_billed_to_client',         18, 'num'),
+    ('Work Completion %',     'x_proj_work_completion_pct',      14, 'pct'),
+    ('Financial Cmpl %',      'x_proj_financial_completion_pct', 16, 'pct'),
+    ('Remaining to Bill',     'x_proj_remaining_to_bill',        18, 'num'),
+]
+
+# Index of the first numeric (summable) column in the base set — used for
+# label-merge width in subtotal rows.  bg_amount is always at position 9.
+_FIRST_AMT_FIELD = 'bg_amount'
 
 
 class BgExportWizard(models.TransientModel):
@@ -56,9 +77,38 @@ class BgExportWizard(models.TransientModel):
         'Include Released / Expired / Cancelled', default=False,
         help='When unchecked only Draft, Pending, Active, and Locked BGs are exported.')
 
+    col_project_timeline = fields.Boolean(
+        'Project Timeline', default=False,
+        help='Appends three date columns: Project Start Date, Original Deadline '
+             '(Baseline), and Current Deadline (after EOTs).')
+    col_project_financials = fields.Boolean(
+        'Project Financials', default=False,
+        help='Appends five columns: Contract Value, Billed to Client, '
+             'Work Completion %, Financial Completion %, and Remaining to Bill. '
+             'Monetary columns are included in group subtotals.')
+
+    def _build_columns(self):
+        """Return the final ordered column list based on wizard options."""
+        cols = list(_BASE_COLUMNS)
+        if self.col_project_timeline:
+            cols += _OPT_TIMELINE
+        if self.col_project_financials:
+            cols += _OPT_FINANCIALS
+        return cols
+
     def action_export(self):
         self.ensure_one()
 
+        # ── Dynamic column metadata ────────────────────────────────────────
+        columns = self._build_columns()
+        ncols = len(columns)
+        field_idx = {col[1]: i for i, col in enumerate(columns)}
+        # Columns to sum in subtotal rows (all 'num' type)
+        amt_cols = [i for i, (_, _, _, ft) in enumerate(columns) if ft == 'num']
+        # Merge label from col 0 → first_amt-1 in subtotal rows
+        first_amt = field_idx.get(_FIRST_AMT_FIELD, 9)
+
+        # ── Data ──────────────────────────────────────────────────────────
         domain = []
         if not self.include_released:
             domain += [('state', 'not in', ('released', 'expired', 'cancelled'))]
@@ -72,7 +122,7 @@ class BgExportWizard(models.TransientModel):
         wb = xlsxwriter.Workbook(buf, {'in_memory': True, 'remove_timezone': True})
         ws = wb.add_worksheet('BG Registry')
 
-        # ── Formats ────────────────────────────────────────────────────────
+        # ── Formats ───────────────────────────────────────────────────────
         NAVY = '#003366'
         f = {
             'title':      wb.add_format({'bold': True, 'font_size': 13, 'align': 'center',
@@ -81,6 +131,10 @@ class BgExportWizard(models.TransientModel):
             'header':     wb.add_format({'bold': True, 'font_size': 10, 'align': 'center',
                                           'valign': 'vcenter', 'bg_color': NAVY,
                                           'font_color': 'white', 'border': 1, 'text_wrap': True}),
+            'header_opt': wb.add_format({'bold': True, 'font_size': 10, 'align': 'center',
+                                          'valign': 'vcenter', 'bg_color': '#1a5276',
+                                          'font_color': 'white', 'border': 1, 'text_wrap': True,
+                                          'italic': True}),
             'group':      wb.add_format({'bold': True, 'bg_color': '#C6DEFF', 'border': 1,
                                           'font_size': 10, 'valign': 'vcenter'}),
             'subgroup':   wb.add_format({'bold': True, 'bg_color': '#DDEEFF', 'border': 1,
@@ -102,25 +156,26 @@ class BgExportWizard(models.TransientModel):
                                           'font_size': 10, 'num_format': '#,##0', 'valign': 'vcenter'}),
         }
 
-        ncols = len(_COLUMNS)
         ws.freeze_panes(2, 0)
 
         # Column widths
-        for c, (_, _, w, _) in enumerate(_COLUMNS):
+        for c, (_, _, w, _) in enumerate(columns):
             ws.set_column(c, c, w)
 
         # Row 0: title
         ws.merge_range(0, 0, 0, ncols - 1, 'Bank Guarantee Registry', f['title'])
         ws.set_row(0, 22)
 
-        # Row 1: headers
-        for c, (label, _, _, _) in enumerate(_COLUMNS):
-            ws.write(1, c, label, f['header'])
+        # Row 1: headers — optional columns use a slightly different shade to distinguish
+        n_base = len(_BASE_COLUMNS)
+        for c, (label, _, _, _) in enumerate(columns):
+            hdr_fmt = f['header_opt'] if c >= n_base else f['header']
+            ws.write(1, c, label, hdr_fmt)
         ws.set_row(1, 30)
 
         row = 2
 
-        # ── Field value helpers ─────────────────────────────────────────────
+        # ── Field value helpers ────────────────────────────────────────────
         state_map = dict(self.env['x.bank.guarantee']._fields['state'].selection)
         jv_map = dict(self.env['x.bank.guarantee']._fields['jv_type'].selection)
 
@@ -138,7 +193,7 @@ class BgExportWizard(models.TransientModel):
             return v
 
         def _write_data_row(r, bg):
-            for c, (_, field, _, ftype) in enumerate(_COLUMNS):
+            for c, (_, field, _, ftype) in enumerate(columns):
                 v = _get(bg, field)
                 if ftype == 'date':
                     if v and isinstance(v, dt.date):
@@ -154,24 +209,25 @@ class BgExportWizard(models.TransientModel):
             return r + 1
 
         def _totals(recs):
-            return {
-                _FIELD_IDX['bg_amount']:          sum(b.bg_amount for b in recs),
-                _FIELD_IDX['margin_amount']:       sum(b.margin_amount for b in recs),
-                _FIELD_IDX['commission_amount']:   sum(b.commission_amount for b in recs),
-                _FIELD_IDX['fed_amount']:          sum(b.fed_amount for b in recs),
-            }
+            """Sum all 'num' columns across recs; keyed by column index."""
+            result = defaultdict(float)
+            for bg in recs:
+                for i, (_, field, _, ftype) in enumerate(columns):
+                    if ftype == 'num':
+                        result[i] += float(_get(bg, field) or 0)
+            return dict(result)
 
         def _write_subtotal(r, label, totals, lbl_fmt, num_fmt):
-            """Merge cols 0.._FIRST_AMT-1 for label; write totals in amount cols; blank elsewhere."""
-            ws.merge_range(r, 0, r, _FIRST_AMT - 1, label, lbl_fmt)
-            for c in range(_FIRST_AMT, ncols):
-                if c in _AMT_COLS:
+            """Merge cols 0..first_amt-1 for label; write totals in num cols; blank elsewhere."""
+            ws.merge_range(r, 0, r, first_amt - 1, label, lbl_fmt)
+            for c in range(first_amt, ncols):
+                if c in amt_cols:
                     ws.write_number(r, c, totals.get(c, 0.0), num_fmt)
                 else:
                     ws.write(r, c, '', lbl_fmt)
             return r + 1
 
-        # ── Grouping ────────────────────────────────────────────────────────
+        # ── Grouping ───────────────────────────────────────────────────────
 
         if self.group_by_bank and self.group_by_project:
             banks = defaultdict(lambda: defaultdict(list))
@@ -243,11 +299,9 @@ class BgExportWizard(models.TransientModel):
             grand = defaultdict(float)
             for bg in bgs:
                 row = _write_data_row(row, bg)
-                for field, col in [('bg_amount', _FIELD_IDX['bg_amount']),
-                                    ('margin_amount', _FIELD_IDX['margin_amount']),
-                                    ('commission_amount', _FIELD_IDX['commission_amount']),
-                                    ('fed_amount', _FIELD_IDX['fed_amount'])]:
-                    grand[col] += getattr(bg, field)
+                for i, (_, field, _, ftype) in enumerate(columns):
+                    if ftype == 'num':
+                        grand[i] += float(_get(bg, field) or 0)
             row = _write_subtotal(row, 'GRAND TOTAL', dict(grand), f['grand_lbl'], f['grand_num'])
 
         wb.close()

@@ -133,7 +133,7 @@
                             string="Import BGs"
                             icon="fa-upload"
                             class="btn-secondary"
-                            groups="site_operations.group_matracon_admin,base.group_system"/>
+                            groups="purchase_demand_raise.group_matracon_admin,base.group_system"/>
                 </header>
                 <field name="sr_no" string="Sr No"/>
                 <field name="journal_id" string="Bank"/>
