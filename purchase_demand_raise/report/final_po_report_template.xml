@@ -141,7 +141,7 @@
                                         <t t-if="o.partner_id.city">, </t>
                                         <t t-esc="o.partner_id.state_id.name"/>
                                     </t>
-                                    <t t-if="o.partner_id.zip">&#160;<t t-esc="o.partner_id.zip"/></t>
+                                    <t t-if="o.partner_id.zip"><t t-esc="o.partner_id.zip"/></t>
                                 </div>
                             </t>
                             <t t-if="o.partner_id.country_id">
@@ -251,14 +251,10 @@
                                             <t t-esc="'%.4g' % po_qty"/>
                                         </td>
                                         <td style="text-align:right;">
-                                            <t t-if="line.price_unit">
-                                                <t t-esc="o.currency_id.name"/>&amp;nbsp;<t t-esc="'{:,.2f}'.format(line.price_unit)"/>
-                                            </t>
+                                            <t t-esc="(o.currency_id.name or '') + ' ' + '{:,.2f}'.format(line.price_unit or 0.0)"/>
                                         </td>
                                         <td style="text-align:right; font-weight:bold;">
-                                            <t t-if="po_subtotal">
-                                                <t t-esc="o.currency_id.name"/>&amp;nbsp;<t t-esc="'{:,.2f}'.format(po_subtotal)"/>
-                                            </t>
+                                            <t t-esc="(o.currency_id.name or '') + ' ' + '{:,.2f}'.format(po_subtotal)"/>
                                         </td>
                                     </tr>
                                 </t>
@@ -270,7 +266,7 @@
                                     Total:
                                 </td>
                                 <td style="text-align:right; padding:8px 10px;">
-                                    <t t-esc="o.currency_id.name"/>&amp;nbsp;<t t-esc="'{:,.2f}'.format(po_grand_total)"/>
+                                    <t t-esc="(o.currency_id.name or '') + ' ' + '{:,.2f}'.format(po_grand_total)"/>
                                 </td>
                             </tr>
                         </tfoot>
@@ -362,14 +358,14 @@
                                 <t t-esc="env.company.street"/>
                             </t>
                             <t t-if="env.company.city">
-                                <t t-if="env.company.street">,&#160;</t>
+                                <t t-if="env.company.street">,</t>
                                 <t t-esc="env.company.city"/>
                             </t>
                             <t t-if="env.company.zip">
-                                &#160;<t t-esc="env.company.zip"/>
+                                <t t-esc="env.company.zip"/>
                             </t>
                             <t t-if="env.company.country_id">
-                                <t t-if="env.company.city or env.company.street">,&#160;</t>
+                                <t t-if="env.company.city or env.company.street">,</t>
                                 <t t-esc="env.company.country_id.name"/>
                             </t>
                         </span>

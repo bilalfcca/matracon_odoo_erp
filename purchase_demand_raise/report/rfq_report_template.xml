@@ -146,15 +146,15 @@
                                         <t t-esc="rfq_partner.state_id.name"/>
                                     </t>
                                     <t t-if="rfq_partner.zip">
-                                        &#160;<t t-esc="rfq_partner.zip"/>
+                                        <t t-esc="rfq_partner.zip"/>
                                     </t>
                                 </div>
                             </t>
                             <t t-if="rfq_partner.country_id">
                                 <div><t t-esc="rfq_partner.country_id.name"/></div>
                             </t>
-                            <t t-if="rfq_partner.phone or rfq_partner.mobile">
-                                <div>Tel: <t t-esc="rfq_partner.phone or rfq_partner.mobile"/></div>
+                            <t t-if="rfq_partner.phone">
+                                <div>Tel: <t t-esc="rfq_partner.phone"/></div>
                             </t>
                             <t t-if="rfq_partner.email">
                                 <div>Email: <t t-esc="rfq_partner.email"/></div>
@@ -257,14 +257,14 @@
                                 <t t-esc="env.company.street"/>
                             </t>
                             <t t-if="env.company.city">
-                                <t t-if="env.company.street">,&#160;</t>
+                                <t t-if="env.company.street">,</t>
                                 <t t-esc="env.company.city"/>
                             </t>
                             <t t-if="env.company.zip">
-                                &#160;<t t-esc="env.company.zip"/>
+                                <t t-esc="env.company.zip"/>
                             </t>
                             <t t-if="env.company.country_id">
-                                <t t-if="env.company.city or env.company.street">,&#160;</t>
+                                <t t-if="env.company.city or env.company.street">,</t>
                                 <t t-esc="env.company.country_id.name"/>
                             </t>
                         </span>
