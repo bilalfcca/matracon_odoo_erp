@@ -67,6 +67,10 @@ class ManagementDashboard(models.TransientModel):
     kpi_bg_margin_locked = fields.Monetary(readonly=True, currency_field='currency_id')
     kpi_bg_active_count = fields.Integer(readonly=True)
     kpi_bg_expiring_count = fields.Integer(readonly=True)
+    # Live count — always fresh, used by the alert banner so it updates
+    # immediately when BG expiry dates change without needing a manual refresh.
+    kpi_bg_expiring_count_live = fields.Integer(
+        compute='_compute_kpi_bg_expiring_live', store=False)
     kpi_bg_released_count = fields.Integer(readonly=True)
     kpi_performance_bg = fields.Monetary(readonly=True, currency_field='currency_id')
     kpi_mobilization_bg = fields.Monetary(readonly=True, currency_field='currency_id')
@@ -1048,6 +1052,14 @@ class ManagementDashboard(models.TransientModel):
             'view_mode': 'form',
             'target': 'current',
         }
+
+    def _compute_kpi_bg_expiring_live(self):
+        """Live BG expiry count — always queries fresh, never stale."""
+        for rec in self:
+            rec.kpi_bg_expiring_count_live = self.env['x.bank.guarantee'].sudo().search_count([
+                ('is_expiring_soon', '=', True),
+                ('state', 'in', ('active', 'locked', 'pending')),
+            ])
 
     def action_refresh(self):
         self.ensure_one()

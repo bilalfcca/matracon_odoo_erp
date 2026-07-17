@@ -27,14 +27,14 @@
                         </p>
                     </div>
 
-                    <!-- ══ GLOBAL ALERT BANNER (always visible when BGs are expiring) ══ -->
+                    <!-- ══ GLOBAL ALERT BANNER — uses live count so no manual Refresh needed ══ -->
                     <div class="alert alert-danger d-flex align-items-center gap-2 mb-3 py-2 px-3"
                          style="border-left:4px solid #dc3545;"
-                         invisible="kpi_bg_expiring_count == 0">
+                         invisible="kpi_bg_expiring_count_live == 0">
                         <i class="fa fa-exclamation-triangle fa-lg text-danger me-2"/>
                         <div class="flex-grow-1">
                             <strong>⚠️ Bank Guarantee Expiry Alert:</strong>
-                            <field name="kpi_bg_expiring_count" nolabel="1" readonly="1" class="oe_inline"/>
+                            <field name="kpi_bg_expiring_count_live" nolabel="1" readonly="1" class="oe_inline"/>
                             BG(s) expiring within 10 days.
                         </div>
                         <button name="action_open_expiring_bgs" type="object"

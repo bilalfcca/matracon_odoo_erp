@@ -502,7 +502,22 @@ class BankGuarantee(models.Model):
                         'amount_change': delta,
                         'amendment_date': fields.Date.context_today(rec),
                     })]
-        return super().write(vals)
+        result = super().write(vals)
+        # When expiry date or state changes, refresh stored dashboard KPIs so
+        # the BG expiry alert banner reflects current data without manual refresh.
+        if vals.keys() & {'expiry_date', 'state'}:
+            self._refresh_dashboards_after_bg_change()
+        return result
+
+    def _refresh_dashboards_after_bg_change(self):
+        """Trigger a lightweight dashboard refresh after BG expiry/state change."""
+        Dash = self.env['x.management.dashboard'].sudo()
+        dashboards = Dash.search([])
+        for dash in dashboards:
+            try:
+                Dash._refresh_dashboard_data(dash)
+            except Exception:
+                pass  # Never block BG save due to dashboard refresh failure
 
     def _ensure_facility(self):
         for rec in self:
