@@ -899,31 +899,6 @@ class PurchaseOrder(models.Model):
                 subtype_xmlid='mail.mt_log_note',
             )
 
-            # ── Auto-send Purchase Order PDF to vendor ────────────────────────
-            if order.partner_id:
-                po_template = self.env.ref(
-                    'purchase_demand_raise.matracon_po_confirmation_email_template',
-                    raise_if_not_found=False,
-                )
-                if po_template:
-                    try:
-                        po_template.send_mail(order.id, force_send=True)
-                    except Exception as e:
-                        import logging
-                        logging.getLogger(__name__).exception(
-                            'PO email failed for %s', order.name)
-                        # Never block the approval if email fails — log a friendly note
-                        order.message_post(
-                            body=Markup(
-                                '⚠️ <b>Purchase Order email could not be sent to the vendor.</b><br/>'
-                                'The PO is confirmed and locked. Please send the PO PDF manually '
-                                'using the <b>Send by Email</b> button or print it.<br/>'
-                                '<small class="text-muted">Technical details have been recorded '
-                                'in the server log.</small>'
-                            ),
-                            subtype_xmlid='mail.mt_log_note',
-                        )
-
             ho_partners = order._get_group_partners('purchase_demand_raise.group_procurement_ho')
             order._notify_partners(
                 ho_partners,
@@ -937,18 +912,16 @@ class PurchaseOrder(models.Model):
                            'The Purchase Order is confirmed and materials will be ordered.') % {'pr': order.name}
                 )
 
-            # ── Auto-send PO confirmation email to vendor ─────────────────────
+            # ── Auto-send PO confirmation email to vendor (once) ─────────────
             if order.partner_id and order.partner_id.email:
                 try:
                     po_template = self.env.ref(
                         'purchase_demand_raise.matracon_po_confirmation_email_template',
                         raise_if_not_found=False,
+                    ) or self.env.ref(
+                        'purchase.email_template_edi_purchase_done',
+                        raise_if_not_found=False,
                     )
-                    if not po_template:
-                        po_template = self.env.ref(
-                            'purchase.email_template_edi_purchase_done',
-                            raise_if_not_found=False,
-                        )
                     if po_template:
                         po_template.with_context(
                             lang=order.partner_id.lang or 'en_US'
@@ -967,6 +940,16 @@ class PurchaseOrder(models.Model):
                     _logger.warning(
                         'Failed to auto-send PO confirmation email for %s: %s',
                         order.name, exc,
+                    )
+                    order.message_post(
+                        body=Markup(
+                            '⚠️ <b>Purchase Order email could not be sent to the vendor.</b><br/>'
+                            'The PO is confirmed and locked. Please send the PO PDF manually '
+                            'using the <b>Send by Email</b> button or print it.<br/>'
+                            '<small class="text-muted">Technical details have been recorded '
+                            'in the server log.</small>'
+                        ),
+                        subtype_xmlid='mail.mt_log_note',
                     )
 
     def action_ceo_final_reject(self):
@@ -1182,19 +1165,23 @@ class PurchaseOrder(models.Model):
                     order.x_pr_state, order.x_pr_state
                 ))
 
-        # ── Open the mail compose wizard (super sets default_template_id to
-        #    purchase.email_template_edi_purchase) ──────────────────────────
+        # ── Open the mail compose wizard ──────────────────────────────────────
         result = super().action_rfq_send()
 
-        # ── Swap template to our standalone Matracon RFQ template ────────────
-        # This ensures the compose dialog uses:
-        #   • Our formal Matracon letter body
-        #   • Our custom RFQ PDF (blank price columns) as attachment
-        # The standalone template has its own ID so noupdate never blocks it.
-        our_template = self.env.ref(
-            'purchase_demand_raise.matracon_rfq_email_template',
-            raise_if_not_found=False,
-        )
+        # ── Swap to the correct Matracon template based on PO state ──────────
+        # Locked POs (state='purchase') → PO Confirmation template
+        # RFQs / draft / sent         → RFQ template (formal invite letter)
+        # The standalone templates have their own IDs so noupdate never blocks.
+        if self.state == 'purchase':
+            our_template = self.env.ref(
+                'purchase_demand_raise.matracon_po_confirmation_email_template',
+                raise_if_not_found=False,
+            )
+        else:
+            our_template = self.env.ref(
+                'purchase_demand_raise.matracon_rfq_email_template',
+                raise_if_not_found=False,
+            )
         if our_template:
             ctx = result.get('context')
             if isinstance(ctx, dict):
