@@ -8,9 +8,9 @@
           • PURCHASE ORDER title — centred, navy blue
           • Meta info (PO Ref, Date = CEO approval date, Category, Project, etc.)
           • Product table — navy headers, alternating rows
-              – Only lines where price_unit > 0  (CS-processed items only)
+              – All order lines shown (no price filter)
               – Qty column labelled "Quantity" (not "Approved Qty")
-              – Qty = approved_qty → recommended_qty (no fallback to unprocessed qty)
+              – Qty = approved_qty → recommended_qty → product_qty
           • Terms & Conditions (if any)
           • Signature block (PO Officer + CEO)
           • Matracon footer with LOGO + company details
@@ -221,17 +221,16 @@
                         </thead>
                         <tbody>
                             <t t-set="line_no" t-value="1"/>
+                            <t t-set="po_grand_total" t-value="0.0"/>
                             <t t-foreach="o.order_line" t-as="line">
-                                <!-- Only show lines that went through the CS process
-                                     (price_unit > 0 means a vendor was selected for this item).
-                                     Lines with price_unit = 0 were not recommended / approved
-                                     by either HO or CEO — exclude them. -->
-                                <t t-if="not line.display_type and line.price_unit > 0">
-                                    <!-- Qty: approved first, then recommended -->
+                                <t t-if="not line.display_type">
+                                    <!-- Qty: approved first, then recommended, then product_qty -->
                                     <t t-set="po_qty"
                                        t-value="line.x_approved_qty if (line.x_approved_qty or 0) > 0
-                                                else (line.x_recommended_qty or 0)"/>
-                                    <t t-set="po_subtotal" t-value="po_qty * line.price_unit"/>
+                                                else (line.x_recommended_qty if (line.x_recommended_qty or 0) > 0
+                                                else (line.product_qty or 0))"/>
+                                    <t t-set="po_subtotal" t-value="po_qty * (line.price_unit or 0.0)"/>
+                                    <t t-set="po_grand_total" t-value="po_grand_total + po_subtotal"/>
                                     <tr>
                                         <td style="text-align:center;">
                                             <t t-esc="line_no"/>
@@ -253,12 +252,14 @@
                                             <t t-esc="'%.4g' % po_qty"/>
                                         </td>
                                         <td style="text-align:right;">
-                                            <t t-esc="line.price_unit"
-                                               t-options='{"widget": "monetary", "display_currency": o.currency_id}'/>
+                                            <t t-if="line.price_unit">
+                                                <t t-esc="o.currency_id.name"/>&amp;nbsp;<t t-esc="'{:,.2f}'.format(line.price_unit)"/>
+                                            </t>
                                         </td>
                                         <td style="text-align:right; font-weight:bold;">
-                                            <t t-esc="po_subtotal"
-                                               t-options='{"widget": "monetary", "display_currency": o.currency_id}'/>
+                                            <t t-if="po_subtotal">
+                                                <t t-esc="o.currency_id.name"/>&amp;nbsp;<t t-esc="'{:,.2f}'.format(po_subtotal)"/>
+                                            </t>
                                         </td>
                                     </tr>
                                 </t>
@@ -269,11 +270,8 @@
                                 <td colspan="5" style="text-align:right; padding:8px 10px;">
                                     Total:
                                 </td>
-                                <!-- o.amount_total already excludes lines with price_unit=0
-                                     (they contribute 0), so this is correct. -->
                                 <td style="text-align:right; padding:8px 10px;">
-                                    <t t-esc="o.amount_total"
-                                       t-options='{"widget": "monetary", "display_currency": o.currency_id}'/>
+                                    <t t-esc="o.currency_id.name"/>&amp;nbsp;<t t-esc="'{:,.2f}'.format(po_grand_total)"/>
                                 </td>
                             </tr>
                         </tfoot>
