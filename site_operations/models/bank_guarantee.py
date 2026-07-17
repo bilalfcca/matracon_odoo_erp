@@ -221,7 +221,7 @@ class BankGuarantee(models.Model):
     jv_type = fields.Selection([
         ('direct', 'Direct'),
         ('jv', 'Joint Venture'),
-    ], string='JV', default='direct', required=True)
+    ], string='BIDDER . Matracon / JV', default='direct', required=True)
     jv_name = fields.Char(
         string='JV Name', tracking=True,
         help='Joint venture name when guarantee is issued in JV capacity.')
