@@ -183,54 +183,12 @@
                             <td class="lbl">Deadline:</td>
                             <td><t t-esc="o.date_approve" t-options='{"widget": "date"}'/></td>
                         </tr>
-                        <tr t-if="o.x_category_id">
-                            <td class="lbl">Category:</td>
-                            <td><t t-esc="o.x_category_id.name"/></td>
-                        </tr>
                         <tr t-if="o.x_project_analytic_account_id">
                             <td class="lbl">Project:</td>
                             <td><t t-esc="o.x_project_analytic_account_id.name"/></td>
                         </tr>
                     </table>
 
-                    <!-- ══════════════════════════════════════════════════════════
-                         FORMAL LETTER BODY
-                         Font 13 px — key terms highlighted in bold.
-                         ══════════════════════════════════════════════════════════ -->
-                    <div class="letter-body">
-                        <p>Dear Sir/Madam,</p>
-
-                        <p>
-                            We are pleased to invite your quotation for the supply of
-                            <strong>materials/services</strong> as per the following requirements.
-                        </p>
-
-                        <p>
-                            Please find attached the RFQ document
-                            (<strong><t t-esc="o.name"/></strong>) for your reference.
-                        </p>
-
-                        <p>Kindly provide the following in your quotation:</p>
-                        <ul>
-                            <li><strong>Technical compliance</strong> with specifications</li>
-                            <li><strong>Unit rates</strong> and total quoted price</li>
-                            <li><strong>Delivery period</strong></li>
-                            <li><strong>Warranty details</strong></li>
-                            <li><strong>Validity of the offer</strong></li>
-                            <li>Installation / testing charges (if applicable)</li>
-                        </ul>
-
-                        <p>
-                            We look forward to receiving your
-                            <strong>competitive quotation</strong> at the earliest.
-                        </p>
-
-                        <p>
-                            Best regards,<br/>
-                            <strong>Procurement Department</strong><br/>
-                            Matracon Pakistan (Pvt.) Limited
-                        </p>
-                    </div>
 
                     <!-- ══════════════════════════════════════════════════════════
                          LINE ITEMS TABLE

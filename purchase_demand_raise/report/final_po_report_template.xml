@@ -184,21 +184,9 @@
                                 </t>
                             </td>
                         </tr>
-                        <tr t-if="o.x_category_id">
-                            <td class="lbl">Category:</td>
-                            <td><t t-esc="o.x_category_id.name"/></td>
-                        </tr>
                         <tr t-if="o.x_project_analytic_account_id">
                             <td class="lbl">Project:</td>
                             <td><t t-esc="o.x_project_analytic_account_id.name"/></td>
-                        </tr>
-                        <tr t-if="o.picking_type_id">
-                            <td class="lbl">Deliver To:</td>
-                            <td><t t-esc="o.picking_type_id.warehouse_id.name or ''"/> Site Warehouse</td>
-                        </tr>
-                        <tr>
-                            <td class="lbl">Currency:</td>
-                            <td><t t-esc="o.currency_id.name"/></td>
                         </tr>
                         <t t-if="o.partner_ref">
                             <tr>
