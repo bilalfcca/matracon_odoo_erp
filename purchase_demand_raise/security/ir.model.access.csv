@@ -32,14 +32,18 @@ access_stock_lot_site_store,stock.lot site store,stock.model_stock_lot,purchase_
 access_stock_quant_site_store,stock.quant site store,stock.model_stock_quant,purchase_demand_raise.group_site_store,1,1,1,0
 access_stock_move_line_site_store,stock.move.line site store,stock.model_stock_move_line,purchase_demand_raise.group_site_store,1,1,1,0
 
-access_stock_move_ceo_read,stock.move ceo read,stock.model_stock_move,purchase_demand_raise.group_ceo_approval,1,0,0,0
+access_stock_move_ceo_read,stock.move ceo read,stock.model_stock_move,purchase_demand_raise.group_ceo_approval,1,1,1,0
 access_stock_move_ho_read,stock.move ho read,stock.model_stock_move,purchase_demand_raise.group_head_office,1,0,0,0
-access_stock_picking_ceo_read,stock.picking ceo read,stock.model_stock_picking,purchase_demand_raise.group_ceo_approval,1,0,0,0
+access_stock_picking_ceo_read,stock.picking ceo read,stock.model_stock_picking,purchase_demand_raise.group_ceo_approval,1,1,1,0
 access_stock_picking_ho_read,stock.picking ho read,stock.model_stock_picking,purchase_demand_raise.group_head_office,1,0,0,0
 access_stock_picking_type_ceo_read,stock.picking.type ceo read,stock.model_stock_picking_type,purchase_demand_raise.group_ceo_approval,1,0,0,0
 access_stock_picking_type_ho_read,stock.picking.type ho read,stock.model_stock_picking_type,purchase_demand_raise.group_head_office,1,0,0,0
-access_stock_move_line_ceo_read,stock.move.line ceo read,stock.model_stock_move_line,purchase_demand_raise.group_ceo_approval,1,0,0,0
+access_stock_move_line_ceo_read,stock.move.line ceo read,stock.model_stock_move_line,purchase_demand_raise.group_ceo_approval,1,1,1,0
 access_stock_move_line_ho_read,stock.move.line ho read,stock.model_stock_move_line,purchase_demand_raise.group_head_office,1,0,0,0
+access_stock_return_picking_ceo,stock.return.picking ceo,stock.model_stock_return_picking,purchase_demand_raise.group_ceo_approval,1,1,1,0
+access_stock_return_picking_line_ceo,stock.return.picking.line ceo,stock.model_stock_return_picking_line,purchase_demand_raise.group_ceo_approval,1,1,1,0
+access_stock_return_picking_admin,stock.return.picking admin,stock.model_stock_return_picking,purchase_demand_raise.group_matracon_admin,1,1,1,0
+access_stock_return_picking_line_admin,stock.return.picking.line admin,stock.model_stock_return_picking_line,purchase_demand_raise.group_matracon_admin,1,1,1,0
 access_stock_quant_ceo_read,stock.quant ceo read,stock.model_stock_quant,purchase_demand_raise.group_ceo_approval,1,0,0,0
 access_stock_quant_ho_read,stock.quant ho read,stock.model_stock_quant,purchase_demand_raise.group_head_office,1,0,0,0
 access_stock_lot_ceo_read,stock.lot ceo read,stock.model_stock_lot,purchase_demand_raise.group_ceo_approval,1,0,0,0
