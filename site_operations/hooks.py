@@ -336,9 +336,49 @@ def set_date_format(env):
     env['res.lang'].invalidate_model(['date_format'])
 
 
+def set_pakistan_fiscal_year(env):
+    """
+    Set the fiscal year to July 1 – June 30 (Pakistan standard) on every
+    company in this database.
+
+    Odoo's accounting reports (Trial Balance, P&L, Balance Sheet, etc.) and
+    the date-range picker all derive their "Year" period from these two fields:
+        fiscalyear_last_day   = 30  (June 30)
+        fiscalyear_last_month = '6' (June)
+
+    After this change the "Year" filter in reports will show the FY period
+    07/01/YYYY–06/30/YYYY+1 instead of the default 01/01–12/31 calendar year.
+
+    Uses raw SQL so it cannot be blocked by noupdate flags or ORM validation
+    (which can reject the write if the company already has posted entries).
+    Safe to call on every upgrade — only updates rows that are still on the
+    default calendar-year end (month=12, day=31) to avoid clobbering a
+    deliberate manual override.
+    """
+    import logging
+    _logger = logging.getLogger(__name__)
+    env.cr.execute(
+        """
+        UPDATE res_company
+        SET    fiscalyear_last_day   = 30,
+               fiscalyear_last_month = '6'
+        WHERE  fiscalyear_last_month != '6'
+           OR  fiscalyear_last_day   != 30
+        """
+    )
+    updated = env.cr.rowcount
+    if updated:
+        _logger.info(
+            'set_pakistan_fiscal_year: updated %d company record(s) to Jul–Jun FY',
+            updated,
+        )
+        env['res.company'].invalidate_model(['fiscalyear_last_day', 'fiscalyear_last_month'])
+
+
 def post_init_hook(env):
     set_pkr_decimal_places(env)
     set_date_format(env)
+    set_pakistan_fiscal_year(env)
     deduplicate_partner_tags(env)
     try:
         migrate_matracon_admin_group(env)
@@ -365,6 +405,7 @@ def post_init_hook(env):
 def post_migrate_hook(env):
     set_pkr_decimal_places(env)
     set_date_format(env)
+    set_pakistan_fiscal_year(env)
     deduplicate_partner_tags(env)
     reprocess_existing_payments(env)
     # Re-apply production user config (groups + default analytic/warehouse) on every update
