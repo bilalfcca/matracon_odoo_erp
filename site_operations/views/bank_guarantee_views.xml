@@ -145,7 +145,7 @@
                 <field name="utilized_amount" optional="hide"/>
                 <field name="available_limit" optional="show"/>
                 <field name="total_limit" optional="show"/>
-                <field name="jv_type" string="BIDDER . Matracon / JV"/>
+                <field name="jv_type" string="Bidder"/>
                 <field name="jv_name" optional="show"/>
                 <field name="project_id"/>
                 <field name="beneficiary_name"/>
@@ -203,7 +203,7 @@
                             <field name="facility_id" readonly="1"/>
                             <field name="nature_id"/>
                             <field name="guarantee_number"/>
-                            <field name="jv_type" widget="radio" string="BIDDER . Matracon / JV"/>
+                            <field name="jv_type" widget="radio" string="Bidder"/>
                             <field name="jv_name" invisible="jv_type != 'jv'" required="jv_type == 'jv'"/>
                             <field name="project_id"/>
                             <field name="beneficiary_id"/>

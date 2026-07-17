@@ -836,8 +836,8 @@ class BankGuaranteeAmendment(models.Model):
     guarantee_id = fields.Many2one(
         'x.bank.guarantee', required=True, ondelete='cascade', index=True)
     amendment_no = fields.Integer(
-        string='No.', readonly=True, copy=False,
-        help='Sequential amendment number within this bank guarantee (auto-assigned).')
+        string='No.', compute='_compute_amendment_no', store=True, readonly=True, copy=False,
+        help='Sequential amendment number within this bank guarantee (1-based, ordered by creation ID).')
     amendment_date = fields.Date(
         string='Date', required=True, default=fields.Date.context_today)
     amendment_type = fields.Selection([
@@ -861,12 +861,20 @@ class BankGuaranteeAmendment(models.Model):
         help='Attach bank letters, extensions, or other supporting documentation for this amendment.',
     )
 
+    @api.depends('guarantee_id.amendment_ids')
+    def _compute_amendment_no(self):
+        """Assign sequential 1-based numbers ordered by record ID (creation order)."""
+        # Group by guarantee to avoid N queries
+        by_bg = {}
+        for rec in self:
+            by_bg.setdefault(rec.guarantee_id.id, []).append(rec)
+        for siblings_recs in by_bg.values():
+            sorted_recs = sorted(siblings_recs, key=lambda r: r.id or 0)
+            for idx, rec in enumerate(sorted_recs, start=1):
+                rec.amendment_no = idx
+
     @api.model_create_multi
     def create(self, vals_list):
-        for vals in vals_list:
-            if not vals.get('amendment_no') and vals.get('guarantee_id'):
-                existing = self.search_count([('guarantee_id', '=', vals['guarantee_id'])])
-                vals['amendment_no'] = existing + 1
         records = super().create(vals_list)
         # Auto-apply extension immediately when added via inline list or any other path
         records.filtered(
