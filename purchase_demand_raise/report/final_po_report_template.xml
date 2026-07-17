@@ -8,9 +8,9 @@
           • PURCHASE ORDER title — centred, navy blue
           • Meta info (PO Ref, Date = CEO approval date, Category, Project, etc.)
           • Product table — navy headers, alternating rows
-              – All order lines shown (no price filter)
-              – Qty column labelled "Quantity" (not "Approved Qty")
-              – Qty = approved_qty → recommended_qty → product_qty
+              – Only lines where x_approved_qty > 0 (CEO-approved items only)
+              – Price = 0 is allowed (direct vendor without CS)
+              – Qty column shows x_approved_qty
           • Terms & Conditions (if any)
           • Signature block (PO Officer + CEO)
           • Matracon footer with LOGO + company details
@@ -223,12 +223,11 @@
                             <t t-set="line_no" t-value="1"/>
                             <t t-set="po_grand_total" t-value="0.0"/>
                             <t t-foreach="o.order_line" t-as="line">
-                                <t t-if="not line.display_type">
-                                    <!-- Qty: approved first, then recommended, then product_qty -->
-                                    <t t-set="po_qty"
-                                       t-value="line.x_approved_qty if (line.x_approved_qty or 0) > 0
-                                                else (line.x_recommended_qty if (line.x_recommended_qty or 0) > 0
-                                                else (line.product_qty or 0))"/>
+                                <!-- Only print lines that were approved (x_approved_qty > 0).
+                                     Lines with approved qty = 0 were not cleared for this PO.
+                                     Price = 0 is allowed (direct vendor without CS). -->
+                                <t t-if="not line.display_type and (line.x_approved_qty or 0) > 0">
+                                    <t t-set="po_qty" t-value="line.x_approved_qty"/>
                                     <t t-set="po_subtotal" t-value="po_qty * (line.price_unit or 0.0)"/>
                                     <t t-set="po_grand_total" t-value="po_grand_total + po_subtotal"/>
                                     <tr>
