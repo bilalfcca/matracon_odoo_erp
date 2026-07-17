@@ -236,6 +236,19 @@
                         </group>
                     </group>
                     <notebook>
+                        <page string="Amendment History" name="amendments">
+                            <field name="amendment_ids">
+                                <list editable="bottom">
+                                    <field name="amendment_no" string="No." readonly="1" width="48px"/>
+                                    <field name="amendment_date"/>
+                                    <field name="amendment_type"/>
+                                    <field name="description"/>
+                                    <field name="amount_change" sum="Total Change"/>
+                                    <field name="new_expiry_date"/>
+                                    <field name="attachment_ids" widget="many2many_binary" string="Docs"/>
+                                </list>
+                            </field>
+                        </page>
                         <page string="Cash Margin Slabs" name="margin_slabs">
                             <div class="alert alert-info mb-2" role="alert">
                                 <i class="fa fa-info-circle"/>
@@ -252,19 +265,6 @@
                                     <field name="applicable_amount" string="Applicable Amount" readonly="1"/>
                                     <field name="slab_amount" string="Margin Amount" readonly="1" sum="Total Cash Margin"/>
                                     <field name="currency_id" column_invisible="True"/>
-                                </list>
-                            </field>
-                        </page>
-                        <page string="Amendment History" name="amendments">
-                            <field name="amendment_ids">
-                                <list editable="bottom">
-                                    <field name="amendment_no" string="No." readonly="1" width="48px"/>
-                                    <field name="amendment_date"/>
-                                    <field name="amendment_type"/>
-                                    <field name="description"/>
-                                    <field name="amount_change" sum="Total Change"/>
-                                    <field name="new_expiry_date"/>
-                                    <field name="attachment_ids" widget="many2many_binary" string="Docs"/>
                                 </list>
                             </field>
                         </page>

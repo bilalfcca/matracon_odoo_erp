@@ -1,3 +1,4 @@
+import logging
 from datetime import timedelta
 
 from markupsafe import Markup
@@ -7,6 +8,7 @@ from odoo.exceptions import UserError, ValidationError
 
 from . import matracon_notifications as matracon_notify
 
+_logger = logging.getLogger(__name__)
 
 ALERT_DAYS = 10  # days before expiry to trigger alert email + activity
 
@@ -516,8 +518,9 @@ class BankGuarantee(models.Model):
         for dash in dashboards:
             try:
                 Dash._refresh_dashboard_data(dash)
-            except Exception:
-                pass  # Never block BG save due to dashboard refresh failure
+            except Exception as exc:
+                # Never block BG save due to dashboard refresh failure
+                _logger.warning('Dashboard refresh failed after BG change: %s', exc)
 
     def _ensure_facility(self):
         for rec in self:

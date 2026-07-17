@@ -1,11 +1,14 @@
 """Unified management dashboard — CEO, FO, and Site Accountant."""
 
+import logging
 from datetime import timedelta
 
 from dateutil.relativedelta import relativedelta
 
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
+
+_logger = logging.getLogger(__name__)
 
 
 class ManagementDashboard(models.TransientModel):
@@ -1054,12 +1057,17 @@ class ManagementDashboard(models.TransientModel):
         }
 
     def _compute_kpi_bg_expiring_live(self):
-        """Live BG expiry count — always queries fresh, never stale."""
+        """Live BG expiry count — direct date query, always fresh, no ORM cache."""
+        today = fields.Date.context_today(self)
+        alert_limit = today + timedelta(days=10)
+        # Use direct date comparison — bypasses is_expiring_soon's stored/cached layer
+        count = self.env['x.bank.guarantee'].sudo().search_count([
+            ('state', 'in', ('active', 'locked', 'pending')),
+            ('expiry_date', '>=', today),
+            ('expiry_date', '<=', alert_limit),
+        ])
         for rec in self:
-            rec.kpi_bg_expiring_count_live = self.env['x.bank.guarantee'].sudo().search_count([
-                ('is_expiring_soon', '=', True),
-                ('state', 'in', ('active', 'locked', 'pending')),
-            ])
+            rec.kpi_bg_expiring_count_live = count
 
     def action_refresh(self):
         self.ensure_one()
@@ -1235,12 +1243,19 @@ class ManagementDashboard(models.TransientModel):
         }
 
     def action_open_expiring_bgs(self):
+        """Open expiring BGs with a live date-range domain — always reflects current expiry dates."""
+        today = fields.Date.context_today(self)
+        alert_limit = today + timedelta(days=10)
         return {
             'type': 'ir.actions.act_window',
             'name': _('Expiring Bank Guarantees'),
             'res_model': 'x.bank.guarantee',
             'view_mode': 'list,form',
-            'domain': [('id', 'in', self.expiring_bg_ids.ids)],
+            'domain': [
+                ('state', 'in', ('active', 'locked', 'pending')),
+                ('expiry_date', '>=', today),
+                ('expiry_date', '<=', alert_limit),
+            ],
         }
 
     def action_open_bg_facilities(self):
