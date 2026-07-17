@@ -441,6 +441,9 @@ class BankGuarantee(models.Model):
 
     @api.constrains('bg_amount', 'facility_id', 'state')
     def _check_facility_limit(self):
+        # Skip during bulk imports (Excel import wizard sets this context)
+        if self.env.context.get('no_check_limit'):
+            return
         active_states = ('pending', 'active', 'locked')
         for rec in self.filtered(lambda r: r.facility_id and r.state in active_states):
             others = rec.facility_id.guarantee_ids.filtered(

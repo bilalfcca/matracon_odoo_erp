@@ -290,6 +290,13 @@
               sequence="10"
               groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
+    <menuitem id="menu_bg_import_wizard"
+              name="Import BGs from Excel"
+              parent="site_operations.menu_compliance_root"
+              action="site_operations.action_bg_import_wizard"
+              sequence="11"
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
     <menuitem id="menu_tax_notices_orders"
               name="Tax Notices &amp; Orders"
               parent="site_operations.menu_compliance_root"
