@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_bg_export_wizard_form" model="ir.ui.view">
+        <field name="name">x.bg.export.wizard.form</field>
+        <field name="model">x.bg.export.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Export BG Registry to Excel">
+                <group string="Grouping in Excel">
+                    <field name="group_by_bank"/>
+                    <field name="group_by_project"/>
+                </group>
+                <group string="Data Filter">
+                    <field name="include_released"/>
+                </group>
+                <div class="alert alert-info mt-2" role="alert">
+                    <i class="fa fa-info-circle"/>
+                    Select both options to get a <strong>Bank → Project</strong> two-level
+                    grouping in Excel with subtotals at each level.
+                    Each group section shows BG Amount, Cash Margin, Commission and FED subtotals.
+                </div>
+                <footer>
+                    <button name="action_export" type="object"
+                            string="Export to Excel"
+                            class="btn-primary"
+                            icon="fa-file-excel-o"/>
+                    <button string="Cancel" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_bg_export_wizard" model="ir.actions.act_window">
+        <field name="name">Export BG Registry</field>
+        <field name="res_model">x.bg.export.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+    <!-- Server action bound to x.bank.guarantee — appears in the Action menu on the BG list -->
+    <record id="server_action_bg_export" model="ir.actions.server">
+        <field name="name">Export BG Registry to Excel</field>
+        <field name="model_id" ref="model_x_bank_guarantee"/>
+        <field name="binding_model_id" ref="model_x_bank_guarantee"/>
+        <field name="binding_type">action</field>
+        <field name="state">code</field>
+        <field name="code">
+action = {
+    'type': 'ir.actions.act_window',
+    'name': 'Export BG Registry',
+    'res_model': 'x.bg.export.wizard',
+    'view_mode': 'form',
+    'target': 'new',
+}
+        </field>
+    </record>
+
+</odoo>

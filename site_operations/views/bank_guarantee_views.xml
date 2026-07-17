@@ -139,6 +139,8 @@
                 <field name="issue_date"/>
                 <field name="expiry_date"/>
                 <field name="bg_amount" sum="BG Amount"/>
+                <field name="cash_margin_percent" string="Cash Margin %"/>
+                <field name="margin_amount" string="Cash Margin Amt" sum="Total Cash Margin"/>
                 <field name="utilized_amount" optional="hide"/>
                 <field name="available_limit" optional="show"/>
                 <field name="total_limit" optional="show"/>
@@ -146,7 +148,6 @@
                 <field name="jv_name" optional="show"/>
                 <field name="project_id"/>
                 <field name="beneficiary_name"/>
-                <field name="cash_margin_percent" string="Cash Margin %"/>
                 <field name="is_expiring_soon" column_invisible="True"/>
                 <field name="currency_id" column_invisible="True"/>
             </list>
