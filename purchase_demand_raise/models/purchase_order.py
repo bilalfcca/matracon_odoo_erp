@@ -909,9 +909,18 @@ class PurchaseOrder(models.Model):
                     try:
                         po_template.send_mail(order.id, force_send=True)
                     except Exception as e:
-                        # Never block the approval if email fails
+                        import logging
+                        logging.getLogger(__name__).exception(
+                            'PO email failed for %s', order.name)
+                        # Never block the approval if email fails — log a friendly note
                         order.message_post(
-                            body=Markup('⚠️ Purchase Order email could not be sent to vendor: %s') % str(e),
+                            body=Markup(
+                                '⚠️ <b>Purchase Order email could not be sent to the vendor.</b><br/>'
+                                'The PO is confirmed and locked. Please send the PO PDF manually '
+                                'using the <b>Send by Email</b> button or print it.<br/>'
+                                '<small class="text-muted">Technical details have been recorded '
+                                'in the server log.</small>'
+                            ),
                             subtype_xmlid='mail.mt_log_note',
                         )
 
