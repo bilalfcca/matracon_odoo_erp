@@ -132,8 +132,7 @@
                     <button name="action_open_import_wizard" type="object"
                             string="Import BGs"
                             icon="fa-upload"
-                            class="btn-secondary"
-                            groups="purchase_demand_raise.group_matracon_admin,base.group_system"/>
+                            class="btn-secondary"/>
                 </header>
                 <field name="sr_no" string="Sr No"/>
                 <field name="journal_id" string="Bank"/>
