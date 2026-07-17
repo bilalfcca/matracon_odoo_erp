@@ -197,11 +197,32 @@
                     </table>
 
                     <!-- ══════════════════════════════════════════════════════════
+                         FORMAL LETTER BODY
+                         ══════════════════════════════════════════════════════════ -->
+                    <div style="font-size:13px; line-height:1.65; margin-bottom:16px;">
+                        <p style="margin:0 0 8px 0;">Dear Sir/Madam,</p>
+                        <p style="margin:0 0 8px 0;">
+                            With reference to your quotation / our discussions, we are pleased to
+                            issue this Purchase Order for the supply of materials/services as
+                            detailed below.
+                        </p>
+                        <p style="margin:0 0 8px 0;">
+                            Please find this Purchase Order
+                            (<t t-esc="o.name"/>) for your reference and records.
+                        </p>
+                        <p style="margin:0 0 8px 0;">
+                            Kindly acknowledge receipt of this order and confirm the delivery schedule.
+                        </p>
+                        <p style="margin:0 0 8px 0;">
+                            Best regards,<br/>
+                            <strong>Procurement Department</strong><br/>
+                            Matracon Pakistan (Pvt.) Limited
+                        </p>
+                    </div>
+
+                    <!-- ══════════════════════════════════════════════════════════
                          LINE ITEMS TABLE
-                         Filter: only lines where price_unit > 0
-                           (lines not processed through the CS get price_unit = 0 —
-                            they were never quoted/recommended, so exclude them)
-                         Qty: approved_qty if set, else recommended_qty
+                         Filter: only lines where x_approved_qty > 0
                          ══════════════════════════════════════════════════════════ -->
                     <h3 style="font-size:14px; font-weight:bold; border-bottom:2px solid #1a3a5c;
                                 padding-bottom:5px; margin-bottom:10px; color:#1a3a5c;">

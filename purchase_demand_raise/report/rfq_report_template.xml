@@ -191,6 +191,36 @@
 
 
                     <!-- ══════════════════════════════════════════════════════════
+                         FORMAL LETTER BODY
+                         ══════════════════════════════════════════════════════════ -->
+                    <div class="letter-body" style="font-size:13px;">
+                        <p>Dear Sir/Madam,</p>
+                        <p>
+                            We are pleased to invite your quotation for the supply of
+                            materials/services as per the following requirements.
+                        </p>
+                        <p>
+                            Please find attached the RFQ document
+                            (<t t-esc="o.name"/>) for your reference.
+                        </p>
+                        <p>Kindly provide the following in your quotation:</p>
+                        <ul>
+                            <li>Technical compliance with specifications</li>
+                            <li>Unit rates and total quoted price</li>
+                            <li>Delivery period</li>
+                            <li>Warranty details</li>
+                            <li>Validity of the offer</li>
+                            <li>Installation / testing charges (if applicable)</li>
+                        </ul>
+                        <p>We look forward to receiving your competitive quotation at the earliest.</p>
+                        <p>
+                            Best regards,<br/>
+                            <strong>Procurement Department</strong><br/>
+                            Matracon Pakistan (Pvt.) Limited
+                        </p>
+                    </div>
+
+                    <!-- ══════════════════════════════════════════════════════════
                          LINE ITEMS TABLE
                          Headers  →  dark blue (#1a3a5c), white text, centered
                          Data cells →  right-aligned, alternating row shading
