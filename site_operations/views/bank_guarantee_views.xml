@@ -125,6 +125,7 @@
         <field name="model">x.bank.guarantee</field>
         <field name="arch" type="xml">
             <list string="Bank Guarantees Registry"
+                  import="0"
                   decoration-danger="is_expiring_soon"
                   decoration-muted="state in ('released', 'expired', 'cancelled')">
                 <field name="sr_no" string="Sr No"/>
