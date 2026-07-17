@@ -104,6 +104,12 @@ class BankGuaranteeFacility(models.Model):
     security_details = fields.Html(
         string='Security Details',
         help='Details of collateral / security pledged against this facility.')
+    cash_margin_slab_ids = fields.One2many(
+        'x.bg.facility.cash.margin.slab', 'facility_id',
+        string='Cash Margin Slabs',
+        help='Tiered cash margin rates for this facility. '
+             'These are auto-copied to each BG issued under this facility. '
+             'If no slabs are defined, the "Cash Margin (%)" field above is used.')
     renewal_ids = fields.One2many(
         'x.bank.guarantee.facility.renewal', 'facility_id',
         string='Renewal History')
@@ -337,16 +343,29 @@ class BankGuarantee(models.Model):
     )
     amendment_ids = fields.One2many(
         'x.bank.guarantee.amendment', 'guarantee_id', string='Amendment History')
+    cash_margin_slab_ids = fields.One2many(
+        'x.bg.cash.margin.slab', 'bg_id', string='Cash Margin Slabs',
+        help='Tiered cash margin rates for this BG. '
+             'When slabs are present the total margin is computed from the slabs; '
+             'the "Cash Margin (%)" flat field is ignored.')
     currency_id = fields.Many2one(
         'res.currency', default=lambda self: self.env.company.currency_id)
     company_id = fields.Many2one(
         'res.company', default=lambda self: self.env.company, required=True)
     notes = fields.Text()
 
-    @api.depends('bg_amount', 'cash_margin_percent', 'pricing_percent', 'fed_percent')
+    @api.depends(
+        'bg_amount', 'cash_margin_percent', 'pricing_percent', 'fed_percent',
+        'cash_margin_slab_ids', 'cash_margin_slab_ids.slab_amount',
+    )
     def _compute_charges(self):
         for rec in self:
-            rec.margin_amount = rec.bg_amount * (rec.cash_margin_percent or 0.0) / 100.0
+            if rec.cash_margin_slab_ids:
+                # Tiered: sum each slab's computed margin amount
+                rec.margin_amount = sum(rec.cash_margin_slab_ids.mapped('slab_amount'))
+            else:
+                # Simple flat rate (backward-compatible with existing BGs)
+                rec.margin_amount = rec.bg_amount * (rec.cash_margin_percent or 0.0) / 100.0
             rec.commission_amount = rec.bg_amount * (rec.pricing_percent or 0.0) / 100.0
             rec.fed_amount = rec.commission_amount * (rec.fed_percent or 0.0) / 100.0
 
@@ -391,9 +410,23 @@ class BankGuarantee(models.Model):
             ], limit=1)
             self.facility_id = facility
             if facility:
-                # Pre-fill rates from the facility — user can still edit them
-                self.cash_margin_percent = facility.cash_margin_percent
                 self.pricing_percent = facility.commission_percent
+                if facility.cash_margin_slab_ids:
+                    # Facility has tiered slabs — copy them to this BG
+                    self.cash_margin_slab_ids = [(5, 0, 0)]  # clear any existing
+                    self.cash_margin_slab_ids = [
+                        (0, 0, {
+                            'from_amount': s.from_amount,
+                            'to_amount': s.to_amount,
+                            'margin_percent': s.margin_percent,
+                        })
+                        for s in facility.cash_margin_slab_ids
+                    ]
+                    self.cash_margin_percent = 0.0
+                else:
+                    # No slabs on facility — use the simple flat rate
+                    self.cash_margin_slab_ids = [(5, 0, 0)]
+                    self.cash_margin_percent = facility.cash_margin_percent
 
     @api.onchange('beneficiary_id')
     def _onchange_beneficiary_id(self):

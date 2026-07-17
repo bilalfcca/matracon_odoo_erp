@@ -73,6 +73,14 @@ access_bg_facility_renewal_admin,bg.facility.renewal.admin,model_x_bank_guarante
 access_bg_expiry_config_fo,bg.expiry.config.fo,model_x_bg_expiry_config,site_operations.group_finance_ho,1,1,1,1
 access_bg_expiry_config_ceo,bg.expiry.config.ceo,model_x_bg_expiry_config,purchase_demand_raise.group_ceo_approval,1,1,1,1
 access_bg_expiry_config_admin,bg.expiry.config.admin,model_x_bg_expiry_config,purchase_demand_raise.group_matracon_admin,1,1,1,1
+access_bg_cash_margin_slab_sa,bg.cash.margin.slab.sa,model_x_bg_cash_margin_slab,site_operations.group_site_accountant,1,0,0,0
+access_bg_cash_margin_slab_fo,bg.cash.margin.slab.fo,model_x_bg_cash_margin_slab,site_operations.group_finance_ho,1,1,1,1
+access_bg_cash_margin_slab_ceo,bg.cash.margin.slab.ceo,model_x_bg_cash_margin_slab,purchase_demand_raise.group_ceo_approval,1,1,1,1
+access_bg_cash_margin_slab_admin,bg.cash.margin.slab.admin,model_x_bg_cash_margin_slab,purchase_demand_raise.group_matracon_admin,1,1,1,1
+access_bg_facility_margin_slab_sa,bg.facility.margin.slab.sa,model_x_bg_facility_cash_margin_slab,site_operations.group_site_accountant,1,0,0,0
+access_bg_facility_margin_slab_fo,bg.facility.margin.slab.fo,model_x_bg_facility_cash_margin_slab,site_operations.group_finance_ho,1,1,1,1
+access_bg_facility_margin_slab_ceo,bg.facility.margin.slab.ceo,model_x_bg_facility_cash_margin_slab,purchase_demand_raise.group_ceo_approval,1,1,1,1
+access_bg_facility_margin_slab_admin,bg.facility.margin.slab.admin,model_x_bg_facility_cash_margin_slab,purchase_demand_raise.group_matracon_admin,1,1,1,1
 access_tax_notice_order_fo,tax.notice.order.fo,model_x_tax_notice_order,site_operations.group_finance_ho,1,1,1,1
 access_tax_notice_order_ceo,tax.notice.order.ceo,model_x_tax_notice_order,purchase_demand_raise.group_ceo_approval,1,1,1,1
 access_tax_notice_order_admin,tax.notice.order.admin,model_x_tax_notice_order,purchase_demand_raise.group_matracon_admin,1,1,1,1

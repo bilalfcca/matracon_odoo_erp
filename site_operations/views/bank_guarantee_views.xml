@@ -72,6 +72,23 @@
                             <field name="security_details" nolabel="1"
                                    placeholder="Enter details of collateral, security deposits, or any pledged assets against this facility…"/>
                         </page>
+                        <page string="Cash Margin Slabs" name="margin_slabs">
+                            <div class="alert alert-info mb-2" role="alert">
+                                <i class="fa fa-info-circle"/>
+                                Define tiered cash margin rates for this facility.
+                                These slabs are <strong>auto-copied</strong> to every Bank Guarantee issued under this facility.
+                                If no slabs are added, the <strong>Cash Margin (%)</strong> field above is used as a flat rate.
+                                Set <em>Up To Amount</em> = <strong>0</strong> for the last (unlimited) tier.
+                            </div>
+                            <field name="cash_margin_slab_ids">
+                                <list editable="bottom" string="Cash Margin Slabs (Template)">
+                                    <field name="from_amount" string="From Amount"/>
+                                    <field name="to_amount" string="Up To (0 = unlimited)"/>
+                                    <field name="margin_percent" string="Cash Margin %"/>
+                                    <field name="currency_id" column_invisible="True"/>
+                                </list>
+                            </field>
+                        </page>
                         <page string="Renewal History" name="renewals">
                             <field name="renewal_ids">
                                 <list editable="bottom" string="Previous Facility Letters">
@@ -194,7 +211,9 @@
                             <field name="issue_date"/>
                             <field name="expiry_date" decoration-danger="is_expiring_soon"/>
                             <field name="bg_amount"/>
-                            <field name="cash_margin_percent" string="Cash Margin (%)"/>
+                            <field name="cash_margin_percent" string="Cash Margin (%)"
+                                   invisible="cash_margin_slab_ids"
+                                   help="Flat rate used when no Cash Margin Slabs are defined. Add slabs in the tab below for tiered rates."/>
                             <field name="margin_amount" string="Cash Margin Amount" readonly="1"/>
                             <field name="pricing_percent" string="Bank Commission/Pricing (%)"/>
                             <field name="commission_amount" string="Commission Amount" readonly="1"/>
@@ -215,6 +234,25 @@
                         </group>
                     </group>
                     <notebook>
+                        <page string="Cash Margin Slabs" name="margin_slabs">
+                            <div class="alert alert-info mb-2" role="alert">
+                                <i class="fa fa-info-circle"/>
+                                Add tiered cash margin slabs for this BG.
+                                The <strong>Cash Margin Amount</strong> above is computed as the sum of all slab margins.
+                                Set <em>Up To Amount</em> = <strong>0</strong> for the last (unlimited) tier.
+                                Leave this tab empty to use the flat <strong>Cash Margin (%)</strong> field instead.
+                            </div>
+                            <field name="cash_margin_slab_ids">
+                                <list editable="bottom" string="Cash Margin Slabs">
+                                    <field name="from_amount" string="From Amount"/>
+                                    <field name="to_amount" string="Up To (0 = unlimited)"/>
+                                    <field name="margin_percent" string="Cash Margin %"/>
+                                    <field name="applicable_amount" string="Applicable Amount" readonly="1"/>
+                                    <field name="slab_amount" string="Margin Amount" readonly="1" sum="Total Cash Margin"/>
+                                    <field name="currency_id" column_invisible="True"/>
+                                </list>
+                            </field>
+                        </page>
                         <page string="Amendment History" name="amendments">
                             <field name="amendment_ids">
                                 <list editable="bottom">

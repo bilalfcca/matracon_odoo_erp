@@ -8,6 +8,7 @@ from . import petty_cash
 from . import management_dashboard
 from . import management_dashboard_lines
 from . import bank_guarantee
+from . import bank_guarantee_slab
 from . import tax_notice
 from . import matracon_notifications
 from . import app_visibility
