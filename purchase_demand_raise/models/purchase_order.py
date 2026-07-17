@@ -1195,6 +1195,75 @@ class PurchaseOrder(models.Model):
                 raise UserError(_('This PR has already been rejected. Cancellation is not allowed on a rejected PR.'))
         return super().button_cancel()
 
+    def action_reset_to_draft(self):
+        """Reset PR back to Draft.
+
+        Rules:
+        • CEO / Matracon Admin  — can reset from any state except po_locked
+          with confirmed receipts (stock moves already dispatched).
+        • Site Store / Site Accountant — can reset only when HO has NOT yet
+          acted (x_ho_status == 'pending') and state is submitted/cancelled/rejected.
+        • HO users — blocked; they should reject/re-route instead.
+        """
+        is_ceo   = self.env.user.has_group('purchase_demand_raise.group_ceo_approval')
+        is_admin = self.env.user.has_group('purchase_demand_raise.group_matracon_admin')
+        is_ho    = self.env.user.has_group('purchase_demand_raise.group_procurement_ho')
+        is_privileged = is_ceo or is_admin
+
+        for order in self:
+            if not order.x_is_pr_document:
+                # Non-PR purchase orders: just use Odoo's standard reset
+                if order.state == 'cancel':
+                    super(type(self), order).button_draft()
+                continue
+
+            if order.x_pr_state == 'po_locked' and order.incoming_picking_count:
+                raise UserError(_(
+                    'PO %(name)s is locked with %(n)s receipt(s) already created. '
+                    'Reverse the receipts before resetting to draft.',
+                    name=order.name, n=order.incoming_picking_count,
+                ))
+
+            if not is_privileged:
+                # Site Store / other non-HO non-privileged users
+                if is_ho:
+                    raise UserError(_(
+                        'HO users cannot reset a PR to draft. '
+                        'Use Reject to send it back to the site.'
+                    ))
+                if order.x_ho_status != 'pending':
+                    raise UserError(_(
+                        'Head Office has already reviewed %(name)s. '
+                        'You can no longer reset it to draft. '
+                        'Please contact HO Procurement.',
+                        name=order.name,
+                    ))
+                if order.x_pr_state not in ('submitted', 'cancelled', 'rejected'):
+                    raise UserError(_(
+                        'PR %(name)s cannot be reset to draft at this stage (%(state)s).',
+                        name=order.name, state=order.x_pr_state,
+                    ))
+
+            # Reset Odoo's purchase state from cancel back to draft
+            if order.state == 'cancel':
+                super(type(self), order).button_draft()
+            elif order.state == 'purchase':
+                # PO was confirmed; cancel it first so we can reset
+                super(type(self), order).button_cancel()
+                super(type(self), order).button_draft()
+
+            order.write({
+                'x_pr_state':  'draft',
+                'x_ho_status': 'pending',
+                'x_ceo_status': 'pending',
+            })
+            order.message_post(
+                body=Markup(
+                    '↩️ PR reset to <b>Draft</b> by <b>%(user)s</b>.'
+                ) % {'user': self.env.user.name},
+                subtype_xmlid='mail.mt_log_note',
+            )
+
     # ── CS helpers ───────────────────────────────────────────────────────────
 
     def _validate_ho_qty_adjustment_reasons(self):

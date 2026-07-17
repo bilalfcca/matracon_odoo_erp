@@ -164,6 +164,32 @@
             <xpath expr="//header/button[@name='button_cancel']" position="attributes">
                 <attribute name="invisible">x_is_site_store or (x_is_pr_document and x_pr_state in ('rejected', 'cancelled'))</attribute>
             </xpath>
+
+            <!-- Hide the standard Odoo 'Reset to Draft' button on PR documents —
+                 our custom action_reset_to_draft handles this with proper state cleanup -->
+            <xpath expr="//header/button[@name='button_draft']" position="attributes">
+                <attribute name="invisible">x_is_pr_document</attribute>
+            </xpath>
+
+            <!-- Reset to Draft — Site Store: only while HO hasn't acted yet -->
+            <xpath expr="//header/button[@name='button_cancel']" position="after">
+                <button name="action_reset_to_draft"
+                        string="↩ Reset to Draft"
+                        type="object"
+                        class="btn-secondary"
+                        confirm="Reset this PR back to Draft? You will be able to edit and resubmit it."
+                        groups="purchase_demand_raise.group_site_store"
+                        invisible="x_pr_state not in ('submitted', 'cancelled', 'rejected') or x_ho_status != 'pending'"/>
+
+                <!-- Reset to Draft — CEO / Matracon Admin: from any non-draft state -->
+                <button name="action_reset_to_draft"
+                        string="↩ Reset to Draft"
+                        type="object"
+                        class="btn-secondary"
+                        confirm="Reset this PR back to Draft? All approval statuses will be cleared."
+                        groups="purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,base.group_system"
+                        invisible="x_pr_state == 'draft'"/>
+            </xpath>
             <!-- Hide duplicate standard Print Quotation buttons — use Print RFQ instead -->
             <xpath expr="//header/button[@name='print_quotation']" position="attributes">
                 <attribute name="invisible">1</attribute>
