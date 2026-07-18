@@ -606,6 +606,7 @@ class BankGuarantee(models.Model):
 
     def action_amend(self):
         self.ensure_one()
+        next_no = len(self.amendment_ids) + 1
         return {
             'type': 'ir.actions.act_window',
             'name': _('Amend Bank Guarantee'),
@@ -615,6 +616,7 @@ class BankGuarantee(models.Model):
             'context': {
                 'default_guarantee_id': self.id,
                 'default_amendment_date': fields.Date.context_today(self),
+                'default_amendment_no': next_no,
             },
         }
 
@@ -846,7 +848,7 @@ class BankGuaranteeAmendment(models.Model):
     guarantee_id = fields.Many2one(
         'x.bank.guarantee', required=True, ondelete='cascade', index=True)
     amendment_no = fields.Integer(
-        string='No.', compute='_compute_amendment_no', store=True, readonly=True, copy=False,
+        string='No.', readonly=True, copy=False, default=0,
         help='Sequential amendment number within this bank guarantee (1-based, ordered by creation ID).')
     amendment_date = fields.Date(
         string='Date', required=True, default=fields.Date.context_today)
@@ -871,20 +873,18 @@ class BankGuaranteeAmendment(models.Model):
         help='Attach bank letters, extensions, or other supporting documentation for this amendment.',
     )
 
-    @api.depends('guarantee_id.amendment_ids')
-    def _compute_amendment_no(self):
-        """Assign sequential 1-based numbers ordered by record ID (creation order)."""
-        # Group by guarantee to avoid N queries
-        by_bg = {}
-        for rec in self:
-            by_bg.setdefault(rec.guarantee_id.id, []).append(rec)
-        for siblings_recs in by_bg.values():
-            sorted_recs = sorted(siblings_recs, key=lambda r: r.id or 0)
-            for idx, rec in enumerate(sorted_recs, start=1):
-                rec.amendment_no = idx
-
     @api.model_create_multi
     def create(self, vals_list):
+        # Assign amendment_no sequentially at creation time.
+        # We group by guarantee_id so a bulk create across multiple BGs works correctly.
+        bg_counts = {}
+        for vals in vals_list:
+            bg_id = vals.get('guarantee_id')
+            if bg_id and not vals.get('amendment_no'):
+                if bg_id not in bg_counts:
+                    bg_counts[bg_id] = self.search_count([('guarantee_id', '=', bg_id)])
+                bg_counts[bg_id] += 1
+                vals['amendment_no'] = bg_counts[bg_id]
         records = super().create(vals_list)
         # Auto-apply extension immediately when added via inline list or any other path
         records.filtered(
