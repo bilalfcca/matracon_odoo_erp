@@ -66,29 +66,16 @@
                         <div class="col-12">
                             <strong><t t-esc="o.currency_id.name"/>:</strong>
                             <span class="ms-1">
-                                <t t-esc="o.currency_id.symbol"/>&#160;<t t-esc="'%,.2f' % o.amount"/>
+                                <t t-esc="o.currency_id.symbol"/>&#160;<t t-esc="'%,.0f' % o.amount"/>
                             </span>
                         </div>
                     </div>
 
-                    <!-- ── Signature Row ──────────────────────────────────── -->
-                    <div class="row mt-5">
-                        <div class="col-4 text-center">
-                            <div style="border-top: 1px solid #333; margin-top: 36px; padding-top: 5px;">
-                                <strong>Prepared by</strong>
-                            </div>
-                        </div>
-                        <div class="col-4 text-center">
-                            <div style="border-top: 1px solid #333; margin-top: 36px; padding-top: 5px;">
-                                <strong>Approved by</strong>
-                            </div>
-                        </div>
-                        <div class="col-4 text-center">
-                            <div style="border-top: 1px solid #333; margin-top: 36px; padding-top: 5px;">
-                                <strong>Received by</strong>
-                            </div>
-                        </div>
-                    </div>
+                    <!-- ── Signatures ── -->
+                    <t t-call="site_operations.report_sig_4col">
+                        <t t-set="extra_label">Received By</t>
+                    </t>
+                    <p class="text-muted small mt-3">System-generated — Matracon Pakistan Pvt. Ltd. · Printed: <t t-esc="context_timestamp(datetime.datetime.now()).strftime('%d/%m/%Y')"/></p>
 
                 </div>
             </t>

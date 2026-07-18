@@ -77,13 +77,13 @@ class LiabilitySheet(models.Model):
         'x.liability.sheet.line', 'sheet_id', string='Liability Lines')
 
     total_liability = fields.Float(
-        string='Total Liability', compute='_compute_totals', store=True)
+        string='Total Liability', compute='_compute_totals', store=True, digits=(16, 0))
     total_recommended = fields.Float(
-        string='Total Recommended', compute='_compute_totals', store=True)
+        string='Total Recommended', compute='_compute_totals', store=True, digits=(16, 0))
     total_approved = fields.Float(
-        string='Total Approved', compute='_compute_totals', store=True)
+        string='Total Approved', compute='_compute_totals', store=True, digits=(16, 0))
     total_paid = fields.Float(
-        string='Total Paid', compute='_compute_totals', store=True)
+        string='Total Paid', compute='_compute_totals', store=True, digits=(16, 0))
 
     payment_ids = fields.One2many(
         'account.payment', 'x_liability_sheet_id', string='Payment Drafts',
@@ -269,18 +269,24 @@ class LiabilitySheet(models.Model):
             ))
 
     def _create_next_period_sheet(self):
-        """Copy all partners; opening balance = remaining liability after payments."""
-        self.ensure_one()
-        if not self.date_to:
-            return self.env['x.liability.sheet']
-        date_from = self.date_to + relativedelta(days=1)
-        period_days = (self.date_to - self.date_from).days + 1
-        date_to = date_from + relativedelta(days=period_days - 1)
+        """Auto-create the next sheet when this one is marked paid.
 
+        - date_from = first day of the current calendar month (today)
+        - date_to   = last day of that month
+        - Every vendor line is carried forward; opening_balance = unpaid remainder
+        - new_liability starts at 0 — SA runs "Refresh from Ledger" to pull in
+          any bills that arrived while this sheet was in approved/paid state.
+        """
+        self.ensure_one()
+        today = fields.Date.today()
+        date_from = today.replace(day=1)
+        date_to = (date_from + relativedelta(months=1)) - relativedelta(days=1)
+
+        # Safety: if a non-paid sheet already exists for this project don't duplicate.
         existing = self.search([
             ('project_analytic_account_id', '=', self.project_analytic_account_id.id),
-            ('date_from', '=', date_from),
-            ('state', '=', 'draft'),
+            ('state', 'not in', ['paid']),
+            ('id', '!=', self.id),
         ], limit=1)
         if existing:
             return existing
@@ -352,19 +358,87 @@ class LiabilitySheet(models.Model):
                         p.x_gross_approved_amount or p.amount for p in payments
                     )
 
+    def _is_ho_role(self):
+        """Return True if the current user holds any Head Office role."""
+        u = self.env.user
+        return (
+            u.has_group('purchase_demand_raise.group_matracon_admin')
+            or u.has_group('purchase_demand_raise.group_ceo_approval')
+            or u.has_group('site_operations.group_finance_ho')
+            or u.has_group('purchase_demand_raise.group_procurement_ho')
+        )
+
     def action_reset_draft(self):
+        """Standard reset — available to Site Accountant and HO roles.
+
+        Blocked if posted payments exist (use action_force_reset_draft for that).
+        """
         for sheet in self:
             if sheet.state not in ('submitted', 'approved'):
                 raise UserError(_('Only submitted or approved sheets can be reset.'))
             draft_payments = sheet.payment_ids.filtered(lambda p: p.state == 'draft')
-            if sheet.payment_ids.filtered(lambda p: p.state == 'posted'):
+            if sheet.payment_ids.filtered(lambda p: p.state in ('in_process', 'paid')):
                 raise UserError(_(
-                    'Cannot reset — one or more vendor payments are already posted.'
+                    'Cannot reset — one or more vendor payments are already posted. '
+                    'Use "Force Reset to Draft" if you are sure.'
                 ))
             draft_payments.unlink()
             sheet.line_ids.write({'is_locked': False, 'payment_id': False})
+            prev_state = dict(sheet._fields['state'].selection).get(sheet.state, sheet.state)
             sheet.state = 'draft'
-            sheet.message_post(body=_('Liability Sheet reset to Draft.'))
+            sheet.message_post(body=Markup(_(
+                'Liability Sheet reset to <b>Draft</b> by <b>%(user)s</b> '
+                '(was: <i>%(prev)s</i>).'
+            )) % {'user': self.env.user.name, 'prev': prev_state})
+
+    def action_force_reset_draft(self):
+        """HO-only force reset — works from any state, even with posted payments.
+
+        Posted payments are NOT cancelled (they remain as legitimate accounting
+        entries). Lines are unlocked so the sheet can be corrected and re-submitted.
+        Full audit trail is written to the chatter.
+        """
+        for sheet in self:
+            if not self._is_ho_role():
+                raise UserError(_(
+                    'Only Head Office roles (Admin, CEO, Finance HO, Procurement HO) '
+                    'can force-reset a liability sheet.'
+                ))
+            if sheet.state == 'draft':
+                continue  # nothing to do
+
+            prev_state = dict(sheet._fields['state'].selection).get(sheet.state, sheet.state)
+
+            # Cancel draft payments; leave posted ones intact as accounting history.
+            draft_payments = sheet.payment_ids.filtered(
+                lambda p: p.state == 'draft'
+            )
+            posted_payments = sheet.payment_ids.filtered(
+                lambda p: p.state in ('in_process', 'paid')
+            )
+            draft_payments.unlink()
+
+            # Unlock all lines and clear draft payment links.
+            sheet.line_ids.write({'is_locked': False, 'payment_id': False})
+            sheet.state = 'draft'
+
+            # Build detailed chatter message — always preserved.
+            msg_parts = [Markup(_(
+                'Liability Sheet <b>force-reset to Draft</b> by <b>%(user)s</b> '
+                '(was: <i>%(prev)s</i>).'
+            )) % {'user': self.env.user.name, 'prev': prev_state}]
+
+            if posted_payments:
+                msg_parts.append(Markup(_(
+                    '<br/>⚠️ <b>%(n)d posted payment(s) were NOT cancelled</b> and '
+                    'remain in accounting: %(names)s. '
+                    'Adjust or reconcile them manually if needed.'
+                )) % {
+                    'n': len(posted_payments),
+                    'names': ', '.join(posted_payments.mapped('name')),
+                })
+
+            sheet.message_post(body=Markup('').join(msg_parts))
 
     def action_download_pdf(self):
         """Download unsigned sheet for offline PM signature."""
@@ -533,14 +607,14 @@ class LiabilitySheetLine(models.Model):
         domain="[('category_id.name', 'in', ['Vendor', 'Subcontractor'])]",
     )
 
-    opening_balance = fields.Float(string='Opening Balance')
-    new_liability = fields.Float(string='New Liability (Bills)')
+    opening_balance = fields.Float(string='Opening Balance', digits=(16, 0))
+    new_liability = fields.Float(string='New Liability (Bills)', digits=(16, 0))
     liability_amount = fields.Float(
         string='Total Liability',
-        compute='_compute_liability_amount', store=True)
+        compute='_compute_liability_amount', store=True, digits=(16, 0))
 
     # Recommended: entered manually by Site Accountant
-    recommended_amount = fields.Float(string='Recommended Amount')
+    recommended_amount = fields.Float(string='Recommended Amount', digits=(16, 0))
 
     payment_id = fields.Many2one(
         'account.payment', string='Payment Draft', readonly=True, copy=False)
@@ -548,12 +622,12 @@ class LiabilitySheetLine(models.Model):
     x_is_ceo = fields.Boolean(compute='_compute_role_flags')
 
     # Approved: entered manually by CEO — no auto-compute, no percentage/decision helpers
-    approved_amount = fields.Float(string='Approved Amount')
+    approved_amount = fields.Float(string='Approved Amount', digits=(16, 0))
 
     remarks = fields.Text(string='Remarks')
-    paid_amount = fields.Float(string='Paid Amount')
+    paid_amount = fields.Float(string='Paid Amount', digits=(16, 0))
     balance = fields.Float(
-        string='Balance', compute='_compute_balance', store=True)
+        string='Balance', compute='_compute_balance', store=True, digits=(16, 0))
 
     # ─────────────────────────────────────────────────────────────────────────
     # COMPUTE

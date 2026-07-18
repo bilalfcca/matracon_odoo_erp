@@ -1,11 +1,14 @@
 """Unified management dashboard — CEO, FO, and Site Accountant."""
 
+import logging
 from datetime import timedelta
 
 from dateutil.relativedelta import relativedelta
 
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
+
+_logger = logging.getLogger(__name__)
 
 
 class ManagementDashboard(models.TransientModel):
@@ -67,6 +70,10 @@ class ManagementDashboard(models.TransientModel):
     kpi_bg_margin_locked = fields.Monetary(readonly=True, currency_field='currency_id')
     kpi_bg_active_count = fields.Integer(readonly=True)
     kpi_bg_expiring_count = fields.Integer(readonly=True)
+    # Live count — always fresh, used by the alert banner so it updates
+    # immediately when BG expiry dates change without needing a manual refresh.
+    kpi_bg_expiring_count_live = fields.Integer(
+        compute='_compute_kpi_bg_expiring_live', store=False)
     kpi_bg_released_count = fields.Integer(readonly=True)
     kpi_performance_bg = fields.Monetary(readonly=True, currency_field='currency_id')
     kpi_mobilization_bg = fields.Monetary(readonly=True, currency_field='currency_id')
@@ -826,10 +833,14 @@ class ManagementDashboard(models.TransientModel):
             ('state', '=', 'released'),
         ])
 
+        _perf = self.env.ref('site_operations.bg_nature_performance', raise_if_not_found=False)
+        _mob  = self.env.ref('site_operations.bg_nature_mob_advance',  raise_if_not_found=False)
+        _bid  = self.env.ref('site_operations.bg_nature_bid_security', raise_if_not_found=False)
         performance_bg = sum(active_bgs.filtered(
-            lambda g: g.nature == 'performance').mapped('bg_amount'))
+            lambda g: _perf and g.nature_id == _perf).mapped('bg_amount'))
         mobilization_bg = sum(active_bgs.filtered(
-            lambda g: g.nature in ('advance_payment', 'bid_bond')).mapped('bg_amount'))
+            lambda g: ((_mob and g.nature_id == _mob) or (_bid and g.nature_id == _bid))
+        ).mapped('bg_amount'))
 
         bg_facility_line_vals = []
         for fac in facilities:
@@ -839,7 +850,7 @@ class ManagementDashboard(models.TransientModel):
             pct = (fac.utilized_amount / fac.total_limit * 100.0) if fac.total_limit else 0.0
             bg_facility_line_vals.append({
                 'facility_id': fac.id,
-                'bank_name': fac.bank_id.name or fac.name,
+                'bank_name': fac.journal_id.name or fac.name,
                 'total_limit': fac.total_limit,
                 'utilized_amount': fac.utilized_amount,
                 'margin_amount': margin,
@@ -853,12 +864,11 @@ class ManagementDashboard(models.TransientModel):
             ('project_id', 'in', projects.ids),
             ('state', 'in', ('pending', 'active', 'locked', 'expired')),
         ])
-        nature_labels = dict(self.env['x.bank.guarantee'].sudo()._fields['nature'].selection)
         for bg in project_bgs:
             bg_project_line_vals.append({
                 'guarantee_id': bg.id,
                 'project_name': bg.project_id.name or '',
-                'nature_label': nature_labels.get(bg.nature, bg.nature),
+                'nature_label': bg.nature_id.name or '',
                 'guarantee_number': bg.guarantee_number,
                 'bg_amount': bg.bg_amount,
                 'expiry_date': bg.expiry_date,
@@ -1046,6 +1056,19 @@ class ManagementDashboard(models.TransientModel):
             'target': 'current',
         }
 
+    def _compute_kpi_bg_expiring_live(self):
+        """Live BG expiry count — direct date query, always fresh, no ORM cache."""
+        today = fields.Date.context_today(self)
+        alert_limit = today + timedelta(days=10)
+        # Use direct date comparison — bypasses is_expiring_soon's stored/cached layer
+        count = self.env['x.bank.guarantee'].sudo().search_count([
+            ('state', 'in', ('active', 'locked', 'pending')),
+            ('expiry_date', '>=', today),
+            ('expiry_date', '<=', alert_limit),
+        ])
+        for rec in self:
+            rec.kpi_bg_expiring_count_live = count
+
     def action_refresh(self):
         self.ensure_one()
         self._refresh_dashboard_data(self)
@@ -1220,12 +1243,19 @@ class ManagementDashboard(models.TransientModel):
         }
 
     def action_open_expiring_bgs(self):
+        """Open expiring BGs with a live date-range domain — always reflects current expiry dates."""
+        today = fields.Date.context_today(self)
+        alert_limit = today + timedelta(days=10)
         return {
             'type': 'ir.actions.act_window',
             'name': _('Expiring Bank Guarantees'),
             'res_model': 'x.bank.guarantee',
             'view_mode': 'list,form',
-            'domain': [('id', 'in', self.expiring_bg_ids.ids)],
+            'domain': [
+                ('state', 'in', ('active', 'locked', 'pending')),
+                ('expiry_date', '>=', today),
+                ('expiry_date', '<=', alert_limit),
+            ],
         }
 
     def action_open_bg_facilities(self):

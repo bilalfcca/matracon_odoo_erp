@@ -105,7 +105,7 @@
                                             <td style="font-weight: bold;">Gross Amount Paid</td>
                                             <td>
                                                 <t t-esc="o.currency_id.symbol"/>
-                                                <t t-esc="'{:,.2f}'.format(o.amount_paid)"/>
+                                                <t t-esc="'{:,.0f}'.format(o.amount_paid)"/>
                                             </td>
                                         </tr>
                                         <tr style="background: #fff3cd;">
@@ -113,7 +113,7 @@
                                             <td>
                                                 <strong>
                                                     <t t-esc="o.currency_id.symbol"/>
-                                                    <t t-esc="'{:,.2f}'.format(o.wht_amount)"/>
+                                                    <t t-esc="'{:,.0f}'.format(o.wht_amount)"/>
                                                 </strong>
                                             </td>
                                         </tr>
@@ -122,7 +122,7 @@
                                             <td>
                                                 <strong>
                                                     <t t-esc="o.currency_id.symbol"/>
-                                                    <t t-esc="'{:,.2f}'.format(o.payment_id.amount)"/>
+                                                    <t t-esc="'{:,.0f}'.format(o.payment_id.amount)"/>
                                                 </strong>
                                             </td>
                                         </tr>
@@ -137,7 +137,7 @@
                                 This is to certify that the Withholding Tax amounting to
                                 <strong>
                                     <t t-esc="o.currency_id.symbol"/>
-                                    <t t-esc="'{:,.2f}'.format(o.wht_amount)"/>
+                                    <t t-esc="'{:,.0f}'.format(o.wht_amount)"/>
                                 </strong>
                                 has been deducted from the payment made to
                                 <strong><t t-esc="o.partner_id.name or 'the above vendor'"/></strong>
@@ -147,21 +147,9 @@
                             </p>
                         </div>
 
-                        <!-- Signature Block -->
-                        <div class="row mt-5">
-                            <div class="col-6 text-center">
-                                <div style="border-top: 1px solid #333; margin: 0 30px; padding-top: 6px; font-size: 11px;">
-                                    <strong>Finance Officer</strong><br/>
-                                    <t t-esc="company.name"/>
-                                </div>
-                            </div>
-                            <div class="col-6 text-center">
-                                <div style="border-top: 1px solid #333; margin: 0 30px; padding-top: 6px; font-size: 11px;">
-                                    <strong>Authorized Signatory</strong><br/>
-                                    <t t-esc="company.name"/>
-                                </div>
-                            </div>
-                        </div>
+                        <!-- ── Signatures ── -->
+                        <t t-call="site_operations.report_sig_3col"/>
+                        <p class="text-muted small mt-3">System-generated — Matracon Pakistan Pvt. Ltd. · Printed: <t t-esc="context_timestamp(datetime.datetime.now()).strftime('%d/%m/%Y')"/></p>
 
                     </div>
                 </t>

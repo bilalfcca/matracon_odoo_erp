@@ -32,6 +32,16 @@
         <field name="active" eval="True"/>
     </record>
 
+    <record id="ir_cron_bg_expiry_alert" model="ir.cron">
+        <field name="name">Matracon: BG 10-Day Expiry Alert Email</field>
+        <field name="model_id" ref="model_x_bank_guarantee"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_alert_expiring_bgs()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+        <field name="active" eval="True"/>
+    </record>
+
     <record id="ir_cron_tax_notice_due" model="ir.cron">
         <field name="name">Matracon: Tax Notice Due Date Alerts</field>
         <field name="model_id" ref="model_x_tax_notice_order"/>

@@ -273,12 +273,15 @@
               sequence="30"
               groups="site_operations.group_finance_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
-    <!-- Accounting → Compliance (HO: CEO, FO, Admin only) -->
+    <!-- ════════════════════════════════════════════════════════════════════
+         COMPLIANCE — Standalone App (CEO, Finance HO, Admin only)
+         Bank Guarantees · Tax Notices · WHT Certificates · PDCs
+    ════════════════════════════════════════════════════════════════════ -->
     <menuitem id="menu_compliance_root"
               name="Compliance"
-              parent="account.menu_finance"
-              sequence="15"
-              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+              web_icon="site_operations,static/description/compliance_icon.png"
+              sequence="70"
+              groups="site_operations.group_mtr_app_compliance,purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_ceo_approval,site_operations.group_finance_ho,base.group_system"/>
 
     <menuitem id="menu_bank_guarantees"
               name="Bank Guarantees"
@@ -287,11 +290,11 @@
               sequence="10"
               groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
-    <menuitem id="menu_bank_guarantee_facility"
-              name="Bank Facility Limits"
+    <menuitem id="menu_bg_import_wizard"
+              name="Import BGs from Excel"
               parent="site_operations.menu_compliance_root"
-              action="site_operations.action_bank_guarantee_facility"
-              sequence="15"
+              action="site_operations.action_bg_import_wizard"
+              sequence="11"
               groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
     <menuitem id="menu_tax_notices_orders"
@@ -305,22 +308,50 @@
               name="WHT Certificates"
               parent="site_operations.menu_compliance_root"
               action="site_operations.action_wht_certificate"
-              sequence="25"
-              groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+              sequence="30"
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
     <menuitem id="menu_postdated_cheques"
               name="Post-Dated Cheques"
               parent="site_operations.menu_compliance_root"
               action="site_operations.action_postdated_cheque"
-              sequence="30"
-              groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+              sequence="40"
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
+    <!-- Compliance → Configuration -->
+    <menuitem id="menu_compliance_config"
+              name="Configuration"
+              parent="site_operations.menu_compliance_root"
+              sequence="90"
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
+    <menuitem id="menu_bg_nature"
+              name="Nature of BG"
+              parent="site_operations.menu_compliance_config"
+              action="site_operations.action_bg_nature"
+              sequence="5"
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
+    <menuitem id="menu_bank_guarantee_facility"
+              name="Bank Facility Limits"
+              parent="site_operations.menu_compliance_config"
+              action="site_operations.action_bank_guarantee_facility"
+              sequence="10"
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
+    <menuitem id="menu_bg_expiry_config"
+              name="BG Expiry Notifications"
+              parent="site_operations.menu_compliance_config"
+              action="site_operations.action_bg_expiry_config"
+              sequence="15"
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
     <menuitem id="menu_cheque_series"
               name="Cheque Series"
-              parent="site_operations.menu_compliance_root"
+              parent="site_operations.menu_compliance_config"
               action="site_operations.action_cheque_series"
-              sequence="35"
-              groups="purchase_demand_raise.group_matracon_admin,base.group_system,site_operations.group_finance_ho"/>
+              sequence="20"
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
     <!-- Accounting → Vendors → Subcontractor IPCs -->
     <menuitem id="menu_subcontractor_ipc"

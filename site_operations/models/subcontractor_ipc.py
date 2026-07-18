@@ -637,21 +637,22 @@ class SubcontractorIPC(models.Model):
             })
 
         amount = self.net_payable
-        date_str = (
-            self.ipc_date.strftime('%d/%m/%Y') if self.ipc_date else '')
-        desc = _('IPC No.%s — %s — %s') % (
-            self.ipc_number, self.name, date_str)
+        # Description always from the subcontractor's x_description — the IPC
+        # reference goes in the chatter, not the liability line label.
+        partner_desc = (
+            self.subcontractor_id.x_description or self.subcontractor_id.name or ''
+        ).strip()
 
         existing_line = sheet.line_ids.filtered(
             lambda l: l.partner_id.id == self.subcontractor_id.id)
         if existing_line:
             existing_line[0].write({
                 'new_liability': existing_line[0].new_liability + amount,
-                'description': desc,
+                # description NOT updated — stays as set from the contact record.
             })
         else:
             sheet.write({'line_ids': [(0, 0, {
-                'description': desc,
+                'description': partner_desc,
                 'partner_id': self.subcontractor_id.id,
                 'new_liability': amount,
             })]})

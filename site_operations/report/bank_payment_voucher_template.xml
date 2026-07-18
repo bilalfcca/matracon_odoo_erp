@@ -1,0 +1,279 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+<template id="report_bank_payment_voucher_document">
+<t t-call="web.html_container">
+<t t-foreach="docs" t-as="o">
+<t t-call="web.external_layout">
+<div class="page" style="font-family:Arial,sans-serif; font-size:11pt;">
+
+    <!-- ════════════════════════════════════════════════════════════
+         Pre-compute variables
+    ═══════════════════════════════════════════════════════════════ -->
+
+    <!-- Financial year (Pakistan: Jul–Jun) -->
+    <t t-set="pm" t-value="o.date.month if o.date else 1"/>
+    <t t-set="py" t-value="o.date.year  if o.date else 2026"/>
+    <t t-set="fy_start" t-value="py if pm >= 7 else py - 1"/>
+    <t t-set="fy_end"   t-value="fy_start + 1"/>
+
+    <!-- Payable / debit GL line from the posted JE -->
+    <t t-set="jnl_lines" t-value="o.move_id.line_ids if o.move_id else o.env['account.move.line'].browse()"/>
+    <t t-set="debit_line" t-value="jnl_lines.filtered(lambda l: l.debit > 0)[:1]"/>
+    <t t-set="debit_account_code" t-value="debit_line.account_id.code if debit_line else (o.x_expense_account_id.code or '')"/>
+    <t t-set="debit_account_name" t-value="debit_line.account_id.name if debit_line else (o.x_expense_account_id.name or '')"/>
+    <t t-set="debit_amount" t-value="debit_line.debit if debit_line else o.amount"/>
+
+    <!-- Bank / credit rows -->
+    <!-- Use bank allocations when present; otherwise single journal row -->
+    <t t-set="has_allocs" t-value="bool(o.x_bank_allocation_ids)"/>
+
+    <!-- ════════════════════════════════════════════════════════════
+         HEADER
+    ═══════════════════════════════════════════════════════════════ -->
+    <div class="row mb-2">
+        <div class="col-12 text-center">
+            <div style="font-size:18pt; font-weight:700; letter-spacing:0.5px;">
+                Bank Payment Voucher (HO)
+            </div>
+        </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════════════════════
+         META INFO BOX  (top-right, like the physical document)
+    ═══════════════════════════════════════════════════════════════ -->
+    <div class="row mb-3">
+        <div class="col-6">
+            <!-- Vendor + Project -->
+            <table style="font-size:10.5pt; width:100%;">
+                <tr>
+                    <td style="font-weight:600; width:38%; padding:2px 6px 2px 0;">Vendor</td>
+                    <td style="padding:2px 0;"><t t-esc="o.partner_id.name or '—'"/></td>
+                </tr>
+                <t t-if="o.x_destination_project_id">
+                    <tr>
+                        <td style="font-weight:600; padding:2px 6px 2px 0;">Project</td>
+                        <td style="padding:2px 0;"><t t-esc="o.x_destination_project_id.name"/></td>
+                    </tr>
+                </t>
+                <t t-if="o.memo">
+                    <tr>
+                        <td style="font-weight:600; padding:2px 6px 2px 0; vertical-align:top;">Narration</td>
+                        <td style="padding:2px 0;"><t t-esc="o.memo"/></td>
+                    </tr>
+                </t>
+            </table>
+        </div>
+        <div class="col-6">
+            <table style="font-size:10.5pt; border-collapse:collapse; width:100%;
+                          border:1.5px solid #333;">
+                <tr style="background:#f0f0f0;">
+                    <td style="font-weight:700; padding:4px 10px; border:1px solid #aaa; width:50%;">
+                        Financial Year
+                    </td>
+                    <td style="padding:4px 10px; border:1px solid #aaa;">
+                        <t t-esc="fy_start"/>&#160;–&#160;<t t-esc="fy_end"/>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="font-weight:700; padding:4px 10px; border:1px solid #aaa;">
+                        Voucher No
+                    </td>
+                    <td style="padding:4px 10px; border:1px solid #aaa;">
+                        <t t-esc="o.name or '—'"/>
+                    </td>
+                </tr>
+                <tr style="background:#f0f0f0;">
+                    <td style="font-weight:700; padding:4px 10px; border:1px solid #aaa;">
+                        Date
+                    </td>
+                    <td style="padding:4px 10px; border:1px solid #aaa;">
+                        <t t-esc="o.date.strftime('%d/%m/%Y') if o.date else '—'"/>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="font-weight:700; padding:4px 10px; border:1px solid #aaa;">
+                        Debit
+                    </td>
+                    <td style="padding:4px 10px; border:1px solid #aaa; font-weight:600;">
+                        <t t-esc="'{:,.2f}'.format(debit_amount)"/>
+                    </td>
+                </tr>
+                <tr style="background:#f0f0f0;">
+                    <td style="font-weight:700; padding:4px 10px; border:1px solid #aaa;">
+                        Credit
+                    </td>
+                    <td style="padding:4px 10px; border:1px solid #aaa; font-weight:600;">
+                        <t t-esc="'{:,.2f}'.format(o.amount)"/>
+                    </td>
+                </tr>
+            </table>
+        </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════════════════════
+         MAIN VOUCHER TABLE
+    ═══════════════════════════════════════════════════════════════ -->
+    <table style="width:100%; border-collapse:collapse; font-size:10.5pt; margin-top:6px;">
+
+        <!-- ── Column headers ── -->
+        <thead>
+            <tr style="background:#222; color:#fff;">
+                <th style="padding:6px 8px; border:1px solid #555; width:12%; text-align:left;">
+                    Account Code
+                </th>
+                <th style="padding:6px 8px; border:1px solid #555; text-align:left;">
+                    Title / Narration
+                </th>
+                <th style="padding:6px 8px; border:1px solid #555; width:14%; text-align:right;">
+                    Debit
+                </th>
+                <th style="padding:6px 8px; border:1px solid #555; width:14%; text-align:right;">
+                    Credit
+                </th>
+            </tr>
+        </thead>
+
+        <tbody>
+            <!-- ── DEBIT ROW: Payable / Expense account ── -->
+            <tr style="border-bottom:1px solid #dee2e6;">
+                <td style="padding:7px 8px; border:1px solid #ccc; font-family:monospace; font-size:10pt; vertical-align:top;">
+                    <t t-esc="debit_account_code or '—'"/>
+                </td>
+                <td style="padding:7px 8px; border:1px solid #ccc; vertical-align:top;">
+                    <div style="font-weight:600;">
+                        <t t-esc="o.partner_id.name or debit_account_name or '—'"/>
+                    </div>
+                    <t t-if="o.memo">
+                        <div style="font-size:9.5pt; color:#444; margin-top:3px;">
+                            <t t-esc="o.memo"/>
+                        </div>
+                    </t>
+                    <t t-if="o.x_destination_project_id">
+                        <div style="font-size:9pt; color:#666; margin-top:2px;">
+                            Project: <t t-esc="o.x_destination_project_id.name"/>
+                        </div>
+                    </t>
+                </td>
+                <td style="padding:7px 8px; border:1px solid #ccc; text-align:right; font-weight:600; vertical-align:top;">
+                    <t t-esc="'{:,.2f}'.format(debit_amount)"/>
+                </td>
+                <td style="padding:7px 8px; border:1px solid #ccc; text-align:right; color:#aaa; vertical-align:top;">
+                    —
+                </td>
+            </tr>
+
+            <!-- ── BANK / CREDIT ROWS ── -->
+
+            <!-- Case A: Multiple bank allocations -->
+            <t t-if="has_allocs">
+                <t t-foreach="o.x_bank_allocation_ids" t-as="alloc">
+                    <tr style="border-bottom:1px solid #dee2e6;">
+                        <td style="padding:7px 8px; border:1px solid #ccc; font-family:monospace; font-size:10pt; vertical-align:top;">
+                            <t t-esc="alloc.journal_id.default_account_id.code or '—'"/>
+                        </td>
+                        <td style="padding:7px 8px; border:1px solid #ccc; vertical-align:top;">
+                            <div style="font-weight:600;">
+                                <t t-esc="alloc.journal_id.name"/>
+                            </div>
+                            <!-- Cheque box inside the cell -->
+                            <table style="margin-top:6px; font-size:9.5pt; border-collapse:collapse; width:auto;">
+                                <tr>
+                                    <td style="border:1px solid #aaa; padding:3px 10px; background:#f8f8f8; font-weight:600;">
+                                        Cheque No
+                                    </td>
+                                    <td style="border:1px solid #aaa; padding:3px 14px; min-width:110px;">
+                                        <t t-esc="alloc.x_cheque_number or ''"/>
+                                    </td>
+                                    <td style="border:1px solid #aaa; padding:3px 10px; background:#f8f8f8; font-weight:600; padding-left:16px;">
+                                        Date
+                                    </td>
+                                    <td style="border:1px solid #aaa; padding:3px 14px; min-width:90px;">
+                                        <t t-esc="o.date.strftime('%d/%m/%Y') if o.date else ''"/>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                        <td style="padding:7px 8px; border:1px solid #ccc; text-align:right; color:#aaa; vertical-align:top;">
+                            —
+                        </td>
+                        <td style="padding:7px 8px; border:1px solid #ccc; text-align:right; font-weight:600; vertical-align:top;">
+                            <t t-esc="'{:,.2f}'.format(alloc.allocation_amount)"/>
+                        </td>
+                    </tr>
+                </t>
+            </t>
+
+            <!-- Case B: Single bank (no allocations) -->
+            <t t-else="">
+                <tr style="border-bottom:1px solid #dee2e6;">
+                    <td style="padding:7px 8px; border:1px solid #ccc; font-family:monospace; font-size:10pt; vertical-align:top;">
+                        <t t-esc="o.journal_id.default_account_id.code or '—'"/>
+                    </td>
+                    <td style="padding:7px 8px; border:1px solid #ccc; vertical-align:top;">
+                        <div style="font-weight:600;">
+                            <t t-esc="o.journal_id.name"/>
+                        </div>
+                        <table style="margin-top:6px; font-size:9.5pt; border-collapse:collapse; width:auto;">
+                            <tr>
+                                <td style="border:1px solid #aaa; padding:3px 10px; background:#f8f8f8; font-weight:600;">
+                                    Cheque No
+                                </td>
+                                <td style="border:1px solid #aaa; padding:3px 14px; min-width:110px;">
+                                    <t t-esc="o.x_cheque_number or ''"/>
+                                </td>
+                                <td style="border:1px solid #aaa; padding:3px 10px; background:#f8f8f8; font-weight:600; padding-left:16px;">
+                                    Date
+                                </td>
+                                <td style="border:1px solid #aaa; padding:3px 14px; min-width:90px;">
+                                    <t t-esc="o.date.strftime('%d/%m/%Y') if o.date else ''"/>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                    <td style="padding:7px 8px; border:1px solid #ccc; text-align:right; color:#aaa; vertical-align:top;">
+                        —
+                    </td>
+                    <td style="padding:7px 8px; border:1px solid #ccc; text-align:right; font-weight:600; vertical-align:top;">
+                        <t t-esc="'{:,.2f}'.format(o.amount)"/>
+                    </td>
+                </tr>
+            </t>
+
+            <!-- ── TOTAL ROW ── -->
+            <tr style="background:#f0f0f0; font-weight:700; font-size:11pt;">
+                <td style="padding:7px 8px; border:1.5px solid #888;" colspan="2">
+                    Total
+                </td>
+                <td style="padding:7px 8px; border:1.5px solid #888; text-align:right;">
+                    <t t-esc="'{:,.2f}'.format(debit_amount)"/>
+                </td>
+                <td style="padding:7px 8px; border:1.5px solid #888; text-align:right;">
+                    <t t-esc="'{:,.2f}'.format(o.amount)"/>
+                </td>
+            </tr>
+
+        </tbody>
+    </table>
+
+    <!-- ════════════════════════════════════════════════════════════
+         AMOUNT IN WORDS
+    ═══════════════════════════════════════════════════════════════ -->
+    <div style="margin-top:14px; padding:8px 12px; border:1px solid #ccc;
+                background:#fafafa; font-size:10.5pt; border-radius:3px;">
+        <span style="font-weight:700; margin-right:8px;">Amount in Words:</span>
+        <t t-esc="o.currency_id.amount_to_text(o.amount)"/>
+    </div>
+
+    <!-- ════════════════════════════════════════════════════════════
+         4-COLUMN SIGNATURE BLOCK
+    ═══════════════════════════════════════════════════════════════ -->
+    <t t-call="site_operations.report_sig_4col">
+        <t t-set="extra_label">Received By</t>
+    </t>
+
+</div>
+</t>
+</t>
+</t>
+</template>
+</odoo>

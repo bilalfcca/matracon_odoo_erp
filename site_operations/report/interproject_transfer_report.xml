@@ -57,7 +57,7 @@
                             <div class="text-muted small text-uppercase fw-bold">Transfer Amount</div>
                             <div class="fs-3 fw-bold">
                                 <t t-esc="ipt.currency_id.symbol"/>
-                                <t t-esc="'{:,.2f}'.format(ipt.amount)"/>
+                                <t t-esc="'{:,.0f}'.format(ipt.amount)"/>
                             </div>
                         </div>
 
@@ -72,18 +72,9 @@
                             </div>
                         </t>
 
-                        <div class="row mt-5">
-                            <div class="col-4 text-center">
-                                <div style="border-top:1px solid #000;padding-top:4px;margin-top:40px;">Source Project — Site Accountant</div>
-                            </div>
-                            <div class="col-4 text-center">
-                                <div style="border-top:1px solid #000;padding-top:4px;margin-top:40px;">Finance Officer</div>
-                            </div>
-                            <div class="col-4 text-center">
-                                <div style="border-top:1px solid #000;padding-top:4px;margin-top:40px;">Destination Project — Site Accountant</div>
-                            </div>
-                        </div>
-                        <p class="text-muted small mt-3">System-generated — Matracon Pakistan Pvt. Ltd.</p>
+                        <!-- ── Signatures ── -->
+                        <t t-call="site_operations.report_sig_3col"/>
+                        <p class="text-muted small mt-3">System-generated — Matracon Pakistan Pvt. Ltd. · Printed: <t t-esc="context_timestamp(datetime.datetime.now()).strftime('%d/%m/%Y')"/></p>
                     </div>
                 </t>
             </t>

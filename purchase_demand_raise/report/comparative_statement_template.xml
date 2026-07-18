@@ -112,10 +112,10 @@
                                                 <t t-set="is_best" t-value="not is_win and _lowest_total &gt; 0 and abs(vendor.x_net_total - _lowest_total) &lt; 0.01"/>
                                                 <t t-if="vline and vline.x_unit_price">
                                                     <td t-att-style="'border:1px solid #ddd;padding:5px;text-align:right;font-size:13px;' + ('background:#e8f5e9;' if is_win else ('background:#f0fff4;' if is_best else ''))">
-                                                        <t t-esc="'{:,.2f}'.format(vline.x_unit_price)"/>
+                                                        <t t-esc="'{:,.0f}'.format(vline.x_unit_price)"/>
                                                     </td>
                                                     <td t-att-style="'border:1px solid #ddd;padding:5px;text-align:right;font-weight:bold;font-size:13px;' + ('background:#c3e6cb;' if is_win else ('background:#d4edda;' if is_best else ''))">
-                                                        <t t-esc="'{:,.2f}'.format(vline.x_total_price)"/>
+                                                        <t t-esc="'{:,.0f}'.format(vline.x_total_price)"/>
                                                     </td>
                                                 </t>
                                                 <t t-else="">
@@ -136,7 +136,7 @@
                                             <t t-set="is_win"  t-value="vendor.id == cs.x_recommended_vendor_line_id.id"/>
                                             <t t-set="is_best" t-value="not is_win and _lowest_total &gt; 0 and abs(vendor.x_net_total - _lowest_total) &lt; 0.01"/>
                                             <td colspan="2" t-att-style="'border:1px solid #333;padding:5px;text-align:right;font-size:13px;' + ('background:#c3e6cb;' if is_win else ('background:#d4edda;' if is_best else ''))">
-                                                <t t-esc="'{:,.2f}'.format(vendor.x_total_price)"/>
+                                                <t t-esc="'{:,.0f}'.format(vendor.x_total_price)"/>
                                             </td>
                                         </t>
                                     </tr>
@@ -148,7 +148,7 @@
                                             <t t-set="is_win"  t-value="vendor.id == cs.x_recommended_vendor_line_id.id"/>
                                             <t t-set="is_best" t-value="not is_win and _lowest_total &gt; 0 and abs(vendor.x_net_total - _lowest_total) &lt; 0.01"/>
                                             <td colspan="2" t-att-style="'border:1px solid #333;padding:5px;text-align:right;font-size:13px;' + ('background:#c3e6cb;' if is_win else ('background:#d4edda;' if is_best else ''))">
-                                                <t t-esc="'{:,.2f}'.format(vendor.x_gst_amount)"/>
+                                                <t t-esc="'{:,.0f}'.format(vendor.x_gst_amount)"/>
                                             </td>
                                         </t>
                                     </tr>
@@ -161,7 +161,7 @@
                                             <t t-set="is_best" t-value="not is_win and _lowest_total &gt; 0 and abs(vendor.x_net_total - _lowest_total) &lt; 0.01"/>
                                             <td colspan="2" t-att-style="'border:1px solid #333;padding:6px;text-align:right;font-size:14px;font-weight:bold;' + ('background:#155724;border:2px solid #ffc107;' if is_win else ('background:#1e5a30;' if is_best else ''))">
                                                 <t t-if="is_best or is_win">&#9733; </t>
-                                                <t t-esc="'{:,.2f}'.format(vendor.x_net_total)"/>
+                                                <t t-esc="'{:,.0f}'.format(vendor.x_net_total)"/>
                                             </td>
                                         </t>
                                     </tr>
@@ -177,11 +177,11 @@
                                     <t t-esc="winner.x_partner_id.name"/>
                                     &#160;|&#160;
                                     <strong>Grand Total (Incl. GST):</strong>
-                                    <t t-esc="'{:,.2f}'.format(winner.x_net_total)"/>
+                                    <t t-esc="'{:,.0f}'.format(winner.x_net_total)"/>
                                     <t t-if="winner.x_savings_vs_highest > 0">
                                         &#160;|&#160;
                                         <strong>Saving vs Most Expensive:</strong>
-                                        <t t-esc="'{:,.2f}'.format(winner.x_savings_vs_highest)"/>
+                                        <t t-esc="'{:,.0f}'.format(winner.x_savings_vs_highest)"/>
                                     </t>
                                 </div>
                             </t>
@@ -345,6 +345,9 @@
                                 <t t-esc="cs.x_negotiation_notes"/>
                             </p>
                         </t>
+
+                        <!-- ── Signatures ── -->
+                        <t t-call="site_operations.report_sig_3col"/>
 
                         <p style="margin-top:16px; font-size:11px; color:#999; border-top:1px solid #eee; padding-top:6px;">
                             Generated from Odoo — <t t-esc="cs.name"/>

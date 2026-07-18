@@ -854,7 +854,13 @@ class CSVendor(models.Model):
         """
         Single create override that:
         1. Syncs x_tc_text from template if not already provided.
-        2. Auto-creates product lines from the linked PR for every new vendor.
+        2. Auto-creates product lines from the linked PR for every new vendor
+           — but ONLY when the caller did NOT already supply x_line_ids in vals.
+           When a vendor is added via the dialog, default_get pre-fills the lines
+           and the user fills in prices; those lines arrive inside vals['x_line_ids'].
+           Calling _auto_create_lines_from_pr() again in that case creates DUPLICATE
+           zero-priced lines (due to ORM cache not yet reflecting the just-created
+           children), making all visible prices appear as 0. Guard against that here.
         """
         # ── Step 1: T&C text sync ─────────────────────────────────────────────
         for vals in vals_list:
@@ -866,19 +872,41 @@ class CSVendor(models.Model):
         # ── Step 2: Create records ────────────────────────────────────────────
         records = super().create(vals_list)
 
-        # ── Step 3: Auto-create product lines from PR ─────────────────────────
-        for record in records:
-            if record.x_cs_id and record.x_cs_id.x_purchase_order_id:
-                record._auto_create_lines_from_pr()
+        # ── Step 3: Auto-create product lines from PR (only when needed) ──────
+        # Flush so that any x_line_ids created by super().create() are visible
+        # in the DB before _auto_create_lines_from_pr() checks for existing lines.
+        self.env['x.cs.vendor.line'].flush_model()
+
+        for record, vals in zip(records, vals_list):
+            if not (record.x_cs_id and record.x_cs_id.x_purchase_order_id):
+                continue
+            # Skip if the caller already supplied product lines (e.g. from the
+            # vendor dialog where default_get + user input populate x_line_ids).
+            # In that case super().create() has already created the lines;
+            # calling _auto_create_lines_from_pr() would create zero-priced
+            # duplicates because the ORM cache may not reflect the new lines yet.
+            if vals.get('x_line_ids'):
+                continue
+            record._auto_create_lines_from_pr()
 
         return records
 
     def _auto_create_lines_from_pr(self):
-        """Create x.cs.vendor.line for each product in the linked PR."""
+        """Create x.cs.vendor.line for each product in the linked PR.
+
+        Guard: only adds products that don't already have a line for this vendor.
+        We flush and invalidate the x_line_ids cache before checking so that
+        lines created by super().create() (via Command tuples in vals) are
+        visible — the ORM cache may not reflect them immediately after creation.
+        """
         self.ensure_one()
         pr = self.x_cs_id.x_purchase_order_id
         if not pr:
             return
+        # Flush pending DB writes so newly-created child lines are in the DB,
+        # then clear the ORM cache for x_line_ids to force a fresh SELECT.
+        self.env['x.cs.vendor.line'].flush_model()
+        self.invalidate_recordset(['x_line_ids'])
         existing_products = self.x_line_ids.mapped('x_product_id')
         to_create = []
         for pr_line in pr.order_line.filtered(lambda l: l.product_id and not l.display_type):

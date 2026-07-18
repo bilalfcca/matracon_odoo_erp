@@ -27,6 +27,21 @@
                         </p>
                     </div>
 
+                    <!-- ══ GLOBAL ALERT BANNER — uses live count so no manual Refresh needed ══ -->
+                    <div class="alert alert-danger d-flex align-items-center gap-2 mb-3 py-2 px-3"
+                         style="border-left:4px solid #dc3545;"
+                         invisible="kpi_bg_expiring_count_live == 0">
+                        <i class="fa fa-exclamation-triangle fa-lg text-danger me-2"/>
+                        <div class="flex-grow-1">
+                            <strong>⚠️ Bank Guarantee Expiry Alert:</strong>
+                            <field name="kpi_bg_expiring_count_live" nolabel="1" readonly="1" class="oe_inline"/>
+                            BG(s) expiring within 10 days.
+                        </div>
+                        <button name="action_open_expiring_bgs" type="object"
+                                string="View Expiring BGs"
+                                class="btn btn-sm btn-danger"/>
+                    </div>
+
                     <!-- ── Global filters ── -->
                     <div class="matracon-dash-filters">
                         <span class="matracon-dash-filters__label">Dashboard &amp; Filters</span>
@@ -589,7 +604,7 @@
                                     </div>
                                     <div class="card-body">
                                         <div class="alert alert-danger py-2 mb-2">
-                                            <strong>Expiring BGs (30 days):</strong>
+                                            <strong>Expiring BGs (10 days):</strong>
                                             <button name="action_open_expiring_bgs" type="object" class="btn btn-sm btn-link p-0">
                                                 <field name="kpi_bg_expiring_count" nolabel="1" readonly="1" class="oe_inline"/>
                                                 instruments
@@ -620,7 +635,7 @@
                                     <list create="false" delete="false" edit="false"
                                           decoration-warning="is_expiring_soon">
                                         <field name="name"/>
-                                        <field name="bank_id"/>
+                                        <field name="journal_id" string="Bank"/>
                                         <field name="guarantee_number"/>
                                         <field name="project_id"/>
                                         <field name="bg_amount" widget="monetary"/>

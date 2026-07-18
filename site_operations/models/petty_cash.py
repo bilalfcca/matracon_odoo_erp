@@ -483,6 +483,44 @@ class PettyCashRequest(models.Model):
             matracon_notify.schedule_activity(
                 req, ceo_users, _('Approve petty cash %s') % req.name)
 
+    def action_reset_to_draft(self):
+        """Reset PCR back to Draft.
+
+        Rules:
+        • Site Accountant — can reset only when state == 'submitted'
+          (CEO has not yet approved). Once CEO approves, Finance HO is in
+          control and the site cannot reverse.
+        • CEO / Matracon Admin — can reset from 'submitted' or 'ceo_approved'.
+          Cannot reset 'released' or 'confirmed' (a payment has been made).
+        """
+        is_ceo   = self.env.user.has_group('purchase_demand_raise.group_ceo_approval')
+        is_admin = self.env.user.has_group('purchase_demand_raise.group_matracon_admin')
+        is_privileged = is_ceo or is_admin
+
+        for req in self:
+            if req.state in ('released', 'confirmed'):
+                raise UserError(_(
+                    '%(name)s has already been released. '
+                    'A payment has been made — it cannot be reset to draft.',
+                    name=req.name,
+                ))
+            if not is_privileged and req.state != 'submitted':
+                raise UserError(_(
+                    '%(name)s cannot be reset to draft. '
+                    'CEO has already approved it — contact Finance HO.',
+                    name=req.name,
+                ))
+            req.write({
+                'state': 'draft',
+                'ceo_approved_amount': 0.0,
+            })
+            req.message_post(
+                body=Markup(
+                    '↩️ Petty cash request reset to <b>Draft</b> by <b>%(user)s</b>.'
+                ) % {'user': self.env.user.name},
+                subtype_xmlid='mail.mt_log_note',
+            )
+
     def action_release(self):
         """Finance HO releases petty cash via payment workflow.
 

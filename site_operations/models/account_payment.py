@@ -105,11 +105,11 @@ class AccountPaymentSiteOps(models.Model):
 
     x_total_liability = fields.Float(
         related='x_liability_sheet_id.total_liability',
-        string='Total Liability', readonly=True)
+        string='Total Liability', readonly=True, digits=(16, 0))
 
     x_total_approved = fields.Float(
         related='x_liability_sheet_id.total_approved',
-        string='Total Approved', readonly=True)
+        string='Total Approved', readonly=True, digits=(16, 0))
 
     x_vendor_bank_account_id = fields.Many2one(
         'res.partner.bank', string='Vendor Bank Account',
@@ -226,7 +226,7 @@ class AccountPaymentSiteOps(models.Model):
 
     x_available_bank_balance = fields.Float(
         string='Available Bank Balance',
-        compute='_compute_available_bank_balance', store=False)
+        compute='_compute_available_bank_balance', store=False, digits=(16, 0))
 
     # ─────────────────────────────────────────────────────────────────────────
     # COMPUTE

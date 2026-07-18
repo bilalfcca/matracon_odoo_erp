@@ -1,194 +1,407 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+    <!--
+        Matracon Purchase Order Print Template
+
+        Layout  (mirrors the RFQ layout):
+          • Vendor details  — TOP  (name, address, contact)
+          • PURCHASE ORDER title — centred, navy blue
+          • Meta info (PO Ref, Date = CEO approval date, Category, Project, etc.)
+          • Product table — navy headers, alternating rows
+              – Only lines where x_approved_qty > 0 (CEO-approved items only)
+              – Price = 0 is allowed (direct vendor without CS)
+              – Qty column shows x_approved_qty
+          • Terms & Conditions (if any)
+          • Signature block (PO Officer + CEO)
+          • Matracon footer with LOGO + company details
+
+        Deliberately does NOT use web.external_layout / web.internal_layout
+        to prevent Odoo auto-injecting a company-name banner at the top.
+        Uses web.html_container (Bootstrap + base CSS, no company header).
+    -->
     <template id="report_final_po_template">
         <t t-call="web.html_container">
             <t t-foreach="docs" t-as="o">
-                <t t-call="web.external_layout">
-                    <div class="page">
 
-                        <!-- ── TITLE ── -->
-                        <div class="row mb-4">
-                            <div class="col-12 text-center">
-                                <h2 class="fw-bold">PURCHASE ORDER</h2>
-                                <h5 class="text-muted">CEO Approved — Final Vendor Copy</h5>
-                            </div>
-                        </div>
+                <!-- ── Page CSS ──────────────────────────────────────────────── -->
+                <style type="text/css">
+                    @page {
+                        margin: 14mm 20mm 18mm 20mm;
+                    }
+                    body {
+                        font-family: Arial, sans-serif;
+                        font-size: 13px;
+                        color: #222;
+                    }
 
-                        <!-- ── HEADER INFO ── -->
-                        <div class="row mb-3">
-                            <div class="col-6">
-                                <table class="table table-sm table-borderless">
-                                    <tr>
-                                        <td class="fw-bold" style="width:40%">PO Reference:</td>
-                                        <td><t t-esc="o.name"/></td>
-                                    </tr>
-                                    <tr>
-                                        <td class="fw-bold">Date:</td>
-                                        <td><t t-esc="o.date_order" t-options='{"widget": "date"}'/></td>
-                                    </tr>
-                                    <tr t-if="o.date_approve">
-                                        <td class="fw-bold">Order Deadline:</td>
-                                        <td><t t-esc="o.date_approve" t-options='{"widget": "date"}'/></td>
-                                    </tr>
-                                    <tr t-if="o.x_category_id">
-                                        <td class="fw-bold">Category:</td>
-                                        <td><t t-esc="o.x_category_id.name"/></td>
-                                    </tr>
-                                </table>
-                            </div>
-                            <div class="col-6">
-                                <table class="table table-sm table-borderless">
-                                    <tr t-if="o.partner_id">
-                                        <td class="fw-bold" style="width:40%">Vendor:</td>
-                                        <td><t t-esc="o.partner_id.name"/></td>
-                                    </tr>
-                                    <tr t-if="o.partner_ref">
-                                        <td class="fw-bold">Vendor Reference:</td>
-                                        <td><t t-esc="o.partner_ref"/></td>
-                                    </tr>
-                                    <tr t-if="o.x_project_analytic_account_id">
-                                        <td class="fw-bold">Project:</td>
-                                        <td><t t-esc="o.x_project_analytic_account_id.name"/></td>
-                                    </tr>
-                                    <tr t-if="o.picking_type_id">
-                                        <td class="fw-bold">Deliver To:</td>
-                                        <td><t t-esc="o.picking_type_id.warehouse_id.name or ''"/></td>
-                                    </tr>
-                                    <tr>
-                                        <td class="fw-bold">Currency:</td>
-                                        <td><t t-esc="o.currency_id.name"/></td>
-                                    </tr>
-                                </table>
-                            </div>
-                        </div>
+                    /* ── Vendor block at top ── */
+                    .po-vendor-block {
+                        margin-bottom: 18px;
+                        padding-bottom: 10px;
+                        border-bottom: 2px solid #1a3a5c;
+                    }
+                    .po-vendor-block .vendor-name {
+                        font-size: 15px;
+                        font-weight: bold;
+                        margin-bottom: 3px;
+                    }
 
-                        <!-- ── LINE ITEMS ── -->
-                        <div class="row mb-4">
-                            <div class="col-12">
-                                <h5 class="fw-bold border-bottom pb-1">Order Items</h5>
-                                <table class="table table-sm table-bordered o_main_table">
-                                    <thead class="table-light">
-                                        <tr>
-                                            <th style="width:5%">#</th>
-                                            <th style="width:35%">Product / Description</th>
-                                            <th style="width:12%" class="text-center">UoM</th>
-                                            <th style="width:13%" class="text-center">Approved Qty</th>
-                                            <th style="width:15%" class="text-right">Unit Price</th>
-                                            <th style="width:20%" class="text-right">Subtotal</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <t t-set="line_no" t-value="1"/>
-                                        <t t-foreach="o.order_line" t-as="line">
-                                            <!-- Cascade: approved_qty → recommended_qty → requested_qty → product_qty -->
-                                            <t t-set="final_qty"
-                                               t-value="line.x_approved_qty if line.x_approved_qty > 0
-                                                        else (line.x_recommended_qty if line.x_recommended_qty > 0
-                                                        else (line.x_requested_qty if line.x_requested_qty > 0
-                                                        else line.product_qty))"/>
-                                            <tr>
-                                                <td><t t-esc="line_no"/><t t-set="line_no" t-value="line_no + 1"/></td>
-                                                <td>
-                                                    <span t-esc="line.product_id.display_name"/>
-                                                    <t t-if="line.name and line.name != line.product_id.display_name">
-                                                        <br/><small class="text-muted"><t t-esc="line.name"/></small>
-                                                    </t>
-                                                </td>
-                                                <td class="text-center"><t t-esc="line.product_uom_id.name"/></td>
-                                                <td class="text-center fw-bold">
-                                                    <t t-esc="final_qty"/>
-                                                </td>
-                                                <td class="text-right">
-                                                    <t t-esc="line.price_unit"
-                                                       t-options='{"widget": "monetary", "display_currency": o.currency_id}'/>
-                                                </td>
-                                                <td class="text-right fw-bold">
-                                                    <t t-esc="final_qty * line.price_unit"
-                                                       t-options='{"widget": "monetary", "display_currency": o.currency_id}'/>
-                                                </td>
-                                            </tr>
-                                        </t>
-                                    </tbody>
-                                    <tfoot>
-                                        <tr>
-                                            <td colspan="5" class="text-right fw-bold">Total:</td>
-                                            <td class="text-right fw-bold">
-                                                <t t-esc="o.amount_total"
-                                                   t-options='{"widget": "monetary", "display_currency": o.currency_id}'/>
-                                            </td>
-                                        </tr>
-                                    </tfoot>
-                                </table>
-                            </div>
-                        </div>
+                    /* ── Title ── */
+                    .po-title {
+                        text-align: center;
+                        font-size: 22px;
+                        font-weight: bold;
+                        margin: 0 0 16px 0;
+                        text-transform: uppercase;
+                        letter-spacing: 1px;
+                        color: #1a3a5c;
+                    }
 
-                        <!-- ── TERMS ── -->
-                        <div class="row mt-3" t-if="o.note">
-                            <div class="col-12">
-                                <h5 class="fw-bold border-bottom pb-1">Terms &amp; Conditions</h5>
-                                <div style="font-size:12px; line-height:1.6;">
-                                    <t t-out="o.note"/>
-                                </div>
-                            </div>
-                        </div>
+                    /* ── Meta info table ── */
+                    .po-meta td {
+                        padding: 3px 14px 3px 0;
+                        font-size: 13px;
+                    }
+                    .po-meta td.lbl { font-weight: bold; white-space: nowrap; }
 
-                        <!-- ── AUTHORIZATION / SIGNATURES ── -->
-                        <style>
-                            @import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&amp;display=swap');
-                            .matracon-sig { font-family: 'Dancing Script', cursive; font-size: 26px; color: #1a237e; line-height: 1.1; }
-                        </style>
-                        <t t-set="sig" t-value="o.env['x.po.signature.config'].sudo().search([('company_id', '=', o.company_id.id)], limit=1)"/>
-                        <div class="row mt-5">
-                            <!-- PO Officer -->
-                            <div class="col-6 text-center">
-                                <div style="min-height:60px; display:flex; align-items:flex-end; justify-content:center; padding-bottom:4px;">
-                                    <!-- Image if uploaded, else cursive name -->
-                                    <t t-if="sig and sig.x_po_officer_signature">
-                                        <img t-att-src="image_data_uri(sig.x_po_officer_signature)"
-                                             style="max-height:58px; max-width:200px; object-fit:contain;"/>
+                    /* ── Line items table ── */
+                    .po-table {
+                        width: 100%;
+                        border-collapse: collapse;
+                        font-size: 13px;
+                        margin-bottom: 20px;
+                    }
+                    .po-table thead tr {
+                        background: #1a3a5c;
+                        color: #ffffff;
+                    }
+                    .po-table th {
+                        text-align: center;
+                        padding: 8px 10px;
+                        border: 1px solid #1a3a5c;
+                        font-size: 13px;
+                        font-weight: bold;
+                    }
+                    .po-table td {
+                        border: 1px solid #cccccc;
+                        padding: 6px 10px;
+                        text-align: right;
+                        font-size: 13px;
+                    }
+                    .po-table tbody tr:nth-child(odd)  td { background: #ffffff; }
+                    .po-table tbody tr:nth-child(even) td { background: #f4f6fa; }
+                    .po-table tfoot td {
+                        font-weight: bold;
+                        background: #f0f4f8;
+                        border: 1px solid #aaa;
+                    }
+
+                    /* ── Signatures ── */
+                    @import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&amp;display=swap');
+                    .matracon-sig {
+                        font-family: 'Dancing Script', cursive;
+                        font-size: 26px;
+                        color: #1a237e;
+                        line-height: 1.1;
+                    }
+
+                    /* ── Footer ── */
+                    .po-footer {
+                        margin-top: 36px;
+                        padding-top: 10px;
+                        border-top: 2px solid #1a3a5c;
+                        text-align: center;
+                        font-size: 12px;
+                        color: #444;
+                    }
+                    .po-footer strong {
+                        font-size: 13px;
+                        color: #1a3a5c;
+                    }
+                </style>
+
+                <div class="page" style="padding:0;">
+
+                    <!-- ══════════════════════════════════════════════════════════
+                         TOP — VENDOR / SUPPLIER DETAILS
+                         ══════════════════════════════════════════════════════════ -->
+                    <div class="po-vendor-block">
+                        <t t-if="o.partner_id">
+                            <div class="vendor-name"><t t-esc="o.partner_id.name"/></div>
+                            <t t-if="o.partner_id.street">
+                                <div><t t-esc="o.partner_id.street"/></div>
+                            </t>
+                            <t t-if="o.partner_id.street2">
+                                <div><t t-esc="o.partner_id.street2"/></div>
+                            </t>
+                            <t t-if="o.partner_id.city or o.partner_id.state_id or o.partner_id.zip">
+                                <div>
+                                    <t t-if="o.partner_id.city"><t t-esc="o.partner_id.city"/></t>
+                                    <t t-if="o.partner_id.state_id">
+                                        <t t-if="o.partner_id.city">, </t>
+                                        <t t-esc="o.partner_id.state_id.name"/>
                                     </t>
-                                    <t t-else="">
-                                        <span class="matracon-sig">
-                                            <t t-esc="(sig and sig.x_po_officer_name) or 'Nasir Swati'"/>
-                                        </span>
-                                    </t>
+                                    <t t-if="o.partner_id.zip"><t t-esc="o.partner_id.zip"/></t>
                                 </div>
-                                <div style="border-top: 1px solid #000; padding-top: 5px;">
-                                    <div class="fw-bold">
-                                        <t t-esc="(sig and sig.x_po_officer_name) or 'Nasir Swati'"/>
-                                    </div>
-                                    <div class="text-muted small">
-                                        <t t-esc="(sig and sig.x_po_officer_title) or 'Procurement Officer'"/>
-                                    </div>
-                                </div>
-                            </div>
-                            <!-- CEO -->
-                            <div class="col-6 text-center">
-                                <div style="min-height:60px; display:flex; align-items:flex-end; justify-content:center; padding-bottom:4px;">
-                                    <!-- Image if uploaded, else cursive name -->
-                                    <t t-if="sig and sig.x_ceo_signature">
-                                        <img t-att-src="image_data_uri(sig.x_ceo_signature)"
-                                             style="max-height:58px; max-width:200px; object-fit:contain;"/>
-                                    </t>
-                                    <t t-else="">
-                                        <span class="matracon-sig">
-                                            <t t-esc="(sig and sig.x_ceo_name) or 'Jehanzeb Saulat'"/>
-                                        </span>
-                                    </t>
-                                </div>
-                                <div style="border-top: 1px solid #000; padding-top: 5px;">
-                                    <div class="fw-bold">
-                                        <t t-esc="(sig and sig.x_ceo_name) or 'Jehanzeb Saulat'"/>
-                                    </div>
-                                    <div class="text-muted small">
-                                        <t t-esc="(sig and sig.x_ceo_title) or 'Chief Executive Officer'"/>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
+                            </t>
+                            <t t-if="o.partner_id.country_id">
+                                <div><t t-esc="o.partner_id.country_id.name"/></div>
+                            </t>
+                            <t t-if="o.partner_id.phone">
+                                <div>Tel: <t t-esc="o.partner_id.phone"/></div>
+                            </t>
+                            <t t-if="o.partner_id.email">
+                                <div>Email: <t t-esc="o.partner_id.email"/></div>
+                            </t>
+                        </t>
                     </div>
-                </t>
+
+                    <!-- ══════════════════════════════════════════════════════════
+                         TITLE
+                         ══════════════════════════════════════════════════════════ -->
+                    <div class="po-title">Purchase Order</div>
+
+                    <!-- ══════════════════════════════════════════════════════════
+                         META — reference, CEO-approval date, category, project …
+                         Date = date_approve (set when CEO clicks Final Approval),
+                         NOT date_order (that is the PR creation date).
+                         ══════════════════════════════════════════════════════════ -->
+                    <table class="po-meta" style="margin-bottom:16px;">
+                        <tr>
+                            <td class="lbl">PO Reference:</td>
+                            <td><t t-esc="o.name"/></td>
+                        </tr>
+                        <tr>
+                            <td class="lbl">Date:</td>
+                            <!-- date_approve is stamped by action_ceo_final_approval()
+                                 at the moment the CEO approves — use it, not date_order. -->
+                            <td>
+                                <t t-if="o.date_approve">
+                                    <t t-esc="o.date_approve" t-options='{"widget": "date"}'/>
+                                </t>
+                                <t t-else="">
+                                    <t t-esc="o.date_order" t-options='{"widget": "date"}'/>
+                                </t>
+                            </td>
+                        </tr>
+                        <tr t-if="o.x_project_analytic_account_id">
+                            <td class="lbl">Project:</td>
+                            <td><t t-esc="o.x_project_analytic_account_id.name"/></td>
+                        </tr>
+                        <t t-if="o.partner_ref">
+                            <tr>
+                                <td class="lbl">Vendor Ref:</td>
+                                <td><t t-esc="o.partner_ref"/></td>
+                            </tr>
+                        </t>
+                    </table>
+
+                    <!-- ══════════════════════════════════════════════════════════
+                         FORMAL LETTER BODY
+                         ══════════════════════════════════════════════════════════ -->
+                    <div style="font-size:13px; line-height:1.65; margin-bottom:16px;">
+                        <p style="margin:0 0 8px 0;">Dear Sir/Madam,</p>
+                        <p style="margin:0 0 8px 0;">
+                            With reference to your quotation / our discussions, we are pleased to
+                            issue this Purchase Order for the supply of materials/services as
+                            detailed below.
+                        </p>
+                        <p style="margin:0 0 8px 0;">
+                            Please find this Purchase Order
+                            (<t t-esc="o.name"/>) for your reference and records.
+                        </p>
+                        <p style="margin:0 0 8px 0;">
+                            Kindly acknowledge receipt of this order and confirm the delivery schedule.
+                        </p>
+                        <p style="margin:0 0 8px 0;">
+                            Best regards,<br/>
+                            <strong>Procurement Department</strong><br/>
+                            Matracon Pakistan (Pvt.) Limited
+                        </p>
+                    </div>
+
+                    <!-- ══════════════════════════════════════════════════════════
+                         LINE ITEMS TABLE
+                         Filter: only lines where x_approved_qty > 0
+                         ══════════════════════════════════════════════════════════ -->
+                    <h3 style="font-size:14px; font-weight:bold; border-bottom:2px solid #1a3a5c;
+                                padding-bottom:5px; margin-bottom:10px; color:#1a3a5c;">
+                        Order Items
+                    </h3>
+
+                    <table class="po-table">
+                        <thead>
+                            <tr>
+                                <th style="width:4%; text-align:center;">#</th>
+                                <th style="width:36%; text-align:left;">Product / Description</th>
+                                <th style="width:9%; text-align:center;">UoM</th>
+                                <th style="width:12%; text-align:center;">Quantity</th>
+                                <th style="width:18%; text-align:right;">Unit Price</th>
+                                <th style="width:21%; text-align:right;">Subtotal</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <t t-set="line_no" t-value="1"/>
+                            <t t-set="po_grand_total" t-value="0.0"/>
+                            <t t-foreach="o.order_line" t-as="line">
+                                <!-- Only print lines that were approved (x_approved_qty > 0).
+                                     Lines with approved qty = 0 were not cleared for this PO.
+                                     Price = 0 is allowed (direct vendor without CS). -->
+                                <t t-if="not line.display_type and (line.x_approved_qty or 0) > 0">
+                                    <t t-set="po_qty" t-value="line.x_approved_qty"/>
+                                    <t t-set="po_subtotal" t-value="po_qty * (line.price_unit or 0.0)"/>
+                                    <t t-set="po_grand_total" t-value="po_grand_total + po_subtotal"/>
+                                    <tr>
+                                        <td style="text-align:center;">
+                                            <t t-esc="line_no"/>
+                                            <t t-set="line_no" t-value="line_no + 1"/>
+                                        </td>
+                                        <td style="text-align:left;">
+                                            <t t-esc="line.product_id.display_name"/>
+                                            <t t-if="line.name and line.name != line.product_id.display_name">
+                                                <br/>
+                                                <span style="font-size:11px; color:#666;">
+                                                    <t t-esc="line.name"/>
+                                                </span>
+                                            </t>
+                                        </td>
+                                        <td style="text-align:center;">
+                                            <t t-esc="line.product_uom_id.name"/>
+                                        </td>
+                                        <td style="text-align:center; font-weight:bold;">
+                                            <t t-esc="'%.4g' % po_qty"/>
+                                        </td>
+                                        <td style="text-align:right;">
+                                            <t t-esc="(o.currency_id.name or '') + ' ' + '{:,.2f}'.format(line.price_unit or 0.0)"/>
+                                        </td>
+                                        <td style="text-align:right; font-weight:bold;">
+                                            <t t-esc="(o.currency_id.name or '') + ' ' + '{:,.2f}'.format(po_subtotal)"/>
+                                        </td>
+                                    </tr>
+                                </t>
+                            </t>
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <td colspan="5" style="text-align:right; padding:8px 10px;">
+                                    Total:
+                                </td>
+                                <td style="text-align:right; padding:8px 10px;">
+                                    <t t-esc="(o.currency_id.name or '') + ' ' + '{:,.2f}'.format(po_grand_total)"/>
+                                </td>
+                            </tr>
+                        </tfoot>
+                    </table>
+
+                    <!-- ══════════════════════════════════════════════════════════
+                         TERMS &amp; CONDITIONS
+                         ══════════════════════════════════════════════════════════ -->
+                    <t t-if="o.note">
+                        <h3 style="font-size:14px; font-weight:bold; border-bottom:2px solid #1a3a5c;
+                                    padding-bottom:5px; margin:16px 0 8px 0; color:#1a3a5c;">
+                            Terms &amp; Conditions
+                        </h3>
+                        <div style="font-size:12px; line-height:1.6;">
+                            <t t-out="o.note"/>
+                        </div>
+                    </t>
+
+                    <!-- ══════════════════════════════════════════════════════════
+                         SIGNATURES — PO Officer + CEO
+                         ══════════════════════════════════════════════════════════ -->
+                    <t t-set="sig"
+                       t-value="o.env['x.po.signature.config'].sudo().search(
+                           [('company_id', '=', o.company_id.id)], limit=1)"/>
+                    <div style="display:table; width:100%; margin-top:48px;">
+                        <!-- PO Officer -->
+                        <div style="display:table-cell; width:50%; text-align:center; padding:0 20px;">
+                            <div style="min-height:60px; display:flex; align-items:flex-end;
+                                        justify-content:center; padding-bottom:4px;">
+                                <t t-if="sig and sig.x_po_officer_signature">
+                                    <img t-att-src="image_data_uri(sig.x_po_officer_signature)"
+                                         style="max-height:58px; max-width:200px; object-fit:contain;"/>
+                                </t>
+                                <t t-else="">
+                                    <span class="matracon-sig">
+                                        <t t-esc="(sig and sig.x_po_officer_name) or 'Nasir Swati'"/>
+                                    </span>
+                                </t>
+                            </div>
+                            <div style="border-top:1px solid #000; padding-top:5px;">
+                                <div style="font-weight:bold;">
+                                    <t t-esc="(sig and sig.x_po_officer_name) or 'Nasir Swati'"/>
+                                </div>
+                                <div style="color:#555; font-size:12px;">
+                                    <t t-esc="(sig and sig.x_po_officer_title) or 'Procurement Officer'"/>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- CEO -->
+                        <div style="display:table-cell; width:50%; text-align:center; padding:0 20px;">
+                            <div style="min-height:60px; display:flex; align-items:flex-end;
+                                        justify-content:center; padding-bottom:4px;">
+                                <t t-if="sig and sig.x_ceo_signature">
+                                    <img t-att-src="image_data_uri(sig.x_ceo_signature)"
+                                         style="max-height:58px; max-width:200px; object-fit:contain;"/>
+                                </t>
+                                <t t-else="">
+                                    <span class="matracon-sig">
+                                        <t t-esc="(sig and sig.x_ceo_name) or 'Jehanzeb Saulat'"/>
+                                    </span>
+                                </t>
+                            </div>
+                            <div style="border-top:1px solid #000; padding-top:5px;">
+                                <div style="font-weight:bold;">
+                                    <t t-esc="(sig and sig.x_ceo_name) or 'Jehanzeb Saulat'"/>
+                                </div>
+                                <div style="color:#555; font-size:12px;">
+                                    <t t-esc="(sig and sig.x_ceo_title) or 'Chief Executive Officer'"/>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ══════════════════════════════════════════════════════════
+                         FOOTER — MATRACON LOGO + COMPANY DETAILS
+                         (matches RFQ layout: company goes to bottom)
+                         ══════════════════════════════════════════════════════════ -->
+                    <div class="po-footer">
+                        <!-- Company logo -->
+                        <t t-if="env.company.logo">
+                            <div style="margin-bottom:6px;">
+                                <img t-att-src="image_data_uri(env.company.logo)"
+                                     style="max-height:48px; max-width:160px; object-fit:contain;"/>
+                            </div>
+                        </t>
+                        <strong><t t-esc="env.company.name"/></strong><br/>
+                        <span>
+                            <t t-if="env.company.street">
+                                <t t-esc="env.company.street"/>
+                            </t>
+                            <t t-if="env.company.city">
+                                <t t-if="env.company.street">,</t>
+                                <t t-esc="env.company.city"/>
+                            </t>
+                            <t t-if="env.company.zip">
+                                <t t-esc="env.company.zip"/>
+                            </t>
+                            <t t-if="env.company.country_id">
+                                <t t-if="env.company.city or env.company.street">,</t>
+                                <t t-esc="env.company.country_id.name"/>
+                            </t>
+                        </span>
+                        <t t-if="env.company.phone">
+                            <br/>Tel: <t t-esc="env.company.phone"/>
+                        </t>
+                        <t t-if="env.company.vat">
+                            <br/>NTN: <t t-esc="env.company.vat"/>
+                        </t>
+                        <t t-if="env.company.website">
+                            <br/><t t-esc="env.company.website"/>
+                        </t>
+                    </div>
+
+                </div>
             </t>
         </t>
     </template>

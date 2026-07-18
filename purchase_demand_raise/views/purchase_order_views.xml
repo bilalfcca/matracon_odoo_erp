@@ -164,6 +164,53 @@
             <xpath expr="//header/button[@name='button_cancel']" position="attributes">
                 <attribute name="invisible">x_is_site_store or (x_is_pr_document and x_pr_state in ('rejected', 'cancelled'))</attribute>
             </xpath>
+
+            <!-- Hide the standard Odoo 'Reset to Draft' button on PR documents —
+                 our custom action_reset_to_draft handles this with proper state cleanup -->
+            <xpath expr="//header/button[@name='button_draft']" position="attributes">
+                <attribute name="invisible">x_is_pr_document</attribute>
+            </xpath>
+
+            <!-- ── Reset / Undo buttons (role-specific) ── -->
+            <xpath expr="//header/button[@name='button_cancel']" position="after">
+
+                <!-- Site Store: undo submission → back to Draft (only while HO hasn't acted) -->
+                <button name="action_reset_to_draft"
+                        string="↩ Reset to Draft"
+                        type="object"
+                        class="btn-secondary"
+                        confirm="Reset this PR back to Draft? You will be able to edit and resubmit it."
+                        groups="purchase_demand_raise.group_site_store"
+                        invisible="x_pr_state not in ('submitted', 'cancelled', 'rejected') or x_ho_status != 'pending'"/>
+
+                <!-- HO Procurement: undo their own approval → back to Submitted (only if CEO hasn't acted) -->
+                <button name="action_reset_to_draft"
+                        string="↩ Undo HO Approval"
+                        type="object"
+                        class="btn-secondary"
+                        confirm="Undo your HO approval? The PR will return to Submitted state for re-evaluation."
+                        groups="purchase_demand_raise.group_procurement_ho"
+                        invisible="x_ho_status != 'approved' or x_ceo_status != 'pending'"/>
+
+                <!-- CEO: undo their own approval/rejection → back to Pending CEO Approval -->
+                <button name="action_reset_to_draft"
+                        string="↩ Undo CEO Decision"
+                        type="object"
+                        class="btn-secondary"
+                        confirm="Undo your CEO decision? The PR will return to Pending CEO Approval state."
+                        groups="purchase_demand_raise.group_ceo_approval"
+                        invisible="x_ceo_status not in ('approved', 'rejected')"/>
+
+                <!-- Matracon Admin / System: full reset to Draft from any state -->
+                <button name="action_reset_to_draft"
+                        string="↩ Full Reset to Draft"
+                        type="object"
+                        class="btn-secondary"
+                        confirm="Full reset: ALL approval statuses will be cleared and PR returned to Draft. Continue?"
+                        groups="purchase_demand_raise.group_matracon_admin,base.group_system"
+                        invisible="x_pr_state == 'draft'"/>
+
+            </xpath>
             <!-- Hide duplicate standard Print Quotation buttons — use Print RFQ instead -->
             <xpath expr="//header/button[@name='print_quotation']" position="attributes">
                 <attribute name="invisible">1</attribute>
@@ -600,10 +647,10 @@
                 <attribute name="invisible">is_shipped or state not in ('purchase', 'done') or x_pr_state not in ('po_locked', 'dispatched')</attribute>
             </xpath>
 
-            <!-- Receipt stat button: Site Store only -->
+            <!-- Receipt stat button: Site Store (to receive products) + CEO/Admin (to reverse before undo) -->
             <xpath expr="//div[@name='button_box']//button[@name='action_view_picking']" position="attributes">
-                <attribute name="groups">purchase_demand_raise.group_site_store</attribute>
-                <attribute name="invisible">state not in ('purchase', 'done') or x_pr_state not in ('po_locked', 'dispatched')</attribute>
+                <attribute name="groups">purchase_demand_raise.group_site_store,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,base.group_system</attribute>
+                <attribute name="invisible">incoming_picking_count == 0</attribute>
             </xpath>
 
         </field>

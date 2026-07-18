@@ -1,3 +1,5 @@
+from dateutil.relativedelta import relativedelta
+
 from odoo import models, fields, api, _
 
 # Demo / default site warehouses — one per Matracon project (code, display name).
@@ -61,6 +63,31 @@ class ProjectSiteConfigProjectLink(models.Model):
         compute='_compute_accountant_count',
         string='Accountants',
     )
+
+    # ── Project Timeline / EOT ─────────────────────────────────────────────────
+    x_project_start_date = fields.Date(
+        string='Project Start Date', tracking=True,
+        help='Date work officially commenced on this project.')
+    x_project_deadline = fields.Date(
+        string='Original Project Deadline', tracking=True,
+        help='Baseline contractual completion date before any extensions.')
+    x_eot_ids = fields.One2many(
+        'x.project.eot', 'site_config_id', string='Extension of Time History')
+    x_current_deadline = fields.Date(
+        string='Current Deadline',
+        compute='_compute_current_deadline', store=True,
+        help='Original deadline plus the cumulative duration of all approved EOTs.')
+
+    @api.depends('x_project_deadline', 'x_eot_ids.duration_months', 'x_eot_ids.eot_date')
+    def _compute_current_deadline(self):
+        for rec in self:
+            if not rec.x_project_deadline:
+                rec.x_current_deadline = False
+                continue
+            running = rec.x_project_deadline
+            for eot in rec.x_eot_ids.sorted(lambda e: (e.eot_date or fields.Date.today(), e.id)):
+                running = running + relativedelta(months=eot.duration_months or 0)
+            rec.x_current_deadline = running
 
     @api.depends('x_site_accountant_ids')
     def _compute_accountant_count(self):
@@ -394,3 +421,59 @@ class ProjectSiteConfigProjectLink(models.Model):
 
         if write_vals:
             self.sudo().write(write_vals)
+
+
+class ProjectEot(models.Model):
+    """Extension of Time (EOT) — each record extends the project deadline by a
+    given number of months.  The cumulative result is shown as
+    ``x_current_deadline`` on the parent site configuration."""
+    _name = 'x.project.eot'
+    _description = 'Project Extension of Time (EOT)'
+    _order = 'eot_date asc, id asc'
+
+    site_config_id = fields.Many2one(
+        'x.project.site.config', string='Project Site',
+        required=True, ondelete='cascade', index=True)
+    eot_no = fields.Integer(
+        string='No.', readonly=True, copy=False,
+        help='Sequential EOT number within this project (auto-assigned).')
+    eot_date = fields.Date(
+        string='Approval Date', required=True, default=fields.Date.context_today,
+        help='Date on which the extension was formally approved / issued.')
+    duration_months = fields.Integer(
+        string='Duration (Months)', required=True,
+        help='Number of calendar months by which the deadline is extended.')
+    effective_deadline = fields.Date(
+        string='Effective Deadline',
+        compute='_compute_effective_deadline',
+        help='Cumulative project deadline after applying this and all prior EOTs.')
+    notes = fields.Text(string='Notes / Reference')
+
+    @api.depends(
+        'site_config_id.x_project_deadline',
+        'site_config_id.x_eot_ids.duration_months',
+        'site_config_id.x_eot_ids.eot_date',
+    )
+    def _compute_effective_deadline(self):
+        for rec in self:
+            baseline = rec.site_config_id.x_project_deadline
+            if not baseline:
+                rec.effective_deadline = False
+                continue
+            running = baseline
+            for eot in rec.site_config_id.x_eot_ids.sorted(
+                lambda e: (e.eot_date or fields.Date.today(), e.id)
+            ):
+                running = running + relativedelta(months=eot.duration_months or 0)
+                if eot.id == rec.id:
+                    break
+            rec.effective_deadline = running
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        for vals in vals_list:
+            if not vals.get('eot_no') and vals.get('site_config_id'):
+                existing = self.search_count(
+                    [('site_config_id', '=', vals['site_config_id'])])
+                vals['eot_no'] = existing + 1
+        return super().create(vals_list)

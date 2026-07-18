@@ -678,6 +678,14 @@ class PurchaseOrder(models.Model):
                     'x_ceo_status': 'pending',
                 })
                 order._ensure_followers()
+
+                # Auto-mark site user's own pending activities as done before scheduling new ones
+                order.activity_ids.filtered(
+                    lambda a: a.user_id == self.env.user
+                ).action_feedback(
+                    feedback=_('PR submitted by %s') % self.env.user.name
+                )
+
                 order._schedule_approval_activities()
 
                 # Auto-create a Comparative Statement so HO can start evaluating vendors immediately
@@ -863,6 +871,13 @@ class PurchaseOrder(models.Model):
                 'x_ho_status': order.x_ho_status if not bypass_ho else 'pending',
             })
 
+            # Auto-mark CEO's pending activities as done
+            order.activity_ids.filtered(
+                lambda a: a.user_id == self.env.user
+            ).action_feedback(
+                feedback=_('CEO Final Approval granted by %s') % self.env.user.name
+            )
+
             # ── Confirm the PO and ensure receipt picking is created ──────────
             order.button_confirm()
             if order.state == 'to approve' and hasattr(order, 'button_approve'):
@@ -899,22 +914,6 @@ class PurchaseOrder(models.Model):
                 subtype_xmlid='mail.mt_log_note',
             )
 
-            # ── Auto-send Purchase Order PDF to vendor ────────────────────────
-            if order.partner_id:
-                po_template = self.env.ref(
-                    'purchase_demand_raise.matracon_po_confirmation_email_template',
-                    raise_if_not_found=False,
-                )
-                if po_template:
-                    try:
-                        po_template.send_mail(order.id, force_send=True)
-                    except Exception as e:
-                        # Never block the approval if email fails
-                        order.message_post(
-                            body=Markup('⚠️ Purchase Order email could not be sent to vendor: %s') % str(e),
-                            subtype_xmlid='mail.mt_log_note',
-                        )
-
             ho_partners = order._get_group_partners('purchase_demand_raise.group_procurement_ho')
             order._notify_partners(
                 ho_partners,
@@ -928,18 +927,16 @@ class PurchaseOrder(models.Model):
                            'The Purchase Order is confirmed and materials will be ordered.') % {'pr': order.name}
                 )
 
-            # ── Auto-send PO confirmation email to vendor ─────────────────────
+            # ── Auto-send PO confirmation email to vendor (once) ─────────────
             if order.partner_id and order.partner_id.email:
                 try:
                     po_template = self.env.ref(
                         'purchase_demand_raise.matracon_po_confirmation_email_template',
                         raise_if_not_found=False,
+                    ) or self.env.ref(
+                        'purchase.email_template_edi_purchase_done',
+                        raise_if_not_found=False,
                     )
-                    if not po_template:
-                        po_template = self.env.ref(
-                            'purchase.email_template_edi_purchase_done',
-                            raise_if_not_found=False,
-                        )
                     if po_template:
                         po_template.with_context(
                             lang=order.partner_id.lang or 'en_US'
@@ -959,6 +956,16 @@ class PurchaseOrder(models.Model):
                         'Failed to auto-send PO confirmation email for %s: %s',
                         order.name, exc,
                     )
+                    order.message_post(
+                        body=Markup(
+                            '⚠️ <b>Purchase Order email could not be sent to the vendor.</b><br/>'
+                            'The PO is confirmed and locked. Please send the PO PDF manually '
+                            'using the <b>Send by Email</b> button or print it.<br/>'
+                            '<small class="text-muted">Technical details have been recorded '
+                            'in the server log.</small>'
+                        ),
+                        subtype_xmlid='mail.mt_log_note',
+                    )
 
     def action_ceo_final_reject(self):
         """CEO rejects at final stage (or bypass review from submitted)."""
@@ -966,6 +973,12 @@ class PurchaseOrder(models.Model):
             if order.x_pr_state not in ('ceo_final', 'submitted'):
                 raise UserError(_('PR is not awaiting CEO decision.'))
             order.write({'x_ceo_status': 'rejected', 'x_pr_state': 'rejected'})
+            # Auto-mark CEO's pending activities as done
+            order.activity_ids.filtered(
+                lambda a: a.user_id == self.env.user
+            ).action_feedback(
+                feedback=_('Rejected by CEO: %s') % self.env.user.name
+            )
             order.message_post(
                 body=Markup('❌ PO rejected by <b>CEO</b> at final stage (%s).') % self.env.user.name,
                 subtype_xmlid='mail.mt_log_note',
@@ -1173,19 +1186,23 @@ class PurchaseOrder(models.Model):
                     order.x_pr_state, order.x_pr_state
                 ))
 
-        # ── Open the mail compose wizard (super sets default_template_id to
-        #    purchase.email_template_edi_purchase) ──────────────────────────
+        # ── Open the mail compose wizard ──────────────────────────────────────
         result = super().action_rfq_send()
 
-        # ── Swap template to our standalone Matracon RFQ template ────────────
-        # This ensures the compose dialog uses:
-        #   • Our formal Matracon letter body
-        #   • Our custom RFQ PDF (blank price columns) as attachment
-        # The standalone template has its own ID so noupdate never blocks it.
-        our_template = self.env.ref(
-            'purchase_demand_raise.matracon_rfq_email_template',
-            raise_if_not_found=False,
-        )
+        # ── Swap to the correct Matracon template based on PO state ──────────
+        # Locked POs (state='purchase') → PO Confirmation template
+        # RFQs / draft / sent         → RFQ template (formal invite letter)
+        # The standalone templates have their own IDs so noupdate never blocks.
+        if self.state == 'purchase':
+            our_template = self.env.ref(
+                'purchase_demand_raise.matracon_po_confirmation_email_template',
+                raise_if_not_found=False,
+            )
+        else:
+            our_template = self.env.ref(
+                'purchase_demand_raise.matracon_rfq_email_template',
+                raise_if_not_found=False,
+            )
         if our_template:
             ctx = result.get('context')
             if isinstance(ctx, dict):
@@ -1198,6 +1215,144 @@ class PurchaseOrder(models.Model):
             if order.x_is_pr_document and order.x_pr_state == 'rejected':
                 raise UserError(_('This PR has already been rejected. Cancellation is not allowed on a rejected PR.'))
         return super().button_cancel()
+
+    def action_reset_to_draft(self):
+        """Role-specific partial revert — each user only undoes their own step.
+
+        • Site Store  — submitted → draft (only while HO hasn't acted)
+        • HO          — ceo_final → submitted; x_ho_status approved → pending
+                        (only while CEO hasn't acted)
+        • CEO         — po_locked → ceo_final (cancel confirmed PO via sudo)
+                        OR rejected → ceo_final; x_ceo_status → pending
+        • Admin       — full reset to draft from any state (with sudo)
+        """
+        is_ceo   = self.env.user.has_group('purchase_demand_raise.group_ceo_approval')
+        is_admin = self.env.user.has_group('purchase_demand_raise.group_matracon_admin')
+        is_ho    = self.env.user.has_group('purchase_demand_raise.group_procurement_ho')
+        is_site  = self.env.user.has_group('purchase_demand_raise.group_site_store')
+
+        for order in self:
+            if not order.x_is_pr_document:
+                # Non-PR purchase orders: standard reset
+                if order.state == 'cancel':
+                    order.sudo().button_draft()
+                continue
+
+            if is_admin:
+                # ── Admin: full reset ─────────────────────────────────────
+                if order.x_pr_state == 'po_locked' and order.incoming_picking_count:
+                    raise UserError(_(
+                        'PO %(name)s has %(n)s receipt(s) already created. '
+                        'Reverse the receipts before resetting.',
+                        name=order.name, n=order.incoming_picking_count,
+                    ))
+                if order.state == 'cancel':
+                    order.sudo().button_draft()
+                elif order.state == 'purchase':
+                    order.sudo().button_cancel()
+                    order.sudo().button_draft()
+                order.write({
+                    'x_pr_state': 'draft',
+                    'x_ho_status': 'pending',
+                    'x_ceo_status': 'pending',
+                })
+                order.message_post(
+                    body=Markup(
+                        '↩️ PR fully reset to <b>Draft</b> by Admin <b>%(user)s</b>.'
+                    ) % {'user': self.env.user.name},
+                    subtype_xmlid='mail.mt_log_note',
+                )
+
+            elif is_ceo:
+                # ── CEO: undo only CEO decision ───────────────────────────
+                if order.x_ceo_status not in ('approved', 'rejected'):
+                    raise UserError(_(
+                        'No CEO decision to undo on %(name)s.', name=order.name
+                    ))
+                if order.x_pr_state == 'po_locked' and order.incoming_picking_count:
+                    raise UserError(_(
+                        'PO %(name)s has %(n)s receipt(s) already created. '
+                        'Reverse the receipts before undoing CEO approval.',
+                        name=order.name, n=order.incoming_picking_count,
+                    ))
+                # If PO was confirmed, cancel it back to draft via sudo
+                if order.state == 'purchase':
+                    order.sudo().button_cancel()
+                    order.sudo().button_draft()
+                order.write({
+                    'x_pr_state': 'ceo_final',
+                    'x_ceo_status': 'pending',
+                })
+                order.message_post(
+                    body=Markup(
+                        '↩️ CEO decision on <b>%(name)s</b> reverted to '
+                        '<b>Pending CEO Approval</b> by <b>%(user)s</b>.'
+                    ) % {'name': order.name, 'user': self.env.user.name},
+                    subtype_xmlid='mail.mt_log_note',
+                )
+
+            elif is_ho:
+                # ── HO: undo only HO approval (if CEO hasn't acted yet) ───
+                if order.x_ho_status != 'approved':
+                    raise UserError(_(
+                        'You have not approved %(name)s yet.', name=order.name
+                    ))
+                if order.x_ceo_status != 'pending':
+                    raise UserError(_(
+                        'CEO has already acted on %(name)s. '
+                        'Ask the CEO to undo their decision first.',
+                        name=order.name,
+                    ))
+                order.write({
+                    'x_pr_state': 'submitted',
+                    'x_ho_status': 'pending',
+                    'x_ceo_status': 'pending',
+                })
+                order.message_post(
+                    body=Markup(
+                        '↩️ HO approval on <b>%(name)s</b> reverted to '
+                        '<b>Pending HO Review</b> by <b>%(user)s</b>.'
+                    ) % {'name': order.name, 'user': self.env.user.name},
+                    subtype_xmlid='mail.mt_log_note',
+                )
+
+            elif is_site:
+                # ── Site Store: undo submission (only if HO hasn't acted) ─
+                if order.x_ho_status != 'pending':
+                    raise UserError(_(
+                        'Head Office has already reviewed %(name)s. '
+                        'You can no longer undo the submission. '
+                        'Please contact HO Procurement.',
+                        name=order.name,
+                    ))
+                if order.x_pr_state not in ('submitted', 'cancelled', 'rejected'):
+                    raise UserError(_(
+                        'PR %(name)s cannot be reset at this stage.',
+                        name=order.name,
+                    ))
+                if order.state == 'cancel':
+                    order.sudo().button_draft()
+                order.write({
+                    'x_pr_state': 'draft',
+                    'x_ho_status': 'pending',
+                    'x_ceo_status': 'pending',
+                })
+                order.message_post(
+                    body=Markup(
+                        '↩️ PR <b>%(name)s</b> reset to <b>Draft</b> by <b>%(user)s</b>.'
+                    ) % {'name': order.name, 'user': self.env.user.name},
+                    subtype_xmlid='mail.mt_log_note',
+                )
+
+            else:
+                raise UserError(_('You do not have permission to revert this PR.'))
+
+            # Auto-mark calling user's pending activities as done
+            order.activity_ids.filtered(
+                lambda a: a.user_id == self.env.user
+            ).action_feedback(
+                feedback=_('Step reverted by %s') % self.env.user.name
+            )
 
     # ── CS helpers ───────────────────────────────────────────────────────────
 

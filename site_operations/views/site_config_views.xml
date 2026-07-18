@@ -53,6 +53,40 @@
                         </list>
                     </field>
                 </page>
+
+                <page string="Project Details" name="project_details">
+                    <group string="Project Timeline">
+                        <group>
+                            <field name="x_project_start_date" string="Project Start Date"/>
+                            <field name="x_project_deadline" string="Original Deadline (Baseline)"/>
+                        </group>
+                        <group>
+                            <field name="x_current_deadline" string="Current Deadline" readonly="1"
+                                   decoration-success="x_current_deadline != x_project_deadline"
+                                   class="fw-bold"/>
+                        </group>
+                    </group>
+
+                    <separator string="Extension of Time (EOT) History"/>
+                    <field name="x_eot_ids" nolabel="1">
+                        <list editable="bottom">
+                            <field name="eot_no" string="No." readonly="1" width="48px"/>
+                            <field name="eot_date" string="Approval Date"/>
+                            <field name="duration_months" string="Duration (Months)"/>
+                            <field name="effective_deadline" string="Effective Deadline" readonly="1"
+                                   decoration-bf="1"/>
+                            <field name="notes" string="Notes / Reference"/>
+                        </list>
+                    </field>
+
+                    <div class="alert alert-info mt-2" role="alert"
+                         invisible="not x_project_deadline">
+                        <i class="fa fa-info-circle me-2"/>
+                        <strong>How EOT works:</strong>
+                        Each row adds months to the previous deadline cumulatively.
+                        The <strong>Current Deadline</strong> above reflects the sum of all EOTs.
+                    </div>
+                </page>
             </page>
 
         </field>

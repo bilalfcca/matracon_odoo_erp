@@ -10,7 +10,12 @@
         <field name="model">x.bank.guarantee.facility</field>
         <field name="arch" type="xml">
             <list string="Bank Facility Limits">
-                <field name="bank_id"/>
+                <field name="journal_id" string="Bank / Journal"/>
+                <field name="reference_no" string="Reference No"/>
+                <field name="date_of_issuance" string="Date of Issuance"/>
+                <field name="expiry_date" string="Expiry"/>
+                <field name="cash_margin_percent" string="Cash Margin %"/>
+                <field name="commission_percent" string="Commission %"/>
                 <field name="total_limit" sum="Total Limit"/>
                 <field name="utilized_amount" sum="Utilized"/>
                 <field name="available_limit" sum="Available"/>
@@ -25,6 +30,13 @@
         <field name="model">x.bank.guarantee.facility</field>
         <field name="arch" type="xml">
             <form string="Bank Facility Limit">
+                <header>
+                    <button name="action_renew_facility" type="object"
+                            string="Renew Facility"
+                            class="btn-primary"
+                            confirm="This will archive the current sanction letter details into Renewal History and clear the header fields so you can enter the new letter. Continue?"
+                            help="Archives the current letter details and clears the header so you can fill in the renewed facility details."/>
+                </header>
                 <sheet>
                     <div class="oe_button_box" name="button_box">
                         <button name="action_view_guarantees" type="object"
@@ -32,18 +44,66 @@
                             <field name="guarantee_count" widget="statinfo" string="Guarantees"/>
                         </button>
                     </div>
-                    <group>
+                    <group string="Current Facility Letter">
                         <group>
-                            <field name="bank_id"/>
-                            <field name="total_limit"/>
-                            <field name="currency_id" groups="base.group_multi_currency"/>
+                            <field name="journal_id" string="Bank / Journal"/>
+                            <field name="reference_no"/>
+                            <field name="date_of_issuance"/>
+                            <field name="expiry_date"/>
                         </group>
                         <group>
-                            <field name="utilized_amount"/>
-                            <field name="available_limit"/>
+                            <field name="cash_margin_percent"/>
+                            <field name="commission_percent"/>
+                            <field name="currency_id" groups="base.group_multi_currency"/>
                             <field name="active"/>
                         </group>
                     </group>
+                    <group string="Sanctioned Limit &amp; Utilization">
+                        <group>
+                            <field name="total_limit"/>
+                            <field name="utilized_amount"/>
+                        </group>
+                        <group>
+                            <field name="available_limit"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Security Details" name="security">
+                            <field name="security_details" nolabel="1"
+                                   placeholder="Enter details of collateral, security deposits, or any pledged assets against this facility…"/>
+                        </page>
+                        <page string="Cash Margin Slabs" name="margin_slabs">
+                            <div class="alert alert-info mb-2" role="alert">
+                                <i class="fa fa-info-circle"/>
+                                Define tiered cash margin rates for this facility.
+                                These slabs are <strong>auto-copied</strong> to every Bank Guarantee issued under this facility.
+                                If no slabs are added, the <strong>Cash Margin (%)</strong> field above is used as a flat rate.
+                                Set <em>Up To Amount</em> = <strong>0</strong> for the last (unlimited) tier.
+                            </div>
+                            <field name="cash_margin_slab_ids">
+                                <list editable="bottom" string="Cash Margin Slabs (Template)">
+                                    <field name="from_amount" string="From Amount"/>
+                                    <field name="to_amount" string="Up To (0 = unlimited)"/>
+                                    <field name="margin_percent" string="Cash Margin %"/>
+                                    <field name="currency_id" column_invisible="True"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Renewal History" name="renewals">
+                            <field name="renewal_ids">
+                                <list editable="bottom" string="Previous Facility Letters">
+                                    <field name="reference_no" string="Reference No"/>
+                                    <field name="date_of_issuance" string="Issuance Date"/>
+                                    <field name="expiry_date" string="Expiry Date"/>
+                                    <field name="total_limit" string="Sanctioned Limit" sum="Total"/>
+                                    <field name="cash_margin_percent" string="Cash Margin %"/>
+                                    <field name="commission_percent" string="Commission %"/>
+                                    <field name="notes" string="Notes"/>
+                                    <field name="currency_id" column_invisible="True"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
                 </sheet>
                 <chatter/>
             </form>
@@ -65,28 +125,37 @@
         <field name="model">x.bank.guarantee</field>
         <field name="arch" type="xml">
             <list string="Bank Guarantees Registry"
+                  import="0"
                   decoration-danger="is_expiring_soon"
                   decoration-muted="state in ('released', 'expired', 'cancelled')">
+                <header>
+                    <button name="action_open_import_wizard" type="object"
+                            string="Import BGs"
+                            icon="fa-upload"
+                            display="always"
+                            class="btn-secondary"/>
+                </header>
                 <field name="sr_no" string="Sr No"/>
-                <field name="bank_id"/>
+                <field name="journal_id" string="Bank"/>
                 <field name="state" widget="badge"
                        decoration-success="state == 'active'"
                        decoration-info="state == 'released'"
                        decoration-warning="state == 'pending'"
                        decoration-danger="state == 'expired'"/>
-                <field name="nature"/>
+                <field name="nature_id"/>
                 <field name="guarantee_number"/>
                 <field name="issue_date"/>
                 <field name="expiry_date"/>
                 <field name="bg_amount" sum="BG Amount"/>
+                <field name="cash_margin_percent" string="Cash Margin %"/>
+                <field name="margin_amount" string="Cash Margin Amt" sum="Total Cash Margin"/>
                 <field name="utilized_amount" optional="hide"/>
                 <field name="available_limit" optional="show"/>
                 <field name="total_limit" optional="show"/>
-                <field name="jv_type" string="JV"/>
+                <field name="jv_type" string="Bidder"/>
                 <field name="jv_name" optional="show"/>
                 <field name="project_id"/>
                 <field name="beneficiary_name"/>
-                <field name="cash_margin_percent" string="Cash Margin %"/>
                 <field name="is_expiring_soon" column_invisible="True"/>
                 <field name="currency_id" column_invisible="True"/>
             </list>
@@ -137,11 +206,11 @@
                     <group>
                         <group string="Guarantee Details">
                             <field name="sr_no" readonly="1"/>
-                            <field name="bank_id"/>
+                            <field name="journal_id" string="Bank"/>
                             <field name="facility_id" readonly="1"/>
-                            <field name="nature"/>
+                            <field name="nature_id"/>
                             <field name="guarantee_number"/>
-                            <field name="jv_type"/>
+                            <field name="jv_type" widget="radio" string="Bidder"/>
                             <field name="jv_name" invisible="jv_type != 'jv'" required="jv_type == 'jv'"/>
                             <field name="project_id"/>
                             <field name="beneficiary_id"/>
@@ -151,9 +220,14 @@
                             <field name="issue_date"/>
                             <field name="expiry_date" decoration-danger="is_expiring_soon"/>
                             <field name="bg_amount"/>
-                            <field name="cash_margin_percent"/>
-                            <field name="pricing_percent"/>
-                            <field name="margin_amount"/>
+                            <field name="cash_margin_percent" string="Cash Margin (%)"
+                                   invisible="cash_margin_slab_ids"
+                                   help="Flat rate used when no Cash Margin Slabs are defined. Add slabs in the tab below for tiered rates."/>
+                            <field name="margin_amount" string="Cash Margin Amount" readonly="1"/>
+                            <field name="pricing_percent" string="Bank Commission/Pricing (%)"/>
+                            <field name="commission_amount" string="Commission Amount" readonly="1"/>
+                            <field name="fed_percent" string="FED (%)"/>
+                            <field name="fed_amount" string="FED Amount" readonly="1"/>
                             <field name="days_to_expiry" invisible="state not in ('active', 'locked', 'pending')"/>
                             <field name="release_date" invisible="state != 'released'"/>
                             <field name="currency_id" groups="base.group_multi_currency"/>
@@ -172,12 +246,32 @@
                         <page string="Amendment History" name="amendments">
                             <field name="amendment_ids">
                                 <list editable="bottom">
+                                    <field name="amendment_no" string="No." readonly="1" width="48px"/>
                                     <field name="amendment_date"/>
                                     <field name="amendment_type"/>
                                     <field name="description"/>
                                     <field name="amount_change" sum="Total Change"/>
                                     <field name="new_expiry_date"/>
                                     <field name="attachment_ids" widget="many2many_binary" string="Docs"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Cash Margin Slabs" name="margin_slabs">
+                            <div class="alert alert-info mb-2" role="alert">
+                                <i class="fa fa-info-circle"/>
+                                Add tiered cash margin slabs for this BG.
+                                The <strong>Cash Margin Amount</strong> above is computed as the sum of all slab margins.
+                                Set <em>Up To Amount</em> = <strong>0</strong> for the last (unlimited) tier.
+                                Leave this tab empty to use the flat <strong>Cash Margin (%)</strong> field instead.
+                            </div>
+                            <field name="cash_margin_slab_ids">
+                                <list editable="bottom" string="Cash Margin Slabs">
+                                    <field name="from_amount" string="From Amount"/>
+                                    <field name="to_amount" string="Up To (0 = unlimited)"/>
+                                    <field name="margin_percent" string="Cash Margin %"/>
+                                    <field name="applicable_amount" string="Applicable Amount" readonly="1"/>
+                                    <field name="slab_amount" string="Margin Amount" readonly="1" sum="Total Cash Margin"/>
+                                    <field name="currency_id" column_invisible="True"/>
                                 </list>
                             </field>
                         </page>
@@ -202,7 +296,7 @@
             <search string="Bank Guarantees">
                 <field name="name"/>
                 <field name="guarantee_number"/>
-                <field name="bank_id"/>
+                <field name="journal_id" string="Bank"/>
                 <field name="project_id"/>
                 <field name="beneficiary_name"/>
                 <field name="jv_name"/>
@@ -213,13 +307,17 @@
                 <filter string="Released" name="filter_released" domain="[('state', '=', 'released')]"/>
                 <filter string="Expired" name="filter_expired" domain="[('state', '=', 'expired')]"/>
                 <separator/>
-                <filter string="Performance BG" name="filter_performance" domain="[('nature', '=', 'performance')]"/>
-                <filter string="Bid Bond" name="filter_bid" domain="[('nature', '=', 'bid_bond')]"/>
+                <filter string="Performance Security" name="filter_performance"
+                        domain="[('nature_id.code', '=', 'performance')]"/>
+                <filter string="Bid Security" name="filter_bid"
+                        domain="[('nature_id.code', '=', 'bid_security')]"/>
+                <filter string="Mob Advance Security" name="filter_mob"
+                        domain="[('nature_id.code', '=', 'mob_advance')]"/>
                 <separator/>
-                <filter string="Group by Bank" name="group_bank" context="{'group_by': 'bank_id'}"/>
+                <filter string="Group by Bank" name="group_bank" context="{'group_by': 'journal_id'}"/>
                 <filter string="Group by Project" name="group_project" context="{'group_by': 'project_id'}"/>
                 <filter string="Group by Status" name="group_state" context="{'group_by': 'state'}"/>
-                <filter string="Group by Nature" name="group_nature" context="{'group_by': 'nature'}"/>
+                <filter string="Group by Nature" name="group_nature" context="{'group_by': 'nature_id'}"/>
             </search>
         </field>
     </record>
@@ -236,6 +334,92 @@
         </field>
     </record>
 
+    <!-- ── BG Expiry Notification Configuration ──────────────────────────── -->
+    <record id="view_bg_expiry_config_form" model="ir.ui.view">
+        <field name="name">x.bg.expiry.config.form</field>
+        <field name="model">x.bg.expiry.config</field>
+        <field name="arch" type="xml">
+            <form string="BG Expiry Notification Settings" create="false" delete="false">
+                <sheet>
+                    <div class="oe_title">
+                        <h2>BG Expiry Notification Settings</h2>
+                        <p class="text-muted">
+                            Finance HO, CEO and Admin users are <strong>always</strong>
+                            notified. Add extra recipients below for external contacts
+                            (e.g. CFO, auditors) who are not Odoo users.
+                        </p>
+                    </div>
+                    <group string="Additional Odoo Recipients">
+                        <field name="recipient_partner_ids" nolabel="1" colspan="2"
+                               widget="many2many_tags"
+                               placeholder="Search contacts to add…"/>
+                    </group>
+                    <group string="Extra Email Addresses (non-Odoo users)">
+                        <field name="extra_emails" nolabel="1" colspan="2"
+                               placeholder="cfo@example.com&#10;auditor@example.com&#10;(one email per line)"/>
+                    </group>
+                    <div class="alert alert-info mt-2">
+                        <i class="fa fa-info-circle"/> Emails are sent automatically:
+                        <ul class="mb-0 mt-1">
+                            <li>Daily cron when a BG enters the <strong>10-day expiry window</strong> (once per BG)</li>
+                            <li>On the <strong>actual expiry date</strong> when the BG is marked Expired</li>
+                            <li>Alert is reset automatically when the expiry date is extended via Amendment</li>
+                        </ul>
+                    </div>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_bg_expiry_config" model="ir.actions.act_window">
+        <field name="name">BG Expiry Notification Settings</field>
+        <field name="res_model">x.bg.expiry.config</field>
+        <field name="view_mode">form</field>
+        <field name="target">current</field>
+    </record>
+
+    <!-- ── Nature of BG configuration ─────────────────────────────────────── -->
+    <record id="view_bg_nature_list" model="ir.ui.view">
+        <field name="name">x.bg.nature.list</field>
+        <field name="model">x.bg.nature</field>
+        <field name="arch" type="xml">
+            <list string="Nature of BG" editable="bottom">
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="guarantee_count" string="BGs" readonly="1"/>
+                <field name="active" column_invisible="True"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_bg_nature_form" model="ir.ui.view">
+        <field name="name">x.bg.nature.form</field>
+        <field name="model">x.bg.nature</field>
+        <field name="arch" type="xml">
+            <form string="Nature of BG">
+                <sheet>
+                    <group>
+                        <field name="name" string="Nature"/>
+                        <field name="sequence"/>
+                        <field name="active"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_bg_nature" model="ir.actions.act_window">
+        <field name="name">Nature of BG</field>
+        <field name="res_model">x.bg.nature</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create a new Nature of BG type
+            </p>
+            <p>Define the types that appear in the Nature dropdown on Bank Guarantees.</p>
+        </field>
+    </record>
+
     <record id="view_bank_guarantee_amendment_form" model="ir.ui.view">
         <field name="name">x.bank.guarantee.amendment.form</field>
         <field name="model">x.bank.guarantee.amendment</field>
@@ -243,6 +427,7 @@
             <form string="Amendment">
                 <group>
                     <field name="guarantee_id" readonly="1"/>
+                    <field name="amendment_no" readonly="1" string="Amendment No."/>
                     <field name="amendment_date"/>
                     <field name="amendment_type"/>
                     <field name="description"/>

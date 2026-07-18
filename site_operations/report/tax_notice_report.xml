@@ -67,36 +67,36 @@
                                 <td style="font-weight:600;">Notice Amount</td>
                                 <td class="text-end">
                                     <t t-esc="notice.currency_id.symbol"/>
-                                    <t t-esc="'{:,.2f}'.format(notice.liability_notice_amount)"/>
+                                    <t t-esc="'{:,.0f}'.format(notice.liability_notice_amount)"/>
                                 </td>
                                 <td style="font-weight:600;">Tax Ordered</td>
                                 <td class="text-end">
                                     <t t-esc="notice.currency_id.symbol"/>
-                                    <t t-esc="'{:,.2f}'.format(notice.tax_ordered_amount)"/>
+                                    <t t-esc="'{:,.0f}'.format(notice.tax_ordered_amount)"/>
                                 </td>
                             </tr>
                             <tr>
                                 <td style="font-weight:600;">Paid (Official)</td>
                                 <td class="text-end">
                                     <t t-esc="notice.currency_id.symbol"/>
-                                    <t t-esc="'{:,.2f}'.format(notice.paid_officially)"/>
+                                    <t t-esc="'{:,.0f}'.format(notice.paid_officially)"/>
                                 </td>
                                 <td style="font-weight:600;">Paid (Unofficial)</td>
                                 <td class="text-end">
                                     <t t-esc="notice.currency_id.symbol"/>
-                                    <t t-esc="'{:,.2f}'.format(notice.paid_unofficially)"/>
+                                    <t t-esc="'{:,.0f}'.format(notice.paid_unofficially)"/>
                                 </td>
                             </tr>
                             <tr>
                                 <td style="font-weight:600;">Consultant Fee</td>
                                 <td class="text-end">
                                     <t t-esc="notice.currency_id.symbol"/>
-                                    <t t-esc="'{:,.2f}'.format(notice.consultant_fee)"/>
+                                    <t t-esc="'{:,.0f}'.format(notice.consultant_fee)"/>
                                 </td>
                                 <td style="font-weight:600; color:#dc3545;">Remaining Liability</td>
                                 <td class="text-end fw-bold" style="color:#dc3545;">
                                     <t t-esc="notice.currency_id.symbol"/>
-                                    <t t-esc="'{:,.2f}'.format(notice.remaining_liability)"/>
+                                    <t t-esc="'{:,.0f}'.format(notice.remaining_liability)"/>
                                 </td>
                             </tr>
                         </table>
@@ -106,7 +106,7 @@
                                 <strong>Auditor Remarks:</strong> <t t-esc="notice.auditor_remarks"/>
                             </div>
                         </t>
-                        <p class="text-muted small mt-3">System-generated — Matracon Pakistan Pvt. Ltd.</p>
+                        <p class="text-muted small mt-3">System-generated — Matracon Pakistan Pvt. Ltd. · Printed: <t t-esc="context_timestamp(datetime.datetime.now()).strftime('%d/%m/%Y')"/></p>
                     </div>
                 </t>
             </t>
