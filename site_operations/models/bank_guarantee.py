@@ -621,7 +621,8 @@ class BankGuarantee(models.Model):
         }
 
     def action_reset_draft(self):
-        self.filtered(lambda r: r.state in ('pending', 'cancelled')).write({'state': 'draft'})
+        resettable = ('pending', 'active', 'locked', 'released', 'expired', 'cancelled')
+        self.filtered(lambda r: r.state in resettable).write({'state': 'draft'})
 
     def action_cancel(self):
         self.filtered(lambda r: r.state in ('draft', 'pending')).write({'state': 'cancelled'})

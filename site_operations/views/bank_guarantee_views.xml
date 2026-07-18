@@ -181,7 +181,8 @@
                     <button name="action_amend" type="object" string="Amend"
                             invisible="state not in ('active', 'locked')"/>
                     <button name="action_reset_draft" type="object" string="Reset to Draft"
-                            invisible="state not in ('pending', 'cancelled')"/>
+                            invisible="state == 'draft'"
+                            confirm="This will reset the bank guarantee back to Draft so it can be edited or deleted. Continue?"/>
                     <button name="action_cancel" type="object" string="Cancel"
                             invisible="state not in ('draft', 'pending')"/>
                     <button name="action_print_bank_guarantee" type="object"
