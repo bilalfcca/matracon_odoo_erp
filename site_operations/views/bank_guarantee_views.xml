@@ -132,6 +132,7 @@
                     <button name="action_open_import_wizard" type="object"
                             string="Import BGs"
                             icon="fa-upload"
+                            display="always"
                             class="btn-secondary"/>
                 </header>
                 <field name="sr_no" string="Sr No"/>
