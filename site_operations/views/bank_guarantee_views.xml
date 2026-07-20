@@ -171,7 +171,7 @@
                 <field name="bg_amount" string="BG Amount" sum="BG Amount" optional="show"/>
                 <field name="cash_margin_percent" string="Cash Margin %" optional="show"/>
                 <field name="margin_amount" string="Cash Margin Amt" sum="Total Cash Margin" optional="show"/>
-                <field name="jv_type" string="Bidder" optional="show"/>
+                <field name="bidder_display" string="Bidder" optional="show"/>
                 <field name="amendment_count" string="Amendments" optional="show"/>
 
                 <!-- ── Hidden by default (optional="hide") — available in picker ── -->
@@ -258,6 +258,7 @@
                             <field name="guarantee_number"/>
                             <field name="jv_type" widget="radio" string="Bidder"/>
                             <field name="jv_name" invisible="jv_type != 'jv'" required="jv_type == 'jv'"/>
+                            <field name="on_behalf_entity" invisible="jv_type != 'on_behalf'" required="jv_type == 'on_behalf'" placeholder="e.g. ZKB"/>
                             <field name="project_id"/>
                             <field name="beneficiary_id"/>
                             <field name="beneficiary_name"/>

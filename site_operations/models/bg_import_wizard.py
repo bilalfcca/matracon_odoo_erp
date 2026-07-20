@@ -13,7 +13,7 @@ Column mapping (0-based index):
   idx 4  E  Nature of Gtee     → nature_id    (lookup or create)
   idx 5  F  Original Gtee Amt  → bg_amount    (face value; preferred over OS amt)
   idx 6  G  Gtee O/S Amount    → bg_amount    (fallback if F is 0 or unparseable)
-  idx 7  H  Entity (MPPL/ZKB)  → ignored (Matracon internal entity type)
+  idx 7  H  Entity (MPPL/ZKB)  → jv_type / on_behalf_entity (MPPL=direct, non-MPPL=on_behalf)
   idx 8  I  JV                 → jv_name      (JV partner name)
   idx 9  J  BENIFICIARY        → beneficiary_name (client / employer)
   idx 10 K  PROJECT            → notes        (detailed description)
@@ -48,6 +48,7 @@ _C = {
     'nature':      4,
     'orig_amt':    5,
     'os_amt':      6,
+    'entity':      7,   # H: MPPL / ZKB / other issuing entity
     'jv_name':     8,
     'beneficiary': 9,
     'description': 10,
@@ -285,11 +286,26 @@ class BgImportWizard(models.TransientModel):
             status_raw = str(_cell(row, 'status') or '').strip().upper()
             state = _STATUS_MAP.get(status_raw, 'draft')
 
-            # JV info
+            # JV / entity info
+            # Col H: issuing entity — 'MPPL' = direct, anything else = on_behalf
+            entity_raw = str(_cell(row, 'entity') or '').strip()
+            entity_upper = entity_raw.upper()
+            is_on_behalf = bool(entity_raw) and entity_upper not in ('', 'N/A', 'MPPL')
+
+            # Col I: JV partner name — only relevant when entity is MPPL
             jv_raw = str(_cell(row, 'jv_name') or '').strip()
-            is_jv = bool(jv_raw) and jv_raw.upper() not in ('N/A', 'MATRACON PAKISTAN', 'MPPL', 'ZKB')
-            jv_type = 'jv' if is_jv else 'direct'
+            is_jv = (not is_on_behalf) and bool(jv_raw) and jv_raw.upper() not in (
+                'N/A', 'MATRACON PAKISTAN', 'MPPL')
+
+            if is_on_behalf:
+                jv_type = 'on_behalf'
+            elif is_jv:
+                jv_type = 'jv'
+            else:
+                jv_type = 'direct'
+
             jv_name_val = jv_raw if is_jv else False
+            on_behalf_entity_val = entity_raw if is_on_behalf else False
 
             # Beneficiary = client/employer (col J), description (col K) goes to notes
             beneficiary_name = str(_cell(row, 'beneficiary') or '').strip() or False
@@ -318,6 +334,7 @@ class BgImportWizard(models.TransientModel):
                 'bg_amount':         bg_amount,
                 'jv_type':           jv_type,
                 'jv_name':           jv_name_val,
+                'on_behalf_entity':  on_behalf_entity_val,
                 'beneficiary_name':  beneficiary_name,
                 'notes':             notes_val or False,
                 'state':             state,

@@ -237,12 +237,19 @@ class BankGuarantee(models.Model):
         ('cancelled', 'Cancelled'),
     ], default='draft', tracking=True, required=True, index=True)
     jv_type = fields.Selection([
-        ('direct', 'Direct'),
+        ('direct', 'MPPL'),
         ('jv', 'Joint Venture'),
+        ('on_behalf', 'On Behalf Of'),
     ], string='BIDDER . Matracon / JV', default='direct', required=True)
     jv_name = fields.Char(
         string='JV Name', tracking=True,
         help='Joint venture name when guarantee is issued in JV capacity.')
+    on_behalf_entity = fields.Char(
+        string='Issuing Entity', tracking=True,
+        help='Name of the third-party entity issuing the guarantee on behalf of Matracon (e.g. ZKB).')
+    bidder_display = fields.Char(
+        string='Bidder', compute='_compute_bidder_display', store=True,
+        help='Human-readable bidder label: MPPL, JV name, or the on-behalf entity name.')
     project_id = fields.Many2one(
         'project.project', string='Project', tracking=True, index=True)
     project_analytic_account_id = fields.Many2one(
@@ -382,6 +389,16 @@ class BankGuarantee(models.Model):
                 rec.margin_amount = rec.bg_amount * (rec.cash_margin_percent or 0.0) / 100.0
             rec.commission_amount = rec.bg_amount * (rec.pricing_percent or 0.0) / 100.0
             rec.fed_amount = rec.commission_amount * (rec.fed_percent or 0.0) / 100.0
+
+    @api.depends('jv_type', 'jv_name', 'on_behalf_entity')
+    def _compute_bidder_display(self):
+        for rec in self:
+            if rec.jv_type == 'jv':
+                rec.bidder_display = rec.jv_name or 'Joint Venture'
+            elif rec.jv_type == 'on_behalf':
+                rec.bidder_display = rec.on_behalf_entity or 'On Behalf Of'
+            else:
+                rec.bidder_display = 'MPPL'
 
     @api.depends('amendment_ids')
     def _compute_amendment_count(self):
