@@ -297,6 +297,34 @@
               sequence="11"
               groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
+    <menuitem id="menu_bank_guarantee_amendments"
+              name="BG Amendments"
+              parent="site_operations.menu_compliance_root"
+              action="site_operations.action_bank_guarantee_amendment"
+              sequence="12"
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
+    <menuitem id="menu_bg_amendment_import"
+              name="Import BG Amendments"
+              parent="site_operations.menu_compliance_root"
+              action="site_operations.action_bg_amendment_import_wizard"
+              sequence="13"
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
+    <menuitem id="menu_bank_guarantee_facility_main"
+              name="Bank Facility Limits"
+              parent="site_operations.menu_compliance_root"
+              action="site_operations.action_bank_guarantee_facility"
+              sequence="14"
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
+    <menuitem id="menu_bg_facility_import"
+              name="Import Bank Facilities"
+              parent="site_operations.menu_compliance_root"
+              action="site_operations.action_bg_facility_import_wizard"
+              sequence="15"
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
     <menuitem id="menu_tax_notices_orders"
               name="Tax Notices &amp; Orders"
               parent="site_operations.menu_compliance_root"

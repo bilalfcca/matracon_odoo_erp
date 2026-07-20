@@ -11,6 +11,7 @@ from . import bank_guarantee
 from . import bank_guarantee_slab
 from . import bg_export_wizard
 from . import bg_import_wizard
+from . import bg_facility_amendment_import
 from . import tax_notice
 from . import matracon_notifications
 from . import app_visibility

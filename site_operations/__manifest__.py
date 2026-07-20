@@ -45,6 +45,7 @@
         'views/bank_guarantee_views.xml',
         'views/bg_export_wizard_views.xml',
         'views/bg_import_wizard_views.xml',
+        'views/bg_facility_amendment_import_views.xml',
         'views/tax_notice_views.xml',
         'views/management_dashboard_views.xml',
         'views/site_accountant_dashboard_views.xml',
