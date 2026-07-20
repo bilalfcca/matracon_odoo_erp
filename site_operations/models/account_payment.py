@@ -1359,6 +1359,15 @@ class AccountPaymentSiteOps(models.Model):
         return self.env.ref(
             'site_operations.action_report_cheque').report_action(self)
 
+    def action_direct_print_bpv(self):
+        """Open the Bank Payment Voucher in a new tab and auto-trigger print dialog."""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_url',
+            'url': f'/site_operations/print/account.payment/{self.id}',
+            'target': 'new',
+        }
+
     def action_set_in_process(self):
         # Post to accounting (creates journal entry, tags analytic, updates liability).
         # WHT companion payment is created inside action_post() for all outbound payments.

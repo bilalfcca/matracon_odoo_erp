@@ -1,331 +1,262 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <!--
-        Matracon Purchase Order Print Template
-        Layout:
-          • Fixed page header  — logo left + MATRACON PAKISTAN (PVT) LIMITED right
-          • Watermark          — faded logo centred behind content
-          • Fixed page footer  — Head Office + Regional Office addresses
-          • PO# left / Date right, then vendor Name / City / Attn:
-          • Formal letter body (unchanged)
-          • Items table, T&C, signature block
+        Matracon Purchase Order — QWeb PDF Template
+        =============================================
+        Uses web.external_layout for proven rendering, with our custom Matracon
+        layout injected as a thin wrapper that provides the header/footer/article
+        divs in exactly the same structure as web.external_layout_standard.
+
+        The <t t-call="web.html_container"> → <t t-call="web.external_layout">
+        chain is the proven Odoo pattern (same as MIF, cheque, etc.).
+
+        web.external_layout_standard generates:
+          <div class="header ...">  ← company logo + details (overridden by us)
+          <div class="article ..."> ← main content via t-out="0"
+          <div class="footer ...">  ← company report_footer (overridden by us)
     -->
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         Matracon PO/RFQ layout — overrides web.external_layout_standard
+         to show the Matracon letterhead header and HO/RO footer.
+         Called by our PO and RFQ templates instead of web.external_layout.
+    ═══════════════════════════════════════════════════════════════════════ -->
+    <template id="matracon_po_layout">
+        <!-- ── HEADER (repeats every page) ── -->
+        <div class="header" style="
+                font-family: Arial, sans-serif;
+                width: 100%;
+                padding: 4mm 12mm 2mm 12mm;
+                box-sizing: border-box;
+                background: #ffffff;">
+            <table style="width:100%; border:0; border-collapse:collapse; border-spacing:0;">
+                <tr>
+                    <td style="width:88px; padding:0; border:0; vertical-align:middle;">
+                        <t t-if="env.company.logo">
+                            <img t-att-src="image_data_uri(env.company.logo)"
+                                 style="max-height:52px; max-width:82px; object-fit:contain; display:block;"/>
+                        </t>
+                    </td>
+                    <td style="padding:0 0 0 10px; border:0; vertical-align:middle;
+                               font-size:20px; font-weight:bold; color:#1a3a5c;
+                               letter-spacing:0.5px; white-space:nowrap;">
+                        MATRACON PAKISTAN (PVT) LIMITED
+                    </td>
+                </tr>
+            </table>
+            <div style="border-top:2.5px solid #1a3a5c; margin-top:4px;"></div>
+        </div>
+
+        <!-- ── ARTICLE (main body — content injected via t-out="0") ── -->
+        <div class="article" style="
+                font-family: Arial, sans-serif;
+                font-size: 13px;
+                color: #222;
+                padding: 16mm 12mm 4mm 12mm;">
+
+            <!-- CSS for the product table — inside article so it's included
+                 in the minimal_layout body that wkhtmltopdf renders. -->
+            <style type="text/css">
+                body, div, p, span, li, td, th {
+                    font-family: Arial, sans-serif;
+                    color: #222;
+                }
+                /* Global reset: suppress borders on all td/th (Bootstrap may add them).
+                   Data tables (.po-table, .rfq-table) override via higher specificity below. */
+                table  { border: none !important; border-collapse: collapse !important; border-spacing: 0 !important; }
+                td, th { border: none !important; }
+
+                /* PO product table */
+                .po-table {
+                    width: 100%;
+                    border-collapse: collapse !important;
+                    font-size: 12px;
+                    margin-bottom: 18px;
+                }
+                .po-table thead tr { background: #1a3a5c; color: #ffffff; }
+                .po-table th {
+                    text-align: center;
+                    padding: 7px 8px;
+                    border: 1px solid #1a3a5c !important;
+                    font-size: 12px;
+                    font-weight: bold;
+                    color: #ffffff;
+                }
+                .po-table td {
+                    border: 1px solid #cccccc !important;
+                    padding: 5px 8px;
+                    font-size: 12px;
+                    vertical-align: top;
+                }
+                .po-table tbody tr:nth-child(odd)  td { background: #ffffff; }
+                .po-table tbody tr:nth-child(even) td { background: #f4f6fa; }
+                .po-table tfoot tr td {
+                    border-top: 2px solid #1a3a5c !important;
+                    font-weight: bold;
+                    background: #eef1f7;
+                }
+                /* RFQ product table */
+                .rfq-table {
+                    width: 100%;
+                    border-collapse: collapse !important;
+                    font-size: 12px;
+                    margin-bottom: 18px;
+                }
+                .rfq-table thead tr { background: #1a3a5c; color: #ffffff; }
+                .rfq-table th {
+                    text-align: center;
+                    padding: 7px 8px;
+                    border: 1px solid #1a3a5c !important;
+                    font-size: 12px;
+                    font-weight: bold;
+                    color: #ffffff;
+                }
+                .rfq-table td {
+                    border: 1px solid #cccccc !important;
+                    padding: 5px 8px;
+                    font-size: 12px;
+                    vertical-align: top;
+                }
+                .rfq-table tbody tr:nth-child(odd)  td { background: #ffffff; }
+                .rfq-table tbody tr:nth-child(even) td { background: #f4f6fa; }
+            </style>
+
+            <!-- Actual page content from the calling template -->
+            <t t-out="0"/>
+        </div>
+
+        <!-- ── FOOTER (repeats every page) ── -->
+        <div class="footer" style="
+                font-family: Arial, sans-serif;
+                font-size: 8px;
+                color: #444;
+                text-align: center;
+                padding: 1mm 12mm 1mm 12mm;
+                width: 100%;
+                box-sizing: border-box;
+                background: #ffffff;">
+            <div style="border-top:1px solid #aaa; margin-bottom:2px;"></div>
+            <div>
+                <strong>Head Office</strong>&#160;:&#160;17, Street No. 89, G-6/3, Islamabad,
+                UAN: 0092-51-111-025-025&#160;&#160;Fax: +92-51-2101183&#160;&#160;E-mail: matracon@gmail.com
+            </div>
+            <div>
+                <strong>Regional Office</strong>&#160;:&#160;2nd Floor, Plot No. 26-C, Lane-3,
+                Main Rahat Commercial, Phase-6 DHA, Karachi&#160;&#160;021-35853154
+            </div>
+        </div>
+    </template>
+
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         PURCHASE ORDER TEMPLATE
+    ═══════════════════════════════════════════════════════════════════════ -->
     <template id="report_final_po_template">
         <t t-call="web.html_container">
             <t t-foreach="docs" t-as="o">
+                <t t-call="purchase_demand_raise.matracon_po_layout">
 
-                <style type="text/css">
-                    /* ── Page margins: leave room for fixed header / footer ── */
-                    @page {
-                        margin: 48mm 20mm 28mm 20mm;
-                    }
-                    body {
-                        font-family: Arial, sans-serif;
-                        font-size: 13px;
-                        color: #222;
-                    }
-
-                    /* ── Fixed page header (all pages) ── */
-                    .mtr-page-header {
-                        position: fixed;
-                        top: -44mm;
-                        left: -20mm;
-                        right: -20mm;
-                        padding: 6mm 20mm 4mm 20mm;
-                        background: #ffffff;
-                    }
-                    .mtr-header-table {
-                        width: 100%;
-                        border-collapse: collapse;
-                    }
-                    .mtr-header-table td {
-                        vertical-align: middle;
-                        padding: 0;
-                        border: none;
-                    }
-                    .mtr-header-logo td {
-                        width: 105px;
-                    }
-                    .mtr-header-name {
-                        padding-left: 14px !important;
-                        font-size: 24px;
-                        font-weight: bold;
-                        color: #1a3a5c;
-                        letter-spacing: 0.5px;
-                        white-space: nowrap;
-                    }
-                    .mtr-header-divider {
-                        border: none;
-                        border-top: 2px solid #1a3a5c;
-                        margin: 6px 0 0 0;
-                    }
-
-                    /* ── Watermark ── */
-                    .mtr-watermark {
-                        position: fixed;
-                        top: 50%;
-                        left: 50%;
-                        transform: translate(-50%, -50%);
-                        opacity: 0.07;
-                        z-index: -1;
-                        width: 320px;
-                        pointer-events: none;
-                    }
-
-                    /* ── Fixed page footer (all pages) ── */
-                    .mtr-page-footer {
-                        position: fixed;
-                        bottom: -24mm;
-                        left: -20mm;
-                        right: -20mm;
-                        padding: 0 20mm 4mm 20mm;
-                        background: #ffffff;
-                        font-size: 9.5px;
-                        color: #444;
-                        text-align: center;
-                    }
-                    .mtr-footer-divider {
-                        border: none;
-                        border-top: 1px solid #aaa;
-                        margin: 0 0 3px 0;
-                    }
-
-                    /* ── PO number / date bar ── */
-                    .po-ref-bar {
-                        display: table;
-                        width: 100%;
-                        margin-bottom: 14px;
-                    }
-                    .po-ref-bar .ref-left {
-                        display: table-cell;
-                        font-weight: bold;
-                        font-size: 13px;
-                    }
-                    .po-ref-bar .ref-right {
-                        display: table-cell;
-                        text-align: right;
-                        font-weight: bold;
-                        font-size: 13px;
-                    }
-
-                    /* ── Vendor block ── */
-                    .po-vendor-block {
-                        margin-bottom: 18px;
-                    }
-                    .po-vendor-block .v-company {
-                        font-size: 14px;
-                        font-weight: bold;
-                        margin-bottom: 2px;
-                    }
-                    .po-vendor-block .v-attn {
-                        font-weight: bold;
-                    }
-
-                    /* ── Meta info (project etc.) ── */
-                    .po-meta td {
-                        padding: 2px 14px 2px 0;
-                        font-size: 13px;
-                    }
-                    .po-meta td.lbl { font-weight: bold; white-space: nowrap; }
-
-                    /* ── Line items table ── */
-                    .po-table {
-                        width: 100%;
-                        border-collapse: collapse;
-                        font-size: 13px;
-                        margin-bottom: 20px;
-                    }
-                    .po-table thead tr {
-                        background: #1a3a5c;
-                        color: #ffffff;
-                    }
-                    .po-table th {
-                        text-align: center;
-                        padding: 8px 10px;
-                        border: 1px solid #1a3a5c;
-                        font-size: 13px;
-                        font-weight: bold;
-                    }
-                    .po-table td {
-                        border: 1px solid #cccccc;
-                        padding: 6px 10px;
-                        text-align: right;
-                        font-size: 13px;
-                    }
-                    .po-table tbody tr:nth-child(odd)  td { background: #ffffff; }
-                    .po-table tbody tr:nth-child(even) td { background: #f4f6fa; }
-                    .po-table tfoot td {
-                        font-weight: bold;
-                        background: #f0f4f8;
-                        border: 1px solid #aaa;
-                    }
-
-                    /* ── Signature cursive font ── */
-                    @import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&amp;display=swap');
-                    .matracon-sig {
-                        font-family: 'Dancing Script', cursive;
-                        font-size: 26px;
-                        color: #1a237e;
-                        line-height: 1.1;
-                    }
-                </style>
-
-                <!-- ══════════════════════════════════════════════════════════
-                     FIXED PAGE HEADER  (appears on every page)
-                     ══════════════════════════════════════════════════════════ -->
-                <div class="mtr-page-header">
-                    <table class="mtr-header-table">
+                    <!-- PO# left — Print date right -->
+                    <table style="width:100%; border:0; border-collapse:collapse; border-spacing:0; margin-bottom:12px;">
                         <tr>
-                            <!-- Logo -->
-                            <td style="width:105px;">
-                                <t t-if="env.company.logo">
-                                    <img t-att-src="image_data_uri(env.company.logo)"
-                                         style="max-height:64px; max-width:100px; object-fit:contain;"/>
-                                </t>
+                            <td style="border:0; padding:0; font-size:13px; font-weight:bold; color:#222;">
+                                <t t-esc="o.name"/>
                             </td>
-                            <!-- Company name -->
-                            <td class="mtr-header-name">
-                                MATRACON PAKISTAN (PVT) LIMITED
+                            <td style="border:0; padding:0; font-size:13px; font-weight:bold;
+                                       color:#222; text-align:right;">
+                                <t t-esc="context_timestamp(datetime.datetime.now()).strftime('%B %d, %Y')"/>
                             </td>
                         </tr>
                     </table>
-                    <hr class="mtr-header-divider"/>
-                </div>
 
-                <!-- ══════════════════════════════════════════════════════════
-                     WATERMARK  (faded logo behind all content)
-                     ══════════════════════════════════════════════════════════ -->
-                <t t-if="env.company.logo">
-                    <div class="mtr-watermark">
-                        <img t-att-src="image_data_uri(env.company.logo)"
-                             style="width:100%; height:auto;"/>
-                    </div>
-                </t>
+                    <!-- Vendor: Company / City / Attn (divs, not table — avoids Bootstrap table border CSS) -->
+                    <t t-set="vendor"    t-value="o.partner_id"/>
+                    <t t-set="v_company" t-value="vendor.parent_id if vendor.parent_id else vendor"/>
+                    <t t-set="v_contact" t-value="vendor if vendor.parent_id else False"/>
 
-                <!-- ══════════════════════════════════════════════════════════
-                     FIXED PAGE FOOTER  (appears on every page)
-                     ══════════════════════════════════════════════════════════ -->
-                <div class="mtr-page-footer">
-                    <hr class="mtr-footer-divider"/>
-                    <div>
-                        <strong>Head Office</strong> &#160; :&#160; 17, Street No. 89, G-6/3, Islamabad,
-                        UAN: 0092-51-111-025-025&#160; Fax: +92-51-2101183&#160; E-mail: matracon@gmail.com
-                    </div>
-                    <div>
-                        <strong>Regional Office</strong> : 2<sup>nd</sup> Floor, Plot No. 26-C, Lane-3,
-                        Main Rahat Commercial, Phase-6 DHA, Karachi 021-35853154
-                    </div>
-                </div>
-
-                <!-- ══════════════════════════════════════════════════════════
-                     MAIN PAGE CONTENT
-                     ══════════════════════════════════════════════════════════ -->
-                <div class="page" style="padding:0;">
-
-                    <!-- PO# left — Date right -->
-                    <div class="po-ref-bar">
-                        <div class="ref-left"><t t-esc="o.name"/></div>
-                        <div class="ref-right">
-                            <t t-if="o.date_approve">
-                                <t t-esc="o.date_approve" t-options='{"widget": "date"}'/>
-                            </t>
-                            <t t-else="">
-                                <t t-esc="o.date_order" t-options='{"widget": "date"}'/>
-                            </t>
+                    <div style="margin-bottom:14px;">
+                        <div style="font-size:14px; font-weight:bold; color:#222; line-height:1.5;">
+                            <t t-esc="v_company.name"/>
                         </div>
-                    </div>
-
-                    <!-- Vendor: Company / City / Attn -->
-                    <t t-set="vendor" t-value="o.partner_id"/>
-                    <t t-set="v_company"
-                       t-value="vendor.parent_id if vendor.parent_id else vendor"/>
-                    <t t-set="v_contact"
-                       t-value="vendor if vendor.parent_id else False"/>
-
-                    <div class="po-vendor-block">
-                        <div class="v-company"><t t-esc="v_company.name"/></div>
                         <t t-if="v_company.city">
-                            <div><t t-esc="v_company.city"/></div>
+                            <div style="font-size:13px; color:#222; line-height:1.5;">
+                                <t t-esc="v_company.city"/>
+                            </div>
                         </t>
-                        <t t-if="v_company.street and not v_company.city">
-                            <div><t t-esc="v_company.street"/></div>
+                        <t t-elif="v_company.street">
+                            <div style="font-size:13px; color:#222; line-height:1.5;">
+                                <t t-esc="v_company.street"/>
+                            </div>
                         </t>
                         <t t-if="v_contact">
-                            <div class="v-attn">Attn: <t t-esc="v_contact.name"/></div>
+                            <div style="font-size:13px; font-weight:bold; color:#222; line-height:1.5;">
+                                Attn: <t t-esc="v_contact.name"/>
+                            </div>
                         </t>
                     </div>
 
-                    <!-- Project (bold label, uppercase) -->
+                    <!-- PROJECT (bold, uppercase, underlined) -->
                     <t t-if="o.x_project_analytic_account_id">
-                        <div style="margin-bottom:12px; font-size:13px;">
-                            <strong>PROJECT: </strong>
-                            <span style="text-decoration:underline; font-weight:bold; text-transform:uppercase;">
+                        <p style="margin:0 0 12px 0; font-size:13px;">
+                            <strong>PROJECT:&#160;</strong><span
+                                style="text-decoration:underline; font-weight:bold; text-transform:uppercase;">
                                 <t t-esc="o.x_project_analytic_account_id.name"/>
                             </span>
-                        </div>
+                        </p>
                     </t>
 
-                    <!-- Vendor ref as Subject line (when present) -->
+                    <!-- Subject (underlined) -->
                     <t t-if="o.partner_ref">
-                        <div style="margin-bottom:14px; font-size:13px;">
-                            <strong>Subject: </strong>
-                            <span style="text-decoration:underline; font-weight:bold;">
+                        <p style="margin:0 0 14px 0; font-size:13px;">
+                            <strong>Subject:&#160;</strong><span
+                                style="text-decoration:underline; font-weight:bold;">
                                 <t t-esc="o.partner_ref"/>
                             </span>
-                        </div>
+                        </p>
                     </t>
 
-                    <!-- ══════════════════════════════════════════════════════
-                         FORMAL LETTER BODY  (unchanged)
-                         ══════════════════════════════════════════════════════ -->
-                    <div style="font-size:13px; line-height:1.65; margin-bottom:16px;">
-                        <p style="margin:0 0 8px 0;">Dear Sir/Madam,</p>
-                        <p style="margin:0 0 8px 0;">
-                            With reference to your quotation / our discussions, we are pleased to
-                            issue this Purchase Order for the supply of materials/services as
-                            detailed below.
-                        </p>
-                        <p style="margin:0 0 8px 0;">
-                            Please find this Purchase Order
-                            (<t t-esc="o.name"/>) for your reference and records.
-                        </p>
-                        <p style="margin:0 0 8px 0;">
-                            Kindly acknowledge receipt of this order and confirm the delivery schedule.
-                        </p>
-                    </div>
+                    <!-- Formal letter body -->
+                    <p style="margin:0 0 7px 0; font-size:13px; line-height:1.7;">Dear Sir,</p>
+                    <p style="margin:0 0 14px 0; font-size:13px; line-height:1.7; text-indent:28px;">
+                        Through your quotation, we are pleased to confirm the order for the Supply
+                        of the abovementioned product for our subject project, as per the required
+                        standards and specifications.
+                    </p>
 
-                    <!-- ══════════════════════════════════════════════════════
-                         LINE ITEMS TABLE
-                         ══════════════════════════════════════════════════════ -->
+                    <!-- Line items table
+                         Qty = x_approved_qty if set and > 0, else product_qty -->
+                    <t t-set="po_grand_total" t-value="0.0"/>
+                    <t t-set="line_no"        t-value="1"/>
                     <table class="po-table">
                         <thead>
                             <tr>
-                                <th style="width:4%; text-align:center;">#</th>
-                                <th style="width:36%; text-align:left;">Product / Description</th>
-                                <th style="width:9%; text-align:center;">UoM</th>
-                                <th style="width:12%; text-align:center;">Quantity</th>
+                                <th style="width:4%;">#</th>
+                                <th style="width:38%; text-align:left;">Product / Description</th>
+                                <th style="width:9%;">UoM</th>
+                                <th style="width:10%;">Qty</th>
                                 <th style="width:18%; text-align:right;">Unit Price</th>
-                                <th style="width:21%; text-align:right;">Subtotal</th>
+                                <th style="width:21%; text-align:right;">
+                                    Amount (<t t-esc="o.currency_id.name or 'PKR'"/>)
+                                </th>
                             </tr>
                         </thead>
                         <tbody>
-                            <t t-set="line_no" t-value="1"/>
-                            <t t-set="po_grand_total" t-value="0.0"/>
                             <t t-foreach="o.order_line" t-as="line">
-                                <t t-if="not line.display_type and (line.x_approved_qty or 0) > 0">
-                                    <t t-set="po_qty"      t-value="line.x_approved_qty"/>
-                                    <t t-set="po_subtotal" t-value="po_qty * (line.price_unit or 0.0)"/>
-                                    <t t-set="po_grand_total" t-value="po_grand_total + po_subtotal"/>
+                                <t t-if="not line.display_type">
+                                    <t t-set="po_qty"
+                                       t-value="(line.x_approved_qty or 0.0) if (line.x_approved_qty or 0.0) > 0
+                                                else (line.product_qty or 0.0)"/>
+                                    <t t-set="po_sub" t-value="po_qty * (line.price_unit or 0.0)"/>
+                                    <t t-set="po_grand_total" t-value="po_grand_total + po_sub"/>
                                     <tr>
                                         <td style="text-align:center;">
                                             <t t-esc="line_no"/>
                                             <t t-set="line_no" t-value="line_no + 1"/>
                                         </td>
                                         <td style="text-align:left;">
-                                            <t t-esc="line.product_id.display_name"/>
-                                            <t t-if="line.name and line.name != line.product_id.display_name">
-                                                <br/>
-                                                <span style="font-size:11px; color:#666;">
+                                            <t t-esc="line.product_id.display_name or line.name"/>
+                                            <t t-if="line.name and line.name != (line.product_id.display_name or '')">
+                                                <br/><span style="font-size:11px; color:#666;">
                                                     <t t-esc="line.name"/>
                                                 </span>
                                             </t>
@@ -337,10 +268,10 @@
                                             <t t-esc="'%.4g' % po_qty"/>
                                         </td>
                                         <td style="text-align:right;">
-                                            <t t-esc="(o.currency_id.name or '') + ' ' + '{:,.2f}'.format(line.price_unit or 0.0)"/>
+                                            <t t-esc="'{:,.2f}'.format(line.price_unit or 0.0)"/>
                                         </td>
                                         <td style="text-align:right; font-weight:bold;">
-                                            <t t-esc="(o.currency_id.name or '') + ' ' + '{:,.2f}'.format(po_subtotal)"/>
+                                            <t t-esc="'{:,.2f}'.format(po_sub)"/>
                                         </td>
                                     </tr>
                                 </t>
@@ -348,75 +279,62 @@
                         </tbody>
                         <tfoot>
                             <tr>
-                                <td colspan="5" style="text-align:right; padding:8px 10px;">
-                                    Total Amount (<t t-esc="o.currency_id.name or 'PKR'"/>):
+                                <td colspan="5" style="text-align:right; padding:7px 8px;">
+                                    Total Amount (<t t-esc="o.currency_id.name or 'PKR'"/>)
                                 </td>
-                                <td style="text-align:right; padding:8px 10px;">
+                                <td style="text-align:right; padding:7px 8px; font-weight:bold;">
                                     <t t-esc="'{:,.2f}'.format(po_grand_total)"/>
                                 </td>
                             </tr>
                         </tfoot>
                     </table>
 
-                    <!-- ══════════════════════════════════════════════════════
-                         TERMS &amp; CONDITIONS
-                         ══════════════════════════════════════════════════════ -->
+                    <!-- Terms &amp; Conditions -->
                     <t t-if="o.note">
-                        <h3 style="font-size:13px; font-weight:bold;
-                                    padding-bottom:4px; margin:16px 0 8px 0; color:#222;">
+                        <p style="font-size:13px; font-weight:bold; margin:0 0 4px 0;">
                             Terms &amp; Conditions:
-                        </h3>
-                        <div style="font-size:12px; line-height:1.6;">
+                        </p>
+                        <div style="font-size:12px; line-height:1.65;">
                             <t t-out="o.note"/>
                         </div>
                     </t>
 
-                    <!-- ══════════════════════════════════════════════════════
-                         SIGNATURE BLOCK
-                         ══════════════════════════════════════════════════════ -->
-                    <t t-set="sig"
-                       t-value="o.env['x.po.signature.config'].sudo().search(
-                           [('company_id', '=', o.company_id.id)], limit=1)"/>
+                    <!-- Signature block -->
+                    <t t-set="sig" t-value="o.env['x.po.signature.config'].sudo().search(
+                        [('company_id','=',o.company_id.id)], limit=1)"/>
 
-                    <div style="margin-top:36px; font-size:13px; line-height:1.8;">
-                        <p style="margin:0;">Thanking you.</p>
-                        <p style="margin:0;">For &amp; on behalf of</p>
-                        <p style="margin:0; font-weight:bold;">MATRACON PAKISTAN (PVT.) LIMITED</p>
-                    </div>
+                    <p style="margin:24px 0 0 0; font-size:13px; line-height:1.9;">Thanking you.</p>
+                    <p style="margin:0; font-size:13px; line-height:1.9;">For &amp; on behalf of</p>
+                    <p style="margin:0; font-size:13px; line-height:1.9; font-weight:bold;">
+                        MATRACON PAKISTAN (PVT.) LIMITED
+                    </p>
 
-                    <!-- Signature image (CEO) -->
-                    <div style="margin-top:8px; min-height:64px; display:flex;
-                                align-items:flex-end; padding-bottom:2px;">
+                    <div style="margin-top:8px; min-height:52px;">
                         <t t-if="sig and sig.x_ceo_signature">
                             <img t-att-src="image_data_uri(sig.x_ceo_signature)"
-                                 style="max-height:62px; max-width:180px; object-fit:contain;"/>
-                        </t>
-                        <t t-else="">
-                            <span class="matracon-sig">
-                                <t t-esc="(sig and sig.x_ceo_name) or 'Jehanzeb Saulat'"/>
-                            </span>
+                                 style="max-height:52px; max-width:160px; object-fit:contain; display:block;"/>
                         </t>
                     </div>
-                    <div style="display:inline-block; border-top:1px solid #000;
-                                padding-top:4px; margin-top:2px; min-width:180px;">
-                        <div style="font-weight:bold; font-size:13px;">
+
+                    <div style="border-top:1px solid #000; padding-top:3px; display:inline-block; min-width:160px;">
+                        <p style="margin:0; font-weight:bold; font-size:13px;">
                             <t t-esc="(sig and sig.x_ceo_name) or 'JEHANZEB SAULAT'"/>
-                        </div>
-                        <div style="font-size:12px;">
+                        </p>
+                        <p style="margin:0; font-size:12px;">
                             <t t-esc="(sig and sig.x_ceo_title) or 'CEO'"/>
-                        </div>
+                        </p>
                     </div>
 
                     <!-- CC -->
-                    <div style="margin-top:20px; font-size:13px;">
-                        <div>CC:</div>
-                        <ul style="margin:4px 0 0 20px; padding:0; font-size:13px;">
+                    <div style="margin-top:18px; font-size:13px;">
+                        <p style="margin:0 0 3px 0;">CC:</p>
+                        <ul style="margin:0 0 0 20px; padding:0; font-size:13px;">
                             <li>Director M/s Matracon Pakistan Pvt. Limited, Islamabad.</li>
                             <li>File</li>
                         </ul>
                     </div>
 
-                </div>
+                </t>
             </t>
         </t>
     </template>

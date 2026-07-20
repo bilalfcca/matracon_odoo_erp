@@ -1,15 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <!--
-        Matracon RFQ Print Template
-        Layout:
-          • Fixed page header  — logo left + MATRACON PAKISTAN (PVT) LIMITED right
-          • Watermark          — faded logo centred behind content
-          • Fixed page footer  — Head Office + Regional Office addresses
-          • RFQ# left / Date right, then vendor Name / City / Attn:
-          • REQUEST FOR QUOTATION title
-          • Formal letter body (unchanged)
-          • Items table (blank price / tax / total columns for vendor to fill)
+        Matracon RFQ — QWeb PDF Template
+        ==================================
+        Uses the same matracon_po_layout as the PO template.
+        Price / Tax / Total columns are BLANK — vendor fills in.
 
         Vendor override for CS "Print RFQ" per-vendor button:
           action_print_rfq() calls
@@ -20,360 +15,169 @@
         <t t-call="web.html_container">
             <t t-foreach="docs" t-as="o">
 
-                <!-- ── Resolve vendor ────────────────────────────────────────────
-                     rfq_vendor_partner_id in context  →  set by CS "Print RFQ"
-                     o.partner_id                       →  set on the PO form
-                ──────────────────────────────────────────────────────────────── -->
+                <!-- ── Resolve vendor ──────────────────────────────────────
+                     rfq_vendor_partner_id in context → CS "Print RFQ"
+                     o.partner_id → direct call from PO form
+                ─────────────────────────────────────────────────────────── -->
                 <t t-set="_rpid"
                    t-value="env.context.get('rfq_vendor_partner_id') or (o.partner_id.id if o.partner_id else 0)"/>
                 <t t-set="rfq_partner"
                    t-value="env['res.partner'].browse(_rpid) if _rpid else False"/>
 
-                <!-- ── Page CSS ──────────────────────────────────────────────── -->
-                <style type="text/css">
-                    /* ── Page margins: leave room for fixed header / footer ── */
-                    @page {
-                        margin: 48mm 20mm 28mm 20mm;
-                    }
-                    body {
-                        font-family: Arial, sans-serif;
-                        font-size: 13px;
-                        color: #222;
-                    }
+                <t t-call="purchase_demand_raise.matracon_po_layout">
 
-                    /* ── Fixed page header (all pages) ── */
-                    .mtr-page-header {
-                        position: fixed;
-                        top: -44mm;
-                        left: -20mm;
-                        right: -20mm;
-                        padding: 6mm 20mm 4mm 20mm;
-                        background: #ffffff;
-                    }
-                    .mtr-header-table {
-                        width: 100%;
-                        border-collapse: collapse;
-                    }
-                    .mtr-header-table td {
-                        vertical-align: middle;
-                        padding: 0;
-                        border: none;
-                    }
-                    .mtr-header-name {
-                        padding-left: 14px !important;
-                        font-size: 24px;
-                        font-weight: bold;
-                        color: #1a3a5c;
-                        letter-spacing: 0.5px;
-                        white-space: nowrap;
-                    }
-                    .mtr-header-divider {
-                        border: none;
-                        border-top: 2px solid #1a3a5c;
-                        margin: 6px 0 0 0;
-                    }
-
-                    /* ── Watermark ── */
-                    .mtr-watermark {
-                        position: fixed;
-                        top: 50%;
-                        left: 50%;
-                        transform: translate(-50%, -50%);
-                        opacity: 0.07;
-                        z-index: -1;
-                        width: 320px;
-                        pointer-events: none;
-                    }
-
-                    /* ── Fixed page footer (all pages) ── */
-                    .mtr-page-footer {
-                        position: fixed;
-                        bottom: -24mm;
-                        left: -20mm;
-                        right: -20mm;
-                        padding: 0 20mm 4mm 20mm;
-                        background: #ffffff;
-                        font-size: 9.5px;
-                        color: #444;
-                        text-align: center;
-                    }
-                    .mtr-footer-divider {
-                        border: none;
-                        border-top: 1px solid #aaa;
-                        margin: 0 0 3px 0;
-                    }
-
-                    /* ── RFQ# / date bar ── */
-                    .rfq-ref-bar {
-                        display: table;
-                        width: 100%;
-                        margin-bottom: 14px;
-                    }
-                    .rfq-ref-bar .ref-left {
-                        display: table-cell;
-                        font-weight: bold;
-                        font-size: 13px;
-                    }
-                    .rfq-ref-bar .ref-right {
-                        display: table-cell;
-                        text-align: right;
-                        font-weight: bold;
-                        font-size: 13px;
-                    }
-
-                    /* ── Vendor block ── */
-                    .po-vendor-block {
-                        margin-bottom: 18px;
-                    }
-                    .po-vendor-block .v-company {
-                        font-size: 14px;
-                        font-weight: bold;
-                        margin-bottom: 2px;
-                    }
-                    .po-vendor-block .v-attn {
-                        font-weight: bold;
-                    }
-
-                    /* ── Title ── */
-                    .rfq-title {
-                        text-align: center;
-                        font-size: 22px;
-                        font-weight: bold;
-                        margin: 0 0 16px 0;
-                        text-transform: uppercase;
-                        letter-spacing: 1px;
-                        color: #1a3a5c;
-                    }
-
-                    /* ── RFQ meta table (ref / date / project) ── */
-                    .rfq-meta td {
-                        padding: 3px 14px 3px 0;
-                        font-size: 13px;
-                    }
-                    .rfq-meta td.lbl { font-weight: bold; white-space: nowrap; }
-
-                    /* ── RFQ product table ── */
-                    .rfq-table {
-                        width: 100%;
-                        border-collapse: collapse;
-                        font-size: 13px;
-                        margin-bottom: 20px;
-                    }
-                    .rfq-table thead tr {
-                        background: #1a3a5c;
-                        color: #ffffff;
-                    }
-                    .rfq-table th {
-                        text-align: center;
-                        padding: 8px 10px;
-                        border: 1px solid #1a3a5c;
-                        font-size: 13px;
-                        font-weight: bold;
-                    }
-                    .rfq-table td {
-                        border: 1px solid #cccccc;
-                        padding: 6px 10px;
-                        text-align: right;
-                        font-size: 13px;
-                    }
-                    .rfq-table tbody tr:nth-child(odd)  td { background: #ffffff; }
-                    .rfq-table tbody tr:nth-child(even) td { background: #f4f6fa; }
-
-                    /* ── Letter body ── */
-                    .letter-body { font-size: 13px; line-height: 1.65; margin-bottom: 16px; }
-                    .letter-body p  { margin: 0 0 8px 0; }
-                    .letter-body ul { margin: 0 0 10px 22px; padding: 0; }
-                    .letter-body li { margin-bottom: 4px; }
-                </style>
-
-                <!-- ══════════════════════════════════════════════════════════
-                     FIXED PAGE HEADER  (appears on every page)
-                     ══════════════════════════════════════════════════════════ -->
-                <div class="mtr-page-header">
-                    <table class="mtr-header-table">
+                    <!-- RFQ# left — Print date right -->
+                    <table style="width:100%; border:0; border-collapse:collapse; border-spacing:0; margin-bottom:12px;">
                         <tr>
-                            <!-- Logo -->
-                            <td style="width:105px;">
-                                <t t-if="env.company.logo">
-                                    <img t-att-src="image_data_uri(env.company.logo)"
-                                         style="max-height:64px; max-width:100px; object-fit:contain;"/>
-                                </t>
+                            <td style="border:0; padding:0; font-size:13px; font-weight:bold; color:#222;">
+                                <t t-esc="o.name"/>
                             </td>
-                            <!-- Company name -->
-                            <td class="mtr-header-name">
-                                MATRACON PAKISTAN (PVT) LIMITED
+                            <td style="border:0; padding:0; font-size:13px; font-weight:bold;
+                                       color:#222; text-align:right;">
+                                <t t-esc="context_timestamp(datetime.datetime.now()).strftime('%B %d, %Y')"/>
                             </td>
                         </tr>
                     </table>
-                    <hr class="mtr-header-divider"/>
-                </div>
 
-                <!-- ══════════════════════════════════════════════════════════
-                     WATERMARK  (faded logo behind all content)
-                     ══════════════════════════════════════════════════════════ -->
-                <t t-if="env.company.logo">
-                    <div class="mtr-watermark">
-                        <img t-att-src="image_data_uri(env.company.logo)"
-                             style="width:100%; height:auto;"/>
-                    </div>
-                </t>
-
-                <!-- ══════════════════════════════════════════════════════════
-                     FIXED PAGE FOOTER  (appears on every page)
-                     ══════════════════════════════════════════════════════════ -->
-                <div class="mtr-page-footer">
-                    <hr class="mtr-footer-divider"/>
-                    <div>
-                        <strong>Head Office</strong> &#160; :&#160; 17, Street No. 89, G-6/3, Islamabad,
-                        UAN: 0092-51-111-025-025&#160; Fax: +92-51-2101183&#160; E-mail: matracon@gmail.com
-                    </div>
-                    <div>
-                        <strong>Regional Office</strong> : 2<sup>nd</sup> Floor, Plot No. 26-C, Lane-3,
-                        Main Rahat Commercial, Phase-6 DHA, Karachi 021-35853154
-                    </div>
-                </div>
-
-                <!-- ══════════════════════════════════════════════════════════
-                     MAIN PAGE CONTENT
-                     ══════════════════════════════════════════════════════════ -->
-                <div class="page" style="padding:0;">
-
-                    <!-- RFQ# left — Date right -->
-                    <div class="rfq-ref-bar">
-                        <div class="ref-left"><t t-esc="o.name"/></div>
-                        <div class="ref-right">
-                            <t t-esc="o.date_order" t-options='{"widget": "date"}'/>
-                        </div>
-                    </div>
-
-                    <!-- Vendor: Company / City / Attn -->
+                    <!-- Vendor: Company / City / Attn (divs — avoids Bootstrap table border CSS) -->
                     <t t-if="rfq_partner">
                         <t t-set="v_company"
                            t-value="rfq_partner.parent_id if rfq_partner.parent_id else rfq_partner"/>
                         <t t-set="v_contact"
                            t-value="rfq_partner if rfq_partner.parent_id else False"/>
 
-                        <div class="po-vendor-block">
-                            <div class="v-company"><t t-esc="v_company.name"/></div>
+                        <div style="margin-bottom:14px;">
+                            <div style="font-size:14px; font-weight:bold; color:#222; line-height:1.5;">
+                                <t t-esc="v_company.name"/>
+                            </div>
                             <t t-if="v_company.city">
-                                <div><t t-esc="v_company.city"/></div>
+                                <div style="font-size:13px; color:#222; line-height:1.5;">
+                                    <t t-esc="v_company.city"/>
+                                </div>
                             </t>
                             <t t-elif="v_company.street">
-                                <div><t t-esc="v_company.street"/></div>
+                                <div style="font-size:13px; color:#222; line-height:1.5;">
+                                    <t t-esc="v_company.street"/>
+                                </div>
                             </t>
                             <t t-if="v_contact">
-                                <div class="v-attn">Attn: <t t-esc="v_contact.name"/></div>
+                                <div style="font-size:13px; font-weight:bold; color:#222; line-height:1.5;">
+                                    Attn: <t t-esc="v_contact.name"/>
+                                </div>
                             </t>
                         </div>
                     </t>
 
                     <!-- RFQ Title -->
-                    <div class="rfq-title">Request for Quotation</div>
+                    <p style="text-align:center; font-size:18px; font-weight:bold; margin:0 0 12px 0;
+                               text-transform:uppercase; letter-spacing:1px; color:#1a3a5c;">
+                        Request for Quotation
+                    </p>
 
-                    <!-- RFQ meta (ref, date, deadline, project) -->
-                    <table class="rfq-meta" style="margin-bottom:16px;">
-                        <tr>
-                            <td class="lbl">RFQ Reference:</td>
-                            <td><t t-esc="o.name"/></td>
-                        </tr>
-                        <tr>
-                            <td class="lbl">Date:</td>
-                            <td><t t-esc="o.date_order" t-options='{"widget": "date"}'/></td>
-                        </tr>
-                        <tr t-if="o.date_approve">
-                            <td class="lbl">Deadline:</td>
-                            <td><t t-esc="o.date_approve" t-options='{"widget": "date"}'/></td>
-                        </tr>
-                        <tr t-if="o.x_project_analytic_account_id">
-                            <td class="lbl">Project:</td>
-                            <td><t t-esc="o.x_project_analytic_account_id.name"/></td>
-                        </tr>
-                    </table>
-
-                    <!-- ══════════════════════════════════════════════════════
-                         FORMAL LETTER BODY  (unchanged)
-                         ══════════════════════════════════════════════════════ -->
-                    <div class="letter-body">
-                        <p>Dear Sir/Madam,</p>
-                        <p>
-                            We are pleased to invite your quotation for the supply of
-                            materials/services as per the following requirements.
-                        </p>
-                        <p>
-                            Please find attached the RFQ document
-                            (<t t-esc="o.name"/>) for your reference.
-                        </p>
-                        <p>Kindly provide the following in your quotation:</p>
-                        <ul>
-                            <li>Technical compliance with specifications</li>
-                            <li>Unit rates and total quoted price</li>
-                            <li>Delivery period</li>
-                            <li>Warranty details</li>
-                            <li>Validity of the offer</li>
-                            <li>Installation / testing charges (if applicable)</li>
-                        </ul>
-                        <p>We look forward to receiving your competitive quotation at the earliest.</p>
-                        <p>
-                            Best regards,<br/>
-                            <strong>Procurement Department</strong><br/>
-                            Matracon Pakistan (Pvt.) Limited
-                        </p>
+                    <!-- RFQ meta (ref / date / deadline / project) — divs avoid table border artifacts -->
+                    <div style="margin-bottom:12px; font-size:13px; color:#222; line-height:1.7;">
+                        <div>
+                            <span style="font-weight:bold; display:inline-block; min-width:110px;">RFQ Reference:</span>
+                            <span><t t-esc="o.name"/></span>
+                        </div>
+                        <div>
+                            <span style="font-weight:bold; display:inline-block; min-width:110px;">Date:</span>
+                            <span><t t-esc="context_timestamp(datetime.datetime.now()).strftime('%B %d, %Y')"/></span>
+                        </div>
+                        <t t-if="o.date_approve">
+                            <div>
+                                <span style="font-weight:bold; display:inline-block; min-width:110px;">Deadline:</span>
+                                <span><t t-esc="o.date_approve" t-options='{"widget": "date"}'/></span>
+                            </div>
+                        </t>
+                        <t t-if="o.x_project_analytic_account_id">
+                            <div>
+                                <span style="font-weight:bold; display:inline-block; min-width:110px;">Project:</span>
+                                <span><t t-esc="o.x_project_analytic_account_id.name"/></span>
+                            </div>
+                        </t>
                     </div>
 
-                    <!-- ══════════════════════════════════════════════════════
-                         LINE ITEMS TABLE
-                         Price / Tax % / Total columns blank — vendor fills in
-                         ══════════════════════════════════════════════════════ -->
+                    <!-- Formal letter body -->
+                    <p style="font-size:13px; line-height:1.65; margin:0 0 6px 0;">Dear Sir/Madam,</p>
+                    <p style="font-size:13px; line-height:1.65; margin:0 0 6px 0;">
+                        We are pleased to invite your quotation for the supply of
+                        materials/services as per the following requirements.
+                    </p>
+                    <p style="font-size:13px; line-height:1.65; margin:0 0 6px 0;">
+                        Please find attached the RFQ document
+                        (<t t-esc="o.name"/>) for your reference.
+                    </p>
+                    <p style="font-size:13px; line-height:1.65; margin:0 0 4px 0;">Kindly provide the following in your quotation:</p>
+                    <ul style="font-size:13px; margin:0 0 6px 22px; padding:0;">
+                        <li style="margin-bottom:2px;">Technical compliance with specifications</li>
+                        <li style="margin-bottom:2px;">Unit rates and total quoted price</li>
+                        <li style="margin-bottom:2px;">Delivery period</li>
+                        <li style="margin-bottom:2px;">Warranty details</li>
+                        <li style="margin-bottom:2px;">Validity of the offer</li>
+                        <li style="margin-bottom:2px;">Installation / testing charges (if applicable)</li>
+                    </ul>
+                    <p style="font-size:13px; line-height:1.65; margin:0 0 6px 0;">
+                        We look forward to receiving your competitive quotation at the earliest.
+                    </p>
+                    <p style="font-size:13px; line-height:1.65; margin:0 0 14px 0;">
+                        Best regards,<br/>
+                        <strong>Procurement Department</strong><br/>
+                        Matracon Pakistan (Pvt.) Limited
+                    </p>
+
+                    <!-- Line items — Price / Tax / Total BLANK for vendor to fill -->
                     <table class="rfq-table">
                         <thead>
                             <tr>
                                 <th style="width:4%;">#</th>
-                                <th style="width:30%; text-align:left;">Product / Description</th>
-                                <th style="width:10%;">UoM</th>
+                                <th style="width:31%; text-align:left;">Product / Description</th>
+                                <th style="width:9%;">UoM</th>
                                 <th style="width:11%;">Quantity</th>
-                                <th style="width:15%;">Unit Price (PKR)</th>
-                                <th style="width:12%;">Tax %</th>
+                                <th style="width:16%;">Unit Price (PKR)</th>
+                                <th style="width:11%;">Tax %</th>
                                 <th style="width:18%;">Total (PKR)</th>
                             </tr>
                         </thead>
                         <tbody>
                             <t t-set="line_no" t-value="1"/>
                             <t t-foreach="o.order_line" t-as="line">
-                                <!-- RFQ qty cascade: recommended → requested → product_qty -->
-                                <t t-set="rfq_qty"
-                                   t-value="line.x_recommended_qty if (line.x_recommended_qty or 0) > 0
-                                            else (line.x_requested_qty if (line.x_requested_qty or 0) > 0
-                                            else (line.product_qty or 0))"/>
-                                <tr>
-                                    <td style="text-align:center;">
-                                        <t t-esc="line_no"/>
-                                        <t t-set="line_no" t-value="line_no + 1"/>
-                                    </td>
-                                    <td style="text-align:left;">
-                                        <t t-esc="line.product_id.display_name"/>
-                                        <t t-if="line.name and line.name != line.product_id.display_name">
-                                            <br/>
-                                            <span style="font-size:11px; color:#666;">
-                                                <t t-esc="line.name"/>
-                                            </span>
-                                        </t>
-                                    </td>
-                                    <td style="text-align:center;">
-                                        <t t-esc="line.product_uom_id.name"/>
-                                    </td>
-                                    <td style="text-align:center; font-weight:bold;">
-                                        <t t-esc="'%.4g' % rfq_qty"/>
-                                    </td>
-                                    <!-- Unit Price / Tax % / Total: BLANK — vendor fills in -->
-                                    <td></td>
-                                    <td></td>
-                                    <td></td>
-                                </tr>
+                                <t t-if="not line.display_type">
+                                    <!-- qty cascade: recommended → requested → product_qty -->
+                                    <t t-set="rfq_qty"
+                                       t-value="(line.x_recommended_qty or 0) if (line.x_recommended_qty or 0) > 0
+                                                else ((line.x_requested_qty or 0) if (line.x_requested_qty or 0) > 0
+                                                else (line.product_qty or 0))"/>
+                                    <tr>
+                                        <td style="text-align:center; color:#222;">
+                                            <t t-esc="line_no"/>
+                                            <t t-set="line_no" t-value="line_no + 1"/>
+                                        </td>
+                                        <td style="text-align:left; color:#222;">
+                                            <t t-esc="line.product_id.display_name or line.name"/>
+                                            <t t-if="line.name and line.name != (line.product_id.display_name or '')">
+                                                <br/><span style="font-size:11px; color:#666;">
+                                                    <t t-esc="line.name"/>
+                                                </span>
+                                            </t>
+                                        </td>
+                                        <td style="text-align:center; color:#222;">
+                                            <t t-esc="line.product_uom_id.name"/>
+                                        </td>
+                                        <td style="text-align:center; font-weight:bold; color:#222;">
+                                            <t t-esc="'%.4g' % rfq_qty"/>
+                                        </td>
+                                        <!-- Price / Tax / Total: BLANK — vendor fills in -->
+                                        <td></td>
+                                        <td></td>
+                                        <td></td>
+                                    </tr>
+                                </t>
                             </t>
                         </tbody>
                     </table>
 
-                </div>
+                </t>
             </t>
         </t>
     </template>

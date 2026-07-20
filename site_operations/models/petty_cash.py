@@ -744,6 +744,15 @@ class PettyCashRequest(models.Model):
             'site_operations.action_report_petty_cash_request'
         ).report_action(self)
 
+    def action_direct_print_pcr(self):
+        """Open the Petty Cash Request report in a new tab and auto-trigger print dialog."""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_url',
+            'url': f'/site_operations/print/x.petty.cash.request/{self.id}',
+            'target': 'new',
+        }
+
     def unlink(self):
         for rec in self:
             if rec.state != 'draft':
@@ -1188,6 +1197,15 @@ class PettyCashExpense(models.Model):
         return self.env.ref(
             'site_operations.action_report_petty_cash_expense'
         ).report_action(self)
+
+    def action_direct_print_pce(self):
+        """Open the Petty Cash Expense Voucher in a new tab and auto-trigger print dialog."""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_url',
+            'url': f'/site_operations/print/x.petty.cash.expense/{self.id}',
+            'target': 'new',
+        }
 
     def unlink(self):
         for rec in self:

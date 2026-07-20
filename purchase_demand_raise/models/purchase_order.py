@@ -1554,3 +1554,12 @@ class PurchaseOrder(models.Model):
         return self.env.ref(
             'purchase_demand_raise.action_report_pr_internal'
         ).report_action(self)
+
+    def action_direct_print_pr(self):
+        """Open the PR Internal report in a new tab and auto-trigger print dialog."""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_url',
+            'url': f'/site_operations/print/purchase.order/{self.id}',
+            'target': 'new',
+        }

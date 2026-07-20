@@ -166,6 +166,7 @@
                         string="Print Cheque" class="btn-secondary" icon="fa-print"
                         invisible="not x_is_cheque_payment or state == 'draft'"/>
 
+
                 <!-- FO buttons (hidden from CEO-only viewers on their own direct payments) -->
                 <button name="action_set_in_process"
                         type="object"

@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Landscape A4 paper format for the BG Registry PDF -->
+    <record id="paperformat_a4_landscape_matracon" model="report.paperformat">
+        <field name="name">A4 Landscape — Matracon</field>
+        <field name="default">False</field>
+        <field name="format">A4</field>
+        <field name="orientation">Landscape</field>
+        <field name="margin_top">10</field>
+        <field name="margin_bottom">10</field>
+        <field name="margin_left">10</field>
+        <field name="margin_right">10</field>
+        <field name="page_height">0</field>
+        <field name="page_width">0</field>
+        <field name="header_line">False</field>
+        <field name="header_spacing">3</field>
+        <field name="dpi">90</field>
+    </record>
+
+    <!-- Report action (no binding — triggered only from the wizard) -->
+    <record id="action_bg_registry_pdf_report" model="ir.actions.report">
+        <field name="name">BG Registry PDF</field>
+        <field name="model">x.bg.export.wizard</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">site_operations.report_bg_registry_pdf_template</field>
+        <field name="report_file">site_operations.report_bg_registry_pdf_template</field>
+        <field name="print_report_name">'BG_Registry'</field>
+        <field name="paperformat_id" ref="paperformat_a4_landscape_matracon"/>
+    </record>
+
+    <!-- ── BG Registry PDF Template ── -->
+    <template id="report_bg_registry_pdf_template">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="doc">
+                <t t-set="data" t-value="doc._get_pdf_data()"/>
+                <div class="page">
+                    <style>
+                        body { font-family: Arial, sans-serif; font-size: 8pt; margin: 0; }
+                        h2.bg-reg-title {
+                            text-align: center;
+                            color: #003366;
+                            margin: 0 0 8px 0;
+                            font-size: 13pt;
+                            font-weight: 700;
+                        }
+                        table.bg-reg {
+                            width: 100%;
+                            border-collapse: collapse;
+                            table-layout: auto;
+                        }
+                        table.bg-reg th {
+                            background: #003366;
+                            color: white;
+                            font-weight: bold;
+                            text-align: center;
+                            padding: 3px 4px;
+                            border: 1px solid #aaa;
+                            font-size: 7pt;
+                            white-space: nowrap;
+                        }
+                        table.bg-reg th.opt-col {
+                            background: #1a5276;
+                            font-style: italic;
+                        }
+                        table.bg-reg td {
+                            padding: 2px 4px;
+                            border: 1px solid #ccc;
+                            font-size: 7pt;
+                            vertical-align: middle;
+                        }
+                        table.bg-reg td.num { text-align: right; }
+                        tr.row-group td {
+                            background: #C6DEFF;
+                            font-weight: bold;
+                            font-size: 8pt;
+                        }
+                        tr.row-subgroup td {
+                            background: #DDEEFF;
+                            font-weight: bold;
+                        }
+                        tr.row-subtotal td {
+                            background: #C8F0DA;
+                            font-weight: bold;
+                        }
+                        tr.row-grand td {
+                            background: #FFE5B4;
+                            font-weight: bold;
+                            font-size: 8.5pt;
+                        }
+                        p.bg-reg-footer {
+                            font-size: 7pt;
+                            color: #888;
+                            margin-top: 6px;
+                            text-align: right;
+                        }
+                    </style>
+
+                    <h2 class="bg-reg-title">Bank Guarantee Registry</h2>
+
+                    <table class="bg-reg">
+                        <thead>
+                            <tr>
+                                <t t-foreach="data['header_cols']" t-as="col">
+                                    <th t-att-class="'opt-col' if col_index >= data['n_base_cols'] else ''">
+                                        <t t-esc="col[0]"/>
+                                    </th>
+                                </t>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <t t-foreach="data['flat_rows']" t-as="row">
+
+                                <!-- Group header (bank or project top-level) -->
+                                <t t-if="row['type'] == 'group'">
+                                    <tr class="row-group">
+                                        <td t-att-colspan="data['n_cols']">
+                                            <t t-esc="row['label']"/>
+                                        </td>
+                                    </tr>
+                                </t>
+
+                                <!-- Sub-group header (project within bank) -->
+                                <t t-if="row['type'] == 'subgroup'">
+                                    <tr class="row-subgroup">
+                                        <td t-att-colspan="data['n_cols']">
+                                            <t t-esc="row['label']"/>
+                                        </td>
+                                    </tr>
+                                </t>
+
+                                <!-- Data row -->
+                                <t t-if="row['type'] == 'data'">
+                                    <tr>
+                                        <t t-foreach="row['cells']" t-as="cell">
+                                            <td t-att-class="'num' if data['header_cols'][cell_index][1] == 'num' else ''">
+                                                <t t-esc="cell"/>
+                                            </td>
+                                        </t>
+                                    </tr>
+                                </t>
+
+                                <!-- Subtotal row (group or subgroup level) -->
+                                <t t-if="row['type'] == 'subtotal'">
+                                    <tr class="row-subtotal">
+                                        <td t-att-colspan="data['first_num_col']" style="text-align:right;">
+                                            <t t-esc="row['label']"/>
+                                        </td>
+                                        <t t-foreach="range(data['first_num_col'], data['n_cols'])" t-as="ci">
+                                            <td class="num">
+                                                <t t-esc="row['cells'].get(str(ci), '')"/>
+                                            </td>
+                                        </t>
+                                    </tr>
+                                </t>
+
+                                <!-- Grand total row -->
+                                <t t-if="row['type'] == 'grand'">
+                                    <tr class="row-grand">
+                                        <td t-att-colspan="data['first_num_col']" style="text-align:right;">
+                                            <t t-esc="row['label']"/>
+                                        </td>
+                                        <t t-foreach="range(data['first_num_col'], data['n_cols'])" t-as="ci">
+                                            <td class="num">
+                                                <t t-esc="row['cells'].get(str(ci), '')"/>
+                                            </td>
+                                        </t>
+                                    </tr>
+                                </t>
+
+                            </t>
+                        </tbody>
+                    </table>
+
+                    <p class="bg-reg-footer">
+                        System-generated — Matracon Pakistan Pvt. Ltd.
+                    </p>
+                </div>
+            </t>
+        </t>
+    </template>
+
+</odoo>

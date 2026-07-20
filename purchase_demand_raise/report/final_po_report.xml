@@ -1,13 +1,39 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+    <!-- Custom paper format for Matracon PO/RFQ letterhead
+         margin_top  = space reserved for header HTML (logo + company name + divider)
+         margin_bottom = space reserved for footer HTML (divider + HO/RO addresses)
+         header_spacing = extra gap between header bottom and content (mm)
+    -->
+    <record id="paperformat_matracon_po" model="report.paperformat">
+        <field name="name">A4 — Matracon PO/RFQ</field>
+        <field name="default" eval="False"/>
+        <field name="format">A4</field>
+        <field name="orientation">Portrait</field>
+        <field name="margin_top">50</field>
+        <field name="margin_bottom">22</field>
+        <field name="margin_left">0</field>
+        <field name="margin_right">0</field>
+        <field name="header_spacing">3</field>
+        <field name="header_line" eval="False"/>
+        <field name="disable_shrinking" eval="True"/>
+        <field name="dpi">90</field>
+    </record>
+
+    <!-- Unbind standard Odoo PO report — our Matracon template is primary -->
+    <record id="purchase.action_report_purchase_order" model="ir.actions.report">
+        <field name="binding_model_id" eval="False"/>
+    </record>
+
     <!-- Final PO Report — sent to vendor after CEO final approval & dispatch -->
     <record id="action_report_final_po" model="ir.actions.report">
-        <field name="name">Final Purchase Order</field>
+        <field name="name">Purchase Order</field>
         <field name="model">purchase.order</field>
         <field name="report_type">qweb-pdf</field>
         <field name="report_name">purchase_demand_raise.report_final_po_template</field>
         <field name="report_file">purchase_demand_raise.report_final_po_template</field>
-        <field name="print_report_name">'Final PO - %s' % object.name</field>
+        <field name="print_report_name">'PO - %s' % object.name</field>
+        <field name="paperformat_id" ref="paperformat_matracon_po"/>
         <field name="binding_model_id" ref="purchase.model_purchase_order"/>
         <field name="binding_type">report</field>
     </record>
