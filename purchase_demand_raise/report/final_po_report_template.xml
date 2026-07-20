@@ -128,13 +128,6 @@
                             border: 1px solid #aaa;
                         }
 
-                        /* ── Signature cursive ── */
-                        .matracon-sig {
-                            font-size: 26px;
-                            color: #1a237e;
-                            line-height: 1.1;
-                            font-style: italic;
-                        }
                     </style>
 
                     <div class="page">
@@ -286,11 +279,6 @@
                             <t t-if="sig and sig.x_ceo_signature">
                                 <img t-att-src="image_data_uri(sig.x_ceo_signature)"
                                      style="max-height:56px; max-width:170px; object-fit:contain;"/>
-                            </t>
-                            <t t-else="">
-                                <span class="matracon-sig">
-                                    <t t-esc="(sig and sig.x_ceo_name) or 'Jehanzeb Saulat'"/>
-                                </span>
                             </t>
                         </div>
 
