@@ -91,13 +91,6 @@
                             invisible="state not in ('released', 'confirmed') or not payment_id"
                             groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"
                             confirm="This will create a correcting journal entry to move the released amount to the site's Petty Cash (Cash in Hand) account. Proceed?"/>
-                    <button name="action_print_petty_cash_request" type="object"
-                            string="Download PDF" class="btn-secondary"
-                            icon="fa-file-pdf-o"/>
-                    <button name="action_direct_print_pcr" type="object"
-                            string="Print" class="btn-secondary"
-                            icon="fa-print"
-                            title="Opens print dialog in a new tab — prints directly to any connected printer"/>
                     <button name="action_delete_draft" type="object"
                             string="Delete" class="btn-danger"
                             invisible="state != 'draft'"
@@ -205,13 +198,6 @@
                     <button name="action_post" type="object" string="Post Expense"
                             class="btn-primary" invisible="state != 'draft'"
                             groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_head_office"/>
-                    <button name="action_print_expense_voucher" type="object"
-                            string="Download PDF" class="btn-secondary"
-                            icon="fa-file-pdf-o"/>
-                    <button name="action_direct_print_pce" type="object"
-                            string="Print" class="btn-secondary"
-                            icon="fa-print"
-                            title="Opens print dialog in a new tab — prints directly to any connected printer"/>
                     <field name="state" widget="statusbar"/>
                     <button name="action_delete_draft" type="object"
                             string="Delete" class="btn-danger"

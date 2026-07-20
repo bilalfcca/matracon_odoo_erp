@@ -72,6 +72,7 @@
         'views/employee_backcharge_views.xml',
         'views/material_cost_views.xml',
         'views/uom_ext_views.xml',
+        'views/direct_print_actions.xml',
         'views/menus.xml',
         'report/mif_report.xml',
         'report/mif_report_template.xml',
