@@ -424,3 +424,53 @@ Any FO edit after creation re-triggers `_compute_destination_account_id`. The on
 ```
 abf8fa2  Fix: petty cash release — enforce Cash-in-Hand account on JE at posting time
 ```
+
+---
+
+## Session Notes — 2026-07-20
+
+### PO / RFQ PDF Letterhead — Final Fix
+
+#### Files changed
+- `purchase_demand_raise/report/final_po_report.xml` — paper format `margin_top` 45 → 50mm
+- `purchase_demand_raise/report/final_po_report_template.xml` — complete rewrite with standalone `matracon_po_layout` template
+- `purchase_demand_raise/report/rfq_report_template.xml` — complete rewrite, reuses `matracon_po_layout`
+
+#### `matracon_po_layout` template (standalone)
+Defined in `final_po_report_template.xml`. Provides three divs consumed by Odoo's `_prepare_html()`:
+
+| Div class | Content | Renders as |
+|---|---|---|
+| `header` | Logo + "MATRACON PAKISTAN (PVT) LIMITED" + 2.5px navy divider | wkhtmltopdf `--header-html` (repeats every page) |
+| `article` | CSS block + `<t t-out="0"/>` | wkhtmltopdf main body, wrapped in `minimal_layout` |
+| `footer` | Thin line + Head Office + Regional Office | wkhtmltopdf `--footer-html` (repeats every page) |
+
+**Critical design notes:**
+- `inherit_id` attribute must be **omitted** (not `inherit_id="False"`) — the string `"False"` is parsed as an external XML ID (`purchase_demand_raise.False`) → `ValueError` crash on module update
+- `article` div `padding-top: 16mm` — wkhtmltopdf has an invisible zone of ~14mm at the start of the article body due to `html { height: 0 }` + `body { overflow: hidden }` in `minimal_layout`. Without 16mm padding the ref-bar (PO#/date) is invisible
+- All vendor/meta layout uses `<div>` elements, NOT `<table>` — Bootstrap's `report_assets_common` CSS adds unwanted cell borders to any `<table>` that doesn't have `.table` class
+- Article `<style>` block has `td, th { border: none !important }` global reset; data tables `.po-table` and `.rfq-table` restore borders via higher specificity `.po-table td { border: 1px solid #ccc !important }`
+
+#### Root causes resolved
+
+| Symptom | Root cause | Fix |
+|---|---|---|
+| Module update crashed (`ValueError: External ID not found: purchase_demand_raise.False`) | `inherit_id="False"` on `<template>` shorthand is parsed as literal XML ID "False" | Remove `inherit_id` attribute entirely for standalone templates |
+| PO# / date ref-bar invisible | wkhtmltopdf article body invisible zone ~14mm from top | `padding-top: 16mm` on article div |
+| Vendor company name invisible | Same invisible zone (content at 4-11mm clipped) | 16mm padding pushes all content past invisible zone |
+| Unwanted borders on vendor/meta tables | Bootstrap `report_assets_common` CSS adds borders to non-data tables | Switch vendor block + RFQ meta block from `<table>` to `<div>/<span>` layout |
+| Product table lost dark navy styling | `<style>` block was deleted in a prior iteration | Restored `.po-table` / `.rfq-table` CSS in article `<style>` block |
+
+#### Commits (oldest → newest)
+```
+cf44c3e  Fix: PO/RFQ — date and vendor name invisible due to Bootstrap overriding div display:table
+870d1f1  Fix: PO signature block — remove duplicate cursive name fallback
+2dd3ee2  Fix: PO/RFQ header/footer — use Odoo header/footer/article div mechanism
+612d77b  Fix: PO/RFQ — blank lines, print-date, watermark centering; unbind standard Odoo reports
+3e6fa72  Fix: move print/direct-print to list view, remove from form headers
+92e5fef  Feat: BG export PDF + direct-print buttons for vouchers
+d67bf22  Fix: PO/RFQ letterhead — all content visible; clean meta/vendor blocks
+```
+
+#### Pending — odoosh-push blocked
+All commits are **local only**. Enable **AI Code Push** in Odoo.sh project settings, then run `odoosh-push`.
