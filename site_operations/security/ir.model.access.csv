@@ -242,3 +242,5 @@ access_project_eot_ceo,project.eot.ceo,model_x_project_eot,purchase_demand_raise
 access_project_eot_admin,project.eot.admin,model_x_project_eot,purchase_demand_raise.group_matracon_admin,1,1,1,1
 access_project_eot_head_office,project.eot.head.office,model_x_project_eot,purchase_demand_raise.group_head_office,1,0,0,0
 access_project_eot_site_accountant,project.eot.site.accountant,model_x_project_eot,site_operations.group_site_accountant,1,0,0,0
+access_bg_facility_import_wizard_all,bg.facility.import.wizard.all,model_x_bg_facility_import_wizard,base.group_user,1,1,1,1
+access_bg_amendment_import_wizard_all,bg.amendment.import.wizard.all,model_x_bg_amendment_import_wizard,base.group_user,1,1,1,1

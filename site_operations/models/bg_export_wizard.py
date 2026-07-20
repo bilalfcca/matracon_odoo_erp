@@ -32,7 +32,7 @@ _BASE_COLUMNS = [
     ('Bank',               'journal_id.name',      20, 'text'),
     ('Project',            'project_id.name',      22, 'text'),
     ('Beneficiary',        'beneficiary_name',     24, 'text'),
-    ('Type',               'jv_type',              10, 'text'),
+    ('Type',               'bidder_display',        10, 'text'),
     ('Issue Date',         'issue_date',           12, 'date'),
     ('Expiry Date',        'expiry_date',          12, 'date'),
     ('BG Amount',          'bg_amount',            16, 'num'),
@@ -139,7 +139,6 @@ class BgExportWizard(models.TransientModel):
         columns = self._build_columns()
         n_cols = len(columns)
         state_map = dict(self.env['x.bank.guarantee']._fields['state'].selection)
-        jv_map = dict(self.env['x.bank.guarantee']._fields['jv_type'].selection)
 
         domain = []
         if not self.include_released:
@@ -150,8 +149,6 @@ class BgExportWizard(models.TransientModel):
         def _get(bg, field):
             if field == 'state':
                 return state_map.get(bg.state, bg.state)
-            if field == 'jv_type':
-                return jv_map.get(bg.jv_type, bg.jv_type)
             v = bg
             for part in field.split('.'):
                 v = getattr(v, part, False)
@@ -350,14 +347,11 @@ class BgExportWizard(models.TransientModel):
 
         # ── Field value helpers ────────────────────────────────────────────
         state_map = dict(self.env['x.bank.guarantee']._fields['state'].selection)
-        jv_map = dict(self.env['x.bank.guarantee']._fields['jv_type'].selection)
 
         def _get(bg, field):
             """Resolve a dot-separated field path on a bg record."""
             if field == 'state':
                 return state_map.get(bg.state, bg.state)
-            if field == 'jv_type':
-                return jv_map.get(bg.jv_type, bg.jv_type)
             v = bg
             for part in field.split('.'):
                 v = getattr(v, part, False)
