@@ -2,23 +2,18 @@
 <odoo>
     <!--
         Matracon RFQ Print Template
-
         Layout:
-          • Vendor details  — TOP  (where Matracon used to be)
-          • REQUEST FOR QUOTATION title — centered
-          • Formal letter body (13 px, key terms bold)
-          • Product table — blue headers, alternating rows, all data right-aligned
-          • Matracon company details — FOOTER (bottom of page)
-
-        NO web.external_layout / web.internal_layout — those inject an auto
-        company-name header row.  We use web.html_container (Bootstrap + Odoo
-        base CSS, no company header) and set page margins via @page CSS.
+          • Fixed page header  — logo left + MATRACON PAKISTAN (PVT) LIMITED right
+          • Watermark          — faded logo centred behind content
+          • Fixed page footer  — Head Office + Regional Office addresses
+          • RFQ# left / Date right, then vendor Name / City / Attn:
+          • REQUEST FOR QUOTATION title
+          • Formal letter body (unchanged)
+          • Items table (blank price / tax / total columns for vendor to fill)
 
         Vendor override for CS "Print RFQ" per-vendor button:
           action_print_rfq() calls
             report.with_context(rfq_vendor_partner_id=partner.id).report_action(po)
-          The context IS forwarded by the browser to the PDF renderer, so
-          env.context.get('rfq_vendor_partner_id') reliably gives the vendor.
           Falls back to o.partner_id when called directly from the PO form.
     -->
     <template id="report_rfq_demand_raise">
@@ -36,14 +31,126 @@
 
                 <!-- ── Page CSS ──────────────────────────────────────────────── -->
                 <style type="text/css">
+                    /* ── Page margins: leave room for fixed header / footer ── */
                     @page {
-                        margin: 14mm 20mm 18mm 20mm;
+                        margin: 48mm 20mm 28mm 20mm;
                     }
                     body {
                         font-family: Arial, sans-serif;
                         font-size: 13px;
                         color: #222;
                     }
+
+                    /* ── Fixed page header (all pages) ── */
+                    .mtr-page-header {
+                        position: fixed;
+                        top: -44mm;
+                        left: -20mm;
+                        right: -20mm;
+                        padding: 6mm 20mm 4mm 20mm;
+                        background: #ffffff;
+                    }
+                    .mtr-header-table {
+                        width: 100%;
+                        border-collapse: collapse;
+                    }
+                    .mtr-header-table td {
+                        vertical-align: middle;
+                        padding: 0;
+                        border: none;
+                    }
+                    .mtr-header-name {
+                        padding-left: 14px !important;
+                        font-size: 24px;
+                        font-weight: bold;
+                        color: #1a3a5c;
+                        letter-spacing: 0.5px;
+                        white-space: nowrap;
+                    }
+                    .mtr-header-divider {
+                        border: none;
+                        border-top: 2px solid #1a3a5c;
+                        margin: 6px 0 0 0;
+                    }
+
+                    /* ── Watermark ── */
+                    .mtr-watermark {
+                        position: fixed;
+                        top: 50%;
+                        left: 50%;
+                        transform: translate(-50%, -50%);
+                        opacity: 0.07;
+                        z-index: -1;
+                        width: 320px;
+                        pointer-events: none;
+                    }
+
+                    /* ── Fixed page footer (all pages) ── */
+                    .mtr-page-footer {
+                        position: fixed;
+                        bottom: -24mm;
+                        left: -20mm;
+                        right: -20mm;
+                        padding: 0 20mm 4mm 20mm;
+                        background: #ffffff;
+                        font-size: 9.5px;
+                        color: #444;
+                        text-align: center;
+                    }
+                    .mtr-footer-divider {
+                        border: none;
+                        border-top: 1px solid #aaa;
+                        margin: 0 0 3px 0;
+                    }
+
+                    /* ── RFQ# / date bar ── */
+                    .rfq-ref-bar {
+                        display: table;
+                        width: 100%;
+                        margin-bottom: 14px;
+                    }
+                    .rfq-ref-bar .ref-left {
+                        display: table-cell;
+                        font-weight: bold;
+                        font-size: 13px;
+                    }
+                    .rfq-ref-bar .ref-right {
+                        display: table-cell;
+                        text-align: right;
+                        font-weight: bold;
+                        font-size: 13px;
+                    }
+
+                    /* ── Vendor block ── */
+                    .po-vendor-block {
+                        margin-bottom: 18px;
+                    }
+                    .po-vendor-block .v-company {
+                        font-size: 14px;
+                        font-weight: bold;
+                        margin-bottom: 2px;
+                    }
+                    .po-vendor-block .v-attn {
+                        font-weight: bold;
+                    }
+
+                    /* ── Title ── */
+                    .rfq-title {
+                        text-align: center;
+                        font-size: 22px;
+                        font-weight: bold;
+                        margin: 0 0 16px 0;
+                        text-transform: uppercase;
+                        letter-spacing: 1px;
+                        color: #1a3a5c;
+                    }
+
+                    /* ── RFQ meta table (ref / date / project) ── */
+                    .rfq-meta td {
+                        padding: 3px 14px 3px 0;
+                        font-size: 13px;
+                    }
+                    .rfq-meta td.lbl { font-weight: bold; white-space: nowrap; }
 
                     /* ── RFQ product table ── */
                     .rfq-table {
@@ -72,50 +179,6 @@
                     .rfq-table tbody tr:nth-child(odd)  td { background: #ffffff; }
                     .rfq-table tbody tr:nth-child(even) td { background: #f4f6fa; }
 
-                    /* ── RFQ info table (ref / date / category / project) ── */
-                    .rfq-meta td {
-                        padding: 3px 14px 3px 0;
-                        font-size: 13px;
-                    }
-                    .rfq-meta td.lbl { font-weight: bold; white-space: nowrap; }
-
-                    /* ── Vendor block at top ── */
-                    .vendor-block {
-                        margin-bottom: 18px;
-                        padding-bottom: 10px;
-                        border-bottom: 2px solid #1a3a5c;
-                    }
-                    .vendor-block .vendor-name {
-                        font-size: 15px;
-                        font-weight: bold;
-                        margin-bottom: 3px;
-                    }
-
-                    /* ── Title ── */
-                    .rfq-title {
-                        text-align: center;
-                        font-size: 22px;
-                        font-weight: bold;
-                        margin: 0 0 16px 0;
-                        text-transform: uppercase;
-                        letter-spacing: 1px;
-                        color: #1a3a5c;
-                    }
-
-                    /* ── Matracon footer section ── */
-                    .matracon-footer {
-                        margin-top: 36px;
-                        padding-top: 10px;
-                        border-top: 2px solid #1a3a5c;
-                        text-align: center;
-                        font-size: 12px;
-                        color: #444;
-                    }
-                    .matracon-footer strong {
-                        font-size: 13px;
-                        color: #1a3a5c;
-                    }
-
                     /* ── Letter body ── */
                     .letter-body { font-size: 13px; line-height: 1.65; margin-bottom: 16px; }
                     .letter-body p  { margin: 0 0 8px 0; }
@@ -123,53 +186,91 @@
                     .letter-body li { margin-bottom: 4px; }
                 </style>
 
-                <div class="page" style="padding: 0;">
+                <!-- ══════════════════════════════════════════════════════════
+                     FIXED PAGE HEADER  (appears on every page)
+                     ══════════════════════════════════════════════════════════ -->
+                <div class="mtr-page-header">
+                    <table class="mtr-header-table">
+                        <tr>
+                            <!-- Logo -->
+                            <td style="width:105px;">
+                                <t t-if="env.company.logo">
+                                    <img t-att-src="image_data_uri(env.company.logo)"
+                                         style="max-height:64px; max-width:100px; object-fit:contain;"/>
+                                </t>
+                            </td>
+                            <!-- Company name -->
+                            <td class="mtr-header-name">
+                                MATRACON PAKISTAN (PVT) LIMITED
+                            </td>
+                        </tr>
+                    </table>
+                    <hr class="mtr-header-divider"/>
+                </div>
 
-                    <!-- ══════════════════════════════════════════════════════════
-                         TOP — VENDOR DETAILS
-                         (replaces the former Matracon company-header position)
-                         ══════════════════════════════════════════════════════════ -->
-                    <div class="vendor-block">
-                        <t t-if="rfq_partner">
-                            <div class="vendor-name"><t t-esc="rfq_partner.name"/></div>
-                            <t t-if="rfq_partner.street">
-                                <div><t t-esc="rfq_partner.street"/></div>
-                            </t>
-                            <t t-if="rfq_partner.street2">
-                                <div><t t-esc="rfq_partner.street2"/></div>
-                            </t>
-                            <t t-if="rfq_partner.city or rfq_partner.state_id or rfq_partner.zip">
-                                <div>
-                                    <t t-if="rfq_partner.city"><t t-esc="rfq_partner.city"/></t>
-                                    <t t-if="rfq_partner.state_id">
-                                        <t t-if="rfq_partner.city">, </t>
-                                        <t t-esc="rfq_partner.state_id.name"/>
-                                    </t>
-                                    <t t-if="rfq_partner.zip">
-                                        <t t-esc="rfq_partner.zip"/>
-                                    </t>
-                                </div>
-                            </t>
-                            <t t-if="rfq_partner.country_id">
-                                <div><t t-esc="rfq_partner.country_id.name"/></div>
-                            </t>
-                            <t t-if="rfq_partner.phone">
-                                <div>Tel: <t t-esc="rfq_partner.phone"/></div>
-                            </t>
-                            <t t-if="rfq_partner.email">
-                                <div>Email: <t t-esc="rfq_partner.email"/></div>
-                            </t>
-                        </t>
+                <!-- ══════════════════════════════════════════════════════════
+                     WATERMARK  (faded logo behind all content)
+                     ══════════════════════════════════════════════════════════ -->
+                <t t-if="env.company.logo">
+                    <div class="mtr-watermark">
+                        <img t-att-src="image_data_uri(env.company.logo)"
+                             style="width:100%; height:auto;"/>
+                    </div>
+                </t>
+
+                <!-- ══════════════════════════════════════════════════════════
+                     FIXED PAGE FOOTER  (appears on every page)
+                     ══════════════════════════════════════════════════════════ -->
+                <div class="mtr-page-footer">
+                    <hr class="mtr-footer-divider"/>
+                    <div>
+                        <strong>Head Office</strong> &#160; :&#160; 17, Street No. 89, G-6/3, Islamabad,
+                        UAN: 0092-51-111-025-025&#160; Fax: +92-51-2101183&#160; E-mail: matracon@gmail.com
+                    </div>
+                    <div>
+                        <strong>Regional Office</strong> : 2<sup>nd</sup> Floor, Plot No. 26-C, Lane-3,
+                        Main Rahat Commercial, Phase-6 DHA, Karachi 021-35853154
+                    </div>
+                </div>
+
+                <!-- ══════════════════════════════════════════════════════════
+                     MAIN PAGE CONTENT
+                     ══════════════════════════════════════════════════════════ -->
+                <div class="page" style="padding:0;">
+
+                    <!-- RFQ# left — Date right -->
+                    <div class="rfq-ref-bar">
+                        <div class="ref-left"><t t-esc="o.name"/></div>
+                        <div class="ref-right">
+                            <t t-esc="o.date_order" t-options='{"widget": "date"}'/>
+                        </div>
                     </div>
 
-                    <!-- ══════════════════════════════════════════════════════════
-                         TITLE
-                         ══════════════════════════════════════════════════════════ -->
+                    <!-- Vendor: Company / City / Attn -->
+                    <t t-if="rfq_partner">
+                        <t t-set="v_company"
+                           t-value="rfq_partner.parent_id if rfq_partner.parent_id else rfq_partner"/>
+                        <t t-set="v_contact"
+                           t-value="rfq_partner if rfq_partner.parent_id else False"/>
+
+                        <div class="po-vendor-block">
+                            <div class="v-company"><t t-esc="v_company.name"/></div>
+                            <t t-if="v_company.city">
+                                <div><t t-esc="v_company.city"/></div>
+                            </t>
+                            <t t-elif="v_company.street">
+                                <div><t t-esc="v_company.street"/></div>
+                            </t>
+                            <t t-if="v_contact">
+                                <div class="v-attn">Attn: <t t-esc="v_contact.name"/></div>
+                            </t>
+                        </div>
+                    </t>
+
+                    <!-- RFQ Title -->
                     <div class="rfq-title">Request for Quotation</div>
 
-                    <!-- ══════════════════════════════════════════════════════════
-                         RFQ META — reference, date, category, project
-                         ══════════════════════════════════════════════════════════ -->
+                    <!-- RFQ meta (ref, date, deadline, project) -->
                     <table class="rfq-meta" style="margin-bottom:16px;">
                         <tr>
                             <td class="lbl">RFQ Reference:</td>
@@ -189,11 +290,10 @@
                         </tr>
                     </table>
 
-
-                    <!-- ══════════════════════════════════════════════════════════
-                         FORMAL LETTER BODY
-                         ══════════════════════════════════════════════════════════ -->
-                    <div class="letter-body" style="font-size:13px;">
+                    <!-- ══════════════════════════════════════════════════════
+                         FORMAL LETTER BODY  (unchanged)
+                         ══════════════════════════════════════════════════════ -->
+                    <div class="letter-body">
                         <p>Dear Sir/Madam,</p>
                         <p>
                             We are pleased to invite your quotation for the supply of
@@ -220,16 +320,15 @@
                         </p>
                     </div>
 
-                    <!-- ══════════════════════════════════════════════════════════
+                    <!-- ══════════════════════════════════════════════════════
                          LINE ITEMS TABLE
-                         Headers  →  dark blue (#1a3a5c), white text, centered
-                         Data cells →  right-aligned, alternating row shading
-                         ══════════════════════════════════════════════════════════ -->
+                         Price / Tax % / Total columns blank — vendor fills in
+                         ══════════════════════════════════════════════════════ -->
                     <table class="rfq-table">
                         <thead>
                             <tr>
                                 <th style="width:4%;">#</th>
-                                <th style="width:30%;">Product / Description</th>
+                                <th style="width:30%; text-align:left;">Product / Description</th>
                                 <th style="width:10%;">UoM</th>
                                 <th style="width:11%;">Quantity</th>
                                 <th style="width:15%;">Unit Price (PKR)</th>
@@ -246,8 +345,11 @@
                                             else (line.x_requested_qty if (line.x_requested_qty or 0) > 0
                                             else (line.product_qty or 0))"/>
                                 <tr>
-                                    <td><t t-esc="line_no"/><t t-set="line_no" t-value="line_no + 1"/></td>
-                                    <td>
+                                    <td style="text-align:center;">
+                                        <t t-esc="line_no"/>
+                                        <t t-set="line_no" t-value="line_no + 1"/>
+                                    </td>
+                                    <td style="text-align:left;">
                                         <t t-esc="line.product_id.display_name"/>
                                         <t t-if="line.name and line.name != line.product_id.display_name">
                                             <br/>
@@ -256,8 +358,10 @@
                                             </span>
                                         </t>
                                     </td>
-                                    <td><t t-esc="line.product_uom_id.name"/></td>
-                                    <td style="font-weight:bold;">
+                                    <td style="text-align:center;">
+                                        <t t-esc="line.product_uom_id.name"/>
+                                    </td>
+                                    <td style="text-align:center; font-weight:bold;">
                                         <t t-esc="'%.4g' % rfq_qty"/>
                                     </td>
                                     <!-- Unit Price / Tax % / Total: BLANK — vendor fills in -->
@@ -268,46 +372,6 @@
                             </t>
                         </tbody>
                     </table>
-
-                    <!-- ══════════════════════════════════════════════════════════
-                         FOOTER — MATRACON LOGO + COMPANY DETAILS
-                         (moved from the former top-of-page position)
-                         ══════════════════════════════════════════════════════════ -->
-                    <div class="matracon-footer">
-                        <!-- Company logo -->
-                        <t t-if="env.company.logo">
-                            <div style="margin-bottom:6px;">
-                                <img t-att-src="image_data_uri(env.company.logo)"
-                                     style="max-height:48px; max-width:160px; object-fit:contain;"/>
-                            </div>
-                        </t>
-                        <strong><t t-esc="env.company.name"/></strong><br/>
-                        <span>
-                            <t t-if="env.company.street">
-                                <t t-esc="env.company.street"/>
-                            </t>
-                            <t t-if="env.company.city">
-                                <t t-if="env.company.street">,</t>
-                                <t t-esc="env.company.city"/>
-                            </t>
-                            <t t-if="env.company.zip">
-                                <t t-esc="env.company.zip"/>
-                            </t>
-                            <t t-if="env.company.country_id">
-                                <t t-if="env.company.city or env.company.street">,</t>
-                                <t t-esc="env.company.country_id.name"/>
-                            </t>
-                        </span>
-                        <t t-if="env.company.phone">
-                            <br/>Tel: <t t-esc="env.company.phone"/>
-                        </t>
-                        <t t-if="env.company.vat">
-                            <br/>NTN: <t t-esc="env.company.vat"/>
-                        </t>
-                        <t t-if="env.company.website">
-                            <br/><t t-esc="env.company.website"/>
-                        </t>
-                    </div>
 
                 </div>
             </t>

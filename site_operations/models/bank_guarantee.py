@@ -189,6 +189,16 @@ class BankGuaranteeFacility(models.Model):
             'context': {'default_facility_id': self.id, 'default_journal_id': self.journal_id.id},
         }
 
+    def action_open_import_wizard(self):
+        """Open the Bank Facility import wizard from the list view header."""
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Import Bank Facility Limits',
+            'res_model': 'x.bg.facility.import.wizard',
+            'view_mode': 'form',
+            'target': 'new',
+        }
+
 
 class BankGuarantee(models.Model):
     _name = 'x.bank.guarantee'
@@ -345,6 +355,8 @@ class BankGuarantee(models.Model):
     )
     amendment_ids = fields.One2many(
         'x.bank.guarantee.amendment', 'guarantee_id', string='Amendment History')
+    amendment_count = fields.Integer(
+        string='Amendments', compute='_compute_amendment_count', store=True)
     cash_margin_slab_ids = fields.One2many(
         'x.bg.cash.margin.slab', 'bg_id', string='Cash Margin Slabs',
         help='Tiered cash margin rates for this BG. '
@@ -370,6 +382,11 @@ class BankGuarantee(models.Model):
                 rec.margin_amount = rec.bg_amount * (rec.cash_margin_percent or 0.0) / 100.0
             rec.commission_amount = rec.bg_amount * (rec.pricing_percent or 0.0) / 100.0
             rec.fed_amount = rec.commission_amount * (rec.fed_percent or 0.0) / 100.0
+
+    @api.depends('amendment_ids')
+    def _compute_amendment_count(self):
+        for rec in self:
+            rec.amendment_count = len(rec.amendment_ids)
 
     @api.depends('expiry_date', 'state')
     def _compute_days_to_expiry(self):
@@ -874,6 +891,26 @@ class BankGuaranteeAmendment(models.Model):
         help='Attach bank letters, extensions, or other supporting documentation for this amendment.',
     )
 
+    # ── Related fields from parent BG — available as columns in standalone list / export ──
+    bg_guarantee_number = fields.Char(
+        related='guarantee_id.guarantee_number', string='Guarantee No',
+        store=False, readonly=True)
+    bg_journal_id = fields.Many2one(
+        related='guarantee_id.journal_id', string='Bank',
+        store=False, readonly=True)
+    bg_project_id = fields.Many2one(
+        related='guarantee_id.project_id', string='Project',
+        store=False, readonly=True)
+    bg_beneficiary_name = fields.Char(
+        related='guarantee_id.beneficiary_name', string='Beneficiary',
+        store=False, readonly=True)
+    bg_state = fields.Selection(
+        related='guarantee_id.state', string='BG Status',
+        store=False, readonly=True)
+    bg_amount = fields.Monetary(
+        related='guarantee_id.bg_amount', string='BG Amount',
+        currency_field='currency_id', store=False, readonly=True)
+
     @api.model_create_multi
     def create(self, vals_list):
         # Assign amendment_no sequentially at creation time.
@@ -920,6 +957,16 @@ class BankGuaranteeAmendment(models.Model):
     def action_apply_extension(self):
         """Button handler — delegates to _do_apply_extension."""
         self._do_apply_extension()
+
+    def action_open_import_wizard(self):
+        """Open the BG Amendment import wizard from the list view header."""
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Import BG Amendments',
+            'res_model': 'x.bg.amendment.import.wizard',
+            'view_mode': 'form',
+            'target': 'new',
+        }
 
 
 class BankGuaranteeFacilityRenewal(models.Model):

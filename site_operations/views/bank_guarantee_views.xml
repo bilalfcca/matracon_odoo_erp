@@ -10,16 +10,31 @@
         <field name="model">x.bank.guarantee.facility</field>
         <field name="arch" type="xml">
             <list string="Bank Facility Limits">
+                <header>
+                    <button name="action_open_import_wizard"
+                            type="object"
+                            string="Import Facilities"
+                            icon="fa-upload"
+                            display="always"
+                            class="btn-secondary"/>
+                </header>
+                <!-- Always visible: core identifiers -->
                 <field name="journal_id" string="Bank / Journal"/>
-                <field name="reference_no" string="Reference No"/>
-                <field name="date_of_issuance" string="Date of Issuance"/>
-                <field name="expiry_date" string="Expiry"/>
-                <field name="cash_margin_percent" string="Cash Margin %"/>
-                <field name="commission_percent" string="Commission %"/>
-                <field name="total_limit" sum="Total Limit"/>
-                <field name="utilized_amount" sum="Utilized"/>
-                <field name="available_limit" sum="Available"/>
-                <field name="guarantee_count" string="BG Count"/>
+                <field name="reference_no" string="Reference No" optional="show"/>
+                <!-- Limits & utilization -->
+                <field name="total_limit" string="Sanctioned Limit" sum="Total Limit" optional="show"/>
+                <field name="utilized_amount" string="Utilized" sum="Utilized" optional="show"/>
+                <field name="available_limit" string="Available" sum="Available" optional="show"/>
+                <field name="guarantee_count" string="BG Count" optional="show"/>
+                <!-- Dates -->
+                <field name="date_of_issuance" string="Date of Issuance" optional="show"/>
+                <field name="expiry_date" string="Expiry" optional="show"/>
+                <!-- Charges -->
+                <field name="cash_margin_percent" string="Cash Margin %" optional="show"/>
+                <field name="commission_percent" string="Commission %" optional="show"/>
+                <!-- Hidden by default -->
+                <field name="name" string="Facility Name" optional="hide"/>
+                <field name="active" string="Active" optional="hide"/>
                 <field name="currency_id" column_invisible="True"/>
             </list>
         </field>
@@ -135,27 +150,60 @@
                             display="always"
                             class="btn-secondary"/>
                 </header>
+
+                <!-- ── Always visible: core identifiers ── -->
                 <field name="sr_no" string="Sr No"/>
-                <field name="journal_id" string="Bank"/>
+                <field name="guarantee_number" string="Guarantee No"/>
                 <field name="state" widget="badge"
                        decoration-success="state == 'active'"
                        decoration-info="state == 'released'"
                        decoration-warning="state == 'pending'"
                        decoration-danger="state == 'expired'"/>
-                <field name="nature_id"/>
-                <field name="guarantee_number"/>
-                <field name="issue_date"/>
-                <field name="expiry_date"/>
-                <field name="bg_amount" sum="BG Amount"/>
-                <field name="cash_margin_percent" string="Cash Margin %"/>
-                <field name="margin_amount" string="Cash Margin Amt" sum="Total Cash Margin"/>
-                <field name="utilized_amount" optional="hide"/>
-                <field name="available_limit" optional="show"/>
-                <field name="total_limit" optional="show"/>
-                <field name="jv_type" string="Bidder"/>
-                <field name="jv_name" optional="show"/>
-                <field name="project_id"/>
-                <field name="beneficiary_name"/>
+
+                <!-- ── Default visible (optional="show") — user can hide ── -->
+                <field name="name" string="Reference" optional="show"/>
+                <field name="journal_id" string="Bank" optional="show"/>
+                <field name="nature_id" string="Nature" optional="show"/>
+                <field name="project_id" string="Project" optional="show"/>
+                <field name="beneficiary_name" string="Beneficiary" optional="show"/>
+                <field name="issue_date" string="Issue Date" optional="show"/>
+                <field name="expiry_date" string="Expiry Date" optional="show"/>
+                <field name="bg_amount" string="BG Amount" sum="BG Amount" optional="show"/>
+                <field name="cash_margin_percent" string="Cash Margin %" optional="show"/>
+                <field name="margin_amount" string="Cash Margin Amt" sum="Total Cash Margin" optional="show"/>
+                <field name="jv_type" string="Bidder" optional="show"/>
+                <field name="amendment_count" string="Amendments" optional="show"/>
+
+                <!-- ── Hidden by default (optional="hide") — available in picker ── -->
+                <field name="facility_id" string="Bank Facility" optional="hide"/>
+                <field name="beneficiary_id" string="Beneficiary (Partner)" optional="hide"/>
+                <field name="jv_name" string="JV Name" optional="hide"/>
+                <field name="pricing_percent" string="Commission %" optional="hide"/>
+                <field name="commission_amount" string="Commission Amt" optional="hide"/>
+                <field name="fed_percent" string="FED %" optional="hide"/>
+                <field name="fed_amount" string="FED Amount" optional="hide"/>
+                <field name="total_limit" string="Facility Limit" sum="Total Limit" optional="hide"/>
+                <field name="utilized_amount" string="Utilized" sum="Utilized" optional="hide"/>
+                <field name="available_limit" string="Available" sum="Available" optional="hide"/>
+                <field name="days_to_expiry" string="Days to Expiry" optional="hide"/>
+                <field name="release_date" string="Release Date" optional="hide"/>
+                <field name="release_notes" string="Release Notes" optional="hide"/>
+                <field name="validated" string="Validated" optional="hide"/>
+                <field name="validated_by_id" string="Validated By" optional="hide"/>
+                <field name="validated_date" string="Validated On" optional="hide"/>
+
+                <!-- ── Project detail columns (for export) ── -->
+                <field name="x_proj_start_date" string="Project Start" optional="hide"/>
+                <field name="x_proj_original_deadline" string="Original Deadline" optional="hide"/>
+                <field name="x_proj_current_deadline" string="Current Deadline" optional="hide"/>
+                <field name="x_proj_contract_value" string="Contract Value" optional="hide"/>
+                <field name="x_proj_billed_to_client" string="Billed to Client" optional="hide"/>
+                <field name="x_proj_remaining_to_bill" string="Remaining to Bill" optional="hide"/>
+                <field name="x_proj_work_completion_pct" string="Work Completion %" optional="hide"/>
+                <field name="x_proj_financial_completion_pct" string="Financial Completion %" optional="hide"/>
+                <field name="x_proj_analytic_account" string="Analytic Account" optional="hide"/>
+
+                <!-- ── Internal flags (decoration only, never shown as columns) ── -->
                 <field name="is_expiring_soon" column_invisible="True"/>
                 <field name="currency_id" column_invisible="True"/>
             </list>
@@ -418,6 +466,93 @@
                 Create a new Nature of BG type
             </p>
             <p>Define the types that appear in the Nature dropdown on Bank Guarantees.</p>
+        </field>
+    </record>
+
+    <!-- ════════════════════════════════════════════════════════════════════
+         BG Amendments — Standalone List (for browse / export)
+    ════════════════════════════════════════════════════════════════════ -->
+
+    <record id="view_bank_guarantee_amendment_list" model="ir.ui.view">
+        <field name="name">x.bank.guarantee.amendment.list</field>
+        <field name="model">x.bank.guarantee.amendment</field>
+        <field name="arch" type="xml">
+            <list string="BG Amendments" create="0" delete="0">
+                <header>
+                    <button name="action_open_import_wizard"
+                            type="object"
+                            string="Import Amendments"
+                            icon="fa-upload"
+                            display="always"
+                            class="btn-secondary"/>
+                </header>
+                <!-- Always visible: identifiers -->
+                <field name="guarantee_id" string="Bank Guarantee"/>
+                <field name="amendment_no" string="No." width="48px"/>
+                <field name="amendment_date" string="Date"/>
+                <field name="amendment_type" string="Type"/>
+
+                <!-- Default visible -->
+                <field name="bg_guarantee_number" string="Guarantee No" optional="show"/>
+                <field name="bg_journal_id" string="Bank" optional="show"/>
+                <field name="bg_project_id" string="Project" optional="show"/>
+                <field name="bg_beneficiary_name" string="Beneficiary" optional="show"/>
+                <field name="bg_state" string="BG Status" widget="badge"
+                       decoration-success="bg_state == 'active'"
+                       decoration-info="bg_state == 'released'"
+                       decoration-warning="bg_state == 'pending'"
+                       decoration-danger="bg_state == 'expired'"
+                       optional="show"/>
+                <field name="description" string="Description" optional="show"/>
+                <field name="amount_change" string="Amount Change" sum="Net Change" optional="show"/>
+                <field name="new_expiry_date" string="New Expiry Date" optional="show"/>
+
+                <!-- Hidden by default -->
+                <field name="bg_amount" string="BG Amount" optional="hide"/>
+                <field name="currency_id" column_invisible="True"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_bank_guarantee_amendment_search" model="ir.ui.view">
+        <field name="name">x.bank.guarantee.amendment.search</field>
+        <field name="model">x.bank.guarantee.amendment</field>
+        <field name="arch" type="xml">
+            <search string="BG Amendments">
+                <field name="guarantee_id" string="Bank Guarantee"/>
+                <field name="bg_guarantee_number" string="Guarantee No"/>
+                <field name="bg_journal_id" string="Bank"/>
+                <field name="bg_project_id" string="Project"/>
+                <field name="description"/>
+                <filter string="Extension" name="filter_extension"
+                        domain="[('amendment_type', '=', 'extension')]"/>
+                <filter string="Increase" name="filter_increase"
+                        domain="[('amendment_type', '=', 'increase')]"/>
+                <filter string="Decrease" name="filter_decrease"
+                        domain="[('amendment_type', '=', 'decrease')]"/>
+                <filter string="Release" name="filter_release"
+                        domain="[('amendment_type', '=', 'release')]"/>
+                <separator/>
+                <filter string="Group by BG" name="group_bg"
+                        context="{'group_by': 'guarantee_id'}"/>
+                <filter string="Group by Bank" name="group_bank"
+                        context="{'group_by': 'bg_journal_id'}"/>
+                <filter string="Group by Project" name="group_project"
+                        context="{'group_by': 'bg_project_id'}"/>
+                <filter string="Group by Type" name="group_type"
+                        context="{'group_by': 'amendment_type'}"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_bank_guarantee_amendment" model="ir.actions.act_window">
+        <field name="name">BG Amendments</field>
+        <field name="res_model">x.bank.guarantee.amendment</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_bank_guarantee_amendment_search"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No amendments recorded yet</p>
+            <p>Amendments are added from individual Bank Guarantee records.</p>
         </field>
     </record>
 
