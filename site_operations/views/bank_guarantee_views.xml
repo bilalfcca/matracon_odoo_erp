@@ -234,8 +234,12 @@
                     <button name="action_cancel" type="object" string="Cancel"
                             invisible="state not in ('draft', 'pending')"/>
                     <button name="action_print_bank_guarantee" type="object"
-                            string="Print Report" class="btn-secondary"
-                            icon="fa-print"/>
+                            string="Download PDF" class="btn-secondary"
+                            icon="fa-file-pdf-o"/>
+                    <button name="action_direct_print_bg" type="object"
+                            string="Print" class="btn-secondary"
+                            icon="fa-print"
+                            title="Opens print dialog in a new tab — prints directly to any connected printer"/>
                     <field name="state" widget="statusbar"
                            statusbar_visible="draft,pending,active,locked,released"/>
                     <button name="action_delete_draft" type="object"

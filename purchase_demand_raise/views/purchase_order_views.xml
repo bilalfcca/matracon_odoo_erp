@@ -33,12 +33,21 @@
 
                 <!-- Print PR: Site Store only, draft/submitted only -->
                 <button name="action_print_pr_internal"
-                        string="Print PR"
+                        string="Download PR"
                         type="object"
                         class="btn-secondary"
+                        icon="fa-file-pdf-o"
                         groups="purchase_demand_raise.group_site_store"
                         invisible="x_pr_state not in ('draft', 'submitted')"
                         data-hotkey="p"/>
+                <button name="action_direct_print_pr"
+                        string="Print PR"
+                        type="object"
+                        class="btn-secondary"
+                        icon="fa-print"
+                        title="Opens PR report in a new tab and triggers the printer dialog"
+                        groups="purchase_demand_raise.group_site_store"
+                        invisible="x_pr_state not in ('draft', 'submitted')"/>
 
                 <!-- Site Store: Submit HO Procurement PR (requires HO + CEO approval) -->
                 <button name="action_submit_pr"

@@ -837,6 +837,15 @@ class BankGuarantee(models.Model):
             'site_operations.action_report_bank_guarantee'
         ).report_action(self)
 
+    def action_direct_print_bg(self):
+        """Open the Bank Guarantee report in a new tab and auto-trigger print dialog."""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_url',
+            'url': f'/site_operations/print/x.bank.guarantee/{self.id}',
+            'target': 'new',
+        }
+
     def unlink(self):
         for rec in self:
             if rec.state != 'draft':

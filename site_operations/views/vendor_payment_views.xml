@@ -166,6 +166,12 @@
                         string="Print Cheque" class="btn-secondary" icon="fa-print"
                         invisible="not x_is_cheque_payment or state == 'draft'"/>
 
+                <!-- Bank Payment Voucher — direct print -->
+                <button name="action_direct_print_bpv" type="object"
+                        string="Print Voucher" class="btn-secondary" icon="fa-print"
+                        title="Opens Bank Payment Voucher in a new tab and triggers the printer dialog"
+                        invisible="state == 'draft'"/>
+
                 <!-- FO buttons (hidden from CEO-only viewers on their own direct payments) -->
                 <button name="action_set_in_process"
                         type="object"

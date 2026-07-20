@@ -94,6 +94,7 @@
         'report/attendance_sheet_report.xml',
         'report/petty_cash_report.xml',
         'report/bank_guarantee_report.xml',
+        'report/bg_registry_pdf_report.xml',
         'report/tax_notice_report.xml',
         'report/postdated_cheque_report.xml',
         'report/interproject_transfer_report.xml',

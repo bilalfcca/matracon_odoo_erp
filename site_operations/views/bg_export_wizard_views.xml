@@ -5,8 +5,11 @@
         <field name="name">x.bg.export.wizard.form</field>
         <field name="model">x.bg.export.wizard</field>
         <field name="arch" type="xml">
-            <form string="Export BG Registry to Excel">
-                <group string="Grouping in Excel">
+            <form string="Export BG Registry">
+                <group string="Export Format">
+                    <field name="export_format" widget="radio"/>
+                </group>
+                <group string="Grouping">
                     <field name="group_by_bank"/>
                     <field name="group_by_project"/>
                 </group>
@@ -20,7 +23,7 @@
                 <div class="alert alert-info mt-2" role="alert">
                     <i class="fa fa-info-circle"/>
                     Select both grouping options to get a <strong>Bank → Project</strong> two-level
-                    grouping in Excel with subtotals at each level.
+                    grouping with subtotals at each level.
                     Each group section shows BG Amount, Cash Margin, Commission, FED subtotals —
                     plus Contract Value, Billed to Client, and Remaining to Bill when
                     <strong>Project Financials</strong> is enabled.
@@ -34,9 +37,9 @@
                 </div>
                 <footer>
                     <button name="action_export" type="object"
-                            string="Export to Excel"
+                            string="Export"
                             class="btn-primary"
-                            icon="fa-file-excel-o"/>
+                            icon="fa-download"/>
                     <button string="Cancel" special="cancel"/>
                 </footer>
             </form>
