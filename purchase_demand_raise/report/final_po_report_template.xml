@@ -70,83 +70,30 @@
                      ARTICLE — main body content
                      ═══════════════════════════════════════════════════════ -->
                 <div class="article">
-                    <style type="text/css">
-                        body, div, table, td, p, span {
-                            font-family: Arial, sans-serif;
-                            font-size: 13px;
-                            color: #222;
-                        }
-
-                        /* ── PO reference bar ── */
-                        .po-ref-bar {
-                            display: table;
-                            width: 100%;
-                            margin-bottom: 16px;
-                        }
-                        .po-ref-bar .ref-left,
-                        .po-ref-bar .ref-right {
-                            display: table-cell;
-                            font-weight: bold;
-                            font-size: 13px;
-                        }
-                        .po-ref-bar .ref-right { text-align: right; }
-
-                        /* ── Vendor block ── */
-                        .po-vendor-block { margin-bottom: 18px; }
-                        .v-company { font-size: 14px; font-weight: bold; margin-bottom: 2px; }
-                        .v-attn    { font-weight: bold; }
-
-                        /* ── Line items table ── */
-                        .po-table {
-                            width: 100%;
-                            border-collapse: collapse;
-                            font-size: 13px;
-                            margin-bottom: 20px;
-                        }
-                        .po-table thead tr {
-                            background: #1a3a5c;
-                            color: #ffffff;
-                        }
-                        .po-table th {
-                            text-align: center;
-                            padding: 7px 8px;
-                            border: 1px solid #1a3a5c;
-                            font-size: 12px;
-                            font-weight: bold;
-                        }
-                        .po-table td {
-                            border: 1px solid #cccccc;
-                            padding: 5px 8px;
-                            font-size: 12px;
-                            vertical-align: top;
-                        }
-                        .po-table tbody tr:nth-child(odd)  td { background: #ffffff; }
-                        .po-table tbody tr:nth-child(even) td { background: #f4f6fa; }
-                        .po-table tfoot td {
-                            font-weight: bold;
-                            background: #f0f4f8;
-                            border: 1px solid #aaa;
-                        }
-
-                    </style>
-
                     <div class="page">
 
-                        <!-- PO# left — Print date right -->
-                        <div class="po-ref-bar">
-                            <div class="ref-left"><t t-esc="o.name"/></div>
-                            <div class="ref-right">
-                                <t t-esc="context_timestamp(datetime.datetime.now()).strftime('%B %d, %Y')"/>
-                            </div>
-                        </div>
+                        <!-- PO# left — Print date right (real table, immune to Bootstrap override) -->
+                        <table style="width:100%; border:0; border-collapse:collapse; margin-bottom:14px;">
+                            <tr>
+                                <td style="border:0; padding:0; font-size:13px; font-weight:bold; color:#222;">
+                                    <t t-esc="o.name"/>
+                                </td>
+                                <td style="border:0; padding:0; font-size:13px; font-weight:bold;
+                                           color:#222; text-align:right;">
+                                    <t t-esc="context_timestamp(datetime.datetime.now()).strftime('%B %d, %Y')"/>
+                                </td>
+                            </tr>
+                        </table>
 
                         <!-- Vendor: Company / City / Attn -->
                         <t t-set="vendor"    t-value="o.partner_id"/>
                         <t t-set="v_company" t-value="vendor.parent_id if vendor.parent_id else vendor"/>
                         <t t-set="v_contact" t-value="vendor if vendor.parent_id else False"/>
 
-                        <div class="po-vendor-block">
-                            <div class="v-company"><t t-esc="v_company.name"/></div>
+                        <div style="margin-bottom:18px; font-family:Arial,sans-serif; font-size:13px; color:#222; line-height:1.5;">
+                            <div style="font-size:14px; font-weight:bold; margin-bottom:2px;">
+                                <t t-esc="v_company.name"/>
+                            </div>
                             <t t-if="v_company.city">
                                 <div><t t-esc="v_company.city"/></div>
                             </t>
@@ -154,7 +101,7 @@
                                 <div><t t-esc="v_company.street"/></div>
                             </t>
                             <t t-if="v_contact">
-                                <div class="v-attn">Attn: <t t-esc="v_contact.name"/></div>
+                                <div style="font-weight:bold;">Attn: <t t-esc="v_contact.name"/></div>
                             </t>
                         </div>
 

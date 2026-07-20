@@ -169,13 +169,18 @@
 
                     <div class="page">
 
-                        <!-- RFQ# left — Print date right -->
-                        <div class="rfq-ref-bar">
-                            <div class="ref-left"><t t-esc="o.name"/></div>
-                            <div class="ref-right">
-                                <t t-esc="context_timestamp(datetime.datetime.now()).strftime('%B %d, %Y')"/>
-                            </div>
-                        </div>
+                        <!-- RFQ# left — Print date right (real table) -->
+                        <table style="width:100%; border:0; border-collapse:collapse; margin-bottom:14px;">
+                            <tr>
+                                <td style="border:0; padding:0; font-size:13px; font-weight:bold; color:#222;">
+                                    <t t-esc="o.name"/>
+                                </td>
+                                <td style="border:0; padding:0; font-size:13px; font-weight:bold;
+                                           color:#222; text-align:right;">
+                                    <t t-esc="context_timestamp(datetime.datetime.now()).strftime('%B %d, %Y')"/>
+                                </td>
+                            </tr>
+                        </table>
 
                         <!-- Vendor: Company / City / Attn -->
                         <t t-if="rfq_partner">
@@ -184,8 +189,10 @@
                             <t t-set="v_contact"
                                t-value="rfq_partner if rfq_partner.parent_id else False"/>
 
-                            <div class="po-vendor-block">
-                                <div class="v-company"><t t-esc="v_company.name"/></div>
+                            <div style="margin-bottom:18px; font-family:Arial,sans-serif; font-size:13px; color:#222; line-height:1.5;">
+                                <div style="font-size:14px; font-weight:bold; margin-bottom:2px;">
+                                    <t t-esc="v_company.name"/>
+                                </div>
                                 <t t-if="v_company.city">
                                     <div><t t-esc="v_company.city"/></div>
                                 </t>
@@ -193,38 +200,41 @@
                                     <div><t t-esc="v_company.street"/></div>
                                 </t>
                                 <t t-if="v_contact">
-                                    <div class="v-attn">Attn: <t t-esc="v_contact.name"/></div>
+                                    <div style="font-weight:bold;">Attn: <t t-esc="v_contact.name"/></div>
                                 </t>
                             </div>
                         </t>
 
                         <!-- RFQ Title -->
-                        <div class="rfq-title">Request for Quotation</div>
+                        <div style="text-align:center; font-size:20px; font-weight:bold; margin:0 0 14px 0;
+                                    text-transform:uppercase; letter-spacing:1px; color:#1a3a5c;">
+                            Request for Quotation
+                        </div>
 
                         <!-- RFQ meta (ref / date / deadline / project) -->
-                        <table class="rfq-meta" style="margin-bottom:14px;">
+                        <table style="border:0; border-collapse:collapse; margin-bottom:14px;">
                             <tr>
-                                <td class="lbl">RFQ Reference:</td>
-                                <td><t t-esc="o.name"/></td>
+                                <td style="border:0; padding:2px 12px 2px 0; font-size:13px; font-weight:bold; white-space:nowrap;">RFQ Reference:</td>
+                                <td style="border:0; padding:2px 0; font-size:13px;"><t t-esc="o.name"/></td>
                             </tr>
                             <tr>
-                                <td class="lbl">Date:</td>
-                                <td>
+                                <td style="border:0; padding:2px 12px 2px 0; font-size:13px; font-weight:bold; white-space:nowrap;">Date:</td>
+                                <td style="border:0; padding:2px 0; font-size:13px;">
                                     <t t-esc="context_timestamp(datetime.datetime.now()).strftime('%B %d, %Y')"/>
                                 </td>
                             </tr>
                             <tr t-if="o.date_approve">
-                                <td class="lbl">Deadline:</td>
-                                <td><t t-esc="o.date_approve" t-options='{"widget": "date"}'/></td>
+                                <td style="border:0; padding:2px 12px 2px 0; font-size:13px; font-weight:bold; white-space:nowrap;">Deadline:</td>
+                                <td style="border:0; padding:2px 0; font-size:13px;"><t t-esc="o.date_approve" t-options='{"widget": "date"}'/></td>
                             </tr>
                             <tr t-if="o.x_project_analytic_account_id">
-                                <td class="lbl">Project:</td>
-                                <td><t t-esc="o.x_project_analytic_account_id.name"/></td>
+                                <td style="border:0; padding:2px 12px 2px 0; font-size:13px; font-weight:bold; white-space:nowrap;">Project:</td>
+                                <td style="border:0; padding:2px 0; font-size:13px;"><t t-esc="o.x_project_analytic_account_id.name"/></td>
                             </tr>
                         </table>
 
                         <!-- Formal letter body -->
-                        <div class="letter-body">
+                        <div style="font-size:13px; line-height:1.65; margin-bottom:14px;">
                             <p>Dear Sir/Madam,</p>
                             <p>
                                 We are pleased to invite your quotation for the supply of
