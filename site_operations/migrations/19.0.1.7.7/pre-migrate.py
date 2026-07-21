@@ -53,8 +53,19 @@ def migrate(cr, version):
     """)
 
     # Fix 2: fill NULL ipc_number so the NOT NULL constraint can be enforced.
+    # Guard: on a fresh install the table/column may not exist yet (the ORM
+    # creates it after pre-migrate runs), so we skip safely in that case.
     cr.execute("""
-        UPDATE x_subcontractor_ipc
-        SET ipc_number = 0
-        WHERE ipc_number IS NULL;
+        DO $$
+        BEGIN
+            IF EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name  = 'x_subcontractor_ipc'
+                  AND column_name = 'ipc_number'
+            ) THEN
+                UPDATE x_subcontractor_ipc
+                SET ipc_number = 0
+                WHERE ipc_number IS NULL;
+            END IF;
+        END $$;
     """)
