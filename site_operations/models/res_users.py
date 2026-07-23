@@ -53,6 +53,21 @@ class ResUsersSiteOps(models.Model):
         for user in self:
             user.x_last_online = presence_map.get(user.id, False)
 
+    # ── Allow users to write their own backdate preference ───────────────────
+    # SELF_WRITEABLE_FIELDS controls which fields a non-admin user may write on
+    # their own res.users record (e.g. via Change my Preferences).  Custom
+    # fields added via _inherit are NOT included automatically — we must extend
+    # both properties explicitly, otherwise saving preferences raises
+    # "You are not allowed to modify 'User' (res.users) records."
+
+    @property
+    def SELF_READABLE_FIELDS(self):
+        return super().SELF_READABLE_FIELDS + ['x_backdate_default']
+
+    @property
+    def SELF_WRITEABLE_FIELDS(self):
+        return super().SELF_WRITEABLE_FIELDS + ['x_backdate_default']
+
     # ── Backdate Default ─────────────────────────────────────────────────────
     # When set, any new account.move (journal entry / vendor bill / customer
     # invoice) or account.payment created by THIS user will default to this
