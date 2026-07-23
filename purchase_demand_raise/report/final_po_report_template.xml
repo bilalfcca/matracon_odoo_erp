@@ -55,12 +55,12 @@
                    <t t-set="po_ref_number" t-value="o.name"/>
                    <t t-set="po_ref_date"   t-value="...strftime(...)"/> -->
             <t t-if="po_ref_number or po_ref_date">
-                <div style="padding:3px 0 2px 0; font-size:12px; font-weight:bold; color:#222;">
-                    <t t-if="po_ref_number">
-                        <div><t t-esc="po_ref_number"/></div>
-                    </t>
+                <div style="padding:3px 0 2px 0; font-size:12px; font-weight:bold; color:#222; margin-left:0;">
                     <t t-if="po_ref_date">
                         <div><t t-esc="po_ref_date"/></div>
+                    </t>
+                    <t t-if="po_ref_number">
+                        <div><t t-esc="po_ref_number"/></div>
                     </t>
                 </div>
             </t>
