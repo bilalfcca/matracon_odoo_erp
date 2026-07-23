@@ -53,6 +53,18 @@ class ResUsersSiteOps(models.Model):
         for user in self:
             user.x_last_online = presence_map.get(user.id, False)
 
+    # ── Backdate Default ─────────────────────────────────────────────────────
+    # When set, any new account.move (journal entry / vendor bill / customer
+    # invoice) or account.payment created by THIS user will default to this
+    # date instead of today.  Per-user — does not affect other users.
+    # The user clears it when they're done with the backdated batch.
+    x_backdate_default = fields.Date(
+        string='Default Entry Date',
+        help='When set, new journal entries, invoices, and payments will '
+             'default to this date instead of today. Clear it when done '
+             'with the backdated batch.',
+    )
+
     x_default_project_id = fields.Many2one(
         'project.project',
         string='Assigned Project',
