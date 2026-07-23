@@ -24,17 +24,12 @@
                 <t t-set="rfq_partner"
                    t-value="env['res.partner'].browse(_rpid) if _rpid else False"/>
 
-                <t t-call="purchase_demand_raise.matracon_po_layout">
+                <!-- Supply ref + date to the layout header BEFORE t-call -->
+                <t t-set="po_ref_number" t-value="o.name"/>
+                <t t-set="po_ref_date"
+                   t-value="context_timestamp(datetime.datetime.now()).strftime('%B %d, %Y')"/>
 
-                    <!-- RFQ# left — Print date right -->
-                    <div style="width:100%; overflow:hidden; margin-bottom:12px;">
-                        <span style="float:right; font-size:13px; font-weight:bold; color:#222;">
-                            <t t-esc="context_timestamp(datetime.datetime.now()).strftime('%B %d, %Y')"/>
-                        </span>
-                        <span style="display:block; overflow:hidden; font-size:13px; font-weight:bold; color:#222;">
-                            <t t-esc="o.name"/>
-                        </span>
-                    </div>
+                <t t-call="purchase_demand_raise.matracon_po_layout">
 
                     <!-- Vendor: Company / City / Attn (divs — avoids Bootstrap table border CSS) -->
                     <t t-if="rfq_partner">
@@ -71,16 +66,8 @@
                         Request for Quotation
                     </p>
 
-                    <!-- RFQ meta (ref / date / deadline / project) — divs avoid table border artifacts -->
+                    <!-- RFQ meta (deadline / project only — ref + date are now in the header) -->
                     <div style="margin-bottom:12px; font-size:13px; color:#222; line-height:1.7;">
-                        <div>
-                            <span style="font-weight:bold; display:inline-block; min-width:110px;">RFQ Reference:</span>
-                            <span><t t-esc="o.name"/></span>
-                        </div>
-                        <div>
-                            <span style="font-weight:bold; display:inline-block; min-width:110px;">Date:</span>
-                            <span><t t-esc="context_timestamp(datetime.datetime.now()).strftime('%B %d, %Y')"/></span>
-                        </div>
                         <t t-if="o.date_approve">
                             <div>
                                 <span style="font-weight:bold; display:inline-block; min-width:110px;">Deadline:</span>

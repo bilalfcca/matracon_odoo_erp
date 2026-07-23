@@ -1,66 +1,93 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <!--
-        Matracon Purchase Order — QWeb PDF Template
-        =============================================
-        Uses web.external_layout for proven rendering, with our custom Matracon
-        layout injected as a thin wrapper that provides the header/footer/article
-        divs in exactly the same structure as web.external_layout_standard.
+        Matracon Purchase Order: QWeb PDF Template
+        ============================================
+        Uses web.html_container then matracon_po_layout (our own standalone layout)
+        which provides header / article / footer divs for wkhtmltopdf.
 
-        The <t t-call="web.html_container"> → <t t-call="web.external_layout">
-        chain is the proven Odoo pattern (same as MIF, cheque, etc.).
+        Header carries:
+          * Logo + company name on the SAME LINE (display:table/table-cell)
+          * Thin navy divider
+          * PO / RFQ reference + print-date (injected by calling template via
+            t-set po_ref_number / po_ref_date BEFORE t-call)
 
-        web.external_layout_standard generates:
-          <div class="header ...">  ← company logo + details (overridden by us)
-          <div class="article ..."> ← main content via t-out="0"
-          <div class="footer ...">  ← company report_footer (overridden by us)
+        Putting ref/date in the header guarantees they are always visible:
+        they bypass the wkhtmltopdf article invisible-zone entirely.
     -->
 
     <!-- ═══════════════════════════════════════════════════════════════════
-         Matracon PO/RFQ layout — overrides web.external_layout_standard
-         to show the Matracon letterhead header and HO/RO footer.
-         Called by our PO and RFQ templates instead of web.external_layout.
+         Matracon PO/RFQ layout — shared by PO and RFQ templates.
+         Calling template must set po_ref_number / po_ref_date before t-call.
     ═══════════════════════════════════════════════════════════════════════ -->
     <template id="matracon_po_layout">
-        <!-- ── HEADER (repeats every page) ── -->
+
+        <!-- ── HEADER (repeats every page via wkhtmltopdf header-html) ── -->
         <div class="header" style="
                 font-family: Arial, sans-serif;
                 width: 100%;
-                padding: 0mm 12mm 2mm 12mm;
+                padding: 5px 12mm 3px 12mm;
                 box-sizing: border-box;
-                background: #ffffff;
-                text-align: center;">
-            <!-- Logo + Company Name — flex row so both are perfectly centred vertically -->
-            <div style="display:flex; align-items:center; justify-content:center; gap:10px;">
+                background: #ffffff;">
+
+            <!-- Logo + Company Name on the SAME LINE.
+                 display:table/table-cell is the most reliable approach in
+                 wkhtmltopdf's WebKit engine (flex can render stacked). -->
+            <div style="display:table; width:100%; border-collapse:collapse;">
                 <t t-if="env.company.logo">
-                    <img t-att-src="image_data_uri(env.company.logo)"
-                         style="max-height:68px; max-width:108px; object-fit:contain;
-                                display:block; flex-shrink:0;"/>
+                    <div style="display:table-cell; width:1px; white-space:nowrap;
+                                vertical-align:middle; padding-right:10px;">
+                        <img t-att-src="image_data_uri(env.company.logo)"
+                             style="height:42px; width:auto; display:block;"/>
+                    </div>
                 </t>
-                <span style="font-family:'CG Omega', Arial, sans-serif;
-                             font-size:26px; font-weight:bold; font-style:normal;
-                             color:#4a1a6e; letter-spacing:0.8px; white-space:nowrap;">
-                    MATRACON PAKISTAN (PVT) LIMITED
-                </span>
+                <div style="display:table-cell; vertical-align:middle;">
+                    <span style="font-family:'CG Omega', Arial, sans-serif;
+                                 font-size:22px; font-weight:bold; font-style:normal;
+                                 color:#4a1a6e; letter-spacing:0.8px; white-space:nowrap;">
+                        MATRACON PAKISTAN (PVT) LIMITED
+                    </span>
+                </div>
             </div>
+
+            <!-- Navy divider -->
+            <div style="border-top:2.5px solid #4a1a6e; margin-top:4px;"></div>
+
+            <!-- PO / RFQ reference number (left) + date (right)
+                 Set by calling template:
+                   <t t-set="po_ref_number" t-value="o.name"/>
+                   <t t-set="po_ref_date"   t-value="...strftime(...)"/> -->
+            <t t-if="po_ref_number or po_ref_date">
+                <div style="overflow:hidden; padding:3px 0 2px 0;
+                            font-size:12px; font-weight:bold; color:#222;">
+                    <span style="float:right;">
+                        <t t-esc="po_ref_date or ''"/>
+                    </span>
+                    <span style="display:block; overflow:hidden;">
+                        <t t-esc="po_ref_number or ''"/>
+                    </span>
+                </div>
+            </t>
         </div>
 
-        <!-- ── ARTICLE (main body — content injected via t-out="0") ── -->
+        <!-- ── ARTICLE (main body, content injected via t-out="0")
+             padding-top: 16mm clears the wkhtmltopdf article invisible zone (~14mm).
+             Ref/date are now in the header so article starts with the vendor block. -->
         <div class="article" style="
                 font-family: Arial, sans-serif;
                 font-size: 13px;
                 color: #222;
-                padding: 20mm 12mm 4mm 12mm;">
+                padding: 16mm 12mm 4mm 12mm;">
 
-            <!-- CSS for the product table — inside article so it's included
-                 in the minimal_layout body that wkhtmltopdf renders. -->
+            <!-- CSS for product tables — lives here so it is part of the
+                 minimal_layout body that wkhtmltopdf actually renders. -->
             <style type="text/css">
                 body, div, p, span, li, td, th {
                     font-family: Arial, sans-serif;
                     color: #222;
                 }
                 /* Global reset: suppress borders on all td/th (Bootstrap may add them).
-                   Data tables (.po-table, .rfq-table) override via higher specificity below. */
+                   Data tables (.po-table, .rfq-table) override via higher specificity. */
                 table  { border: none !important; border-collapse: collapse !important; border-spacing: 0 !important; }
                 td, th { border: none !important; }
 
@@ -93,6 +120,7 @@
                     font-weight: bold;
                     background: #eef1f7;
                 }
+
                 /* RFQ product table */
                 .rfq-table {
                     width: 100%;
@@ -123,7 +151,7 @@
             <t t-out="0"/>
         </div>
 
-        <!-- ── FOOTER (repeats every page) ── -->
+        <!-- ── FOOTER (repeats every page via wkhtmltopdf footer-html) ── -->
         <div class="footer" style="
                 font-family: Arial, sans-serif;
                 font-size: 8px;
@@ -152,19 +180,15 @@
     <template id="report_final_po_template">
         <t t-call="web.html_container">
             <t t-foreach="docs" t-as="o">
+
+                <!-- Supply ref + date to the layout header BEFORE t-call -->
+                <t t-set="po_ref_number" t-value="o.name"/>
+                <t t-set="po_ref_date"
+                   t-value="context_timestamp(datetime.datetime.now()).strftime('%B %d, %Y')"/>
+
                 <t t-call="purchase_demand_raise.matracon_po_layout">
 
-                    <!-- PO# left — Print date right -->
-                    <div style="width:100%; overflow:hidden; margin-bottom:12px;">
-                        <span style="float:right; font-size:13px; font-weight:bold; color:#222;">
-                            <t t-esc="context_timestamp(datetime.datetime.now()).strftime('%B %d, %Y')"/>
-                        </span>
-                        <span style="display:block; overflow:hidden; font-size:13px; font-weight:bold; color:#222;">
-                            <t t-esc="o.name"/>
-                        </span>
-                    </div>
-
-                    <!-- Vendor: Company / City / Attn (divs, not table — avoids Bootstrap table border CSS) -->
+                    <!-- Vendor: Company / City / Attn (divs, not table — avoids Bootstrap border CSS) -->
                     <t t-set="vendor"    t-value="o.partner_id"/>
                     <t t-set="v_company" t-value="vendor.parent_id if vendor.parent_id else vendor"/>
                     <t t-set="v_contact" t-value="vendor if vendor.parent_id else False"/>
