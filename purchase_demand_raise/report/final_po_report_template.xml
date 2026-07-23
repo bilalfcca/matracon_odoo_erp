@@ -26,25 +26,25 @@
         <div class="header" style="
                 font-family: Arial, sans-serif;
                 width: 100%;
-                padding: 4mm 12mm 2mm 12mm;
+                padding: 0mm 12mm 2mm 12mm;
                 box-sizing: border-box;
-                background: #ffffff;">
-            <table style="width:100%; border:0; border-collapse:collapse; border-spacing:0;">
-                <tr>
-                    <td style="width:88px; padding:0; border:0; vertical-align:middle;">
-                        <t t-if="env.company.logo">
-                            <img t-att-src="image_data_uri(env.company.logo)"
-                                 style="max-height:52px; max-width:82px; object-fit:contain; display:block;"/>
-                        </t>
-                    </td>
-                    <td style="padding:0 0 0 10px; border:0; vertical-align:middle;
-                               font-size:20px; font-weight:bold; color:#1a3a5c;
-                               letter-spacing:0.5px; white-space:nowrap;">
-                        MATRACON PAKISTAN (PVT) LIMITED
-                    </td>
-                </tr>
-            </table>
-            <div style="border-top:2.5px solid #1a3a5c; margin-top:4px;"></div>
+                background: #ffffff;
+                text-align: center;">
+            <!-- Logo + Company Name — centered as a unit -->
+            <div style="text-align:center; line-height:1;">
+                <t t-if="env.company.logo">
+                    <img t-att-src="image_data_uri(env.company.logo)"
+                         style="max-height:46px; max-width:74px; object-fit:contain;
+                                display:inline-block; vertical-align:middle;
+                                margin-right:10px;"/>
+                </t>
+                <span style="font-family:'CG Omega', Arial, sans-serif;
+                             font-size:26px; font-weight:bold; font-style:normal;
+                             color:#4a1a6e; letter-spacing:0.8px; white-space:nowrap;
+                             display:inline-block; vertical-align:middle;">
+                    MATRACON PAKISTAN (PVT) LIMITED
+                </span>
+            </div>
         </div>
 
         <!-- ── ARTICLE (main body — content injected via t-out="0") ── -->

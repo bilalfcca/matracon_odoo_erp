@@ -870,6 +870,13 @@ class PettyCashExpense(models.Model):
         help='Payable account to debit (e.g. Payable to Subcontractors). '
              'This entry appears in the partner ledger and IPC payment tracking.')
 
+    # ── Link to the journal entry created on posting ──────────────────────────
+    x_account_move_id = fields.Many2one(
+        'account.move', string='Journal Entry',
+        copy=False, readonly=True, ondelete='set null',
+        help='Journal entry created when this expense is posted. '
+             'Used by the IPC payment query to avoid double-counting.')
+
     receipt = fields.Binary(string='Receipt / Voucher')
     receipt_filename = fields.Char()
 
@@ -1192,6 +1199,7 @@ class PettyCashExpense(models.Model):
             return
         move = self.env['account.move'].create(move_vals)
         move.action_post()
+        self.x_account_move_id = move
 
     def action_print_expense_voucher(self):
         return self.env.ref(

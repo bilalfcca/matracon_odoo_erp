@@ -385,6 +385,14 @@ class PurchaseOrder(models.Model):
             # Clear vendor — selected by HO during approval
             'partner_id': False,
         })
+        # Re-derive origin from the duplicating user so the new draft is
+        # immediately visible under that user's record rule.
+        user = self.env.user
+        if user.has_group('purchase_demand_raise.group_procurement_ho') \
+                and not user.has_group('purchase_demand_raise.group_site_store'):
+            default.setdefault('x_pr_origin', 'procurement_ho')
+        elif user.has_group('purchase_demand_raise.group_site_store'):
+            default.setdefault('x_pr_origin', 'site_store')
         return super().copy(default)
 
     # ── Default picking_type_id and analytic account for site users ──────────

@@ -328,8 +328,9 @@ class SubcontractorIPC(models.Model):
 
                 # Journal-entry payments (Dr Payable Cr Bank) not via account.payment
                 # Captures SA direct JEs, HO JEs with analytic, Excel-imported entries.
-                # am.origin_payment_id IS NULL prevents double-counting: payment-wizard
-                # JEs have origin_payment_id set and are already counted via account_payment.
+                # am.origin_payment_id IS NULL prevents double-counting with account_payment.
+                # x_account_move_id IS NOT NULL on petty cash expenses prevents double-counting
+                # with the petty_cash query above — petty cash JEs are already counted there.
                 cr.execute("""
                     SELECT COALESCE(SUM(aml.debit), 0)
                       FROM account_move_line aml
@@ -345,6 +346,10 @@ class SubcontractorIPC(models.Model):
                            am.x_project_analytic_account_id = %s
                            OR (aml.analytic_distribution IS NOT NULL
                                AND aml.analytic_distribution ? %s)
+                       )
+                       AND NOT EXISTS (
+                           SELECT 1 FROM x_petty_cash_expense pce_excl
+                            WHERE pce_excl.x_account_move_id = am.id
                        )
                 """, (partner_id, cutoff_date, analytic_id, str_analytic_id))
                 je_pay = cr.fetchone()[0] or 0.0
@@ -375,7 +380,7 @@ class SubcontractorIPC(models.Model):
         for ipc in self:
             this_gross = max(
                 ipc.gross_work_done - ipc.previous_gross_work_done, 0.0)
-            pct = (ipc.retention_pct or 5.0) / 100.0
+            pct = ipc.retention_pct / 100.0
             total_ret = ipc.gross_work_done * pct
             prev_ret = ipc.previous_gross_work_done * pct
             this_ret = total_ret - prev_ret
