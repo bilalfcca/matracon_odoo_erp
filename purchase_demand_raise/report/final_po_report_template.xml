@@ -33,15 +33,15 @@
             <!-- Logo + Company Name — centered together as a single unit.
                  inline-block on both elements + text-align:center on the wrapper
                  is the most reliable centering method in wkhtmltopdf's WebKit. -->
-            <div style="text-align:center; padding:2px 0 4px 0;">
+            <div style="text-align:center; padding:4px 0 6px 0;">
                 <t t-if="env.company.logo">
                     <img t-att-src="image_data_uri(env.company.logo)"
-                         style="height:42px; width:auto; display:inline-block;
-                                vertical-align:middle; margin-right:10px;"/>
+                         style="height:84px; width:auto; display:inline-block;
+                                vertical-align:middle; margin-right:18px;"/>
                 </t>
                 <span style="font-family:'CG Omega', Arial, sans-serif;
-                             font-size:22px; font-weight:bold; font-style:normal;
-                             color:#4a1a6e; letter-spacing:0.8px; white-space:nowrap;
+                             font-size:44px; font-weight:bold; font-style:normal;
+                             color:#4a1a6e; letter-spacing:1.6px; white-space:nowrap;
                              display:inline-block; vertical-align:middle;">
                     MATRACON PAKISTAN (PVT) LIMITED
                 </span>
