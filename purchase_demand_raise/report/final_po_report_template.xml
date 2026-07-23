@@ -30,18 +30,16 @@
                 box-sizing: border-box;
                 background: #ffffff;
                 text-align: center;">
-            <!-- Logo + Company Name — centered as a unit -->
-            <div style="text-align:center; line-height:1;">
+            <!-- Logo + Company Name — flex row so both are perfectly centred vertically -->
+            <div style="display:flex; align-items:center; justify-content:center; gap:10px;">
                 <t t-if="env.company.logo">
                     <img t-att-src="image_data_uri(env.company.logo)"
                          style="max-height:68px; max-width:108px; object-fit:contain;
-                                display:inline-block; vertical-align:middle;
-                                margin-right:10px;"/>
+                                display:block; flex-shrink:0;"/>
                 </t>
                 <span style="font-family:'CG Omega', Arial, sans-serif;
                              font-size:26px; font-weight:bold; font-style:normal;
-                             color:#4a1a6e; letter-spacing:0.8px; white-space:nowrap;
-                             display:inline-block; vertical-align:middle;">
+                             color:#4a1a6e; letter-spacing:0.8px; white-space:nowrap;">
                     MATRACON PAKISTAN (PVT) LIMITED
                 </span>
             </div>
@@ -52,7 +50,7 @@
                 font-family: Arial, sans-serif;
                 font-size: 13px;
                 color: #222;
-                padding: 16mm 12mm 4mm 12mm;">
+                padding: 20mm 12mm 4mm 12mm;">
 
             <!-- CSS for the product table — inside article so it's included
                  in the minimal_layout body that wkhtmltopdf renders. -->
