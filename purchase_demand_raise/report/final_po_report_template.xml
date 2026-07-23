@@ -56,8 +56,8 @@
                    <t t-set="po_ref_date"   t-value="...strftime(...)"/> -->
             <t t-if="po_ref_number or po_ref_date">
                 <div style="overflow:hidden; padding:3px 0 2px 0; font-size:12px; font-weight:bold; color:#222;">
-                    <span style="float:right;"><t t-esc="po_ref_number or ''"/></span>
-                    <span><t t-esc="po_ref_date or ''"/></span>
+                    <span style="float:right;"><t t-esc="po_ref_date or ''"/></span>
+                    <span><t t-esc="po_ref_number or ''"/></span>
                 </div>
             </t>
         </div>
