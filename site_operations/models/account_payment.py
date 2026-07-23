@@ -327,9 +327,6 @@ class AccountPaymentSiteOps(models.Model):
     def default_get(self, fields_list):
         vals = super().default_get(fields_list)
         user = self.env.user
-        backdate = user.x_backdate_default
-        if backdate and 'date' in fields_list:
-            vals['date'] = backdate
         is_ceo_only = (
             user.has_group('purchase_demand_raise.group_ceo_approval')
             and not user.has_group('site_operations.group_finance_ho')

@@ -120,18 +120,6 @@ class AccountMoveSiteOps(models.Model):
             ])
         return self.env['stock.picking']
 
-    @api.model
-    def default_get(self, fields_list):
-        vals = super().default_get(fields_list)
-        backdate = self.env.user.x_backdate_default
-        if backdate:
-            # 'date' = journal date (entries); 'invoice_date' = invoice date
-            if 'date' in fields_list:
-                vals['date'] = backdate
-            if 'invoice_date' in fields_list:
-                vals['invoice_date'] = backdate
-        return vals
-
     @api.model_create_multi
     def create(self, vals_list):
         for vals in vals_list:
