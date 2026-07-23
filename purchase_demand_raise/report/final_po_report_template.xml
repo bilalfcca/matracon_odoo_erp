@@ -50,9 +50,6 @@
                 </div>
             </div>
 
-            <!-- Navy divider -->
-            <div style="border-top:2.5px solid #4a1a6e; margin-top:4px;"></div>
-
             <!-- PO / RFQ reference number (left) + date (right)
                  Set by calling template:
                    <t t-set="po_ref_number" t-value="o.name"/>
@@ -77,7 +74,7 @@
                 font-family: Arial, sans-serif;
                 font-size: 13px;
                 color: #222;
-                padding: 16mm 12mm 4mm 12mm;">
+                padding: 22mm 12mm 4mm 12mm;">
 
             <!-- CSS for product tables — lives here so it is part of the
                  minimal_layout body that wkhtmltopdf actually renders. -->
