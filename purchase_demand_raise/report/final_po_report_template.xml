@@ -34,7 +34,7 @@
             <div style="text-align:center; line-height:1;">
                 <t t-if="env.company.logo">
                     <img t-att-src="image_data_uri(env.company.logo)"
-                         style="max-height:46px; max-width:74px; object-fit:contain;
+                         style="max-height:68px; max-width:108px; object-fit:contain;
                                 display:inline-block; vertical-align:middle;
                                 margin-right:10px;"/>
                 </t>
@@ -157,17 +157,14 @@
                 <t t-call="purchase_demand_raise.matracon_po_layout">
 
                     <!-- PO# left — Print date right -->
-                    <table style="width:100%; border:0; border-collapse:collapse; border-spacing:0; margin-bottom:12px;">
-                        <tr>
-                            <td style="border:0; padding:0; font-size:13px; font-weight:bold; color:#222;">
-                                <t t-esc="o.name"/>
-                            </td>
-                            <td style="border:0; padding:0; font-size:13px; font-weight:bold;
-                                       color:#222; text-align:right;">
-                                <t t-esc="context_timestamp(datetime.datetime.now()).strftime('%B %d, %Y')"/>
-                            </td>
-                        </tr>
-                    </table>
+                    <div style="width:100%; overflow:hidden; margin-bottom:12px;">
+                        <span style="float:right; font-size:13px; font-weight:bold; color:#222;">
+                            <t t-esc="context_timestamp(datetime.datetime.now()).strftime('%B %d, %Y')"/>
+                        </span>
+                        <span style="display:block; overflow:hidden; font-size:13px; font-weight:bold; color:#222;">
+                            <t t-esc="o.name"/>
+                        </span>
+                    </div>
 
                     <!-- Vendor: Company / City / Attn (divs, not table — avoids Bootstrap table border CSS) -->
                     <t t-set="vendor"    t-value="o.partner_id"/>
@@ -219,7 +216,7 @@
                     <p style="margin:0 0 7px 0; font-size:13px; line-height:1.7;">Dear Sir,</p>
                     <p style="margin:0 0 14px 0; font-size:13px; line-height:1.7; text-indent:28px;">
                         Through your quotation, we are pleased to confirm the order for the Supply
-                        of the abovementioned product for our subject project, as per the required
+                        of the below mentioned product for our subject project, as per the required
                         standards and specifications.
                     </p>
 

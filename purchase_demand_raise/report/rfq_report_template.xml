@@ -27,17 +27,14 @@
                 <t t-call="purchase_demand_raise.matracon_po_layout">
 
                     <!-- RFQ# left — Print date right -->
-                    <table style="width:100%; border:0; border-collapse:collapse; border-spacing:0; margin-bottom:12px;">
-                        <tr>
-                            <td style="border:0; padding:0; font-size:13px; font-weight:bold; color:#222;">
-                                <t t-esc="o.name"/>
-                            </td>
-                            <td style="border:0; padding:0; font-size:13px; font-weight:bold;
-                                       color:#222; text-align:right;">
-                                <t t-esc="context_timestamp(datetime.datetime.now()).strftime('%B %d, %Y')"/>
-                            </td>
-                        </tr>
-                    </table>
+                    <div style="width:100%; overflow:hidden; margin-bottom:12px;">
+                        <span style="float:right; font-size:13px; font-weight:bold; color:#222;">
+                            <t t-esc="context_timestamp(datetime.datetime.now()).strftime('%B %d, %Y')"/>
+                        </span>
+                        <span style="display:block; overflow:hidden; font-size:13px; font-weight:bold; color:#222;">
+                            <t t-esc="o.name"/>
+                        </span>
+                    </div>
 
                     <!-- Vendor: Company / City / Attn (divs — avoids Bootstrap table border CSS) -->
                     <t t-if="rfq_partner">
