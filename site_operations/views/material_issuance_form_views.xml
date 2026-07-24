@@ -349,6 +349,9 @@
             </xpath>
             <xpath expr="//field[@name='move_ids']/list/field[@name='product_id']" position="attributes">
                 <attribute name="domain">[('id', 'in', x_allowed_product_ids)] if parent.x_transfer_purpose == 'material_issuance' and not parent.x_is_return_transfer else []</attribute>
+                <!-- Filter qty_available in the product search popup to the picking's source location
+                     so the "On Hand" column in the dialog matches the x_qty_on_hand line column. -->
+                <attribute name="context">{'default_is_storable': True, 'location': parent.location_id}</attribute>
             </xpath>
 
             <!-- Before Demand: On Hand (issuances only), then return context columns -->
