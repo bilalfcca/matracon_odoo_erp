@@ -1023,8 +1023,8 @@ class StockPickingSiteOps(models.Model):
                                 'loc': pick.location_id.display_name,
                                 'avail': avail,
                             })
-            if pick.x_transfer_purpose == 'material_issuance' and not pick.x_is_return_transfer:
-                pick._check_duplicate_asset_issuance()
+            # Duplicate-asset check removed per business request — allow re-issuing
+            # an asset to the same contact without requiring a return first.
             if (pick.x_transfer_purpose == 'site_to_site'
                     and not pick.x_is_dest_receipt
                     and pick.x_site_transfer_state != 'approved'):

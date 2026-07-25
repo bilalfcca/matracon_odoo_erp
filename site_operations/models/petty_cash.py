@@ -929,7 +929,12 @@ class PettyCashExpense(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        """Auto-generate x_ref with site-based prefix if not already provided."""
+        """Auto-generate x_ref with site-based prefix if not already provided.
+
+        Also auto-fills x_petty_cash_account_id from the fund/site config when
+        the value was not sent by the client (Odoo does not submit readonly field
+        values from the form, so default_get alone is insufficient).
+        """
         Analytic = self.env['account.analytic.account']
         for vals in vals_list:
             if not vals.get('x_ref'):
@@ -940,6 +945,14 @@ class PettyCashExpense(models.Model):
                 site_code = Analytic._matracon_site_code_for_id(analytic_id)
                 vals['x_ref'] = Analytic._matracon_ref_with_site(
                     'x.petty.cash.expense', site_code)
+            # Ensure x_petty_cash_account_id is always populated from the fund.
+            # readonly fields are NOT sent by the browser on save, so the value
+            # set by default_get is lost unless we re-fill it here.
+            if not vals.get('x_petty_cash_account_id') and vals.get('fund_id'):
+                fund = self.env['x.petty.cash.fund'].browse(vals['fund_id'])
+                pc_acct = fund._get_petty_cash_account()
+                if pc_acct:
+                    vals['x_petty_cash_account_id'] = pc_acct.id
         return super().create(vals_list)
 
     @api.onchange('is_subcontractor_advance', 'advance_subcontractor_id')

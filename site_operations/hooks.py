@@ -402,12 +402,69 @@ def post_init_hook(env):
     reprocess_existing_payments(env)
 
 
+def fix_petty_cash_expense_accounts(env):
+    """Back-fill x_petty_cash_account_id on petty cash expenses where it was never
+    persisted (readonly field not sent by browser on save) and create missing journal
+    entries for posted expenses that have no JE (causing the fund balance to be wrong).
+
+    Safe to run multiple times — skips expenses that already have the account or JE.
+    """
+    import logging
+    _logger = logging.getLogger(__name__)
+
+    PCE = env['x.petty.cash.expense'].sudo()
+
+    # ── Step 1: fill missing x_petty_cash_account_id ─────────────────────────
+    missing_account = PCE.search([('x_petty_cash_account_id', '=', False)])
+    filled = 0
+    for expense in missing_account:
+        pc_account = expense.fund_id._get_petty_cash_account()
+        if pc_account:
+            expense.x_petty_cash_account_id = pc_account
+            filled += 1
+    if filled:
+        _logger.info(
+            'fix_petty_cash_expense_accounts: filled x_petty_cash_account_id on %d expense(s)',
+            filled,
+        )
+
+    # ── Step 2: create missing JEs for posted expenses ────────────────────────
+    # These are expenses that were "posted" but _create_journal_entry silently
+    # returned early (no credit account / no journal) — so the GL was never
+    # touched and the fund balance never decreased.
+    posted_no_je = PCE.search([
+        ('state', '=', 'posted'),
+        ('x_account_move_id', '=', False),
+    ])
+    created = 0
+    for expense in posted_no_je:
+        try:
+            expense._create_journal_entry()
+            created += 1
+        except Exception as e:
+            _logger.warning(
+                'fix_petty_cash_expense_accounts: could not create JE for %s: %s',
+                expense.x_ref or expense.id, e,
+            )
+    if created:
+        _logger.info(
+            'fix_petty_cash_expense_accounts: created %d missing journal entry/entries',
+            created,
+        )
+
+
 def post_migrate_hook(env):
     set_pkr_decimal_places(env)
     set_date_format(env)
     set_pakistan_fiscal_year(env)
     deduplicate_partner_tags(env)
     reprocess_existing_payments(env)
+    try:
+        fix_petty_cash_expense_accounts(env)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(
+            'post_migrate_hook: fix_petty_cash_expense_accounts failed: %s', e)
     # Re-apply production user config (groups + default analytic/warehouse) on every update
     # so that a module upgrade or re-install never silently resets site user settings.
     try:

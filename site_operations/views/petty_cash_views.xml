@@ -270,10 +270,14 @@
 
                     <group string="Accounting">
                         <group string="Credit (Cash Out)">
-                            <!-- Site accountants: readonly (configured at site level, cannot override) -->
+                            <!-- Site accountants: readonly (configured at site level, cannot override).
+                                 force_save="1" ensures the value is written to the DB even though
+                                 the field is readonly — without it Odoo skips readonly fields on save,
+                                 leaving x_petty_cash_account_id NULL and breaking the journal entry. -->
                             <field name="x_petty_cash_account_id"
                                    string="Petty Cash Account (Credit)"
                                    readonly="1"
+                                   force_save="1"
                                    options="{'no_create': True}"
                                    groups="site_operations.group_site_accountant"
                                    help="Cash in Hand account — configured at site level."/>
