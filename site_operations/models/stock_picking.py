@@ -274,7 +274,9 @@ class StockPickingSiteOps(models.Model):
                 pt = user.x_default_warehouse_id.int_type_id
             if not pt:
                 # Use active_test=False — internal picking types may be archived
-                warehouse = self.env['stock.warehouse'].search(
+                # sudo() — this is a UX default-fill; must not crash on group_site_store
+                # which may lack stock.warehouse read through base.group_user in some DBs
+                warehouse = self.env['stock.warehouse'].sudo().search(
                     [('company_id', '=', self.env.company.id)], limit=1)
                 if warehouse:
                     pt = warehouse.int_type_id
@@ -303,7 +305,7 @@ class StockPickingSiteOps(models.Model):
                     if wh_stock:
                         res['location_id'] = wh_stock.id
                 if not res.get('location_id'):
-                    warehouse = self.env['stock.warehouse'].search(
+                    warehouse = self.env['stock.warehouse'].sudo().search(
                         [('company_id', '=', self.env.company.id)], limit=1)
                     if warehouse and warehouse.lot_stock_id:
                         res['location_id'] = warehouse.lot_stock_id.id
@@ -673,7 +675,8 @@ class StockPickingSiteOps(models.Model):
                         pt = user.x_default_warehouse_id.int_type_id
                     if not pt:
                         # Use active_test=False — internal picking types may be archived
-                        warehouse = self.env['stock.warehouse'].search(
+                        # sudo() — UX default-fill; must not crash on group_site_store
+                        warehouse = self.env['stock.warehouse'].sudo().search(
                             [('company_id', '=', self.env.company.id)], limit=1)
                         if warehouse:
                             pt = warehouse.int_type_id
@@ -699,7 +702,7 @@ class StockPickingSiteOps(models.Model):
                         if wh_stock:
                             vals['location_id'] = wh_stock.id
                     if not vals.get('location_id'):
-                        warehouse = self.env['stock.warehouse'].search(
+                        warehouse = self.env['stock.warehouse'].sudo().search(
                             [('company_id', '=', self.env.company.id)], limit=1)
                         if warehouse and warehouse.lot_stock_id:
                             vals['location_id'] = warehouse.lot_stock_id.id

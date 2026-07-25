@@ -408,24 +408,67 @@ def fix_petty_cash_expense_accounts(env):
     entries for posted expenses that have no JE (causing the fund balance to be wrong).
 
     Safe to run multiple times — skips expenses that already have the account or JE.
+
+    Account resolution order for x_petty_cash_account_id:
+      1. fund._get_petty_cash_account()  →  fund.x_petty_cash_account_id
+                                          OR site_config.x_petty_cash_account_id
+      2. Cash journal linked to the site analytic  →  journal.default_account_id
+      3. Any company cash journal                  →  journal.default_account_id
+    Steps 2–3 match what _create_journal_entry() does at runtime, so the migration
+    fills the same account that would be used when creating the JE.
     """
     import logging
     _logger = logging.getLogger(__name__)
 
     PCE = env['x.petty.cash.expense'].sudo()
+    Journal = env['account.journal'].sudo()
 
     # ── Step 1: fill missing x_petty_cash_account_id ─────────────────────────
     missing_account = PCE.search([('x_petty_cash_account_id', '=', False)])
+    _logger.info(
+        'fix_petty_cash_expense_accounts: %d expense(s) have no petty cash account set',
+        len(missing_account),
+    )
     filled = 0
+    skipped_no_config = []
     for expense in missing_account:
         pc_account = expense.fund_id._get_petty_cash_account()
+
+        # Fallback: look up the site cash journal (same logic as _create_journal_entry)
+        if not pc_account:
+            analytic = expense.project_analytic_account_id
+            cash_journal = False
+            if analytic:
+                cash_journal = Journal.search([
+                    ('type', '=', 'cash'),
+                    ('x_site_ids', 'in', [analytic.id]),
+                    ('company_id', '=', env.company.id),
+                ], limit=1)
+            if not cash_journal:
+                cash_journal = Journal.search([
+                    ('type', '=', 'cash'),
+                    ('company_id', '=', env.company.id),
+                ], limit=1)
+            if cash_journal and cash_journal.default_account_id:
+                pc_account = cash_journal.default_account_id
+
         if pc_account:
             expense.x_petty_cash_account_id = pc_account
             filled += 1
+        else:
+            skipped_no_config.append(expense.x_ref or str(expense.id))
+
     if filled:
         _logger.info(
             'fix_petty_cash_expense_accounts: filled x_petty_cash_account_id on %d expense(s)',
             filled,
+        )
+    if skipped_no_config:
+        _logger.warning(
+            'fix_petty_cash_expense_accounts: %d expense(s) skipped — no petty cash account '
+            'found (configure "Petty Cash Account" on Site Configuration for each site): %s',
+            len(skipped_no_config),
+            ', '.join(skipped_no_config[:20]),
         )
 
     # ── Step 2: create missing JEs for posted expenses ────────────────────────
@@ -436,12 +479,24 @@ def fix_petty_cash_expense_accounts(env):
         ('state', '=', 'posted'),
         ('x_account_move_id', '=', False),
     ])
+    _logger.info(
+        'fix_petty_cash_expense_accounts: %d posted expense(s) have no journal entry',
+        len(posted_no_je),
+    )
     created = 0
+    failed = []
     for expense in posted_no_je:
         try:
             expense._create_journal_entry()
-            created += 1
+            if expense.x_account_move_id:
+                created += 1
+            else:
+                failed.append(
+                    '%s (no credit/journal account configured)'
+                    % (expense.x_ref or expense.id)
+                )
         except Exception as e:
+            failed.append('%s: %s' % (expense.x_ref or expense.id, e))
             _logger.warning(
                 'fix_petty_cash_expense_accounts: could not create JE for %s: %s',
                 expense.x_ref or expense.id, e,
@@ -450,6 +505,12 @@ def fix_petty_cash_expense_accounts(env):
         _logger.info(
             'fix_petty_cash_expense_accounts: created %d missing journal entry/entries',
             created,
+        )
+    if failed:
+        _logger.warning(
+            'fix_petty_cash_expense_accounts: %d expense(s) still have no JE after fix attempt: %s',
+            len(failed),
+            ', '.join(failed[:20]),
         )
 
 
