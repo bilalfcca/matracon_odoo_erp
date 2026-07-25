@@ -474,3 +474,60 @@ d67bf22  Fix: PO/RFQ letterhead — all content visible; clean meta/vendor block
 
 #### Pending — odoosh-push blocked
 All commits are **local only**. Enable **AI Code Push** in Odoo.sh project settings, then run `odoosh-push`.
+
+---
+
+## Session Notes — 2026-07-25
+
+### Petty Cash Credit Account Bug Fix
+
+#### Root Cause
+`x_petty_cash_account_id` on `x.petty.cash.expense` is `readonly="1"` in the view for site accountants. Odoo never sends readonly field values back on form save, so the value set by `default_get` was discarded — the field was always `NULL` in the DB. `_create_journal_entry()` then silently returned (`return`) with no JE created → GL never touched → petty cash balance never decreased.
+
+#### Files Changed
+
+**`site_operations/views/petty_cash_views.xml`**
+- Collapsed the two group-conditional `x_petty_cash_account_id` entries (SA + HO/Finance) into a single `readonly="1"` `force_save="1"` field for ALL users
+- `force_save="1"` forces Odoo to include the readonly value in the save payload
+
+**`site_operations/models/petty_cash.py`** — `create()`
+- Auto-fills `x_petty_cash_account_id` from `fund._get_petty_cash_account()` when client doesn't send it
+- Defensive layer independent of view attributes
+
+**`site_operations/hooks.py`** — `fix_petty_cash_expense_accounts()`
+- New function called from `post_migrate_hook`
+- Step 1: fills `x_petty_cash_account_id` on all existing expenses where it's NULL
+- Step 2: creates missing JEs for posted expenses with `x_account_move_id = NULL`
+- JEs dated to original `expense_date` (not today) so historical records are correct
+- Fund balance auto-corrects (computed from GL)
+- **This runs automatically on `odoosh-push`** — no manual intervention needed for the ~100 production entries
+
+**`site_operations/models/stock_picking.py`**
+- Removed `_check_duplicate_asset_issuance()` call from `button_validate()` — re-issuing same asset to same contact no longer blocked
+
+#### Commits This Session
+```
+8afd7cf  Fix: petty cash credit account lost on save + remove duplicate-issuance block
+08bae06  Fix: petty cash credit account — fully readonly for all users
+```
+
+### Push Strategy
+All ~50 commits are local-only. To push ONLY the 2 petty cash commits to staging:
+```bash
+git checkout -b hotfix/petty-cash-fix origin/main
+git cherry-pick 8afd7cf
+git cherry-pick 08bae06
+git push origin hotfix/petty-cash-fix
+```
+Then in Odoo.sh dashboard → Staging → change branch to `hotfix/petty-cash-fix`.
+Once staging verified → merge to Production in Odoo.sh.
+
+### All Unpushed Commits (50 total, oldest → newest)
+Run `git log --oneline` to see full list. Key groups:
+- **Petty cash fix** (today): `8afd7cf`, `08bae06`
+- **Material issuance** (3rd Party, SA workflow, contact picker, backcharge): ~13 commits
+- **Bank Payment Voucher**: `d9368d3`
+- **PO/RFQ letterhead**: ~10 commits (final state is correct)
+- **User preferences** (backdate default): `62c4373`, `1247392`, `281e5f9`, `39ec999`, `2dbd2ba`
+- **Bank Guarantee** (Bidder field, ACL): `35484e6`, `692acd2`
+- **Earlier sessions** (subcontractor IPC, employee presence, journal entries, vendor payments, Trial Balance, liability sheet, customer invoice analytic, petty cash PCR GL fix, dashboard KPIs): see previous session notes
