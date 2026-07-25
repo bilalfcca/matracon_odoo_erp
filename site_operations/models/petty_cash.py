@@ -1234,6 +1234,39 @@ class PettyCashExpense(models.Model):
                 raise UserError(_('Only draft petty cash expenses can be deleted.'))
         return super().unlink()
 
+    @api.model
+    def action_admin_fix_petty_cash_accounts(self):
+        """Admin action: back-fill x_petty_cash_account_id on all posted expenses where
+        it is NULL, and correct posted JEs whose credit account differs from the site's
+        configured petty cash (Cash-in-Hand) account.
+
+        Calls the same three-step function used by the post_migrate_hook so the fix is
+        consistent with what runs on every module upgrade.  Safe to run repeatedly.
+
+        Accessible via:
+          - Petty Cash Expenses list view → Action → Fix Petty Cash Accounts (admins)
+          - Settings → Technical → Server Actions → Fix Petty Cash Accounts
+        """
+        if not (self.env.user.has_group('purchase_demand_raise.group_matracon_admin')
+                or self.env.user.has_group('base.group_system')):
+            raise UserError(_('Only Matracon Admin or System Administrator can run this action.'))
+        from site_operations.hooks import fix_petty_cash_expense_accounts
+        fix_petty_cash_expense_accounts(self.env)
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Petty Cash Accounts Fixed'),
+                'message': _(
+                    'Done. All expense credit accounts have been filled from site '
+                    'configuration, and posted JEs with the wrong cash account have '
+                    'been corrected. Check the server log for details.'
+                ),
+                'type': 'success',
+                'sticky': True,
+            },
+        }
+
     def action_delete_draft(self):
         self.unlink()
         return {'type': 'ir.actions.act_window_close'}

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        Admin server action: Fill empty petty cash credit accounts on posted expenses
+        and correct posted JEs that used the wrong cash account.
+
+        Appears in Petty Cash Expenses list view → Action menu (admin / system only).
+        The model method enforces group restriction.  Safe to run multiple times.
+    -->
+    <record id="action_server_fix_petty_cash_accounts" model="ir.actions.server">
+        <field name="name">Fix Petty Cash Accounts (Fill + Correct JEs)</field>
+        <field name="model_id" ref="model_x_petty_cash_expense"/>
+        <field name="binding_model_id" ref="model_x_petty_cash_expense"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">model.action_admin_fix_petty_cash_accounts()</field>
+    </record>
+</odoo>
