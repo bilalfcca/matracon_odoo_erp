@@ -1250,7 +1250,7 @@ class PettyCashExpense(models.Model):
         if not (self.env.user.has_group('purchase_demand_raise.group_matracon_admin')
                 or self.env.user.has_group('base.group_system')):
             raise UserError(_('Only Matracon Admin or System Administrator can run this action.'))
-        from site_operations.hooks import fix_petty_cash_expense_accounts
+        from odoo.addons.site_operations.hooks import fix_petty_cash_expense_accounts
         fix_petty_cash_expense_accounts(self.env)
         return {
             'type': 'ir.actions.client',
@@ -1394,7 +1394,7 @@ class XPettyCashAdminWizard(models.TransientModel):
         if not (self.env.user.has_group('purchase_demand_raise.group_matracon_admin')
                 or self.env.user.has_group('base.group_system')):
             raise UserError(_('Only Matracon Admin or System Administrator can run this action.'))
-        from site_operations.hooks import fix_petty_cash_expense_accounts
+        from odoo.addons.site_operations.hooks import fix_petty_cash_expense_accounts
         fix_petty_cash_expense_accounts(self.env)
         return {
             'type': 'ir.actions.client',
