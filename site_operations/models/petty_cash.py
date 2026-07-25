@@ -1367,3 +1367,47 @@ class PettyCashExpense(models.Model):
             )) % {'exp': expense.x_ref}
         )
         return expense
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Admin Maintenance Wizard
+# ═══════════════════════════════════════════════════════════════════════════
+
+class XPettyCashAdminWizard(models.TransientModel):
+    """Admin maintenance wizard — run the 3-step petty cash fix on demand.
+
+    Accessible via:
+      Accounting → Petty Cash → Configuration → Fix Petty Cash Accounts
+
+    This runs the exact same function as the post_migrate_hook, so it is
+    safe to execute multiple times.  Each step is idempotent:
+      Step 1 — fills x_petty_cash_account_id on expenses where it is NULL
+      Step 2 — creates missing journal entries for posted expenses
+      Step 3 — corrects posted JEs whose credit account ≠ the site petty
+               cash (Cash-in-Hand) account (in-place SQL, no reversal entries)
+    """
+    _name = 'x.petty.cash.admin.wizard'
+    _description = 'Petty Cash Admin Maintenance'
+
+    def action_run_fix(self):
+        """Run the full 3-step petty cash account fix."""
+        if not (self.env.user.has_group('purchase_demand_raise.group_matracon_admin')
+                or self.env.user.has_group('base.group_system')):
+            raise UserError(_('Only Matracon Admin or System Administrator can run this action.'))
+        from site_operations.hooks import fix_petty_cash_expense_accounts
+        fix_petty_cash_expense_accounts(self.env)
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Petty Cash Fix Complete'),
+                'message': _(
+                    'Done. All expense credit accounts have been filled from site '
+                    'configuration, missing journal entries have been created, and '
+                    'posted JEs with the wrong cash account have been corrected '
+                    'in-place. Check the server log for a detailed report.'
+                ),
+                'type': 'success',
+                'sticky': True,
+            },
+        }

@@ -501,4 +501,54 @@
         <field name="view_mode">list,form</field>
     </record>
 
+    <!-- ── Admin Maintenance Wizard ──────────────────────────────────────── -->
+    <record id="view_petty_cash_admin_wizard_form" model="ir.ui.view">
+        <field name="name">x.petty.cash.admin.wizard.form</field>
+        <field name="model">x.petty.cash.admin.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Petty Cash — Fix Accounts">
+                <sheet>
+                    <div class="alert alert-info" role="alert">
+                        <strong>What this tool does (safe to run multiple times):</strong>
+                        <ul style="margin-top:8px; margin-bottom:4px;">
+                            <li><b>Step 1</b> — Fills the <em>Petty Cash Account</em> field on all
+                                expenses where it was never saved (browser did not send the readonly
+                                value on save). Resolves the account from the fund or site
+                                configuration.</li>
+                            <li><b>Step 2</b> — Creates missing journal entries for posted expenses
+                                that have no JE (because Step 1's account was missing at post
+                                time).</li>
+                            <li><b>Step 3</b> — Corrects posted JEs whose <em>credit</em> line
+                                points to the wrong cash account. Fixes in-place (no reversal
+                                entries).</li>
+                        </ul>
+                        <small>Check <b>Server Logs</b> after running for a detailed line-by-line
+                            report.</small>
+                    </div>
+                    <div class="alert alert-warning" role="alert" style="margin-top:8px;">
+                        <strong>Pre-requisite:</strong> Make sure each Site Configuration has its
+                        <em>Petty Cash Account (Cash in Hand)</em> field set before running.
+                        Go to <b>Purchase → Configuration → Site Project Configurations</b>.
+                    </div>
+                </sheet>
+                <footer>
+                    <button name="action_run_fix"
+                            string="Run Fix Now"
+                            type="object"
+                            class="btn-primary"
+                            confirm="This will correct all petty cash GL accounts and journal entries. Continue?"/>
+                    <button string="Close" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_petty_cash_admin_wizard" model="ir.actions.act_window">
+        <field name="name">Fix Petty Cash Accounts</field>
+        <field name="res_model">x.petty.cash.admin.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_petty_cash_admin_wizard_form"/>
+        <field name="target">new</field>
+    </record>
+
 </odoo>

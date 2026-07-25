@@ -273,6 +273,20 @@
               sequence="30"
               groups="site_operations.group_finance_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
+    <!-- Petty Cash → Configuration (Admin only) -->
+    <menuitem id="menu_petty_cash_config"
+              name="Configuration"
+              parent="site_operations.menu_petty_cash_root"
+              sequence="90"
+              groups="purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
+    <menuitem id="menu_petty_cash_admin_fix"
+              name="Fix Petty Cash Accounts"
+              parent="site_operations.menu_petty_cash_config"
+              action="site_operations.action_petty_cash_admin_wizard"
+              sequence="10"
+              groups="purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
     <!-- ════════════════════════════════════════════════════════════════════
          COMPLIANCE — Standalone App (CEO, Finance HO, Admin only)
          Bank Guarantees · Tax Notices · WHT Certificates · PDCs
