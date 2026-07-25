@@ -270,24 +270,16 @@
 
                     <group string="Accounting">
                         <group string="Credit (Cash Out)">
-                            <!-- Site accountants: readonly (configured at site level, cannot override).
-                                 force_save="1" ensures the value is written to the DB even though
-                                 the field is readonly — without it Odoo skips readonly fields on save,
-                                 leaving x_petty_cash_account_id NULL and breaking the journal entry. -->
+                            <!-- Always readonly for ALL users — the credit account is determined
+                                 by the site configuration and must never be changed manually.
+                                 force_save="1" ensures the value reaches the DB even though the
+                                 field is readonly (Odoo normally skips readonly fields on save). -->
                             <field name="x_petty_cash_account_id"
                                    string="Petty Cash Account (Credit)"
                                    readonly="1"
                                    force_save="1"
                                    options="{'no_create': True}"
-                                   groups="site_operations.group_site_accountant"
-                                   help="Cash in Hand account — configured at site level."/>
-                            <!-- HO / Finance: editable in case override needed -->
-                            <field name="x_petty_cash_account_id"
-                                   string="Petty Cash Account (Credit)"
-                                   readonly="state == 'posted'"
-                                   options="{'no_create': True}"
-                                   groups="!site_operations.group_site_accountant"
-                                   help="Cash in Hand account — auto-filled from project configuration."/>
+                                   help="Cash in Hand account — auto-configured from the site project. Always readonly."/>
                             <!-- journal_id is used internally only; not shown to users -->
                             <field name="journal_id" invisible="1"/>
                         </group>
