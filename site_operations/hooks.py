@@ -400,22 +400,43 @@ def post_init_hook(env):
             '(not a production DB or users not yet created): %s', e
         )
     reprocess_existing_payments(env)
+    # Fix any posted petty cash expenses that have no JE or wrong JE credit account.
+    # On a fresh install into a DB with existing data (e.g. a restored production dump),
+    # post_migrate_hook does NOT run — only post_init_hook runs.
+    try:
+        fix_petty_cash_expense_accounts(env)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(
+            'post_init_hook: fix_petty_cash_expense_accounts failed: %s', e)
 
 
 def fix_petty_cash_expense_accounts(env):
     """Back-fill x_petty_cash_account_id on petty cash expenses where it was never
-    persisted (readonly field not sent by browser on save) and create missing journal
-    entries for posted expenses that have no JE (causing the fund balance to be wrong).
+    persisted (readonly field not sent by browser on save), create missing journal
+    entries, and correct JEs that were created with the wrong credit account.
 
-    Safe to run multiple times — skips expenses that already have the account or JE.
+    Runs on every module upgrade via post_migrate_hook. Safe to call multiple times
+    — each step is idempotent and skips records that are already correct.
 
-    Account resolution order for x_petty_cash_account_id:
-      1. fund._get_petty_cash_account()  →  fund.x_petty_cash_account_id
-                                          OR site_config.x_petty_cash_account_id
-      2. Cash journal linked to the site analytic  →  journal.default_account_id
-      3. Any company cash journal                  →  journal.default_account_id
-    Steps 2–3 match what _create_journal_entry() does at runtime, so the migration
-    fills the same account that would be used when creating the JE.
+    Three-step process
+    ──────────────────
+    Step 1 — Fill x_petty_cash_account_id where NULL
+        Resolution order:
+          1. fund._get_petty_cash_account()  →  fund.x_petty_cash_account_id
+                                             OR  site_config.x_petty_cash_account_id
+          2. Cash journal linked to the site analytic  →  journal.default_account_id
+          3. Any company cash journal                  →  journal.default_account_id
+
+    Step 2 — Create missing JEs for posted expenses
+        Covers expenses where _create_journal_entry() silently returned early
+        (no credit account resolved, no cash journal found at post time).
+
+    Step 3 — Correct JEs where credit account ≠ x_petty_cash_account_id
+        Covers expenses posted before x_petty_cash_account_id was set on the record.
+        _create_journal_entry fell back to cash_journal.default_account_id, which
+        may be a different account than the configured site petty cash account.
+        Fix: reverse the wrong JE, clear x_account_move_id, re-run _create_journal_entry.
     """
     import logging
     _logger = logging.getLogger(__name__)
@@ -511,6 +532,108 @@ def fix_petty_cash_expense_accounts(env):
             'fix_petty_cash_expense_accounts: %d expense(s) still have no JE after fix attempt: %s',
             len(failed),
             ', '.join(failed[:20]),
+        )
+
+    # ── Step 3: correct JEs where credit account ≠ expected petty cash account ─
+    # Covers expenses where _create_journal_entry ran at posting time but used the
+    # cash journal's default_account_id as the credit instead of the site-configured
+    # petty cash account (because x_petty_cash_account_id was NULL at that moment).
+    # We reverse the wrong JE and recreate it so the GL and fund balance are accurate.
+    posted_with_je = PCE.search([
+        ('state', '=', 'posted'),
+        ('x_account_move_id', '!=', False),
+        ('x_petty_cash_account_id', '!=', False),
+    ])
+    wrong_count = 0
+    fixed_count = 0
+    unfixed_step3 = []
+
+    for expense in posted_with_je:
+        move = expense.x_account_move_id
+        if not move or move.state != 'posted':
+            continue
+        expected_acct = expense.x_petty_cash_account_id
+
+        # Find credit lines on the JE
+        credit_lines = move.line_ids.filtered(lambda l: l.credit > 0)
+        if not credit_lines:
+            continue
+
+        # If ALL credit lines already use the correct account, nothing to do
+        if all(l.account_id == expected_acct for l in credit_lines):
+            continue
+
+        # If any credit line is reconciled, skip — reversing would break reconciliation
+        if any(l.reconciled for l in credit_lines):
+            unfixed_step3.append('%s (reconciled lines — manual fix required)'
+                                 % (expense.x_ref or expense.id))
+            _logger.warning(
+                'fix_petty_cash_expense_accounts: expense %s has wrong credit account '
+                'on JE %s but credit lines are reconciled — skipping auto-fix. '
+                'Correct this JE manually.',
+                expense.x_ref or expense.id, move.name,
+            )
+            continue
+
+        wrong_acct_code = credit_lines[0].account_id.code or credit_lines[0].account_id.name
+        wrong_count += 1
+        _logger.info(
+            'fix_petty_cash_expense_accounts: expense %s — JE %s has wrong credit account '
+            '%s (expected %s); reversing and recreating',
+            expense.x_ref or expense.id,
+            move.name,
+            wrong_acct_code,
+            expected_acct.code or expected_acct.name,
+        )
+
+        try:
+            # Reverse the wrong JE (creates a mirror JE to cancel it out in the GL)
+            reversal_moves = move._reverse_moves([{
+                'date': move.date,
+                'ref': 'Auto-correction: petty cash account fix (%s)'
+                       % (expense.x_ref or expense.id),
+            }])
+            for rev_move in reversal_moves:
+                if rev_move.state == 'draft':
+                    rev_move.action_post()
+
+            # Detach the reversed JE so _create_journal_entry can create a fresh one
+            expense.write({'x_account_move_id': False})
+
+            # Create the correct JE using the now-filled x_petty_cash_account_id
+            expense._create_journal_entry()
+
+            if expense.x_account_move_id:
+                fixed_count += 1
+                _logger.info(
+                    'fix_petty_cash_expense_accounts: expense %s corrected → new JE %s '
+                    'with credit account %s',
+                    expense.x_ref or expense.id,
+                    expense.x_account_move_id.name,
+                    expected_acct.code or expected_acct.name,
+                )
+            else:
+                unfixed_step3.append('%s (JE re-creation failed after reversal)'
+                                     % (expense.x_ref or expense.id))
+        except Exception as e:
+            unfixed_step3.append('%s: %s' % (expense.x_ref or expense.id, e))
+            _logger.warning(
+                'fix_petty_cash_expense_accounts: could not correct JE for %s: %s',
+                expense.x_ref or expense.id, e,
+            )
+
+    if wrong_count:
+        _logger.info(
+            'fix_petty_cash_expense_accounts: found %d JE(s) with wrong credit account — '
+            'fixed %d, could not fix %d',
+            wrong_count, fixed_count, len(unfixed_step3),
+        )
+    if unfixed_step3:
+        _logger.warning(
+            'fix_petty_cash_expense_accounts: %d JE(s) could not be auto-corrected '
+            '(manual fix required): %s',
+            len(unfixed_step3),
+            ', '.join(unfixed_step3[:20]),
         )
 
 
