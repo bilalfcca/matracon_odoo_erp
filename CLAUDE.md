@@ -512,22 +512,53 @@ All commits are **local only**. Enable **AI Code Push** in Odoo.sh project setti
 ```
 
 ### Push Strategy
-All ~50 commits are local-only. To push ONLY the 2 petty cash commits to staging:
-```bash
-git checkout -b hotfix/petty-cash-fix origin/main
-git cherry-pick 8afd7cf
-git cherry-pick 08bae06
-git push origin hotfix/petty-cash-fix
-```
-Then in Odoo.sh dashboard → Staging → change branch to `hotfix/petty-cash-fix`.
-Once staging verified → merge to Production in Odoo.sh.
+All commits pushed to Development branch on 2026-07-25 via `odoosh-push`.
+Remote: `cecf525..c9e8c9e → Development`
 
-### All Unpushed Commits (50 total, oldest → newest)
-Run `git log --oneline` to see full list. Key groups:
-- **Petty cash fix** (today): `8afd7cf`, `08bae06`
-- **Material issuance** (3rd Party, SA workflow, contact picker, backcharge): ~13 commits
-- **Bank Payment Voucher**: `d9368d3`
-- **PO/RFQ letterhead**: ~10 commits (final state is correct)
-- **User preferences** (backdate default): `62c4373`, `1247392`, `281e5f9`, `39ec999`, `2dbd2ba`
-- **Bank Guarantee** (Bidder field, ACL): `35484e6`, `692acd2`
-- **Earlier sessions** (subcontractor IPC, employee presence, journal entries, vendor payments, Trial Balance, liability sheet, customer invoice analytic, petty cash PCR GL fix, dashboard KPIs): see previous session notes
+To promote to Staging/Production: use the Odoo.sh dashboard to merge Development → Staging → Production.
+
+---
+
+## Session Notes — 2026-07-25 (continued)
+
+### Petty Cash Admin Wizard — Manual Fix Trigger
+
+#### What was added
+The 3-step petty cash fix (`fix_petty_cash_expense_accounts`) previously only ran
+automatically on module upgrade (via `post_migrate_hook`). A dedicated admin UI is now
+available so the fix can be triggered on demand without upgrading.
+
+#### New: `x.petty.cash.admin.wizard` (TransientModel)
+- **File:** `site_operations/models/petty_cash.py` (appended at end)
+- Single method `action_run_fix()` — calls the same `fix_petty_cash_expense_accounts(env)`
+  as the hook. Group-restricted to `group_matracon_admin` or `base.group_system`.
+- Returns a sticky success notification.
+
+#### New form view + window action
+- **File:** `site_operations/views/petty_cash_views.xml`
+- `view_petty_cash_admin_wizard_form` — modal form with:
+  - Blue info box describing all 3 steps
+  - Yellow warning reminding admin to set the Petty Cash Account on Site Config first
+  - **"Run Fix Now"** button with a confirmation dialog
+  - "Close" cancel button
+- `action_petty_cash_admin_wizard` — `target="new"` (opens as dialog)
+
+#### New menu path
+```
+Accounting → Petty Cash → Configuration → Fix Petty Cash Accounts
+```
+Visible only to **Matracon Admin** and **System Administrator**.
+
+#### ACL added
+- `access_petty_cash_admin_wizard_admin` → `group_matracon_admin` (CRUD)
+- `access_petty_cash_admin_wizard_system` → `base.group_system` (CRUD)
+
+#### Commit
+```
+c9e8c9e  Feat: petty cash admin wizard — manual fix trigger under Petty Cash → Configuration
+```
+
+### All Commits Pushed to Development (2026-07-25)
+51 commits total pushed via `odoosh-push`. Remote tip: `c9e8c9e` on branch `Development`.
+All previous session commits (July 9–25) are now in the remote. Development branch is
+fully up-to-date.
