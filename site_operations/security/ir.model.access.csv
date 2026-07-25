@@ -225,6 +225,7 @@ access_subcontractor_ho_advance_admin,subcontractor.ho.advance.admin,model_x_sub
 access_employee_presence_log_admin,employee.presence.log.admin,model_x_employee_presence_log,purchase_demand_raise.group_matracon_admin,1,0,0,0
 access_employee_presence_log_head_office,employee.presence.log.head.office,model_x_employee_presence_log,purchase_demand_raise.group_head_office,1,0,0,0
 access_employee_presence_log_fo,employee.presence.log.fo,model_x_employee_presence_log,site_operations.group_finance_ho,1,0,0,0
+access_stock_warehouse_site_store,stock.warehouse site store,stock.model_stock_warehouse,purchase_demand_raise.group_site_store,1,0,0,0
 access_stock_move_site_store_unlink,stock.move site store unlink,model_stock_move,purchase_demand_raise.group_site_store,0,0,0,1
 access_stock_move_procurement_unlink,stock.move procurement unlink,model_stock_move,purchase_demand_raise.group_procurement_ho,0,0,0,1
 access_employee_backcharge_site_store,employee.backcharge.site.store,model_x_employee_backcharge,purchase_demand_raise.group_site_store,1,0,0,0
