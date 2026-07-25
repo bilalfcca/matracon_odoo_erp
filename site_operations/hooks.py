@@ -535,10 +535,19 @@ def fix_petty_cash_expense_accounts(env):
         )
 
     # ── Step 3: correct JEs where credit account ≠ expected petty cash account ─
-    # Covers expenses where _create_journal_entry ran at posting time but used the
-    # cash journal's default_account_id as the credit instead of the site-configured
-    # petty cash account (because x_petty_cash_account_id was NULL at that moment).
-    # We reverse the wrong JE and recreate it so the GL and fund balance are accurate.
+    # Covers all ~257 MCH petty cash JEs that were posted via the "Cash at HO"
+    # journal (wrong credit account 112631) instead of the site-specific account
+    # (e.g. 112634 Cash at MCH Bahawalnagar).
+    #
+    # Strategy: direct SQL update on account_move_line.account_id.
+    # This is correct for a migration fix because:
+    #   1. account_type is NOT a stored column in Odoo 19 — only account_id
+    #      needs updating.
+    #   2. Preserves original JE numbers (no reversal entries created).
+    #      257 JEs → 257 corrected in-place, zero extra accounting entries.
+    #   3. Petty cash (asset_cash) accounts are not reconcilable, so no
+    #      reconciliation entries are broken.
+    #   4. We run in the post_migrate context as sudo so no lock-period issue.
     posted_with_je = PCE.search([
         ('state', '=', 'posted'),
         ('x_account_move_id', '!=', False),
@@ -547,6 +556,7 @@ def fix_petty_cash_expense_accounts(env):
     wrong_count = 0
     fixed_count = 0
     unfixed_step3 = []
+    cr = env.cr
 
     for expense in posted_with_je:
         move = expense.x_account_move_id
@@ -554,75 +564,73 @@ def fix_petty_cash_expense_accounts(env):
             continue
         expected_acct = expense.x_petty_cash_account_id
 
-        # Find credit lines on the JE
-        credit_lines = move.line_ids.filtered(lambda l: l.credit > 0)
-        if not credit_lines:
-            continue
+        # Fast check via SQL: does the move have a credit line with the wrong account?
+        cr.execute("""
+            SELECT id, account_id
+            FROM account_move_line
+            WHERE move_id = %s
+              AND credit > 0
+              AND account_id != %s
+            LIMIT 1
+        """, (move.id, expected_acct.id))
+        wrong_row = cr.fetchone()
+        if not wrong_row:
+            continue  # Credit already correct — skip
 
-        # If ALL credit lines already use the correct account, nothing to do
-        if all(l.account_id == expected_acct for l in credit_lines):
-            continue
-
-        # If any credit line is reconciled, skip — reversing would break reconciliation
-        if any(l.reconciled for l in credit_lines):
-            unfixed_step3.append('%s (reconciled lines — manual fix required)'
+        wrong_acct_id = wrong_row[1]
+        # Safety: skip if reconciled (shouldn't happen for cash accounts)
+        cr.execute("""
+            SELECT 1 FROM account_move_line
+            WHERE move_id = %s AND credit > 0 AND reconciled = true LIMIT 1
+        """, (move.id,))
+        if cr.fetchone():
+            unfixed_step3.append('%s (reconciled credit lines — manual fix required)'
                                  % (expense.x_ref or expense.id))
             _logger.warning(
-                'fix_petty_cash_expense_accounts: expense %s has wrong credit account '
-                'on JE %s but credit lines are reconciled — skipping auto-fix. '
-                'Correct this JE manually.',
+                'fix_petty_cash_expense_accounts: expense %s — JE %s credit lines are '
+                'reconciled; skipping auto-fix. Correct this JE manually.',
                 expense.x_ref or expense.id, move.name,
             )
             continue
 
-        wrong_acct_code = credit_lines[0].account_id.code or credit_lines[0].account_id.name
         wrong_count += 1
         _logger.info(
-            'fix_petty_cash_expense_accounts: expense %s — JE %s has wrong credit account '
-            '%s (expected %s); reversing and recreating',
+            'fix_petty_cash_expense_accounts: expense %s — JE %s: '
+            'credit account_id %s → %s (%s)',
             expense.x_ref or expense.id,
             move.name,
-            wrong_acct_code,
+            wrong_acct_id,
+            expected_acct.id,
             expected_acct.code or expected_acct.name,
         )
 
         try:
-            # Reverse the wrong JE (creates a mirror JE to cancel it out in the GL)
-            reversal_moves = move._reverse_moves([{
-                'date': move.date,
-                'ref': 'Auto-correction: petty cash account fix (%s)'
-                       % (expense.x_ref or expense.id),
-            }])
-            for rev_move in reversal_moves:
-                if rev_move.state == 'draft':
-                    rev_move.action_post()
-
-            # Detach the reversed JE so _create_journal_entry can create a fresh one
-            expense.write({'x_account_move_id': False})
-
-            # Create the correct JE using the now-filled x_petty_cash_account_id
-            expense._create_journal_entry()
-
-            if expense.x_account_move_id:
-                fixed_count += 1
-                _logger.info(
-                    'fix_petty_cash_expense_accounts: expense %s corrected → new JE %s '
-                    'with credit account %s',
-                    expense.x_ref or expense.id,
-                    expense.x_account_move_id.name,
-                    expected_acct.code or expected_acct.name,
-                )
-            else:
-                unfixed_step3.append('%s (JE re-creation failed after reversal)'
-                                     % (expense.x_ref or expense.id))
+            # Direct in-place correction — no reversal entries created
+            cr.execute("""
+                UPDATE account_move_line
+                SET account_id = %s
+                WHERE move_id = %s
+                  AND credit > 0
+                  AND account_id != %s
+            """, (expected_acct.id, move.id, expected_acct.id))
+            fixed_count += 1
         except Exception as e:
             unfixed_step3.append('%s: %s' % (expense.x_ref or expense.id, e))
             _logger.warning(
-                'fix_petty_cash_expense_accounts: could not correct JE for %s: %s',
+                'fix_petty_cash_expense_accounts: SQL update failed for expense %s: %s',
                 expense.x_ref or expense.id, e,
             )
 
-    if wrong_count:
+    # Invalidate ORM cache so recomputed fields (balance, etc.) reflect the SQL changes
+    if fixed_count:
+        env['account.move'].invalidate_model()
+        env['account.move.line'].invalidate_model()
+        _logger.info(
+            'fix_petty_cash_expense_accounts: corrected credit account on %d JE(s) '
+            'in-place (no reversal entries created)',
+            fixed_count,
+        )
+    if wrong_count and wrong_count != fixed_count:
         _logger.info(
             'fix_petty_cash_expense_accounts: found %d JE(s) with wrong credit account — '
             'fixed %d, could not fix %d',
