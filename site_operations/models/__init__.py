@@ -26,6 +26,7 @@ from . import interproject_transfer
 from . import account_payment
 from . import payment_tax_line
 from . import payment_allocation
+from . import batch_payment
 from . import liability_sheet
 from . import project_project
 from . import project_site_config

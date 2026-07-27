@@ -1,0 +1,451 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ════════════════════════════════════════════════════════════════════
+         x.batch.payment.line.bank  — inline list inside the line dialog
+    ════════════════════════════════════════════════════════════════════════ -->
+    <record id="view_batch_payment_line_bank_list" model="ir.ui.view">
+        <field name="name">x.batch.payment.line.bank.list</field>
+        <field name="model">x.batch.payment.line.bank</field>
+        <field name="arch" type="xml">
+            <list string="Bank Allocations" editable="bottom">
+                <field name="journal_id" optional="show"/>
+                <field name="available_balance" optional="show" readonly="1"/>
+                <field name="allocation_amount" optional="show"/>
+                <field name="x_account_title" optional="show"/>
+                <field name="x_cheque_number" optional="show"/>
+                <button name="action_assign_cheque_number"
+                        type="object"
+                        string="Auto"
+                        icon="fa-hashtag"
+                        class="btn-sm"
+                        title="Auto-assign next cheque number from series"
+                        invisible="not journal_id"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ════════════════════════════════════════════════════════════════════
+         x.batch.payment.line.tax  — inline list inside the line dialog
+    ════════════════════════════════════════════════════════════════════════ -->
+    <record id="view_batch_payment_line_tax_list" model="ir.ui.view">
+        <field name="name">x.batch.payment.line.tax.list</field>
+        <field name="model">x.batch.payment.line.tax</field>
+        <field name="arch" type="xml">
+            <list string="Tax Lines" editable="bottom">
+                <field name="sequence" widget="handle"/>
+                <field name="tax_type" optional="show"/>
+                <field name="tax_id" optional="show"/>
+                <field name="name" optional="show"/>
+                <field name="x_fixed_amount" optional="show"
+                       string="Fixed Amount"
+                       help="Override the auto-computed amount when set."/>
+                <field name="amount" optional="show" readonly="1"/>
+                <field name="effect" optional="show"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ════════════════════════════════════════════════════════════════════
+         x.batch.payment.line  — detail form (opens as popup when editing a row)
+    ════════════════════════════════════════════════════════════════════════ -->
+    <record id="view_batch_payment_line_form" model="ir.ui.view">
+        <field name="name">x.batch.payment.line.form</field>
+        <field name="model">x.batch.payment.line</field>
+        <field name="arch" type="xml">
+            <form string="Payment Detail">
+                <sheet>
+                    <!-- ── Core fields ── -->
+                    <group>
+                        <group string="Vendor">
+                            <field name="partner_id"
+                                   options="{'no_create': True}"
+                                   readonly="payment_id != False"/>
+                            <field name="x_expense_account_id"
+                                   options="{'no_create': True}"
+                                   readonly="payment_id != False"/>
+                            <field name="x_ipc_id"
+                                   options="{'no_create': True}"
+                                   readonly="payment_id != False"/>
+                        </group>
+                        <group string="Payment">
+                            <field name="gross_amount" readonly="payment_id != False"/>
+                            <field name="x_destination_project_id"
+                                   options="{'no_create': True}"
+                                   readonly="payment_id != False"/>
+                            <field name="x_account_title" readonly="payment_id != False"/>
+                        </group>
+                    </group>
+
+                    <notebook>
+                        <!-- ── Bank Allocations ── -->
+                        <page string="Banks / Fund Allocation" name="banks">
+                            <div class="alert alert-info mb-2" role="alert"
+                                 invisible="payment_id != False">
+                                Add one row per bank. The total must equal the Net Payable.
+                                Use <b>Auto</b> to pull the next cheque number from the active series.
+                            </div>
+                            <field name="bank_line_ids"
+                                   widget="one2many"
+                                   readonly="payment_id != False">
+                                <list string="Bank Allocations" editable="bottom">
+                                    <field name="journal_id" options="{'no_create': True}"/>
+                                    <field name="available_balance" readonly="1"/>
+                                    <field name="allocation_amount"/>
+                                    <field name="x_account_title"/>
+                                    <field name="x_cheque_number"/>
+                                    <button name="action_assign_cheque_number"
+                                            type="object"
+                                            string="Auto"
+                                            icon="fa-hashtag"
+                                            class="btn-sm"
+                                            title="Auto-assign next cheque number from series"
+                                            invisible="not journal_id"/>
+                                </list>
+                            </field>
+                        </page>
+
+                        <!-- ── Tax Lines ── -->
+                        <page string="Tax / WHT" name="tax">
+                            <div class="alert alert-info mb-2" role="alert"
+                                 invisible="payment_id != False">
+                                Add WHT, Retention, or other deductions.
+                                Select a Tax for rate-based computation,
+                                or enter a <b>Fixed Amount</b> directly.
+                                Net Payable = Gross − all deductions.
+                            </div>
+                            <field name="tax_line_ids"
+                                   widget="one2many"
+                                   readonly="payment_id != False">
+                                <list string="Tax Lines" editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="tax_type"/>
+                                    <field name="name" optional="show"/>
+                                    <field name="tax_id" optional="show"/>
+                                    <field name="x_fixed_amount"
+                                           optional="show"
+                                           string="Fixed Amount"
+                                           help="Override the tax-rate computation when set."/>
+                                    <field name="amount" readonly="1"/>
+                                    <field name="effect"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+
+                    <!-- ── Computed summary ── -->
+                    <group class="oe_subtotal_footer">
+                        <field name="x_total_tax"
+                               string="Total Tax / Deductions"
+                               readonly="1"/>
+                        <field name="x_net_payable"
+                               string="Net Payable (to Bank)"
+                               readonly="1"
+                               class="oe_subtotal_footer_separator"/>
+                    </group>
+
+                    <!-- ── Posted payment link ── -->
+                    <div invisible="not payment_id" class="alert alert-success mt-2">
+                        <b>Posted:</b>
+                        <field name="payment_id" readonly="1" class="ms-2"/>
+                        —
+                        <field name="x_bpv_ref" readonly="1" class="ms-1"/>
+                        <button name="action_print_bpv"
+                                type="object"
+                                string="Print BPV"
+                                class="btn btn-sm btn-primary ms-3"
+                                icon="fa-print"/>
+                    </div>
+
+                    <field name="currency_id" invisible="1"/>
+                    <field name="payment_id" invisible="1"/>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ════════════════════════════════════════════════════════════════════
+         x.batch.payment.line  — compact list inside the main batch form
+    ════════════════════════════════════════════════════════════════════════ -->
+    <record id="view_batch_payment_line_tree" model="ir.ui.view">
+        <field name="name">x.batch.payment.line.tree</field>
+        <field name="model">x.batch.payment.line</field>
+        <field name="arch" type="xml">
+            <list string="Payment Lines" create="1" delete="1">
+                <field name="sequence" widget="handle"/>
+                <field name="partner_id"/>
+                <field name="x_expense_account_id" optional="show"/>
+                <field name="gross_amount" sum="Gross Total"/>
+                <field name="x_total_tax" readonly="1" sum="Tax Total" optional="show"/>
+                <field name="x_net_payable" readonly="1" sum="Net Total"/>
+                <field name="x_destination_project_id" optional="show"/>
+                <field name="x_account_title" optional="show"/>
+                <field name="x_bpv_ref" readonly="1" optional="show"/>
+                <field name="payment_state" readonly="1" optional="show"
+                       decoration-success="payment_state in ('in_process', 'paid')"
+                       decoration-muted="not payment_state"/>
+                <button name="action_view_payment"
+                        type="object"
+                        icon="fa-external-link"
+                        title="Open posted payment"
+                        invisible="not payment_id"/>
+                <button name="action_print_bpv"
+                        type="object"
+                        icon="fa-print"
+                        title="Print Bank Payment Voucher"
+                        invisible="not payment_id"/>
+                <field name="payment_id" column_invisible="1"/>
+                <field name="currency_id" column_invisible="1"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ════════════════════════════════════════════════════════════════════
+         x.batch.payment  — main FORM view
+    ════════════════════════════════════════════════════════════════════════ -->
+    <record id="view_batch_payment_form" model="ir.ui.view">
+        <field name="name">x.batch.payment.form</field>
+        <field name="model">x.batch.payment</field>
+        <field name="arch" type="xml">
+            <form string="Batch Vendor Payment">
+                <header>
+                    <button name="action_post"
+                            type="object"
+                            string="Post All Payments"
+                            class="btn-primary"
+                            invisible="state != 'draft'"
+                            confirm="This will create and post one payment per line. All journal entries, WHT deductions, and BPV references will be generated. Continue?"/>
+                    <button name="action_cancel"
+                            type="object"
+                            string="Cancel"
+                            invisible="state != 'draft'"/>
+                    <button name="action_reset_to_draft"
+                            type="object"
+                            string="Reset to Draft"
+                            invisible="state != 'cancelled'"/>
+                    <button name="action_view_payments"
+                            type="object"
+                            string="View Payments"
+                            class="btn-secondary"
+                            invisible="payment_count == 0"/>
+                    <field name="state"
+                           widget="statusbar"
+                           statusbar_visible="draft,posted"/>
+                </header>
+
+                <sheet>
+                    <!-- ── Smart buttons ── -->
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_payments"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-money"
+                                invisible="payment_count == 0">
+                            <field name="payment_count"
+                                   widget="statinfo"
+                                   string="Payments"/>
+                        </button>
+                    </div>
+
+                    <!-- ── Title row ── -->
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name" readonly="1"/>
+                        </h1>
+                    </div>
+
+                    <group>
+                        <group>
+                            <field name="date"
+                                   readonly="state != 'draft'"/>
+                            <field name="memo"
+                                   readonly="state != 'draft'"
+                                   placeholder="Optional narration for all payments in this batch"/>
+                        </group>
+                        <group>
+                            <field name="company_id"
+                                   invisible="1"/>
+                            <field name="currency_id"
+                                   invisible="1"/>
+                        </group>
+                    </group>
+
+                    <!-- ── Posted info banner ── -->
+                    <div class="alert alert-success" role="alert"
+                         invisible="state != 'posted'">
+                        <b>All payments posted.</b>
+                        Click <b>View Payments</b> to see individual journal entries and BPV references.
+                    </div>
+
+                    <!-- ── Payment lines ── -->
+                    <notebook>
+                        <page string="Payment Lines" name="lines">
+                            <div class="alert alert-info mb-2" role="alert"
+                                 invisible="state != 'draft'">
+                                <b>How to use:</b> Add one row per vendor.
+                                Click a row to open its detail and add
+                                <b>Banks</b> (fund allocation + cheque) and
+                                <b>Tax / WHT</b> lines.
+                                Then click <b>Post All Payments</b>.
+                            </div>
+                            <field name="line_ids"
+                                   widget="one2many"
+                                   readonly="state != 'draft'">
+                                <list string="Payment Lines" create="1" delete="1">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="partner_id"
+                                           options="{'no_create': True}"/>
+                                    <field name="x_expense_account_id"
+                                           options="{'no_create': True}"
+                                           optional="show"/>
+                                    <field name="gross_amount"
+                                           sum="Gross Total"/>
+                                    <field name="x_total_tax"
+                                           readonly="1"
+                                           sum="Tax Total"
+                                           optional="show"/>
+                                    <field name="x_net_payable"
+                                           readonly="1"
+                                           sum="Net Total"/>
+                                    <field name="x_destination_project_id"
+                                           options="{'no_create': True}"
+                                           optional="show"/>
+                                    <field name="x_account_title"
+                                           optional="show"/>
+                                    <field name="x_bpv_ref"
+                                           readonly="1"
+                                           optional="show"/>
+                                    <field name="payment_state"
+                                           readonly="1"
+                                           optional="show"
+                                           decoration-success="payment_state in ('in_process', 'paid', 'partial')"
+                                           decoration-muted="not payment_state"/>
+                                    <button name="action_view_payment"
+                                            type="object"
+                                            icon="fa-external-link"
+                                            title="Open posted payment"
+                                            invisible="not payment_id"/>
+                                    <button name="action_print_bpv"
+                                            type="object"
+                                            icon="fa-print"
+                                            title="Print Bank Payment Voucher"
+                                            invisible="not payment_id"/>
+                                    <field name="payment_id" column_invisible="1"/>
+                                    <field name="currency_id" column_invisible="1"/>
+                                </list>
+                            </field>
+                        </page>
+
+                        <!-- ── Summary ── -->
+                        <page string="Summary" name="summary">
+                            <group class="mt-2">
+                                <group string="Batch Totals">
+                                    <field name="total_gross"
+                                           readonly="1"
+                                           string="Total Gross Amount"/>
+                                    <field name="total_tax"
+                                           readonly="1"
+                                           string="Total Tax / Deductions"/>
+                                    <field name="total_net"
+                                           readonly="1"
+                                           string="Total Net Payable"
+                                           class="fw-bold"/>
+                                </group>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- ════════════════════════════════════════════════════════════════════
+         x.batch.payment  — LIST view
+    ════════════════════════════════════════════════════════════════════════ -->
+    <record id="view_batch_payment_list" model="ir.ui.view">
+        <field name="name">x.batch.payment.list</field>
+        <field name="model">x.batch.payment</field>
+        <field name="arch" type="xml">
+            <list string="Batch Payments"
+                  decoration-success="state == 'posted'"
+                  decoration-muted="state == 'cancelled'">
+                <field name="name"/>
+                <field name="date"/>
+                <field name="memo" optional="show"/>
+                <field name="total_gross" sum="Total Gross"/>
+                <field name="total_tax" optional="show" sum="Total Tax"/>
+                <field name="total_net" sum="Total Net"/>
+                <field name="payment_count" string="Payments"/>
+                <field name="state"
+                       decoration-success="state == 'posted'"
+                       decoration-warning="state == 'draft'"
+                       decoration-muted="state == 'cancelled'"
+                       widget="badge"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ════════════════════════════════════════════════════════════════════
+         x.batch.payment  — SEARCH view
+    ════════════════════════════════════════════════════════════════════════ -->
+    <record id="view_batch_payment_search" model="ir.ui.view">
+        <field name="name">x.batch.payment.search</field>
+        <field name="model">x.batch.payment</field>
+        <field name="arch" type="xml">
+            <search string="Batch Payments">
+                <field name="name"/>
+                <field name="memo"/>
+                <filter string="Draft" name="draft"
+                        domain="[('state', '=', 'draft')]"/>
+                <filter string="Posted" name="posted"
+                        domain="[('state', '=', 'posted')]"/>
+
+                <separator/>
+                <filter string="Group by Status" name="group_state"
+                        context="{'group_by': 'state'}"/>
+                <filter string="Group by Month" name="group_month"
+                        context="{'group_by': 'date:month'}"/>
+            </search>
+        </field>
+    </record>
+
+    <!-- ════════════════════════════════════════════════════════════════════
+         Window action
+    ════════════════════════════════════════════════════════════════════════ -->
+    <record id="action_batch_payment" model="ir.actions.act_window">
+        <field name="name">Batch Payments</field>
+        <field name="res_model">x.batch.payment</field>
+        <field name="view_mode">list,form</field>
+        <field name="view_ids" eval="[
+            (5, 0, 0),
+            (0, 0, {'view_mode': 'list', 'view_id': ref('view_batch_payment_list')}),
+            (0, 0, {'view_mode': 'form', 'view_id': ref('view_batch_payment_form')}),
+        ]"/>
+        <field name="search_view_id" ref="view_batch_payment_search"/>
+        <field name="context">{'default_state': 'draft'}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create your first batch payment
+            </p>
+            <p>
+                Use Batch Payments to pay multiple vendors in one operation.
+                Each line creates its own Bank Payment Voucher (BPV) and full journal entry.
+                WHT deductions, cheque assignments, and analytic tagging all happen automatically.
+            </p>
+        </field>
+    </record>
+
+    <!-- ════════════════════════════════════════════════════════════════════
+         x.batch.payment.line — standalone window action (for smart button)
+    ════════════════════════════════════════════════════════════════════════ -->
+    <record id="action_batch_payment_line_form" model="ir.actions.act_window">
+        <field name="name">Payment Line</field>
+        <field name="res_model">x.batch.payment.line</field>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_batch_payment_line_form"/>
+        <field name="target">new</field>
+    </record>
+
+</odoo>
