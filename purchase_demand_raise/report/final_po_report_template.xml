@@ -25,23 +25,32 @@
         <div class="header" style="
                 font-family: Arial, sans-serif;
                 width: 100%;
-                padding: 3px 12mm 3px 12mm;
+                padding: 4px 10mm 4px 10mm;
                 box-sizing: border-box;
                 background: #ffffff;">
 
-            <!-- Logo (left) + Company Name (right) — side-by-side via display:table.
-                 display:table avoids Bootstrap border CSS; white-space:nowrap on the
-                 company name cell prevents it from wrapping in wkhtmltopdf's WebKit. -->
-            <div style="display:table; width:100%; border-collapse:collapse; border:none; padding:2px 0 4px 0;">
-                <div style="display:table-cell; vertical-align:middle; width:68px; padding-right:10px; border:none;">
+            <!-- Override Bootstrap container centering that wkhtmltopdf applies.
+                 At ~744px viewport Bootstrap gives container max-width:540px + margin:auto,
+                 pushing content to the center. Force full-width + zero top gap here. -->
+            <style>
+                html, body { margin: 0 !important; padding: 0 !important; }
+                .container  { max-width: 100% !important; padding: 0 !important; margin: 0 !important; }
+                #minimal_layout_report_headers { margin: 0 !important; padding: 0 !important; }
+            </style>
+
+            <!-- Logo (left) + Company Name (right) — display:table so both cells
+                 sit on one line and are vertically centered. white-space:nowrap
+                 prevents the company name from wrapping to a second line. -->
+            <div style="display:table; width:100%; border-collapse:collapse; border:none;">
+                <div style="display:table-cell; vertical-align:middle; width:72px; padding-right:10px; border:none;">
                     <t t-if="env.company.logo">
                         <img t-att-src="image_data_uri(env.company.logo)"
-                             style="height:56px; width:auto; display:block;"/>
+                             style="height:64px; width:auto; display:block;"/>
                     </t>
                 </div>
                 <div style="display:table-cell; vertical-align:middle; border:none;">
                     <span style="font-family:'CG Omega', Arial, sans-serif;
-                                 font-size:24px; font-weight:bold; font-style:normal;
+                                 font-size:26px; font-weight:bold; font-style:normal;
                                  color:#4a1a6e; white-space:nowrap; display:block;">
                         MATRACON PAKISTAN (PVT) LIMITED
                     </span>
@@ -49,7 +58,7 @@
             </div>
 
             <!-- Thin navy divider below brand row -->
-            <div style="border-top:2px solid #1a3a5c; margin-bottom:3px;"></div>
+            <div style="border-top:2.5px solid #1a3a5c; margin-top:4px; margin-bottom:2px;"></div>
 
             <!-- PO / RFQ reference number (left) + date (right)
                  Set by calling template:
@@ -73,7 +82,7 @@
                 font-size: 13px;
                 color: #222;
                 text-align: justify;
-                padding: 22mm 12mm 4mm 12mm;">
+                padding: 6mm 12mm 4mm 12mm;">
 
             <!-- CSS for product tables — lives here so it is part of the
                  minimal_layout body that wkhtmltopdf actually renders. -->
