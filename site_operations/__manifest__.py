@@ -24,6 +24,7 @@
         'security/ir.model.access.csv',
         'security/record_rules.xml',
         'security/purchase_record_rules.xml',
+        'data/partner_category_data.xml',
         'data/account_configuration_data.xml',
         'data/bank_journals_data.xml',
         'data/site_config_data.xml',

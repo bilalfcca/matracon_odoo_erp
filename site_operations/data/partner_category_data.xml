@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Partner tags (res.partner.category) used by site_operations.
+         Subcontractor and Vendor already exist from initial data; this file
+         ensures '3rd Party' is always present so default_get() can find it. -->
+    <record id="partner_category_3rd_party" model="res.partner.category">
+        <field name="name">3rd Party</field>
+    </record>
+</odoo>
