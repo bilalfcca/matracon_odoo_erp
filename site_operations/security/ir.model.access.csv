@@ -247,3 +247,10 @@ access_bg_facility_import_wizard_all,bg.facility.import.wizard.all,model_x_bg_fa
 access_bg_amendment_import_wizard_all,bg.amendment.import.wizard.all,model_x_bg_amendment_import_wizard,base.group_user,1,1,1,1
 access_petty_cash_admin_wizard_admin,petty.cash.admin.wizard.admin,model_x_petty_cash_admin_wizard,purchase_demand_raise.group_matracon_admin,1,1,1,1
 access_petty_cash_admin_wizard_system,petty.cash.admin.wizard.system,model_x_petty_cash_admin_wizard,base.group_system,1,1,1,1
+access_stock_picking_site_accountant,stock.picking.sa,stock.model_stock_picking,site_operations.group_site_accountant,1,1,0,0
+access_stock_move_site_accountant,stock.move.sa,stock.model_stock_move,site_operations.group_site_accountant,1,1,1,0
+access_stock_move_line_site_accountant,stock.move.line.sa,stock.model_stock_move_line,site_operations.group_site_accountant,1,1,1,0
+access_stock_location_site_accountant,stock.location.sa,stock.model_stock_location,site_operations.group_site_accountant,1,0,0,0
+access_stock_picking_type_site_accountant,stock.picking.type.sa,stock.model_stock_picking_type,site_operations.group_site_accountant,1,0,0,0
+access_stock_warehouse_site_accountant,stock.warehouse.sa,stock.model_stock_warehouse,site_operations.group_site_accountant,1,0,0,0
+access_stock_quant_site_accountant,stock.quant.sa,stock.model_stock_quant,site_operations.group_site_accountant,1,0,0,0

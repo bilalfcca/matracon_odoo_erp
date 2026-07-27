@@ -19,6 +19,27 @@
         ════════════════════════════════════════════════════════════════════ -->
 
         <!-- ═══════════════════════════════════════════════════════════════════
+             STOCK — Site Accountant (project-scoped, submitted issuances only)
+        ════════════════════════════════════════════════════════════════════ -->
+
+        <!-- SA can only see material issuances that have been submitted to them
+             for their own project.  Prevents browsing all stock.picking records. -->
+        <record id="rule_stock_picking_site_accountant" model="ir.rule">
+            <field name="name">stock.picking: SA sees submitted issuances for own project</field>
+            <field name="model_id" ref="stock.model_stock_picking"/>
+            <field name="domain_force">[
+                ('x_transfer_purpose', '=', 'material_issuance'),
+                ('x_submitted_to_sa', '=', True),
+                ('x_issuance_project_id', '=', user.x_default_analytic_account_id.id)
+            ]</field>
+            <field name="groups" eval="[(4, ref('site_operations.group_site_accountant'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <!-- ═══════════════════════════════════════════════════════════════════
              CUSTOM MODELS — Site Accountant (project-scoped)
         ════════════════════════════════════════════════════════════════════ -->
 

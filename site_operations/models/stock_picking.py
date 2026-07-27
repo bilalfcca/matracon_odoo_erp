@@ -117,6 +117,15 @@ class StockPickingSiteOps(models.Model):
     x_damage_backcharge_entry_id = fields.Many2one(
         'account.move', string='Damage Backcharge Entry', readonly=True)
 
+    # ── SA review workflow ────────────────────────────────────────────────────
+    x_submitted_to_sa = fields.Boolean(
+        string='Submitted to Site Accountant',
+        default=False,
+        copy=False,
+        help='Set by Site Store when submitting a backcharge issuance for '
+             'Site Accountant price review and validation.',
+    )
+
     # ── User context flags (for view domains) ────────────────────────────────
     x_is_site_store = fields.Boolean(
         string='Is Site Store User',
@@ -1024,6 +1033,17 @@ class StockPickingSiteOps(models.Model):
             if pick.state == 'done':
                 if pick.x_transfer_purpose == 'material_issuance':
                     pick._post_validate_material_issuance()
+                    # Notify Site Store when SA validates a submitted issuance
+                    if pick.x_submitted_to_sa:
+                        store_users = matracon_notify.site_store_users_for_analytic(
+                            pick.env, pick.x_issuance_project_id)
+                        matracon_notify.notify_users(
+                            pick, store_users,
+                            '<b>Material Issuance validated by Site Accountant.</b><br/>'
+                            'Reference: <b>%s</b><br/>'
+                            'Stock has been moved and the issuance is now complete.' % pick.name,
+                            summary=_('Material Issuance Validated'),
+                        )
                 elif pick.x_transfer_purpose == 'site_to_site':
                     if pick.x_is_dest_receipt:
                         if pick.x_source_transfer_id:
@@ -1035,6 +1055,32 @@ class StockPickingSiteOps(models.Model):
                 if pick.x_is_return_transfer:
                     pick._post_validate_return()
         return res
+
+    def action_submit_to_sa(self):
+        """Submit a backcharge material issuance to Site Accountant for price review.
+
+        Called by Site Store.  Sets x_submitted_to_sa = True and notifies all
+        SA users assigned to this project so they know to open, fill missing unit
+        prices, and validate the issuance.
+        """
+        self.ensure_one()
+        if not self.x_backcharge_applicable:
+            raise UserError(_(
+                'This issuance has no backcharge — Site Accountant review is not required.\n'
+                'You can validate it directly.'
+            ))
+        if self.x_submitted_to_sa:
+            raise UserError(_('This issuance has already been submitted to Site Accountant.'))
+        self.x_submitted_to_sa = True
+        sa_users = matracon_notify.site_accountants_for_analytic(
+            self.env, self.x_issuance_project_id)
+        matracon_notify.notify_users(
+            self, sa_users,
+            '<b>Material Issuance submitted for your review.</b><br/>'
+            'Reference: <b>%s</b><br/>'
+            'Please verify unit prices (add any that are missing) and validate.' % self.name,
+            summary=_('Material Issuance Pending Review'),
+        )
 
     def _check_duplicate_asset_issuance(self):
         """Block issuing the same asset product twice to the same contact."""

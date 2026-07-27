@@ -60,6 +60,25 @@
               sequence="49"
               groups="purchase_demand_raise.group_matracon_admin"/>
 
+    <!-- ── Give Site Accountant access to Inventory app + Operations parent ───
+         SA has no stock.group_stock_user but we want them to reach their
+         material-issuance review menu.  Adding the group to the parent menus
+         directly avoids granting full inventory access. -->
+    <record id="stock.menu_stock_root" model="ir.ui.menu">
+        <field name="group_ids" eval="[(4, ref('site_operations.group_site_accountant'))]"/>
+    </record>
+    <record id="stock.menu_stock_transfers" model="ir.ui.menu">
+        <field name="group_ids" eval="[(4, ref('site_operations.group_site_accountant'))]"/>
+    </record>
+
+    <!-- Inventory → Operations → Material Issuance Review (SA only) -->
+    <menuitem id="menu_sa_material_issuance_review"
+              name="Material Issuance Review"
+              parent="stock.menu_stock_transfers"
+              action="site_operations.action_sa_pending_issuances"
+              sequence="23"
+              groups="site_operations.group_site_accountant"/>
+
     <!-- Inventory → Operations → Transfers -->
     <menuitem id="menu_material_issuance"
               name="Material Issuance"

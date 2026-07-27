@@ -120,6 +120,23 @@
                         invisible="x_transfer_purpose != 'site_to_site' or x_is_dest_receipt or x_site_transfer_state != 'pending_approval'"
                         groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
+                <!-- Submit to Site Accountant (backcharge issuances only, site store) -->
+                <button name="action_submit_to_sa"
+                        type="object"
+                        string="Submit to Site Accountant"
+                        class="btn-primary"
+                        confirm="Submit this issuance to Site Accountant for price review and validation?"
+                        invisible="x_transfer_purpose != 'material_issuance' or not x_backcharge_applicable or x_submitted_to_sa or state in ('done', 'cancel')"
+                        groups="purchase_demand_raise.group_site_store"/>
+
+                <!-- Pending SA Review badge — visible to both site store and SA -->
+                <button type="object" name="action_submit_to_sa"
+                        class="btn-warning"
+                        string="⏳ Pending SA Review"
+                        readonly="1"
+                        invisible="not x_submitted_to_sa or state in ('done', 'cancel')"
+                        groups="purchase_demand_raise.group_site_store,site_operations.group_site_accountant"/>
+
                 <!-- Print MIF button -->
                 <button name="action_print_mif"
                         type="object"
@@ -170,6 +187,7 @@
                     Adjust quantities if needed, then Validate.
                 </div>
                 <field name="x_original_issuance_id" invisible="1"/>
+                <field name="x_submitted_to_sa" invisible="1"/>
             </xpath>
 
             <!-- ── Hide standard partner_id (we use x_contact_id instead) ── -->

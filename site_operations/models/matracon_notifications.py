@@ -61,3 +61,13 @@ def site_accountants_for_analytic(env, analytic_account):
         ('analytic_account_id', '=', analytic_account.id),
     ], limit=1)
     return config.x_site_accountant_ids if config else env['res.users']
+
+
+def site_store_users_for_analytic(env, analytic_account):
+    """Return Site Store users assigned to the given analytic account's project."""
+    if not analytic_account:
+        return env['res.users']
+    config = env['x.project.site.config'].sudo().search([
+        ('analytic_account_id', '=', analytic_account.id),
+    ], limit=1)
+    return config.site_user_ids if config else env['res.users']
