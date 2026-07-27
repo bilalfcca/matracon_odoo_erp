@@ -63,6 +63,7 @@ class BatchPayment(models.Model):
     x_destination_project_id = fields.Many2one(
         'account.analytic.account',
         string='Project',
+        default=lambda self: self.env.user.sudo().x_default_analytic_account_id,
         help='Apply this project to all payment lines. '
              'Changing it here propagates to every line (overwriting individual values).',
         tracking=True,
@@ -191,6 +192,25 @@ class BatchPaymentLine(models.Model):
         required=True, ondelete='cascade', index=True,
     )
     sequence = fields.Integer(default=10)
+
+    # ── Default helpers ───────────────────────────────────────────────────────
+
+    @api.model
+    def default_get(self, fields_list):
+        res = super().default_get(fields_list)
+        # Pre-fill Destination Project from the parent batch header (if already
+        # set), falling back to the current user's default analytic account.
+        if 'x_destination_project_id' in fields_list and not res.get('x_destination_project_id'):
+            batch_id = res.get('batch_id') or self.env.context.get('default_batch_id')
+            if batch_id:
+                batch = self.env['x.batch.payment'].browse(batch_id)
+                if batch.x_destination_project_id:
+                    res['x_destination_project_id'] = batch.x_destination_project_id.id
+            if not res.get('x_destination_project_id'):
+                user_analytic = self.env.user.sudo().x_default_analytic_account_id
+                if user_analytic:
+                    res['x_destination_project_id'] = user_analytic.id
+        return res
 
     # ── Core payment fields ───────────────────────────────────────────────────
 
