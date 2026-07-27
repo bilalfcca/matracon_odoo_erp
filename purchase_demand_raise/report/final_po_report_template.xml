@@ -7,10 +7,9 @@
         which provides header / article / footer divs for wkhtmltopdf.
 
         Header carries:
-          * Logo + company name on the SAME LINE (display:table/table-cell)
+          * Logo (left cell) + Company name (right cell) — side-by-side table layout
           * Thin navy divider
-          * PO / RFQ reference + print-date (injected by calling template via
-            t-set po_ref_number / po_ref_date BEFORE t-call)
+          * PO / RFQ reference + print-date
 
         Putting ref/date in the header guarantees they are always visible:
         they bypass the wkhtmltopdf article invisible-zone entirely.
@@ -30,22 +29,25 @@
                 box-sizing: border-box;
                 background: #ffffff;">
 
-            <!-- Logo + Company Name — forced onto a single line.
-                 white-space:nowrap on the wrapper prevents inline-block children
-                 from wrapping to a second line in wkhtmltopdf's WebKit engine. -->
-            <div style="text-align:center; padding:2px 0 4px 0; white-space:nowrap; overflow:hidden;">
-                <t t-if="env.company.logo">
-                    <img t-att-src="image_data_uri(env.company.logo)"
-                         style="height:54px; width:auto; display:inline-block;
-                                vertical-align:middle; margin-right:10px;"/>
-                </t>
-                <span style="font-family:'CG Omega', Arial, sans-serif;
-                             font-size:24px; font-weight:bold; font-style:normal;
-                             color:#4a1a6e; white-space:nowrap;
-                             display:inline-block; vertical-align:middle;">
-                    MATRACON PAKISTAN (PVT) LIMITED
-                </span>
+            <!-- Logo (left) + Company Name (right) — side-by-side via display:table.
+                 display:table avoids Bootstrap border CSS; white-space:nowrap on the
+                 company name cell prevents it from wrapping in wkhtmltopdf's WebKit. -->
+            <div style="display:table; width:100%; border-collapse:collapse; border:none; padding:2px 0 4px 0;">
+                <div style="display:table-cell; vertical-align:middle; width:68px; padding-right:10px; border:none;">
+                    <t t-if="env.company.logo">
+                        <img t-att-src="image_data_uri(env.company.logo)"
+                             style="height:56px; width:auto; display:block;"/>
+                    </t>
+                </div>
+                <div style="display:table-cell; vertical-align:middle; border:none;">
+                    <span style="font-family:'CG Omega', Arial, sans-serif;
+                                 font-size:24px; font-weight:bold; font-style:normal;
+                                 color:#4a1a6e; white-space:nowrap; display:block;">
+                        MATRACON PAKISTAN (PVT) LIMITED
+                    </span>
+                </div>
             </div>
+
             <!-- Thin navy divider below brand row -->
             <div style="border-top:2px solid #1a3a5c; margin-bottom:3px;"></div>
 
@@ -62,12 +64,15 @@
         </div>
 
         <!-- ── ARTICLE (main body, content injected via t-out="0")
-             padding-top: 16mm clears the wkhtmltopdf article invisible zone (~14mm).
-             Ref/date are now in the header so article starts with the vendor block. -->
+             padding-top: 22mm clears the wkhtmltopdf article invisible zone (~14mm)
+             plus space for the header rows.
+             text-align: justify — default for all paragraph/div text in the body.
+             Explicit inline text-align on table cells overrides this. -->
         <div class="article" style="
                 font-family: Arial, sans-serif;
                 font-size: 13px;
                 color: #222;
+                text-align: justify;
                 padding: 22mm 12mm 4mm 12mm;">
 
             <!-- CSS for product tables — lives here so it is part of the
@@ -76,6 +81,10 @@
                 body, div, p, span, li, td, th {
                     font-family: Arial, sans-serif;
                     color: #222;
+                }
+                /* Default justification for all body text */
+                body, p, li {
+                    text-align: justify;
                 }
                 /* Global reset: suppress borders on all td/th (Bootstrap may add them).
                    Data tables (.po-table, .rfq-table) override via higher specificity. */
@@ -207,7 +216,7 @@
 
                     <!-- PROJECT (bold, uppercase, underlined) -->
                     <t t-if="o.x_project_analytic_account_id">
-                        <p style="margin:0 0 12px 0; font-size:13px;">
+                        <p style="margin:0 0 12px 0; font-size:13px; text-align:justify;">
                             <strong>PROJECT:&#160;</strong><span
                                 style="text-decoration:underline; font-weight:bold; text-transform:uppercase;">
                                 <t t-esc="o.x_project_analytic_account_id.name"/>
@@ -217,7 +226,7 @@
 
                     <!-- Subject (underlined) -->
                     <t t-if="o.partner_ref">
-                        <p style="margin:0 0 14px 0; font-size:13px;">
+                        <p style="margin:0 0 14px 0; font-size:13px; text-align:justify;">
                             <strong>Subject:&#160;</strong><span
                                 style="text-decoration:underline; font-weight:bold;">
                                 <t t-esc="o.partner_ref"/>
@@ -226,8 +235,8 @@
                     </t>
 
                     <!-- Formal letter body -->
-                    <p style="margin:0 0 7px 0; font-size:13px; line-height:1.7;">Dear Sir,</p>
-                    <p style="margin:0 0 14px 0; font-size:13px; line-height:1.7; text-indent:28px;">
+                    <p style="margin:0 0 7px 0; font-size:13px; line-height:1.7; text-align:justify;">Dear Sir,</p>
+                    <p style="margin:0 0 14px 0; font-size:13px; line-height:1.7; text-align:justify; text-indent:28px;">
                         Through your quotation, we are pleased to confirm the order for the Supply
                         of the below mentioned product for our subject project, as per the required
                         standards and specifications.
@@ -301,10 +310,10 @@
 
                     <!-- Terms &amp; Conditions -->
                     <t t-if="o.note">
-                        <p style="font-size:13px; font-weight:bold; margin:0 0 4px 0;">
+                        <p style="font-size:13px; font-weight:bold; margin:0 0 4px 0; text-align:justify;">
                             Terms &amp; Conditions:
                         </p>
-                        <div style="font-size:12px; line-height:1.65;">
+                        <div style="font-size:12px; line-height:1.65; text-align:justify;">
                             <t t-out="o.note"/>
                         </div>
                     </t>
@@ -313,9 +322,9 @@
                     <t t-set="sig" t-value="o.env['x.po.signature.config'].sudo().search(
                         [('company_id','=',o.company_id.id)], limit=1)"/>
 
-                    <p style="margin:24px 0 0 0; font-size:13px; line-height:1.9;">Thanking you.</p>
-                    <p style="margin:0; font-size:13px; line-height:1.9;">For &amp; on behalf of</p>
-                    <p style="margin:0; font-size:13px; line-height:1.9; font-weight:bold;">
+                    <p style="margin:24px 0 0 0; font-size:13px; line-height:1.9; text-align:justify;">Thanking you.</p>
+                    <p style="margin:0; font-size:13px; line-height:1.9; text-align:justify;">For &amp; on behalf of</p>
+                    <p style="margin:0; font-size:13px; line-height:1.9; font-weight:bold; text-align:justify;">
                         MATRACON PAKISTAN (PVT.) LIMITED
                     </p>
 
@@ -333,15 +342,6 @@
                         <p style="margin:0; font-size:12px;">
                             <t t-esc="(sig and sig.x_ceo_title) or 'CEO'"/>
                         </p>
-                    </div>
-
-                    <!-- CC -->
-                    <div style="margin-top:18px; font-size:13px;">
-                        <p style="margin:0 0 3px 0;">CC:</p>
-                        <ul style="margin:0 0 0 20px; padding:0; font-size:13px;">
-                            <li>Director M/s Matracon Pakistan Pvt. Limited, Islamabad.</li>
-                            <li>File</li>
-                        </ul>
                     </div>
 
                 </t>

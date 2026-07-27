@@ -667,15 +667,19 @@
         <field name="model">purchase.order</field>
         <field name="inherit_id" ref="purchase.purchase_order_form"/>
         <field name="arch" type="xml">
-            <!-- T&C template selector: only for HO/CEO/Admin, never for Site Store -->
-            <xpath expr="//field[@name='note']" position="before">
+            <!-- T&C template selector: injected before the outer group that contains
+                 the note field so it sits at the same layout level and gets full-form
+                 width (not cramped inside a nested half-width group).
+                 colspan="2" spans both columns of the standard 2-col group layout. -->
+            <xpath expr="//group[group[field[@name='note']]]" position="before">
                 <group invisible="x_is_site_store"
                        groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system">
                     <field name="x_terms_template_id"
                            string="T&amp;C Template"
                            placeholder="Select a template to auto-fill Terms &amp; Conditions…"
                            options="{'no_create': True}"
-                           readonly="state in ('purchase', 'done', 'cancel')"/>
+                           readonly="state in ('purchase', 'done', 'cancel')"
+                           colspan="2"/>
                 </group>
             </xpath>
             <!-- T&C note text: hidden from Site Store (vendor terms are internal) -->
