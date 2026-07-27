@@ -473,11 +473,15 @@
                   decoration-muted="state == 'draft'">
                 <header>
                     <!-- Opens Batch Payment form — even single-vendor payments
-                         go through a batch so all existing hooks fire correctly. -->
+                         go through a batch so all existing hooks fire correctly.
+                         display="always" is required so the button appears in the
+                         control-panel-always-buttons slot (visible at all times),
+                         not only in the selection-actions bar. -->
                     <button string="New"
                             type="object"
                             name="action_open_new_batch_payment"
-                            class="btn-primary"/>
+                            class="btn-primary"
+                            display="always"/>
                 </header>
                 <field name="name" string="Reference"/>
                 <field name="date" string="Payment Date"/>
