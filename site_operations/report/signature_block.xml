@@ -74,4 +74,36 @@
         </div>
     </template>
 
+
+    <!-- ── 4-column block (labels only — no Name/Date lines) ─────────────── -->
+    <!-- Usage (same as report_sig_4col):
+         <t t-call="site_operations.report_sig_4col_labels">
+             <t t-set="extra_label">Received By</t>
+         </t>
+    -->
+    <template id="report_sig_4col_labels">
+        <div class="row mt-5">
+            <div class="col-3 text-center">
+                <div style="border-top:2px solid #000; margin-top:60px; padding-top:8px;">
+                    <div style="font-weight:700; font-size:13px;">Prepared By</div>
+                </div>
+            </div>
+            <div class="col-3 text-center">
+                <div style="border-top:2px solid #000; margin-top:60px; padding-top:8px;">
+                    <div style="font-weight:700; font-size:13px;">Checked By</div>
+                </div>
+            </div>
+            <div class="col-3 text-center">
+                <div style="border-top:2px solid #000; margin-top:60px; padding-top:8px;">
+                    <div style="font-weight:700; font-size:13px;">Approved By</div>
+                </div>
+            </div>
+            <div class="col-3 text-center">
+                <div style="border-top:2px solid #000; margin-top:60px; padding-top:8px;">
+                    <div style="font-weight:700; font-size:13px;"><t t-esc="extra_label or 'Received By'"/></div>
+                </div>
+            </div>
+        </div>
+    </template>
+
 </odoo>

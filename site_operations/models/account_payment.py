@@ -56,6 +56,14 @@ class AccountPaymentSiteOps(models.Model):
         'x.liability.sheet.line', string='Liability Line',
         readonly=True, copy=False)
 
+    x_bpv_ref = fields.Char(
+        string='BPV Reference',
+        copy=False,
+        readonly=True,
+        index=True,
+        help='Auto-assigned on posting: BPV-YY-MM-XXXXX (sequential per month).',
+    )
+
     x_payment_category = fields.Selection([
         ('vendor', 'Vendor / Liability'),
         ('salary', 'Salary'),
@@ -1130,6 +1138,32 @@ class AccountPaymentSiteOps(models.Model):
                 % self.name
             )
 
+    def _get_next_bpv_ref(self):
+        """Return the next BPV-YY-MM-XXXXX reference for the current month."""
+        today = fields.Date.context_today(self)
+        yy = today.year % 100
+        mm = today.month
+        prefix = 'BPV-%02d-%02d-' % (yy, mm)
+        self.env.cr.execute(
+            """
+            SELECT x_bpv_ref FROM account_payment
+            WHERE x_bpv_ref LIKE %s
+            ORDER BY x_bpv_ref DESC
+            LIMIT 1
+            """,
+            (prefix + '%',),
+        )
+        row = self.env.cr.fetchone()
+        if row:
+            try:
+                last_seq = int(row[0].split('-')[-1])
+            except (ValueError, IndexError):
+                last_seq = 0
+            next_seq = last_seq + 1
+        else:
+            next_seq = 1
+        return prefix + '%05d' % next_seq
+
     def action_post(self):
         """Auto-assign cheque number from series before posting if not already set."""
         for payment in self:
@@ -1147,6 +1181,12 @@ class AccountPaymentSiteOps(models.Model):
                         'No active cheque series found for bank "%s". '
                         'Please set one up in Configuration → Cheque Series.'
                     ) % payment.journal_id.name)
+        # Assign BPV-YY-MM-XXXXX reference for outbound payments being posted now.
+        for payment in self.filtered(
+            lambda p: p.payment_type == 'outbound' and not p.x_bpv_ref
+        ):
+            payment.x_bpv_ref = payment._get_next_bpv_ref()
+
         self._validate_ceo_payment_approval()
         for payment in self.filtered(lambda p: p.x_liability_sheet_line_id):
             payment.amount = payment.x_net_payable or payment.amount

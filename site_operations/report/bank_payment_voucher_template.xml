@@ -79,7 +79,7 @@
                         Voucher No
                     </td>
                     <td style="padding:4px 10px; border:1px solid #aaa;">
-                        <t t-esc="o.name or '—'"/>
+                        <t t-esc="o.x_bpv_ref or o.name or '—'"/>
                     </td>
                 </tr>
                 <tr style="background:#f0f0f0;">
@@ -267,7 +267,7 @@
     <!-- ════════════════════════════════════════════════════════════
          4-COLUMN SIGNATURE BLOCK
     ═══════════════════════════════════════════════════════════════ -->
-    <t t-call="site_operations.report_sig_4col">
+    <t t-call="site_operations.report_sig_4col_labels">
         <t t-set="extra_label">Received By</t>
     </t>
 

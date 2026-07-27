@@ -7,7 +7,7 @@
         <field name="report_type">qweb-pdf</field>
         <field name="report_name">site_operations.report_bank_payment_voucher_document</field>
         <field name="report_file">site_operations.report_bank_payment_voucher_document</field>
-        <field name="print_report_name">'BPV - ' + (object.name or '')</field>
+        <field name="print_report_name">(object.x_bpv_ref or object.name or 'BPV')</field>
         <field name="binding_model_id" ref="account.model_account_payment"/>
         <field name="binding_type">report</field>
     </record>
