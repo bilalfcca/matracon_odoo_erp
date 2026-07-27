@@ -64,6 +64,13 @@ class AccountPaymentSiteOps(models.Model):
         help='Auto-assigned on posting: BPV-YY-MM-XXXXX (sequential per month).',
     )
 
+    x_account_title = fields.Char(
+        string='Account Title',
+        help='Bank account holder name for this payment. '
+             'Used on the Bank Payment Voucher when no per-bank allocation lines are set. '
+             'Falls back to the vendor name on the printed voucher if left blank.',
+    )
+
     x_payment_category = fields.Selection([
         ('vendor', 'Vendor / Liability'),
         ('salary', 'Salary'),

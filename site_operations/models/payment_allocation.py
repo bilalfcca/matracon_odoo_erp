@@ -113,6 +113,12 @@ class PaymentBankAllocation(models.Model):
 
     x_cheque_number = fields.Char(string='Cheque No.')
 
+    x_account_title = fields.Char(
+        string='Account Title',
+        help='Bank account holder name for this payment (e.g. as written on the cheque). '
+             'Auto-fills from vendor name on the voucher if left blank.',
+    )
+
     @api.depends('journal_id')
     def _compute_available_balance(self):
         for alloc in self:
