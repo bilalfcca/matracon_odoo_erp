@@ -471,6 +471,14 @@
                   decoration-success="state == 'posted'"
                   decoration-warning="x_payment_status == 'in_process'"
                   decoration-muted="state == 'draft'">
+                <header>
+                    <!-- Opens Batch Payment form — even single-vendor payments
+                         go through a batch so all existing hooks fire correctly. -->
+                    <button string="New"
+                            type="object"
+                            name="action_open_new_batch_payment"
+                            class="btn-primary"/>
+                </header>
                 <field name="name" string="Reference"/>
                 <field name="date" string="Payment Date"/>
                 <field name="partner_id" string="Vendor"/>

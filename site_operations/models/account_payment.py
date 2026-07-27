@@ -724,6 +724,22 @@ class AccountPaymentSiteOps(models.Model):
                 _('Process payment — %s (%s %s)') % (vendor, currency_sym, amount_str)
             )
 
+    def action_open_new_batch_payment(self):
+        """Open the Batch Payment form in create mode.
+
+        Called from the 'New' button in the Payments list view.
+        All vendor payments (including single-vendor ones) go through
+        a batch so the full accounting hook chain fires correctly.
+        """
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('New Batch Payment'),
+            'res_model': 'x.batch.payment',
+            'view_mode': 'form',
+            'target': 'current',
+            'context': {},
+        }
+
     def action_ceo_reverse_approval(self):
         """CEO reverses their own approval — sets state back to 'pending'.
 
