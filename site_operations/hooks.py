@@ -400,6 +400,9 @@ def post_init_hook(env):
             '(not a production DB or users not yet created): %s', e
         )
     reprocess_existing_payments(env)
+    # Restrict Odoo's built-in 'see all' account.move rules to group_account_manager
+    # so site accountants are properly scoped to their own project.
+    fix_account_move_rules(env)
     # Fix any posted petty cash expenses that have no JE or wrong JE credit account.
     # On a fresh install into a DB with existing data (e.g. a restored production dump),
     # post_migrate_hook does NOT run — only post_init_hook runs.
@@ -645,12 +648,77 @@ def fix_petty_cash_expense_accounts(env):
         )
 
 
+def fix_account_move_rules(env):
+    """
+    Restrict Odoo's built-in 'see all' record rules on account.move /
+    account.move.line so that site accountants cannot bypass project-scoped
+    restrictions.
+
+    The problem
+    ───────────
+    group_site_accountant implies account.group_account_user, which in turn
+    implies group_account_basic → group_account_invoice AND group_account_readonly.
+
+    Odoo ships three group-based rules on account.move that grant [(1,'=',1)]:
+      • account.account_move_see_all           → group_account_invoice
+      • account.account_move_rule_group_invoice → group_account_invoice  (Odoo 19)
+      • account.account_move_rule_group_readonly → group_account_readonly
+
+    Because Odoo ORs group-based rules, site accountants inherit these permissive
+    rules and see every journal entry regardless of the project-scoped rule.
+
+    The fix
+    ───────
+    Replace the groups on those rules with account.group_account_manager only.
+    Finance HO and Matracon Admin both imply group_account_manager, so they
+    keep full visibility.  Site accountants only have group_account_user (not
+    group_account_manager) so they fall through to rule_account_move_site_accountant
+    (own project only).
+
+    These rules are shipped with noupdate=True so they cannot be overridden via
+    XML.  Python is the only reliable way to modify them.
+    """
+    import logging
+    _logger = logging.getLogger(__name__)
+
+    # Rules to restrict (account.move and account.move.line variants)
+    RULE_XML_IDS = [
+        'account.account_move_see_all',
+        'account.account_move_line_see_all',
+        'account.account_move_rule_group_invoice',
+        'account.account_move_line_rule_group_invoice',
+        'account.account_move_rule_group_readonly',
+        'account.account_move_line_rule_group_readonly',
+    ]
+    manager_group = env.ref('account.group_account_manager', raise_if_not_found=False)
+    if not manager_group:
+        _logger.warning('fix_account_move_rules: account.group_account_manager not found — skipping')
+        return
+
+    for xml_id in RULE_XML_IDS:
+        rule = env.ref(xml_id, raise_if_not_found=False)
+        if not rule:
+            continue  # Some rules may not exist in all Odoo versions
+        current_groups = rule.groups
+        if current_groups == manager_group:
+            continue  # Already correct — idempotent
+        rule.sudo().write({'groups': [(6, 0, [manager_group.id])]})
+        old_names = ', '.join(current_groups.mapped('name')) or '(none)'
+        _logger.info(
+            'fix_account_move_rules: %s → groups changed from [%s] to [Administrator]',
+            xml_id, old_names,
+        )
+
+
 def post_migrate_hook(env):
     set_pkr_decimal_places(env)
     set_date_format(env)
     set_pakistan_fiscal_year(env)
     deduplicate_partner_tags(env)
     reprocess_existing_payments(env)
+    # Restrict Odoo's built-in 'see all' account.move rules to group_account_manager
+    # so site accountants are properly scoped to their own project.
+    fix_account_move_rules(env)
     try:
         fix_petty_cash_expense_accounts(env)
     except Exception as e:

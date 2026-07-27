@@ -8,6 +8,17 @@
         </record>
 
         <!-- ═══════════════════════════════════════════════════════════════════
+             NOTE: Odoo's built-in account.move 'see all' rules are restricted
+             to account.group_account_manager in Python, NOT here in XML.
+             These rules (account_move_see_all, account_move_rule_group_invoice,
+             account_move_rule_group_readonly) are shipped with noupdate=True so
+             XML overrides are silently ignored by Odoo 19.
+             The fix is applied via:
+               - hooks.fix_account_move_rules() — called from post_init_hook (install)
+               - migrations/19.0.1.8.8/post-migrate.py — called on upgrade
+        ════════════════════════════════════════════════════════════════════ -->
+
+        <!-- ═══════════════════════════════════════════════════════════════════
              CUSTOM MODELS — Site Accountant (project-scoped)
         ════════════════════════════════════════════════════════════════════ -->
 
