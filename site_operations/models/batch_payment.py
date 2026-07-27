@@ -174,6 +174,21 @@ class BatchPayment(models.Model):
             'domain': [('id', 'in', payment_ids)],
         }
 
+    def action_print_all_bpvs(self):
+        """Download one PDF containing all BPVs for this batch (one per page)."""
+        self.ensure_one()
+        payment_ids = self.line_ids.mapped('payment_id').ids
+        if not payment_ids:
+            raise UserError(_(
+                'Post the batch first — BPVs are generated when payments are posted.'
+            ))
+        ids_str = ','.join(str(i) for i in payment_ids)
+        return {
+            'type': 'ir.actions.act_url',
+            'url': '/site_operations/print/account.payment/%s' % ids_str,
+            'target': 'new',
+        }
+
 
 class BatchPaymentLine(models.Model):
     """One vendor payment within a batch.

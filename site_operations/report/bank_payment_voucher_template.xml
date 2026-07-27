@@ -3,7 +3,7 @@
 <template id="report_bank_payment_voucher_document">
 <t t-call="web.html_container">
 <t t-foreach="docs" t-as="o">
-<t t-call="web.external_layout">
+<t t-call="web.minimal_layout">
 <div class="page" style="font-family:Arial,sans-serif; font-size:11pt;">
 
     <!-- ════════════════════════════════════════════════════════════
@@ -178,12 +178,6 @@
                                     </td>
                                     <td style="border:1px solid #aaa; padding:3px 14px; min-width:110px;">
                                         <t t-esc="alloc.x_cheque_number or ''"/>
-                                    </td>
-                                    <td style="border:1px solid #aaa; padding:3px 10px; background:#f8f8f8; font-weight:600; padding-left:16px;">
-                                        Date
-                                    </td>
-                                    <td style="border:1px solid #aaa; padding:3px 14px; min-width:90px;">
-                                        <t t-esc="o.date.strftime('%d/%m/%Y') if o.date else ''"/>
                                     </td>
                                 </tr>
                             </table>
