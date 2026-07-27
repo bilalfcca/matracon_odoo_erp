@@ -10,8 +10,8 @@
         <field name="default" eval="False"/>
         <field name="format">A4</field>
         <field name="orientation">Portrait</field>
-        <field name="margin_top">24</field>
-        <field name="margin_bottom">22</field>
+        <field name="margin_top">4</field>
+        <field name="margin_bottom">4</field>
         <field name="margin_left">0</field>
         <field name="margin_right">0</field>
         <field name="header_spacing">2</field>
