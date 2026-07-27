@@ -319,13 +319,15 @@ class StockPickingSiteOps(models.Model):
                     if issue_loc_id:
                         res['location_dest_id'] = issue_loc_id
                     elif not res.get('location_dest_id'):
-                        # Fallback to generic customer location only if nothing else was set
-                        customer_loc = self.env['stock.location'].search([
-                            ('usage', '=', 'customer'),
-                            ('company_id', 'in', [False, self.env.company.id]),
-                        ], limit=1)
-                        if customer_loc:
-                            res['location_dest_id'] = customer_loc.id
+                        # Fallback to Production virtual location
+                        prod_loc = self.env.ref('stock.location_production', raise_if_not_found=False)
+                        if not prod_loc:
+                            prod_loc = self.env['stock.location'].search([
+                                ('usage', '=', 'production'),
+                                ('company_id', 'in', [False, self.env.company.id]),
+                            ], limit=1)
+                        if prod_loc:
+                            res['location_dest_id'] = prod_loc.id
                 else:
                     # Return: source = issue location (Employees/Sub), dest = site stock
                     issue_loc_id = self._matracon_site_issue_location_id(res)
@@ -532,29 +534,15 @@ class StockPickingSiteOps(models.Model):
             self.location_dest_id = loc
             return
 
-        # 2nd priority: type-specific virtual location (name-based fallback)
-        loc = False
-        if self.x_issue_type == 'normal':
-            loc = self.env['stock.location'].search([
-                ('usage', 'in', ('customer', 'internal')),
-                ('name', 'ilike', 'employee'),
+        # 2nd priority: production virtual location (fallback if site config not set up)
+        prod_loc = self.env.ref('stock.location_production', raise_if_not_found=False)
+        if not prod_loc:
+            prod_loc = self.env['stock.location'].search([
+                ('usage', '=', 'production'),
+                ('company_id', 'in', [False, self.env.company.id]),
             ], limit=1)
-        elif self.x_issue_type == 'subcontractor':
-            loc = self.env['stock.location'].search([
-                ('usage', 'in', ('customer', 'internal')),
-                ('name', 'ilike', 'subcontractor'),
-            ], limit=1)
-        if loc:
-            self.location_dest_id = loc
-            return
-
-        # 3rd priority: generic customer location (last resort fallback)
-        customer_loc = self.env['stock.location'].search([
-            ('usage', '=', 'customer'),
-            ('company_id', 'in', [False, self.env.company.id]),
-        ], limit=1)
-        if customer_loc:
-            self.location_dest_id = customer_loc
+        if prod_loc:
+            self.location_dest_id = prod_loc
 
     @api.onchange('x_dest_project_id', 'x_transfer_purpose')
     def _onchange_site_to_site_locations(self):
@@ -585,48 +573,37 @@ class StockPickingSiteOps(models.Model):
             [('analytic_account_id', '=', analytic_account.id)], limit=1)
 
     def _get_site_issue_location(self, issue_type=None):
-        """Return the site-specific issue location (Employees or Subcontractor).
+        """Return the Production virtual location.
 
-        Lazily creates the locations if they don't exist yet on the site config,
-        then re-reads the record from DB so cached-empty values are refreshed.
+        All issue types (normal, subcontractor, 3rd_party) route issuances to
+        Production and returns back to Stock.  The legacy Employee/Subcontractor
+        sub-locations are no longer used for routing.
         """
-        self.ensure_one()
-        config = self._get_site_config_for_analytic(self.x_issuance_project_id)
-        if not config:
-            return self.env['stock.location']
-        # Lazy-ensure locations exist (idempotent, no-op after first run)
-        if not config.x_employee_location_id or not config.x_subcontractor_location_id:
-            config._matracon_ensure_site_issue_locations()
-            # Invalidate ORM cache so the just-written location ids are visible
-            config.invalidate_recordset(['x_employee_location_id', 'x_subcontractor_location_id'])
-        iss_type = issue_type or self.x_issue_type or 'normal'
-        if iss_type == 'subcontractor':
-            return config.x_subcontractor_location_id
-        return config.x_employee_location_id
+        prod_loc = self.env.ref('stock.location_production', raise_if_not_found=False)
+        if prod_loc:
+            return prod_loc
+        # Fallback: any production-usage location in this company
+        return self.env['stock.location'].search([
+            ('usage', '=', 'production'),
+            ('company_id', 'in', [False, self.env.company.id]),
+        ], limit=1)
 
     @api.model
     def _matracon_site_issue_location_id(self, vals=None):
-        """Resolve the site issue location id for use in default_get / create."""
-        vals = vals or {}
-        analytic_id = vals.get('x_issuance_project_id')
-        issue_type = vals.get('x_issue_type', 'normal')
-        config = None
-        if analytic_id:
-            config = self.env['x.project.site.config'].sudo().search(
-                [('analytic_account_id', '=', analytic_id)], limit=1)
-        if not config:
-            user = self.env.user
-            if hasattr(user, 'x_site_config_id') and user.x_site_config_id:
-                config = user.x_site_config_id.sudo()
-        if not config:
-            return False
-        # Lazy-ensure locations exist; invalidate cache so new ids are visible
-        if not config.x_employee_location_id or not config.x_subcontractor_location_id:
-            config._matracon_ensure_site_issue_locations()
-            config.invalidate_recordset(['x_employee_location_id', 'x_subcontractor_location_id'])
-        if issue_type == 'subcontractor':
-            return config.x_subcontractor_location_id.id or False
-        return config.x_employee_location_id.id or False
+        """Resolve the Production virtual location id for use in default_get / create.
+
+        All issue types route to Production on issuance and return from Production
+        to Stock — the legacy Employee/Subcontractor sub-locations are no longer used.
+        """
+        prod_loc = self.env.ref('stock.location_production', raise_if_not_found=False)
+        if prod_loc:
+            return prod_loc.id
+        # Fallback: any production-usage location in this company
+        prod_loc = self.env['stock.location'].search([
+            ('usage', '=', 'production'),
+            ('company_id', 'in', [False, self.env.company.id]),
+        ], limit=1)
+        return prod_loc.id if prod_loc else False
 
     def _get_outstanding_qty(self, product, contact, project, exclude_picking=None):
         """Qty still outstanding for product/contact on this project."""
