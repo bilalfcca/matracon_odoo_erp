@@ -33,15 +33,15 @@
                  sit on one line and are vertically centered. white-space:nowrap
                  prevents the company name from wrapping to a second line. -->
             <div style="display:table; width:100%; border-collapse:collapse; border:none;">
-                <div style="display:table-cell; vertical-align:middle; width:72px; padding-right:10px; border:none;">
+                <div style="display:table-cell; vertical-align:middle; width:130px; padding-right:12px; border:none;">
                     <t t-if="env.company.logo">
                         <img t-att-src="image_data_uri(env.company.logo)"
-                             style="height:64px; width:auto; display:block;"/>
+                             style="height:120px; width:auto; display:block;"/>
                     </t>
                 </div>
                 <div style="display:table-cell; vertical-align:middle; border:none;">
                     <span style="font-family:'CG Omega', Arial, sans-serif;
-                                 font-size:26px; font-weight:bold; font-style:normal;
+                                 font-size:30px; font-weight:bold; font-style:normal;
                                  color:#4a1a6e; white-space:nowrap; display:block;">
                         MATRACON PAKISTAN (PVT) LIMITED
                     </span>
@@ -73,7 +73,7 @@
                 font-size: 13px;
                 color: #222;
                 text-align: justify;
-                padding: 20mm 12mm 4mm 12mm;">
+                padding: 6mm 12mm 4mm 12mm;">
 
             <!-- CSS for product tables — lives here so it is part of the
                  minimal_layout body that wkhtmltopdf actually renders. -->
