@@ -47,6 +47,8 @@ class ResPartnerSiteOps(models.Model):
                 tag_name = 'Local Supplier'
             elif ctx.get('subcontractor_create'):
                 tag_name = 'Subcontractor'
+            elif ctx.get('third_party_create'):
+                tag_name = '3rd Party'
             elif ctx.get('site_accountant_vendor'):
                 tag_name = 'Vendor'
             if tag_name:

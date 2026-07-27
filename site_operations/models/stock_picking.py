@@ -21,6 +21,7 @@ class StockPickingSiteOps(models.Model):
     x_issue_type = fields.Selection([
         ('normal', 'Normal'),
         ('subcontractor', 'Subcontractor'),
+        ('3rd_party', '3rd Party'),
     ], string='Issue Type', default='normal', tracking=True)
 
     x_inventory_type = fields.Selection([

@@ -224,7 +224,7 @@
                        domain="[('employee', '=', True)]"
                        options="{'no_create': True}"
                        context="{'employee_contact_search': True}"
-                       invisible="x_issue_type == 'subcontractor' or x_transfer_purpose != 'material_issuance'"/>
+                       invisible="x_issue_type != 'normal' or x_transfer_purpose != 'material_issuance'"/>
                 <!-- Subcontractor mode: allow "Create and Edit" with tag auto-set;
                      quick-create disabled so the full form (with pre-filled tag) always opens -->
                 <field name="x_contact_id"
@@ -233,6 +233,15 @@
                        options="{'no_quick_create': True}"
                        context="{'subcontractor_create': True}"
                        invisible="x_issue_type != 'subcontractor' or x_transfer_purpose != 'material_issuance'"/>
+                <!-- 3rd Party mode: allow "Create and Edit" with tag auto-set;
+                     quick-create disabled so the full form (with pre-filled tag) always opens.
+                     No backcharge applies for 3rd party contacts. -->
+                <field name="x_contact_id"
+                       string="3rd Party Contact"
+                       domain="[('category_id.name', '=', '3rd Party')]"
+                       options="{'no_quick_create': True}"
+                       context="{'third_party_create': True}"
+                       invisible="x_issue_type != '3rd_party' or x_transfer_purpose != 'material_issuance'"/>
 
                 <!-- ─ Outstanding materials HTML summary ─ -->
                 <div name="outstanding_materials_section"
