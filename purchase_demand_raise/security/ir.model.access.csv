@@ -54,7 +54,7 @@ access_cs_vendor_matracon_admin,x.cs.vendor matracon admin,model_x_cs_vendor,pur
 access_procurement_ho_dashboard_ceo,x.procurement.ho.dashboard ceo,model_x_procurement_ho_dashboard,purchase_demand_raise.group_ceo_approval,1,1,1,1
 
 access_project_site_config_site_store,x.project.site.config site store,model_x_project_site_config,purchase_demand_raise.group_site_store,1,0,0,0
-access_res_partner_site_store,res.partner site store,base.model_res_partner,purchase_demand_raise.group_site_store,1,1,1,0
+access_res_partner_site_store,res.partner site store,base.model_res_partner,purchase_demand_raise.group_site_store,1,0,0,0
 access_res_partner_category_site_store,res.partner.category site store,base.model_res_partner_category,purchase_demand_raise.group_site_store,1,0,0,0
 access_po_terms_template_site_store,x.po.terms.template site store,model_x_po_terms_template,purchase_demand_raise.group_site_store,1,0,0,0
 access_po_terms_template_procurement_ho,x.po.terms.template procurement ho,model_x_po_terms_template,purchase_demand_raise.group_procurement_ho,1,0,0,0
