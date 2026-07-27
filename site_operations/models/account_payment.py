@@ -350,6 +350,17 @@ class AccountPaymentSiteOps(models.Model):
         if is_ceo_only:
             vals['x_ceo_direct_payment'] = True
             vals['payment_type'] = 'outbound'
+
+        # If Odoo resolved a default journal and payment method at open time,
+        # switch the method to Checks when available (instead of Manual).
+        if (vals.get('payment_type') == 'outbound'
+                and vals.get('journal_id')
+                and 'payment_method_line_id' in fields_list):
+            journal = self.env['account.journal'].browse(vals['journal_id'])
+            checks_line = self._get_checks_method_line(journal)
+            if checks_line:
+                vals['payment_method_line_id'] = checks_line.id
+
         return vals
 
     def action_ceo_submit_to_fo(self):
@@ -396,6 +407,26 @@ class AccountPaymentSiteOps(models.Model):
                     )
 
             payment.x_ceo_submitted = True
+
+    # ── Payment method helpers ────────────────────────────────────────────────
+
+    def _get_checks_method_line(self, journal):
+        """Return the Checks (check_printing) outbound method line for *journal*.
+
+        Falls back to the first outbound method line whose name/code contains
+        'check' or 'cheque' (case-insensitive).  Returns an empty recordset if
+        no such line exists on the journal.
+        """
+        if not journal:
+            return self.env['account.payment.method.line']
+        return journal.outbound_payment_method_line_ids.filtered(
+            lambda l: (
+                'check' in (l.code or '').lower()
+                or 'cheque' in (l.code or '').lower()
+                or 'check' in (l.name or '').lower()
+                or 'cheque' in (l.name or '').lower()
+            )
+        )[:1]
 
     @api.depends('payment_method_line_id', 'payment_method_line_id.code', 'payment_method_line_id.name')
     def _compute_x_is_cheque_payment(self):
@@ -509,11 +540,26 @@ class AccountPaymentSiteOps(models.Model):
             first_journal = self.x_bank_allocation_ids[0].journal_id
             if first_journal and first_journal != self.journal_id:
                 self.journal_id = first_journal
-                self.payment_method_line_id = False  # let Odoo re-pick for new journal
+                # Prefer Checks over Manual; fall back to False so Odoo re-picks.
+                self.payment_method_line_id = (
+                    self._get_checks_method_line(first_journal) or False
+                )
         else:
             if self.journal_id:
                 self.journal_id = False
                 self.payment_method_line_id = False
+
+    @api.onchange('journal_id')
+    def _onchange_journal_prefer_checks_method(self):
+        """After Odoo selects the default payment method for the new journal
+        (usually Manual), switch to Checks if the journal has that method line.
+        The user can still manually switch back to Manual in the form.
+        """
+        if self.payment_type != 'outbound' or not self.journal_id:
+            return
+        checks_line = self._get_checks_method_line(self.journal_id)
+        if checks_line:
+            self.payment_method_line_id = checks_line
 
     @api.onchange('x_source_journal_ids')
     def _onchange_source_journals_sync_allocations(self):
