@@ -60,6 +60,14 @@ class BatchPayment(models.Model):
         compute='_compute_payment_count', store=False,
     )
 
+    x_destination_project_id = fields.Many2one(
+        'account.analytic.account',
+        string='Project',
+        help='Apply this project to all payment lines. '
+             'Changing it here propagates to every line (overwriting individual values).',
+        tracking=True,
+    )
+
     company_id = fields.Many2one(
         'res.company', string='Company',
         default=lambda self: self.env.company, required=True,
@@ -87,6 +95,12 @@ class BatchPayment(models.Model):
             batch.payment_count = len(
                 batch.line_ids.filtered(lambda l: l.payment_id)
             )
+
+    @api.onchange('x_destination_project_id')
+    def _onchange_project_propagate_to_lines(self):
+        """Propagate header project to all existing lines."""
+        for line in self.line_ids:
+            line.x_destination_project_id = self.x_destination_project_id
 
     # ── ORM hooks ─────────────────────────────────────────────────────────────
 

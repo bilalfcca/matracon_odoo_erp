@@ -263,6 +263,10 @@
                                    placeholder="Optional narration for all payments in this batch"/>
                         </group>
                         <group>
+                            <field name="x_destination_project_id"
+                                   readonly="state != 'draft'"
+                                   options="{'no_create': True}"
+                                   help="Select a project to apply it to all lines at once."/>
                             <field name="company_id"
                                    invisible="1"/>
                             <field name="currency_id"
