@@ -160,9 +160,10 @@
             <xpath expr="//header/button[@name='button_confirm'][@id='draft_confirm']" position="attributes">
                 <attribute name="invisible">x_is_pr_document or x_is_site_store or x_is_alternative_rfq</attribute>
             </xpath>
-            <!-- Cancel: hidden from Site Store and from PR docs once rejected/dispatched -->
+            <!-- Cancel: hidden from Site Store and from PR docs once already cancelled/locked.
+                 Rejected PRs CAN be cancelled (so they can then be deleted if needed). -->
             <xpath expr="//header/button[@name='button_cancel']" position="attributes">
-                <attribute name="invisible">x_is_site_store or (x_is_pr_document and x_pr_state in ('rejected', 'cancelled'))</attribute>
+                <attribute name="invisible">x_is_site_store or (x_is_pr_document and x_pr_state in ('po_locked', 'cancelled'))</attribute>
             </xpath>
 
             <!-- Hide the standard Odoo 'Reset to Draft' button on PR documents —

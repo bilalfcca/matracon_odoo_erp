@@ -1217,12 +1217,39 @@ class PurchaseOrder(models.Model):
                 ctx['default_template_id'] = our_template.id
         return result
 
-    def button_cancel(self):
-        """Override: block cancellation of rejected PR documents (already in terminal state)."""
+    @api.ondelete(at_uninstall=False)
+    def _unlink_if_cancelled(self):
+        """Override: allow deletion of rejected or cancelled PRs without extra steps.
+
+        Standard Odoo requires state='cancel' before deletion. Rejected PRs
+        have state='draft' (never confirmed as a PO) so they would be blocked.
+        We allow deletion of any PR that is in 'rejected' or 'cancelled' x_pr_state.
+        """
         for order in self:
-            if order.x_is_pr_document and order.x_pr_state == 'rejected':
-                raise UserError(_('This PR has already been rejected. Cancellation is not allowed on a rejected PR.'))
-        return super().button_cancel()
+            if order.x_is_pr_document and order.x_pr_state in ('rejected', 'cancelled'):
+                continue  # Allow deletion
+            if order.state != 'cancel':
+                raise UserError(_(
+                    'In order to delete a purchase order, you must cancel it first.'
+                ))
+
+    def button_cancel(self):
+        """Override: update x_pr_state to 'cancelled' for PR documents on cancel.
+
+        Previously blocked cancellation of rejected PRs — now allowed so users
+        can cancel and subsequently delete rejected PRs if needed.
+        """
+        result = super().button_cancel()
+        for order in self:
+            if order.x_is_pr_document and order.x_pr_state not in ('po_locked', 'cancelled'):
+                order.write({'x_pr_state': 'cancelled'})
+                order.message_post(
+                    body=Markup(
+                        '❌ PR cancelled by <b>%(user)s</b>.'
+                    ) % {'user': self.env.user.name},
+                    subtype_xmlid='mail.mt_log_note',
+                )
+        return result
 
     def action_reset_to_draft(self):
         """Role-specific partial revert — each user only undoes their own step.
