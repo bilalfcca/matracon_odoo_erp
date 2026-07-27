@@ -109,9 +109,18 @@ class ChequeSeries(models.Model):
             for f in ('start_number', 'end_number', 'current_number', 'prefix'):
                 if f in vals and vals[f]:
                     vals[f] = str(vals[f]).replace(',', '').strip()
-            # Default current_number to start_number (treat '' and None as unset)
-            if not vals.get('current_number') and vals.get('current_number') != '0':
-                vals['current_number'] = vals.get('start_number') or '1'
+            # Default current_number to start_number (treat '' and None as unset).
+            # Use pad_digits formatting so "1" stored as "000001" if pad=6.
+            if vals.get('current_number') in (None, False, ''):
+                start_raw = vals.get('start_number') or '1'
+                pad = vals.get('pad_digits', 6)
+                if pad and pad > 0:
+                    try:
+                        vals['current_number'] = '{:0{}d}'.format(int(start_raw), pad)
+                    except (ValueError, TypeError):
+                        vals['current_number'] = start_raw
+                else:
+                    vals['current_number'] = start_raw
         return super().create(vals_list)
 
     def write(self, vals):
@@ -143,10 +152,14 @@ class ChequeSeries(models.Model):
                 num=current,
                 width=self.pad_digits,
             )
+            # Store Next Number with the same zero-padding so the field shows
+            # "000002" not "2" when a padded series is in use.
+            next_num = current + 1
+            self.current_number = '{:0{}d}'.format(next_num, self.pad_digits)
         else:
             cheque_no = '{}{}'.format(self.prefix or '', current)
-        next_num = current + 1
-        self.current_number = str(next_num)
+            next_num = current + 1
+            self.current_number = str(next_num)
         if next_num > end:
             self.state = 'exhausted'
         return cheque_no
