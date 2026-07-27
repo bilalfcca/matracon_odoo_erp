@@ -29,15 +29,6 @@
                 box-sizing: border-box;
                 background: #ffffff;">
 
-            <!-- Override Bootstrap container centering that wkhtmltopdf applies.
-                 At ~744px viewport Bootstrap gives container max-width:540px + margin:auto,
-                 pushing content to the center. Force full-width + zero top gap here. -->
-            <style>
-                html, body { margin: 0 !important; padding: 0 !important; }
-                .container  { max-width: 100% !important; padding: 0 !important; margin: 0 !important; }
-                #minimal_layout_report_headers { margin: 0 !important; padding: 0 !important; }
-            </style>
-
             <!-- Logo (left) + Company Name (right) — display:table so both cells
                  sit on one line and are vertically centered. white-space:nowrap
                  prevents the company name from wrapping to a second line. -->
@@ -82,7 +73,7 @@
                 font-size: 13px;
                 color: #222;
                 text-align: justify;
-                padding: 6mm 12mm 4mm 12mm;">
+                padding: 14mm 12mm 4mm 12mm;">
 
             <!-- CSS for product tables — lives here so it is part of the
                  minimal_layout body that wkhtmltopdf actually renders. -->
