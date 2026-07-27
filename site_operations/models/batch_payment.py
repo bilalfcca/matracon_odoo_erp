@@ -378,9 +378,7 @@ class BatchPaymentLine(models.Model):
             'x_ipc_id': self.x_ipc_id.id if self.x_ipc_id else False,
         }
 
-        payment = Payment.with_context(
-            skip_partner_constraint_check=True,
-        ).create(payment_vals)
+        payment = Payment.create(payment_vals)
 
         # ── Bank allocation lines ─────────────────────────────────────────────
         BankAlloc = self.env['x.payment.bank.allocation']
@@ -393,12 +391,6 @@ class BatchPaymentLine(models.Model):
                 'x_account_title': bl.x_account_title or False,
                 'available_balance': bl.available_balance,
             })
-
-        # Sync journal + method from the bank allocation (mirrors the onchange).
-        # Without this, the multi-bank JE split in _prepare_move_line_default_vals
-        # will use the primary journal correctly.
-        if len(self.bank_line_ids) > 1:
-            payment.x_source_journal_ids = self.bank_line_ids.mapped('journal_id')
 
         # ── Tax lines ────────────────────────────────────────────────────────
         # Copy computed amounts as fixed amounts so they are stable during posting.
