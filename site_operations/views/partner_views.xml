@@ -10,21 +10,20 @@
         <field name="inherit_id" ref="base.view_partner_form"/>
         <field name="arch" type="xml">
 
-            <!-- ── When opened from Site Procurement (x_site_vendor_id create),
-                 make Tags (category_id) required so Site Store MUST add
-                 the "Local Supplier" tag before saving. ── -->
+            <!-- ── Tags: always required for every contact ── -->
             <field name="category_id" position="attributes">
-                <attribute name="required">context.get('site_procurement_vendor', False)</attribute>
+                <attribute name="required">1</attribute>
                 <attribute name="readonly">context.get('site_procurement_vendor', False) or context.get('subcontractor_create', False) or context.get('third_party_create', False) or context.get('site_accountant_vendor', False)</attribute>
-                <attribute name="help">Tag this contact. Automatically set when creating from Site Procurement (Local Supplier) or Material Issuance (Subcontractor).</attribute>
+                <attribute name="help">Tag is required for all contacts. Automatically set when creating from Site Procurement (Local Supplier) or Material Issuance (Subcontractor / 3rd Party).</attribute>
             </field>
 
-            <!-- ── Description field — shown on Liability Sheet lines as "Tag (Description)" ── -->
+            <!-- ── Description: always required for every contact ── -->
             <field name="category_id" position="after">
                 <field name="x_description"
                        string="Description"
+                       required="1"
                        placeholder="e.g. Cement Supplier, Labour Contractor"
-                       help="Brief description. Appears on Liability Sheet lines as Tag (Description)."/>
+                       help="Required. Brief description of this contact. Appears on Liability Sheet lines as Tag (Description)."/>
             </field>
 
             <xpath expr="//div[@name='button_box']" position="inside">

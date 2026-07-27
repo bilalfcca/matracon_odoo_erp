@@ -1,5 +1,5 @@
 from odoo import models, fields, api, _
-from odoo.exceptions import ValidationError
+from odoo.exceptions import UserError, ValidationError
 
 
 class ResPartnerSiteOps(models.Model):
@@ -144,27 +144,52 @@ class ResPartnerSiteOps(models.Model):
             else:
                 partner.display_name = partner.name
 
-    @api.constrains('category_id')
-    def _check_category_required_for_site_store(self):
-        """Site store users must always set at least one tag on partners."""
-        if self.env.user.has_group('purchase_demand_raise.group_site_store'):
-            for partner in self:
-                if not partner.category_id:
-                    raise ValidationError(_(
-                        'Contact "%s": Category (Tag) is required. '
-                        'Please add "Subcontractor" or another tag.'
-                    ) % (partner.name or ''))
+    # ── Universal contact validation ─────────────────────────────────────────
+    # Both name_create (dropdown quick-create) and @api.constrains enforce:
+    #   • At least one Tag (category_id)
+    #   • A non-blank Description (x_description)
+    # Skipped for: sudo() callers (HR auto-creates employee contacts, mail
+    # creates contacts from emails, install mode) and uid=1 (system admin).
+    # This lets all programmatic / system partner creation pass unimpeded
+    # while blocking every interactive business-user path.
 
-    @api.constrains('category_id', 'x_description')
-    def _check_description_required_for_vendor(self):
-        """Vendor / Subcontractor / Local Supplier partners must have a description
-        so that liability sheet lines are auto-labelled meaningfully."""
-        REQUIRED_TAGS = {'Vendor', 'Subcontractor', 'Local Supplier'}
-        for partner in self:
-            tag_names = set(partner.category_id.mapped('name'))
-            if tag_names & REQUIRED_TAGS and not (partner.x_description or '').strip():
+    @api.model
+    def name_create(self, name):
+        """Block quick-create from Many2one dropdowns for all non-sudo users.
+
+        When a user types a contact name in a dropdown and clicks "Create",
+        Odoo calls name_create().  We raise a UserError so the user is forced
+        to click "Create and edit…" and fill in the required Tag + Description.
+        System / sudo callers (HR, mail, install) are allowed through.
+        """
+        if self.env.context.get('install_mode') or self.env.su:
+            return super().name_create(name)
+        raise UserError(_(
+            'Contacts cannot be created directly from a dropdown.\n'
+            'Please use "Create and edit…" to open the full form — '
+            'a Tag and Description are required for every contact.'
+        ))
+
+    @api.constrains('category_id', 'x_description', 'active', 'type')
+    def _check_tag_and_description_required(self):
+        """Every active standalone contact must have at least one Tag and a Description.
+
+        Skipped for sudo() calls (HR, mail, module install) and for system admin
+        (uid=1, env.su=True).  Only the interactive web-UI paths for regular
+        business users are enforced — which is exactly what we want.
+        """
+        if self.env.context.get('install_mode') or self.env.su:
+            return
+        for partner in self.filtered(lambda p: p.active and p.type == 'contact'):
+            if not partner.category_id:
                 raise ValidationError(_(
-                    'Contact "%s": Description is required for Vendor / Subcontractor '
-                    'partners (e.g. "Cement Supplier", "Labour Contractor"). '
-                    'Please fill in the Description field before saving.'
-                ) % (partner.name or ''))
+                    'Contact "%s": at least one Tag is required.\n'
+                    'Please choose a tag (e.g. "Local Supplier", "Subcontractor", '
+                    '"3rd Party", "Vendor") before saving.'
+                ) % (partner.name or '(new)'))
+            if not (partner.x_description or '').strip():
+                raise ValidationError(_(
+                    'Contact "%s": Description is required.\n'
+                    'Please fill in the Description field '
+                    '(e.g. "Cement Supplier", "Labour Contractor") before saving.'
+                ) % (partner.name or '(new)'))
