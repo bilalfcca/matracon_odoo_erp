@@ -1128,13 +1128,20 @@ class ManagementDashboard(models.TransientModel):
             'context': self._date_context(),
         }
 
+    def _analytic_domain_for_sheet_line(self):
+        """Domain for x.liability.sheet.line — analytic is on the parent sheet."""
+        analytics = self._active_analytic_accounts()
+        if analytics:
+            return [('sheet_id.project_analytic_account_id', 'in', analytics.ids)]
+        return []
+
     def action_open_vendor_liabilities(self):
         return {
             'type': 'ir.actions.act_window',
             'name': _('Vendor Liabilities'),
             'res_model': 'x.liability.sheet.line',
             'view_mode': 'list,form',
-            'domain': self._analytic_domain() + [
+            'domain': self._analytic_domain_for_sheet_line() + [
                 ('sheet_id.state', 'in', ('draft', 'submitted', 'approved')),
             ],
             'context': self._date_context(),
@@ -1147,7 +1154,7 @@ class ManagementDashboard(models.TransientModel):
             'name': _('Subcontractor Liabilities'),
             'res_model': 'x.liability.sheet.line',
             'view_mode': 'list,form',
-            'domain': self._analytic_domain() + [
+            'domain': self._analytic_domain_for_sheet_line() + [
                 ('sheet_id.state', 'in', ('draft', 'submitted', 'approved')),
                 ('partner_id', 'in', lines.mapped('partner_id').ids or [0]),
             ],

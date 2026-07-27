@@ -724,6 +724,39 @@ class AccountPaymentSiteOps(models.Model):
                 _('Process payment — %s (%s %s)') % (vendor, currency_sym, amount_str)
             )
 
+    def action_ceo_reverse_approval(self):
+        """CEO reverses their own approval — sets state back to 'pending'.
+
+        Finance HO will need to re-submit to CEO for a fresh approval.
+        Use when the CEO approved in error or the payment details changed.
+        """
+        for payment in self:
+            if payment.x_ceo_approval_state != 'approved':
+                raise UserError(_(
+                    'Only "CEO Approved" payments can have the approval reversed.'
+                ))
+            if payment.state not in ('draft',):
+                raise UserError(_(
+                    'Cannot reverse approval on a payment that has already been posted. '
+                    'Cancel the payment first if needed.'
+                ))
+            payment.x_ceo_approval_state = 'pending'
+            payment.message_post(
+                body=_('CEO reversed approval — payment returned to Pending status. '
+                       'Finance HO must re-submit for a fresh approval.')
+            )
+            fo_users = self.env['res.users'].search([
+                ('group_ids', 'in', self.env.ref(
+                    'site_operations.group_finance_ho').id),
+            ])
+            matracon_notify.notify_users(
+                payment,
+                fo_users,
+                _('CEO reversed approval on payment to <b>%s</b> — '
+                  'requires resubmission.') % (payment.partner_id.name or '—'),
+                summary=_('Payment Approval Reversed'),
+            )
+
     def action_notify_ceo_for_approval(self):
         """Finance HO: submit/re-notify CEO to approve a pending vendor payment.
 
@@ -1473,6 +1506,23 @@ class AccountPaymentSiteOps(models.Model):
             'url': f'/site_operations/print/account.payment/{self.id}',
             'target': 'new',
         }
+
+    def action_draft(self):
+        """Override: also reset our custom x_payment_status to 'draft'.
+
+        Odoo's native action_draft() cancels the journal entry and moves
+        the payment back to draft state, but it doesn't touch x_payment_status.
+        Without this override, x_payment_status stays at 'in_process', which
+        keeps the 'Set In Process' button hidden (it only shows when
+        x_payment_status == 'draft').  After this override, resetting to draft
+        restores the full workflow — the FO can re-submit and Finance HO can
+        re-process.
+        """
+        res = super().action_draft()
+        self.filtered(
+            lambda p: p.x_payment_status != 'draft'
+        ).write({'x_payment_status': 'draft'})
+        return res
 
     def action_set_in_process(self):
         # Post to accounting (creates journal entry, tags analytic, updates liability).

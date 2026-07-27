@@ -115,6 +115,17 @@
                         groups="purchase_demand_raise.group_ceo_approval"
                         invisible="x_ceo_approval_state not in ('pending', 'submitted')"/>
 
+                <!-- CEO: reverse a previously-given approval (e.g. approved in error or
+                     payment details changed). Only on draft payments — posted payments
+                     must be cancelled first. -->
+                <button name="action_ceo_reverse_approval"
+                        type="object"
+                        string="Reverse Decision"
+                        class="btn-warning"
+                        confirm="Reverse your CEO approval? Finance HO will need to re-submit this payment."
+                        groups="purchase_demand_raise.group_ceo_approval"
+                        invisible="x_ceo_approval_state != 'approved' or state != 'draft'"/>
+
                 <!-- Finance HO: FIRST submission — only visible when still in 'pending'
                      (not yet sent to CEO).  After click, state → 'submitted' and this
                      button disappears; the Re-notify button below takes its place. -->
