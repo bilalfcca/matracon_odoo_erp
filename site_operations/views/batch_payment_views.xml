@@ -64,8 +64,8 @@
                             <field name="x_expense_account_id"
                                    options="{'no_create': True}"
                                    readonly="payment_id != False"/>
-                            <field name="x_ipc_id"
-                                   options="{'no_create': True}"
+                            <field name="memo"
+                                   placeholder="Leave blank to use batch-level narration"
                                    readonly="payment_id != False"/>
                         </group>
                         <group string="Payment">
@@ -73,7 +73,10 @@
                             <field name="x_destination_project_id"
                                    options="{'no_create': True}"
                                    readonly="payment_id != False"/>
-                            <field name="x_account_title" readonly="payment_id != False"/>
+                            <field name="x_source_project_ids"
+                                   widget="many2many_tags"
+                                   options="{'no_create': True}"
+                                   readonly="payment_id != False"/>
                         </group>
                     </group>
 
@@ -256,21 +259,16 @@
 
                     <group>
                         <group>
-                            <field name="x_destination_project_id"
-                                   readonly="state != 'draft'"
-                                   options="{'no_create': True}"
-                                   help="Sets the project on all lines. Change it here to apply to all lines at once."/>
                             <field name="date"
                                    readonly="state != 'draft'"/>
                             <field name="memo"
                                    readonly="state != 'draft'"
-                                   placeholder="Optional narration for all payments in this batch"/>
+                                   placeholder="Default narration applied to all lines (can be overridden per vendor)"/>
                         </group>
                         <group>
-                            <field name="company_id"
-                                   invisible="1"/>
-                            <field name="currency_id"
-                                   invisible="1"/>
+                            <field name="x_destination_project_id" invisible="1"/>
+                            <field name="company_id" invisible="1"/>
+                            <field name="currency_id" invisible="1"/>
                         </group>
                     </group>
 
@@ -314,8 +312,14 @@
                                     <field name="x_destination_project_id"
                                            options="{'no_create': True}"
                                            optional="show"/>
-                                    <field name="x_account_title"
+                                    <field name="x_source_project_ids"
+                                           widget="many2many_tags"
+                                           options="{'no_create': True}"
                                            optional="show"/>
+                                    <field name="memo"
+                                           optional="show"/>
+                                    <field name="x_account_title"
+                                           optional="hide"/>
                                     <field name="x_bpv_ref"
                                            readonly="1"
                                            optional="show"/>

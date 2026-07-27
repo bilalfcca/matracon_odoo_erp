@@ -235,6 +235,18 @@ class BatchPaymentLine(models.Model):
         help='Project for which this payment is being made. '
              'Stamped on the JE for analytic tracking.',
     )
+    x_source_project_ids = fields.Many2many(
+        'account.analytic.account',
+        'batch_payment_line_src_proj_rel',
+        'line_id', 'analytic_id',
+        string='Source Projects',
+        help='Projects whose fund pools will be debited for this payment '
+             '(used for analytic distribution on the JE).',
+    )
+    memo = fields.Char(
+        string='Narration / Memo',
+        help='Per-vendor narration. If blank, the batch-level memo is used.',
+    )
     x_account_title = fields.Char(
         string='Account Title',
         help='Bank account holder name. Printed on Bank Payment Voucher. '
@@ -405,7 +417,8 @@ class BatchPaymentLine(models.Model):
             'currency_id': self.currency_id.id,
             'journal_id': journal.id,
             'date': batch.date,
-            'memo': batch.memo or batch.name or '',
+            # Per-vendor memo overrides batch-level memo
+            'memo': self.memo or batch.memo or batch.name or '',
             'company_id': batch.company_id.id,
             # Category / approval — batch is a Finance HO direct operation
             'x_payment_category': 'vendor',
@@ -414,6 +427,9 @@ class BatchPaymentLine(models.Model):
             'x_destination_project_id': (
                 self.x_destination_project_id.id or False
             ),
+            'x_source_project_ids': [
+                (6, 0, self.x_source_project_ids.ids)
+            ] if self.x_source_project_ids else False,
             'x_account_title': self.x_account_title or False,
             'x_expense_account_id': (
                 self.x_expense_account_id.id or False
