@@ -3,11 +3,12 @@
 <template id="report_bank_payment_voucher_document">
 <t t-call="web.html_container">
 <t t-foreach="docs" t-as="o">
-<t t-call="web.minimal_layout">
-<!-- class="article" is required: Odoo's _prepare_html() extracts elements
-     with this class as the wkhtmltopdf body. Without it the content stays
-     inside the minimal_layout body (height:0; overflow:hidden) and the PDF
-     is blank. padding-top:16mm clears the ~14mm invisible zone at the top. -->
+<!-- No layout wrapper here. _prepare_html() extracts every div.article and
+     wraps it in web.minimal_layout automatically (passing content as `body`).
+     Calling web.minimal_layout manually would silently drop the content
+     because minimal_layout uses t-out="body" not t-out="0".
+     padding-top:16mm clears the ~14mm invisible zone wkhtmltopdf introduces
+     at the top of every article body. -->
 <div class="article" style="font-family:Arial,sans-serif; font-size:11pt; padding-top:16mm;">
 
     <!-- ════════════════════════════════════════════════════════════
@@ -272,7 +273,6 @@
     </t>
 
 </div>
-</t>
 </t>
 </t>
 </template>
