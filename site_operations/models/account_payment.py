@@ -867,7 +867,12 @@ class AccountPaymentSiteOps(models.Model):
             if not payment.journal_id:
                 raise UserError(_('Source Bank / Payment Journal is required.'))
             if payment.x_is_cheque_payment and not payment.x_cheque_number:
-                raise UserError(_('Cheque / Reference Number is required for cheque payments.'))
+                # Per-bank allocation path: cheque numbers live on the lines.
+                # A manually-entered number on any line satisfies the requirement.
+                if not (payment.x_bank_allocation_ids and any(
+                    a.x_cheque_number for a in payment.x_bank_allocation_ids
+                )):
+                    raise UserError(_('Cheque / Reference Number is required for cheque payments.'))
             if payment.x_allocation_ids:
                 total_alloc = sum(payment.x_allocation_ids.mapped('allocation_amount'))
                 # Skip check when all allocations are zero — they will be auto-filled
@@ -1223,6 +1228,14 @@ class AccountPaymentSiteOps(models.Model):
             if (payment.x_is_cheque_payment
                     and payment.journal_id
                     and not payment.x_cheque_number):
+                # When per-bank allocation lines are used, cheque numbers sit on
+                # those lines (not the payment header).  If any line already has
+                # a manually-entered cheque number, skip auto-assign entirely —
+                # no series is needed and no error should be raised.
+                if payment.x_bank_allocation_ids and any(
+                    a.x_cheque_number for a in payment.x_bank_allocation_ids
+                ):
+                    continue
                 series = self.env['x.cheque.series'].sudo().search([
                     ('bank_journal_id', '=', payment.journal_id.id),
                     ('state', '=', 'active'),
