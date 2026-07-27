@@ -466,7 +466,8 @@
         <field name="name">account.payment.ho.list</field>
         <field name="model">account.payment</field>
         <field name="arch" type="xml">
-            <list string="Finance HO Payments"
+            <list string="Payments"
+                  create="False"
                   decoration-success="state == 'posted'"
                   decoration-warning="x_payment_status == 'in_process'"
                   decoration-muted="state == 'draft'">
