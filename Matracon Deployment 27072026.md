@@ -23,6 +23,7 @@ This deployment consolidates all changes developed between **09 July 2026 and 27
 | Subcontractor IPC Payment Tracking | Overhaul |
 | Contact Tag & Description Enforcement | Enhancement |
 | Cheque Series Management | New Feature |
+| Site User Contact Permissions — Read-Only | Security |
 
 ---
 
@@ -70,6 +71,7 @@ No manual intervention is needed for existing petty cash data.
 ## 3. Module Adjustments
 
 ### `purchase_demand_raise`
+- `security/ir.model.access.csv` line 57: `res.partner` for `group_site_store` — perm_write and perm_create changed from **1 → 0**
 - Paper format `paperformat_matracon_po`: margin_top=4mm, margin_bottom=4mm, DPI=96
 - PO report template rewritten: standalone `matracon_po_layout` with proper header/article/footer separation
 - RFQ report template rewritten: shares `matracon_po_layout`
@@ -77,6 +79,7 @@ No manual intervention is needed for existing petty cash data.
 - T&C template field: now full-width (colspan=2) in PO form view
 
 ### `site_operations`
+- `security/ir.model.access.csv` line 235: `res.partner` for `group_site_accountant` — perm_write and perm_create changed from **1 → 0**
 - New models registered in `__manifest__.py`: `x.batch.payment`, `x.batch.payment.line`, `x.bank.allocation`, `x.employee.presence.log`, `x.petty.cash.admin.wizard`
 - New views added: batch payment form/list, BPV PDF, employee presence history tab, petty cash admin wizard
 - New menus added: Accounting → Vendors → Batch Payments; Petty Cash → Configuration → Fix Petty Cash Accounts
@@ -135,7 +138,16 @@ No manual intervention is needed for existing petty cash data.
 - Leading zeros preserved in cheque numbers (e.g., 000142 stays 000142)
 - Manual cheque number entry allowed without requiring an active series
 
-### 4.7 Contact Tag & Description Enforcement (ENHANCED)
+### 4.7 Site User Contact Permissions — Read-Only (SECURITY)
+**What changed:** Site Store Keepers and Site Accountants previously had full create and edit access to the Contacts (`res.partner`) model. This allowed them to create new vendors, clients, and employees directly from procurement forms, material issuance, subcontractor advance fields, billing forms, and other places.
+
+**New behaviour:**
+- Both `group_site_store` and `group_site_accountant` now have **read-only** access to `res.partner`
+- The "Create and edit…" and "Create" quick-create options are suppressed in all partner dropdowns for these users
+- Existing contacts can still be searched and selected
+- Contact creation and editing is restricted to HO roles: Procurement HO, Finance HO, Head Office, and Matracon Admin
+
+### 4.8 Contact Tag & Description Enforcement (ENHANCED)
 All contacts (vendors, customers, employees) now require:
 - At least one **Tag** (Category)
 - A **Description** / notes field
@@ -179,7 +191,10 @@ Enforced at save time for all users.
 - Due Date and Payment Terms fields are now hidden on Journal Entry forms (still visible on Vendor Bills)
 - Journal entries may freely use payable/receivable accounts without requiring a due date
 
-### 5.7 Petty Cash — Admin Fix Wizard
+### 5.7 Contact Dropdowns — No Create Option for Site Users
+All partner/vendor/contact Many2one dropdowns (vendor on PO, partner on material issuance, subcontractor on petty cash advance, partner on vendor bill, etc.) no longer show **"Create"** or **"Create and edit…"** options when the logged-in user is a Site Store Keeper or Site Accountant. The dropdown still allows searching and selecting from existing contacts.
+
+### 5.8 Petty Cash — Admin Fix Wizard
 - New menu: **Accounting → Petty Cash → Configuration → Fix Petty Cash Accounts**
 - Opens a dialog with a "Run Fix Now" button (Matracon Admin / System Administrator only)
 - Triggers the same 3-step fix as the post-migrate hook, on demand without requiring a module upgrade
