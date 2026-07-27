@@ -393,6 +393,29 @@
             <field name="groups" eval="[(4, ref('purchase_demand_raise.group_matracon_admin'))]"/>
             <field name="domain_force">[(1, '=', 1)]</field>
         </record>
+
+        <!-- CEO and Finance HO see only submitted/approved/paid sheets.
+             Draft sheets are for SA only — CEO/FO should not see them until submitted. -->
+        <record id="rule_liability_sheet_ceo" model="ir.rule">
+            <field name="name">Liability Sheet: CEO sees submitted+ only</field>
+            <field name="model_id" ref="model_x_liability_sheet"/>
+            <field name="groups" eval="[(4, ref('purchase_demand_raise.group_ceo_approval'))]"/>
+            <field name="domain_force">[('state', '!=', 'draft')]</field>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+        <record id="rule_liability_sheet_finance_ho" model="ir.rule">
+            <field name="name">Liability Sheet: Finance HO sees submitted+ only</field>
+            <field name="model_id" ref="model_x_liability_sheet"/>
+            <field name="groups" eval="[(4, ref('site_operations.group_finance_ho'))]"/>
+            <field name="domain_force">[('state', '!=', 'draft')]</field>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
         <record id="rule_account_move_matracon_admin" model="ir.rule">
             <field name="name">Account Move: Matracon Admin sees all</field>
             <field name="model_id" ref="account.model_account_move"/>

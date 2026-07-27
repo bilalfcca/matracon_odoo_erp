@@ -1099,14 +1099,22 @@ class AccountPaymentSiteOps(models.Model):
         ) % (move.name, ', '.join(descriptions)))
 
     def _matracon_update_liability_on_post(self):
+        """Update paid_amount on the liability sheet line when a payment is posted.
+
+        WHT companion payments (x_origin_payment_id set) are explicitly EXCLUDED:
+        they are payments to FBR, not to the vendor, and the WHT is already
+        accounted for by using x_gross_approved_amount (the CEO-approved gross
+        that includes the WHT portion deducted from the net sent to the vendor).
+        Without this exclusion, paid_amount would show gross + WHT = double-counted.
+        """
         for payment in self.filtered(
             lambda p: p.state in _POSTED_STATES and p.x_liability_sheet_line_id
         ):
             line = payment.x_liability_sheet_line_id
-            gross_paid = payment.x_gross_approved_amount or payment.amount
             payments = payment.x_liability_sheet_id.payment_ids.filtered(
                 lambda p: p.state in _POSTED_STATES
                 and p.x_liability_sheet_line_id == line
+                and not p.x_origin_payment_id  # exclude WHT companion payments
             )
             line.paid_amount = sum(
                 p.x_gross_approved_amount or p.amount for p in payments

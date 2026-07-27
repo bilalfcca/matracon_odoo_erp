@@ -139,11 +139,25 @@
                         <!-- Right: stat buttons -->
                         <div class="oe_button_box flex-shrink-0" name="button_box"
                              style="max-width:100%;">
+                            <!-- Batch payment (new flow — created on CEO approval) -->
+                            <button name="action_view_batch_payment"
+                                    type="object"
+                                    class="oe_stat_button"
+                                    icon="fa-list-alt"
+                                    invisible="not batch_payment_id">
+                                <div class="o_stat_info">
+                                    <span class="o_stat_text">Batch Payment</span>
+                                    <field name="batch_payment_id" nolabel="1"
+                                           options="{'no_open': True}"
+                                           readonly="1"/>
+                                </div>
+                            </button>
+                            <!-- Legacy individual payments (old flow) -->
                             <button name="action_view_payments"
                                     type="object"
                                     class="oe_stat_button"
                                     icon="fa-money"
-                                    invisible="not payment_ids">
+                                    invisible="not payment_ids or batch_payment_id">
                                 <field name="payment_ids" widget="statinfo" string="Payments"/>
                             </button>
                             <button type="button" class="oe_stat_button" icon="fa-balance-scale">
@@ -169,12 +183,19 @@
                         </div>
                     </div>
 
-                    <!-- ── Liability Lines (fills remaining height; headers sticky) ── -->
+                    <!-- ── SA view: ALL lines + selection checkbox (draft state) ── -->
+                    <!-- SA sees all lines at all times; non-SA see only selected lines -->
                     <field name="line_ids" widget="one2many"
-                           readonly="state == 'paid'">
+                           readonly="state == 'paid'"
+                           invisible="not x_is_site_accountant">
                         <list string="Liability Lines" editable="bottom">
                             <field name="sequence" widget="handle"/>
                             <field name="x_is_ceo" column_invisible="1"/>
+                            <!-- Selection checkbox: only meaningful / editable in draft -->
+                            <field name="is_selected"
+                                   string="Submit"
+                                   readonly="parent.state != 'draft'"
+                                   optional="show"/>
                             <field name="description"/>
                             <field name="partner_id" readonly="is_locked"/>
                             <field name="opening_balance" readonly="is_locked"/>
@@ -182,14 +203,36 @@
                             <field name="liability_amount" readonly="1"/>
                             <field name="recommended_amount"
                                    readonly="parent.state != 'draft'"/>
-                            <!-- Approved: manually entered by CEO only; hidden from site accountant -->
                             <field name="approved_amount"
-                                   column_invisible="parent.x_is_site_accountant and parent.state == 'draft'"
+                                   column_invisible="parent.state == 'draft'"
+                                   readonly="1"/>
+                            <field name="paid_amount" readonly="1" optional="show"/>
+                            <field name="balance" readonly="1" optional="show"/>
+                            <field name="is_locked" column_invisible="1"/>
+                        </list>
+                    </field>
+
+                    <!-- ── CEO / Finance HO view: SELECTED lines only ── -->
+                    <!-- Only submitted/approved/paid lines that SA selected for this cycle -->
+                    <field name="selected_line_ids" widget="one2many"
+                           readonly="state in ('approved', 'paid')"
+                           invisible="x_is_site_accountant">
+                        <list string="Submitted Lines" editable="bottom">
+                            <field name="sequence" widget="handle"/>
+                            <field name="x_is_ceo" column_invisible="1"/>
+                            <field name="description"/>
+                            <field name="partner_id" readonly="is_locked"/>
+                            <field name="opening_balance" readonly="1"/>
+                            <field name="new_liability" readonly="1"/>
+                            <field name="liability_amount" readonly="1"/>
+                            <field name="recommended_amount" readonly="1"/>
+                            <!-- CEO enters approved amounts here -->
+                            <field name="approved_amount"
                                    readonly="parent.state != 'submitted' or is_locked or not x_is_ceo"/>
                             <field name="paid_amount" readonly="1" optional="show"/>
                             <field name="balance" readonly="1" optional="show"/>
-                            <field name="payment_id" optional="hide" readonly="1"/>
                             <field name="is_locked" column_invisible="1"/>
+                            <field name="is_selected" column_invisible="1"/>
                         </list>
                     </field>
                 </sheet>

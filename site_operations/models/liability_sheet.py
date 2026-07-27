@@ -89,6 +89,19 @@ class LiabilitySheet(models.Model):
         'account.payment', 'x_liability_sheet_id', string='Payment Drafts',
         readonly=True)
 
+    # ── Batch payment created on CEO approval ─────────────────────────────────
+    batch_payment_id = fields.Many2one(
+        'x.batch.payment', string='Batch Payment',
+        readonly=True, copy=False,
+        help='Batch payment created by CEO approval — Finance HO posts this.')
+
+    # ── View helpers: selected lines only (CEO/FO view after submission) ─────
+    selected_line_ids = fields.One2many(
+        'x.liability.sheet.line', 'sheet_id',
+        domain=[('is_selected', '=', True)],
+        string='Selected Lines', readonly=True,
+    )
+
     # ─────────────────────────────────────────────────────────────────────────
     # COMPUTE
     # ─────────────────────────────────────────────────────────────────────────
@@ -148,22 +161,31 @@ class LiabilitySheet(models.Model):
     # ─────────────────────────────────────────────────────────────────────────
 
     def action_submit(self):
-        """Site Accountant submits after recommending amounts + PM signed upload."""
+        """Site Accountant submits after recommending amounts + PM signed upload.
+
+        Only lines with `is_selected = True` are submitted to CEO.
+        At least one line must be selected and have a recommended amount.
+        """
         for sheet in self:
             if not sheet.line_ids:
                 raise UserError(_('Cannot submit a liability sheet with no lines.'))
+            selected = sheet.line_ids.filtered(lambda l: l.is_selected)
+            if not selected:
+                raise UserError(_(
+                    'Select at least one vendor line to submit. '
+                    'Tick the "Submit" checkbox on the lines you want the CEO to approve.'
+                ))
             if not sheet.pm_signed_sheet:
                 raise UserError(_(
                     'Upload the physically signed PM document before submitting. '
                     'Download the PDF, get it signed offline, then attach the scan.'
                 ))
-            missing = sheet.line_ids.filtered(
+            missing = selected.filtered(
                 lambda l: l.liability_amount > 0 and l.recommended_amount <= 0)
             if missing:
                 raise UserError(_(
-                    'Enter a Recommended Amount for every vendor/subcontractor '
-                    'with outstanding liability before submitting.'
-                ))
+                    'Enter a Recommended Amount for every selected vendor before submitting: %s'
+                ) % ', '.join(missing.mapped('partner_id.display_name')))
             sheet.state = 'submitted'
             sheet.message_post(
                 body=Markup(_(
@@ -186,29 +208,43 @@ class LiabilitySheet(models.Model):
             )
 
     def action_ceo_approve(self):
-        """CEO locks approved amounts and creates vendor payment drafts for FO."""
+        """CEO locks approved amounts and creates ONE batch payment for Finance HO.
+
+        Only 'selected' lines (is_selected=True) are included in the batch.
+        Finance HO will open the batch, add bank details + cheque numbers, then post.
+        """
         for sheet in self:
             if sheet.state != 'submitted':
                 raise UserError(_('Only submitted liability sheets can be approved.'))
-            lines = sheet.line_ids.filtered(lambda l: l.recommended_amount > 0)
+            # CEO can only see/approve selected lines
+            lines = sheet.line_ids.filtered(
+                lambda l: l.is_selected and l.recommended_amount > 0)
             if not lines:
-                raise UserError(_('No lines with a recommended amount to approve.'))
+                raise UserError(_(
+                    'No selected lines have a recommended amount to approve.'
+                ))
             unapproved = lines.filtered(lambda l: l.approved_amount <= 0)
             if unapproved:
                 raise UserError(_(
-                    'Enter an Approved Amount for all recommended lines before approving: %s'
+                    'Enter an Approved Amount for all selected lines before approving: %s'
                 ) % ', '.join(unapproved.mapped('partner_id.display_name')))
-            sheet.line_ids.write({'is_locked': True})
-            payments = sheet._create_ceo_payment_drafts()
+            # Lock approved lines
+            lines.write({'is_locked': True})
+            # Create ONE batch payment (Finance HO posts it after adding bank + cheques)
+            batch = sheet._create_ceo_batch_payment(lines)
             sheet.state = 'approved'
             msg = Markup(_(
-                'Liability Sheet approved by CEO <b>%s</b>. '
-                'Total Approved: <b>%s</b>.'
-            )) % (self.env.user.name, f'{sheet.total_approved:,.2f}')
-            if payments:
-                msg += Markup(_(
-                    '<br/>%d vendor payment draft(s) created for Finance HO.'
-                )) % len(payments)
+                'Liability Sheet approved by CEO <b>%(ceo)s</b>. '
+                'Total Approved: <b>%(total)s</b>.<br/>'
+                'Batch payment <a href="#" data-oe-model="x.batch.payment" '
+                'data-oe-id="%(batch_id)s">%(batch_name)s</a> created — '
+                'Finance HO must add bank details and post.'
+            )) % {
+                'ceo': self.env.user.name,
+                'total': f'{sheet.total_approved:,.2f}',
+                'batch_id': batch.id,
+                'batch_name': batch.name,
+            }
             sheet.message_post(body=msg)
             fo_users = self.env['res.users'].search([
                 ('group_ids', 'in', self.env.ref(
@@ -217,38 +253,54 @@ class LiabilitySheet(models.Model):
             matracon_notify.notify_users(
                 sheet,
                 fo_users,
-                _('CEO approved liability sheet <b>%s</b> — %d payment draft(s) ready for Finance HO.')
-                % (sheet.name, len(payments)),
-                summary=_('Payments Ready for Finance HO'),
+                _('CEO approved liability sheet <b>%(sheet)s</b> — '
+                  'batch payment <b>%(batch)s</b> is ready. '
+                  'Add bank allocations and post.') % {
+                    'sheet': sheet.name,
+                    'batch': batch.name,
+                },
+                summary=_('Batch Payment Ready for Finance HO'),
             )
             matracon_notify.schedule_activity(
                 sheet,
                 fo_users,
-                _('Process vendor payments for %s') % sheet.name,
+                _('Post batch payment %s for %s') % (batch.name, sheet.name),
             )
 
-    def _create_ceo_payment_drafts(self):
-        """One locked outbound payment draft per approved vendor line."""
+    def _create_ceo_batch_payment(self, approved_lines=None):
+        """Create ONE x.batch.payment covering all CEO-approved lines.
+
+        Each line becomes one x.batch.payment.line pre-filled with the
+        vendor + gross amount.  Finance HO adds bank allocations + cheque
+        numbers and posts the batch (which creates individual account.payments
+        and triggers all existing accounting hooks).
+        """
         self.ensure_one()
-        Payment = self.env['account.payment'].sudo()
-        created = Payment
-        for line in self.line_ids.filtered(
-            lambda l: l.approved_amount > 0 and l.partner_id and not l.payment_id
-        ):
-            payment = Payment.create({
-                'payment_type': 'outbound',
-                'partner_type': 'supplier',
-                'partner_id': line.partner_id.id,
-                'amount': line.approved_amount,
-                'x_gross_approved_amount': line.approved_amount,
-                'x_liability_sheet_id': self.id,
-                'x_liability_sheet_line_id': line.id,
-                'x_destination_project_id': self.project_analytic_account_id.id,
-                'x_payment_status': 'draft',
-            })
-            line.payment_id = payment.id
-            created |= payment
-        return created
+        if approved_lines is None:
+            approved_lines = self.line_ids.filtered(
+                lambda l: l.is_selected and l.approved_amount > 0 and l.partner_id
+            )
+
+        Batch = self.env['x.batch.payment'].sudo()
+        batch = Batch.create({
+            'date': fields.Date.today(),
+            'memo': _('Liability Sheet %s') % self.name,
+            'line_ids': [
+                (0, 0, {
+                    'partner_id': line.partner_id.id,
+                    'gross_amount': line.approved_amount,
+                    'x_destination_project_id': (
+                        self.project_analytic_account_id.id or False
+                    ),
+                    'x_liability_sheet_id': self.id,
+                    'x_liability_sheet_line_id': line.id,
+                })
+                for line in approved_lines
+                if line.partner_id and not line.payment_id
+            ],
+        })
+        self.batch_payment_id = batch.id
+        return batch
 
     def action_finalize_if_fully_paid(self):
         """Notify when every approved line is settled — FO closes the sheet manually."""
@@ -346,12 +398,20 @@ class LiabilitySheet(models.Model):
                 )) % next_sheet.name)
 
     def _sync_paid_amounts_from_payments(self):
-        """Refresh line paid amounts from posted vendor payments."""
+        """Refresh line paid amounts from posted vendor payments.
+
+        Excludes WHT companion payments (x_origin_payment_id set) — those are
+        payments to FBR for WHT, not payments against the vendor liability.
+        Using x_gross_approved_amount (CEO-approved gross) ensures WHT deduction
+        is NOT double-counted: the gross already includes the WHT portion that was
+        deducted from the net sent to the vendor.
+        """
         for sheet in self:
             for line in sheet.line_ids:
                 payments = sheet.payment_ids.filtered(
-                    lambda p: p.state == 'posted'
+                    lambda p: (p.state in ('in_process', 'paid') or p.state == 'posted')
                     and p.x_liability_sheet_line_id == line
+                    and not p.x_origin_payment_id  # exclude WHT companion payments
                 )
                 if payments:
                     line.paid_amount = sum(
@@ -376,13 +436,24 @@ class LiabilitySheet(models.Model):
         for sheet in self:
             if sheet.state not in ('submitted', 'approved'):
                 raise UserError(_('Only submitted or approved sheets can be reset.'))
-            draft_payments = sheet.payment_ids.filtered(lambda p: p.state == 'draft')
-            if sheet.payment_ids.filtered(lambda p: p.state in ('in_process', 'paid')):
+            # Check batch payment: if it has posted individual payments, block reset
+            if sheet.batch_payment_id and sheet.batch_payment_id.state == 'posted':
+                if sheet.payment_ids.filtered(lambda p: p.state in ('in_process', 'paid')):
+                    raise UserError(_(
+                        'Cannot reset — the batch payment has already been posted. '
+                        'Use "Force Reset to Draft" if you are sure.'
+                    ))
+            elif sheet.payment_ids.filtered(lambda p: p.state in ('in_process', 'paid')):
                 raise UserError(_(
                     'Cannot reset — one or more vendor payments are already posted. '
                     'Use "Force Reset to Draft" if you are sure.'
                 ))
+            draft_payments = sheet.payment_ids.filtered(lambda p: p.state == 'draft')
             draft_payments.unlink()
+            # Cancel the batch payment if still draft
+            if sheet.batch_payment_id and sheet.batch_payment_id.state == 'draft':
+                sheet.batch_payment_id.action_cancel()
+            sheet.batch_payment_id = False
             sheet.line_ids.write({'is_locked': False, 'payment_id': False})
             prev_state = dict(sheet._fields['state'].selection).get(sheet.state, sheet.state)
             sheet.state = 'draft'
@@ -418,6 +489,11 @@ class LiabilitySheet(models.Model):
             )
             draft_payments.unlink()
 
+            # Cancel and clear batch payment if still draft
+            if sheet.batch_payment_id and sheet.batch_payment_id.state == 'draft':
+                sheet.batch_payment_id.action_cancel()
+            sheet.batch_payment_id = False
+
             # Unlock all lines and clear draft payment links.
             sheet.line_ids.write({'is_locked': False, 'payment_id': False})
             sheet.state = 'draft'
@@ -445,8 +521,25 @@ class LiabilitySheet(models.Model):
         return self.env.ref(
             'site_operations.action_report_liability_sheet').report_action(self)
 
+    def action_view_batch_payment(self):
+        """Open the batch payment created by CEO approval."""
+        self.ensure_one()
+        if not self.batch_payment_id:
+            raise UserError(_('No batch payment has been created for this sheet yet.'))
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Batch Payment — %s') % self.name,
+            'res_model': 'x.batch.payment',
+            'view_mode': 'form',
+            'res_id': self.batch_payment_id.id,
+        }
+
     def action_view_payments(self):
         self.ensure_one()
+        # If a batch payment was created (new flow), open it
+        if self.batch_payment_id:
+            return self.action_view_batch_payment()
+        # Legacy: individual payments (old flow before batch)
         return {
             'type': 'ir.actions.act_window',
             'name': _('Vendor Payments — %s') % self.name,
@@ -600,6 +693,14 @@ class LiabilitySheetLine(models.Model):
         ondelete='cascade', required=True)
     sequence = fields.Integer(default=10)
     is_locked = fields.Boolean(default=False)
+
+    # Selection for partial submission — SA ticks which lines to send for CEO approval.
+    is_selected = fields.Boolean(
+        string='Submit',
+        default=True,
+        help='Tick to include this line in the submission to CEO. '
+             'Unticked lines stay on the sheet for next cycle.'
+    )
 
     description = fields.Char(string='Description')
     partner_id = fields.Many2one(

@@ -237,6 +237,18 @@ class BatchPaymentLine(models.Model):
         help='Gross amount minus all tax deductions — this is the amount sent to the bank.',
     )
 
+    # ── Liability sheet link (set when created from CEO approval) ────────────
+
+    x_liability_sheet_id = fields.Many2one(
+        'x.liability.sheet', string='Liability Sheet',
+        readonly=True, copy=False,
+        help='Linked when this batch line was created from a liability sheet approval.',
+    )
+    x_liability_sheet_line_id = fields.Many2one(
+        'x.liability.sheet.line', string='Liability Line',
+        readonly=True, copy=False,
+    )
+
     # ── After posting ─────────────────────────────────────────────────────────
 
     payment_id = fields.Many2one(
@@ -376,6 +388,15 @@ class BatchPaymentLine(models.Model):
             'x_gross_approved_amount': self.gross_amount,
             # IPC link (optional)
             'x_ipc_id': self.x_ipc_id.id if self.x_ipc_id else False,
+            # Liability sheet link — propagated from batch line when created via
+            # CEO approval flow; ensures paid_amount on the line is updated on post
+            'x_liability_sheet_id': (
+                self.x_liability_sheet_id.id if self.x_liability_sheet_id else False
+            ),
+            'x_liability_sheet_line_id': (
+                self.x_liability_sheet_line_id.id
+                if self.x_liability_sheet_line_id else False
+            ),
         }
 
         payment = Payment.create(payment_vals)
