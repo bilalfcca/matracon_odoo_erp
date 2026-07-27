@@ -235,13 +235,12 @@ class BatchPaymentLine(models.Model):
         help='Project for which this payment is being made. '
              'Stamped on the JE for analytic tracking.',
     )
-    x_source_project_ids = fields.Many2many(
-        'account.analytic.account',
-        'batch_payment_line_src_proj_rel',
-        'line_id', 'analytic_id',
-        string='Source Projects',
-        help='Projects whose fund pools will be debited for this payment '
-             '(used for analytic distribution on the JE).',
+    x_allocation_ids = fields.One2many(
+        'x.batch.payment.line.project.allocation', 'batch_line_id',
+        string='Fund Allocation',
+        help='Source project fund pools for this payment. '
+             'Copied to the created account.payment on batch post.',
+        copy=True,
     )
     memo = fields.Char(
         string='Narration / Memo',
@@ -427,9 +426,13 @@ class BatchPaymentLine(models.Model):
             'x_destination_project_id': (
                 self.x_destination_project_id.id or False
             ),
-            'x_source_project_ids': [
-                (6, 0, self.x_source_project_ids.ids)
-            ] if self.x_source_project_ids else False,
+            'x_allocation_ids': [
+                (0, 0, {
+                    'project_analytic_account_id': a.project_analytic_account_id.id,
+                    'allocation_amount': a.allocation_amount,
+                })
+                for a in self.x_allocation_ids
+            ] or False,
             'x_account_title': self.x_account_title or False,
             'x_expense_account_id': (
                 self.x_expense_account_id.id or False

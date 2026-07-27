@@ -161,3 +161,49 @@ class PaymentBankAllocation(models.Model):
             ]),
         ])
         return sum(lines.mapped('balance'))
+
+
+class BatchPaymentLineProjectAllocation(models.Model):
+    """Fund allocation by source project for a batch payment line.
+
+    Mirrors x.payment.project.allocation but linked to x.batch.payment.line
+    instead of account.payment.  On batch post, rows are copied verbatim
+    into the created account.payment's x_allocation_ids.
+    """
+    _name = 'x.batch.payment.line.project.allocation'
+    _description = 'Batch Payment Line — Fund Allocation by Project'
+
+    batch_line_id = fields.Many2one(
+        'x.batch.payment.line', ondelete='cascade', required=True, index=True)
+
+    project_analytic_account_id = fields.Many2one(
+        'account.analytic.account', string='Source Project', required=True)
+
+    allocation_amount = fields.Monetary(
+        string='Allocation Amount',
+        currency_field='currency_id',
+    )
+
+    available_balance = fields.Monetary(
+        string='Available Balance',
+        compute='_compute_available_balance',
+        currency_field='currency_id',
+        store=True,
+    )
+
+    currency_id = fields.Many2one(
+        related='batch_line_id.currency_id',
+        string='Currency',
+    )
+
+    @api.depends('project_analytic_account_id')
+    def _compute_available_balance(self):
+        Project = self.env['project.project']
+        for alloc in self:
+            alloc.available_balance = Project.get_available_balance_for_analytic(
+                alloc.project_analytic_account_id)
+
+    @api.onchange('project_analytic_account_id')
+    def _onchange_project_analytic_account_id(self):
+        self.available_balance = self.env['project.project'].get_available_balance_for_analytic(
+            self.project_analytic_account_id)

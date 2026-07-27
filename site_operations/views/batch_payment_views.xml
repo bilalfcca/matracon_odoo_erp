@@ -73,14 +73,28 @@
                             <field name="x_destination_project_id"
                                    options="{'no_create': True}"
                                    readonly="payment_id != False"/>
-                            <field name="x_source_project_ids"
-                                   widget="many2many_tags"
-                                   options="{'no_create': True}"
-                                   readonly="payment_id != False"/>
                         </group>
                     </group>
 
                     <notebook>
+                        <!-- ── Project Fund Allocation ── -->
+                        <page string="Fund Allocation" name="fund_allocation">
+                            <field name="x_allocation_ids"
+                                   widget="one2many"
+                                   readonly="payment_id != False">
+                                <list string="Fund Allocation" editable="bottom">
+                                    <field name="project_analytic_account_id"
+                                           string="Source Project"
+                                           options="{'no_create': True}"/>
+                                    <field name="available_balance"
+                                           string="Available Balance"
+                                           readonly="1"/>
+                                    <field name="allocation_amount"
+                                           string="Allocation Amount"/>
+                                </list>
+                            </field>
+                        </page>
+
                         <!-- ── Bank Allocations ── -->
                         <page string="Banks / Fund Allocation" name="banks">
                             <div class="alert alert-info mb-2" role="alert"
@@ -310,10 +324,6 @@
                                            readonly="1"
                                            sum="Net Total"/>
                                     <field name="x_destination_project_id"
-                                           options="{'no_create': True}"
-                                           optional="show"/>
-                                    <field name="x_source_project_ids"
-                                           widget="many2many_tags"
                                            options="{'no_create': True}"
                                            optional="show"/>
                                     <field name="memo"
