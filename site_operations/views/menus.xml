@@ -177,20 +177,13 @@
               sequence="25"
               groups="site_operations.group_site_accountant,purchase_demand_raise.group_ceo_approval,site_operations.group_finance_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
-    <!-- Batch Payments — primary vendor payment UI (replaces "Finance Payments") -->
-    <menuitem id="menu_batch_payments"
-              name="Batch Payments"
-              parent="account.menu_finance_payables"
-              action="site_operations.action_batch_payment"
-              sequence="26"
-              groups="site_operations.group_finance_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
-
-    <!-- Individual vendor payments — kept for legacy access and WHT companion view -->
+    <!-- Payments — all vendor payments (historical + new). Batch payment creation
+         is accessible from the Action menu inside this list view. -->
     <menuitem id="menu_finance_ho_payments"
-              name="Individual Payments"
+              name="Payments"
               parent="account.menu_finance_payables"
               action="site_operations.action_ho_vendor_payments"
-              sequence="27"
+              sequence="26"
               groups="site_operations.group_finance_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
     <menuitem id="menu_interproject_transfers"

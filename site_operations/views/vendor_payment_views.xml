@@ -544,4 +544,34 @@
         <field name="domain">[('payment_type', '=', 'outbound')]</field>
     </record>
 
+    <!-- ═══════════════════════════════════════════════════════════════════
+         "New Batch Payment" — action button in the Payments list Action menu.
+         Opens the x.batch.payment form in create mode directly from the
+         Payments list view so Finance HO never needs a separate menu entry.
+         binding_view_types="list" keeps it out of the payment form's action menu.
+         ═══════════════════════════════════════════════════════════════════ -->
+    <record id="action_create_batch_from_payments" model="ir.actions.server">
+        <field name="name">New Batch Payment</field>
+        <field name="state">code</field>
+        <field name="model_id" ref="account.model_account_payment"/>
+        <field name="binding_model_id" ref="account.model_account_payment"/>
+        <field name="binding_view_types">list</field>
+        <field name="group_ids" eval="[
+            (4, ref('site_operations.group_finance_ho')),
+            (4, ref('purchase_demand_raise.group_head_office')),
+            (4, ref('purchase_demand_raise.group_matracon_admin')),
+            (4, ref('base.group_system')),
+        ]"/>
+        <field name="code">
+action = {
+    'type': 'ir.actions.act_window',
+    'name': 'New Batch Payment',
+    'res_model': 'x.batch.payment',
+    'view_mode': 'form',
+    'target': 'current',
+    'context': {},
+}
+        </field>
+    </record>
+
 </odoo>
