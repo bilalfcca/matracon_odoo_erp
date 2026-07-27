@@ -71,6 +71,77 @@ class ResPartnerSiteOps(models.Model):
             'context': {},
         }
 
+    # ── Employee contact search — activated by context employee_contact_search=True ──
+    #
+    # When this context flag is set (e.g. from the Material Issuance form's
+    # x_contact_id field), two behaviours are enhanced:
+    #
+    #   1. _name_search  — typing in the dropdown also matches:
+    #        • hr.employee.department_id.name  (e.g. "Civil", "Electrical")
+    #        • res.partner.phone / mobile
+    #        • res.partner.email
+    #      so the user can type "Civil" and see all Civil-dept employees, or
+    #      type a phone number to locate someone directly.
+    #
+    #   2. _compute_display_name — each dropdown row shows:
+    #        Name (Department, Phone, Email)
+    #      e.g. "Ali Raza (Civil, +92-300-1234567, ali@matracon.pk)"
+    #      Fields that are blank are omitted; if nothing extra is available
+    #      the plain name is shown.
+
+    @api.model
+    def _name_search(self, name='', domain=None, operator='ilike', limit=100, order=None):
+        if self.env.context.get('employee_contact_search') and name:
+            # Find partner IDs of employees whose department matches the query
+            dept_partner_ids = (
+                self.env['hr.employee']
+                .search([('department_id.name', operator, name)])
+                .mapped('work_contact_id')
+                .ids
+            )
+            base_domain = list(domain or [])
+            # OR across name, phone, mobile, email, and department match
+            search_domain = base_domain + [
+                '|', '|', '|', '|',
+                ('name', operator, name),
+                ('phone', operator, name),
+                ('mobile', operator, name),
+                ('email', operator, name),
+                ('id', 'in', dept_partner_ids),
+            ]
+            return super()._name_search(
+                name='', domain=search_domain, operator=operator,
+                limit=limit, order=order,
+            )
+        return super()._name_search(
+            name=name, domain=domain, operator=operator,
+            limit=limit, order=order,
+        )
+
+    def _compute_display_name(self):
+        if not self.env.context.get('employee_contact_search'):
+            return super()._compute_display_name()
+        # Build a department lookup for all employee partners in this batch
+        emp_map = {}  # partner_id → hr.employee
+        partner_ids = [p.id for p in self if p.employee]
+        if partner_ids:
+            for emp in self.env['hr.employee'].search(
+                [('work_contact_id', 'in', partner_ids)]
+            ):
+                emp_map[emp.work_contact_id.id] = emp
+        for partner in self:
+            if partner.employee:
+                emp = emp_map.get(partner.id)
+                dept = emp.department_id.name if emp and emp.department_id else ''
+                phone = partner.phone or partner.mobile or ''
+                email = partner.email or ''
+                extra = ', '.join(filter(None, [dept, phone, email]))
+                partner.display_name = (
+                    '%s (%s)' % (partner.name, extra) if extra else partner.name
+                )
+            else:
+                partner.display_name = partner.name
+
     @api.constrains('category_id')
     def _check_category_required_for_site_store(self):
         """Site store users must always set at least one tag on partners."""

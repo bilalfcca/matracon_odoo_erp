@@ -216,10 +216,14 @@
                 <field name="x_is_site_store" invisible="1"/>
 
                 <!-- ─ Contact — hidden for site-to-site ─ -->
-                <!-- Employee mode: contacts must already exist in HR — no create allowed -->
+                <!-- Employee mode: contacts must already exist in HR — no create allowed.
+                     Context employee_contact_search=True activates:
+                       • _name_search  → also matches department, phone, email
+                       • _compute_display_name → shows "Name (Dept, Phone, Email)" in dropdown -->
                 <field name="x_contact_id"
                        domain="[('employee', '=', True)]"
                        options="{'no_create': True}"
+                       context="{'employee_contact_search': True}"
                        invisible="x_issue_type == 'subcontractor' or x_transfer_purpose != 'material_issuance'"/>
                 <!-- Subcontractor mode: allow "Create and Edit" with tag auto-set;
                      quick-create disabled so the full form (with pre-filled tag) always opens -->
