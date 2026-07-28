@@ -19,6 +19,15 @@
                         invisible="move_type != 'in_invoice' or state != 'posted' or payment_state in ('paid', 'in_payment', 'reversed')"/>
             </xpath>
 
+            <!-- Print Voucher — shown on posted journal entries only -->
+            <xpath expr="//button[@name='button_draft']" position="before">
+                <button name="action_print_journal_entry_voucher"
+                        type="object"
+                        string="Print Voucher"
+                        icon="fa-print"
+                        invisible="move_type != 'entry' or state != 'posted'"/>
+            </xpath>
+
             <xpath expr="//div[@name='button_box']" position="inside">
                 <button name="action_view_liability_sheet"
                         type="object"

@@ -103,6 +103,8 @@
         'report/tax_notice_report.xml',
         'report/postdated_cheque_report.xml',
         'report/interproject_transfer_report.xml',
+        'report/journal_entry_report.xml',
+        'report/journal_entry_template.xml',
     ],
     'post_init_hook': 'post_init_hook',
     'post_migrate_hook': 'post_migrate_hook',

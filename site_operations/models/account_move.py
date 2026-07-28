@@ -876,6 +876,12 @@ class AccountMoveSiteOps(models.Model):
         )) % (bill.name or _('New')))
         return bill
 
+    def action_print_journal_entry_voucher(self):
+        """Open the Journal Entry Voucher PDF for posted journal entries."""
+        return self.env.ref(
+            'site_operations.action_report_journal_entry_voucher'
+        ).report_action(self)
+
 
 class AccountMoveLineSiteOps(models.Model):
     """DB-level hook: auto-fill analytic distribution on every vendor bill line.

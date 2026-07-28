@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+<template id="report_journal_entry_document">
+<t t-call="web.html_container">
+<t t-foreach="docs" t-as="o">
+    <t t-call="web.external_layout">
+        <div class="page">
+
+            <!-- ── Title ───────────────────────────────────────────────────── -->
+            <div class="text-center mb-4">
+                <h2 class="fw-bold" style="letter-spacing:1px;">JOURNAL ENTRY VOUCHER</h2>
+            </div>
+
+            <!-- ── Header Meta Block ────────────────────────────────────────── -->
+            <div class="row mb-3">
+                <div class="col-7">
+                    <table class="table table-sm" style="border:none;">
+                        <colgroup>
+                            <col style="width:38%"/>
+                            <col/>
+                        </colgroup>
+                        <tbody>
+                            <tr>
+                                <th class="ps-0 border-0 text-muted" style="font-weight:600;">Voucher No.</th>
+                                <td class="border-0 fw-bold" style="font-size:13pt;">
+                                    <t t-esc="o.name"/>
+                                </td>
+                            </tr>
+                            <tr t-if="o.ref">
+                                <th class="ps-0 border-0 text-muted" style="font-weight:600;">Reference</th>
+                                <td class="border-0"><t t-esc="o.ref"/></td>
+                            </tr>
+                            <tr>
+                                <th class="ps-0 border-0 text-muted" style="font-weight:600;">Accounting Date</th>
+                                <td class="border-0">
+                                    <t t-esc="o.date" t-options='{"widget": "date"}'/>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th class="ps-0 border-0 text-muted" style="font-weight:600;">Journal</th>
+                                <td class="border-0"><t t-esc="o.journal_id.name"/></td>
+                            </tr>
+                            <tr t-if="o.x_project_analytic_account_id">
+                                <th class="ps-0 border-0 text-muted" style="font-weight:600;">Project / Site</th>
+                                <td class="border-0"><t t-esc="o.x_project_analytic_account_id.name"/></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="col-5 text-end">
+                    <!-- Status badge -->
+                    <span class="badge text-bg-success fs-6 px-3 py-2"
+                          style="letter-spacing:1px;">POSTED</span>
+                    <div class="mt-2 text-muted small">
+                        <t t-esc="o.company_id.name"/>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Narration ─────────────────────────────────────────────────── -->
+            <div class="mb-3" t-if="o.narration">
+                <strong>Narration: </strong>
+                <span><t t-esc="o.narration"/></span>
+            </div>
+
+            <!-- ── Journal Lines Table ───────────────────────────────────────── -->
+            <table class="table table-bordered table-sm" style="font-size:10pt;">
+                <thead>
+                    <tr style="background-color:#1a3050; color:#ffffff;">
+                        <th style="width:4%; border-color:#1a3050;">#</th>
+                        <th style="width:12%; border-color:#1a3050;">Account Code</th>
+                        <th style="width:28%; border-color:#1a3050;">Account Name</th>
+                        <th style="width:18%; border-color:#1a3050;">Partner</th>
+                        <th style="border-color:#1a3050;">Description</th>
+                        <th class="text-end" style="width:11%; border-color:#1a3050;">Debit</th>
+                        <th class="text-end" style="width:11%; border-color:#1a3050;">Credit</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Only show accounting lines (skip section/note display types) -->
+                    <t t-set="data_lines" t-value="o.line_ids.filtered(lambda l: l.display_type not in ('line_section', 'line_subsection', 'line_note'))"/>
+                    <t t-foreach="data_lines" t-as="line">
+                        <tr>
+                            <td class="text-muted text-center"><t t-esc="line_index + 1"/></td>
+                            <td><t t-esc="line.account_id.code"/></td>
+                            <td><t t-esc="line.account_id.name"/></td>
+                            <td><t t-esc="line.partner_id.name or ''"/></td>
+                            <td><t t-esc="line.name or ''"/></td>
+                            <td class="text-end">
+                                <t t-if="line.debit">
+                                    <t t-esc="line.debit"
+                                       t-options='{"widget": "monetary", "display_currency": o.currency_id}'/>
+                                </t>
+                            </td>
+                            <td class="text-end">
+                                <t t-if="line.credit">
+                                    <t t-esc="line.credit"
+                                       t-options='{"widget": "monetary", "display_currency": o.currency_id}'/>
+                                </t>
+                            </td>
+                        </tr>
+                    </t>
+                </tbody>
+                <tfoot>
+                    <tr style="background-color:#f0f4f8; font-weight:600;">
+                        <td colspan="5" class="text-end">Total</td>
+                        <td class="text-end">
+                            <t t-esc="sum(data_lines.mapped('debit'))"
+                               t-options='{"widget": "monetary", "display_currency": o.currency_id}'/>
+                        </td>
+                        <td class="text-end">
+                            <t t-esc="sum(data_lines.mapped('credit'))"
+                               t-options='{"widget": "monetary", "display_currency": o.currency_id}'/>
+                        </td>
+                    </tr>
+                </tfoot>
+            </table>
+
+            <!-- ── Signatures ───────────────────────────────────────────────── -->
+            <div class="row mt-5 pt-4">
+                <div class="col-4 text-center">
+                    <div style="border-top:1px solid #333; padding-top:4px;">
+                        <strong>Prepared By</strong>
+                    </div>
+                </div>
+                <div class="col-4 text-center">
+                    <div style="border-top:1px solid #333; padding-top:4px;">
+                        <strong>Reviewed By</strong>
+                    </div>
+                </div>
+                <div class="col-4 text-center">
+                    <div style="border-top:1px solid #333; padding-top:4px;">
+                        <strong>Approved By</strong>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Footer note ───────────────────────────────────────────────── -->
+            <p class="text-muted small mt-4">
+                System-generated — <t t-esc="o.company_id.name"/> ·
+                Printed: <t t-esc="context_timestamp(datetime.datetime.now()).strftime('%d/%m/%Y %H:%M')"/>
+            </p>
+
+        </div>
+    </t>
+</t>
+</t>
+</template>
+</odoo>
