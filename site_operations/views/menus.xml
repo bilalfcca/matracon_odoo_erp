@@ -72,15 +72,32 @@
               sequence="49"
               groups="purchase_demand_raise.group_matracon_admin"/>
 
-    <!-- ── Give Site Accountant access to Inventory app + Operations parent ───
-         SA has no stock.group_stock_user but we want them to reach their
-         material-issuance review menu.  Adding the group to the parent menus
-         directly avoids granting full inventory access. -->
+    <!-- ── Give Site Accountant access to Inventory app root ────────────────
+         menu_stock_root has groups="group_stock_manager,group_stock_user" so
+         SA (who has neither) cannot see the Inventory app at all without this.
+         We ADD SA here; the root already allows stock_user/stock_manager. -->
     <record id="stock.menu_stock_root" model="ir.ui.menu">
         <field name="group_ids" eval="[(4, ref('site_operations.group_site_accountant'))]"/>
     </record>
+
+    <!-- ── Restore menu_stock_transfers to no-restriction ────────────────────
+         The original Odoo definition has NO groups on this menu (visible to
+         all authenticated users).  A previous revision accidentally added a
+         site_accountant-only restriction using (4,...) which made the entire
+         Transfers branch invisible to site_store and all other roles.
+         (5, 0, 0) clears ALL group_ids, restoring the original "all users"
+         behaviour.  SA can reach it via the unrestricted parent; site_store
+         can reach their Material Issuance / Material Return / S2S children. -->
     <record id="stock.menu_stock_transfers" model="ir.ui.menu">
-        <field name="group_ids" eval="[(4, ref('site_operations.group_site_accountant'))]"/>
+        <field name="group_ids" eval="[(5, 0, 0)]"/>
+    </record>
+
+    <!-- ── Allow site_store to see Replenishment ────────────────────────────
+         Standard Odoo restricts Replenishment to stock.group_stock_manager.
+         Site store keepers need it for day-to-day reorder operations.
+         (4,...) adds site_store alongside the existing stock_manager entry. -->
+    <record id="stock.menu_reordering_rules_replenish" model="ir.ui.menu">
+        <field name="group_ids" eval="[(4, ref('purchase_demand_raise.group_site_store'))]"/>
     </record>
 
     <!-- Inventory → Operations → Material Issuance Review (SA only) -->
