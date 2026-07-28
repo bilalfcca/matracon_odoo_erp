@@ -62,20 +62,21 @@
                     <button name="action_submit" type="object" string="Submit to Finance HO"
                             class="btn-primary" invisible="state != 'draft'"
                             groups="site_operations.group_site_accountant"/>
-                    <!-- Reset to Draft — Site Accountant: only while CEO hasn't approved -->
+                    <!-- Reset to Draft — Site Accountant / Finance HO:
+                         any non-draft state; payment reversal runs automatically -->
                     <button name="action_reset_to_draft" type="object"
                             string="↩ Reset to Draft"
                             class="btn-secondary"
-                            invisible="state != 'submitted'"
-                            groups="site_operations.group_site_accountant"
-                            confirm="Reset this request back to Draft? You can edit and resubmit it."/>
-                    <!-- Reset to Draft — CEO / Admin: submitted or ceo_approved only -->
+                            invisible="state == 'draft'"
+                            groups="site_operations.group_site_accountant,site_operations.group_finance_ho"
+                            confirm="Reset this petty cash request to Draft? If a release payment exists it will be reversed and cancelled. This cannot be undone."/>
+                    <!-- Reset to Draft — CEO / Admin: any non-draft state -->
                     <button name="action_reset_to_draft" type="object"
                             string="↩ Reset to Draft"
                             class="btn-secondary"
-                            invisible="state not in ('submitted', 'ceo_approved')"
+                            invisible="state == 'draft'"
                             groups="purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,base.group_system"
-                            confirm="Reset this petty cash request to Draft? Approval status will be cleared."/>
+                            confirm="Reset to Draft? If a release payment exists it will be reversed and cancelled."/>
                     <button name="action_ceo_approve" type="object" string="Approve (CEO)"
                             class="btn-success" invisible="state != 'submitted'"
                             groups="purchase_demand_raise.group_ceo_approval"/>

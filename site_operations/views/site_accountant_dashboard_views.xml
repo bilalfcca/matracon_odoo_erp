@@ -128,6 +128,7 @@
                                               decoration-danger="liability_amount > 0"
                                               decoration-success="liability_amount &lt;= 0 and paid_amount > 0"
                                               decoration-muted="liability_amount &lt;= 0 and paid_amount &lt;= 0">
+                                            <field name="currency_id" column_invisible="1"/>
                                             <field name="partner_name" string="Subcontractor"/>
                                             <field name="total_value" widget="monetary" string="Total Owed"/>
                                             <field name="paid_amount" widget="monetary" string="Paid (JE/Bill)"/>
@@ -155,6 +156,7 @@
                                               decoration-danger="liability_amount > 0"
                                               decoration-success="liability_amount &lt;= 0 and paid_amount > 0"
                                               decoration-muted="liability_amount &lt;= 0 and paid_amount &lt;= 0">
+                                            <field name="currency_id" column_invisible="1"/>
                                             <field name="partner_name" string="Vendor Name"/>
                                             <field name="category_label" string="Category"/>
                                             <field name="total_value" widget="monetary" string="Total Owed"/>
@@ -187,6 +189,7 @@
                                     </small>
                                     <field name="replenishment_line_ids" nolabel="1" readonly="1">
                                         <list create="false" delete="false" edit="false">
+                                            <field name="currency_id" column_invisible="1"/>
                                             <field name="description" string="Reference"/>
                                             <field name="amount" widget="monetary" string="Amount"
                                                    decoration-success="amount > 0"/>
@@ -200,6 +203,7 @@
                                     </small>
                                     <field name="expense_line_ids" nolabel="1" readonly="1">
                                         <list create="false" delete="false" edit="false">
+                                            <field name="currency_id" column_invisible="1"/>
                                             <field name="description" string="Description"/>
                                             <field name="expense_date" string="Date"/>
                                             <field name="amount" widget="monetary" string="Amount"

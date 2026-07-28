@@ -484,40 +484,68 @@ class PettyCashRequest(models.Model):
                 req, ceo_users, _('Approve petty cash %s') % req.name)
 
     def action_reset_to_draft(self):
-        """Reset PCR back to Draft.
+        """Reset PCR back to Draft, reversing any linked payment accounting.
 
         Rules:
-        • Site Accountant — can reset only when state == 'submitted'
-          (CEO has not yet approved). Once CEO approves, Finance HO is in
-          control and the site cannot reverse.
-        • CEO / Matracon Admin — can reset from 'submitted' or 'ceo_approved'.
-          Cannot reset 'released' or 'confirmed' (a payment has been made).
+        • Site Accountant — can reset from 'submitted', 'ceo_approved',
+          'released', OR 'confirmed'.  When a payment exists (released/confirmed),
+          the payment JE is properly reversed before resetting.
+        • CEO / Matracon Admin / Finance HO — same broad permission.
+
+        Accounting reversal (when payment_id is set and posted):
+          The release payment (Dr Cash in Hand, Cr Bank) is reversed by calling
+          `move_id._reverse_moves(cancel=True)`, which posts a counter-entry
+          (Dr Bank, Cr Cash in Hand) and reconciles both — leaving a clean audit
+          trail in the GL instead of silently deleting the JE.
         """
-        is_ceo   = self.env.user.has_group('purchase_demand_raise.group_ceo_approval')
-        is_admin = self.env.user.has_group('purchase_demand_raise.group_matracon_admin')
-        is_privileged = is_ceo or is_admin
+        is_sa      = self.env.user.has_group('site_operations.group_site_accountant')
+        is_finance = self.env.user.has_group('site_operations.group_finance_ho')
+        is_ceo     = self.env.user.has_group('purchase_demand_raise.group_ceo_approval')
+        is_admin   = self.env.user.has_group('purchase_demand_raise.group_matracon_admin')
+        is_system  = self.env.user.has_group('base.group_system')
+        can_reset  = is_sa or is_finance or is_ceo or is_admin or is_system
+
+        if not can_reset:
+            raise UserError(_('You do not have permission to reset petty cash requests to draft.'))
 
         for req in self:
-            if req.state in ('released', 'confirmed'):
-                raise UserError(_(
-                    '%(name)s has already been released. '
-                    'A payment has been made — it cannot be reset to draft.',
-                    name=req.name,
-                ))
-            if not is_privileged and req.state != 'submitted':
-                raise UserError(_(
-                    '%(name)s cannot be reset to draft. '
-                    'CEO has already approved it — contact Finance HO.',
-                    name=req.name,
-                ))
+            # ── Reverse and cancel the release payment when present ───────────
+            had_payment = bool(req.payment_id)
+            if req.state in ('released', 'confirmed') and req.payment_id:
+                payment = req.payment_id.sudo()
+                move = payment.move_id
+
+                if move and move.state == 'posted':
+                    # Create a proper counter-entry so the GL shows the reversal
+                    move.sudo()._reverse_moves(
+                        default_values_list=[{
+                            'ref': _('Reversal: PCR %s cancelled by %s') % (
+                                req.name, self.env.user.name),
+                            'date': fields.Date.today(),
+                        }],
+                        cancel=True,   # posts reversal + marks original as 'cancel'
+                    )
+                elif move and move.state == 'draft':
+                    # Payment was never fully posted — just cancel the draft JE
+                    payment.action_cancel()
+
+            # ── Reset PCR fields ──────────────────────────────────────────────
             req.write({
                 'state': 'draft',
                 'ceo_approved_amount': 0.0,
+                'released_amount': 0.0,
+                'payment_id': False,
             })
             req.message_post(
                 body=Markup(
-                    '↩️ Petty cash request reset to <b>Draft</b> by <b>%(user)s</b>.'
-                ) % {'user': self.env.user.name},
+                    '↩ Petty cash request reset to <b>Draft</b> by <b>%(user)s</b>.'
+                    '%(reversal_note)s'
+                ) % {
+                    'user': self.env.user.name,
+                    'reversal_note': Markup(
+                        '<br/>Release payment reversed and cancelled.'
+                    ) if had_payment else Markup(''),
+                },
                 subtype_xmlid='mail.mt_log_note',
             )
 

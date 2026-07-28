@@ -246,6 +246,13 @@ class SiteAccountantDashboard(models.TransientModel):
                 else:
                     vendor_total += net
 
+        # Split by type BEFORE returning — both one2many fields write to the
+        # same table (x_site_dashboard_liability_line) so passing the full list
+        # to both would insert every partner TWICE (domain= on One2many is a
+        # client-side display filter only, not a DB-level write filter).
+        sub_lines    = [e for e in liability_lines if e['partner_type'] == 'subcontractor']
+        vendor_lines = [e for e in liability_lines if e['partner_type'] == 'vendor']
+
         return {
             'kpi_total_employees': total_employees,
             'kpi_monthly_present_days': monthly_present,
@@ -256,8 +263,8 @@ class SiteAccountantDashboard(models.TransientModel):
             'kpi_petty_cash_balance': pc_balance,
             'kpi_sub_liability': sub_total,
             'kpi_vendor_liability': vendor_total,
-            'sub_liability_line_ids': liability_lines,
-            'vendor_liability_line_ids': liability_lines,
+            'sub_liability_line_ids': sub_lines,
+            'vendor_liability_line_ids': vendor_lines,
             'replenishment_line_ids': replenishments,
             'expense_line_ids': expenses,
         }
