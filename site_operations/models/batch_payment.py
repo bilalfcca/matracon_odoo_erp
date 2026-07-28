@@ -1,6 +1,8 @@
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
 
+from . import matracon_notifications as matracon_notify
+
 
 class BatchPayment(models.Model):
     """Batch Vendor Payment — process multiple vendor payments in one operation.
@@ -32,6 +34,24 @@ class BatchPayment(models.Model):
         ('posted', 'Posted'),
         ('cancelled', 'Cancelled'),
     ], string='Status', default='draft', readonly=True, tracking=True)
+
+    # ── CEO Approval (only required for batches NOT created from a liability sheet) ──
+    x_ceo_approval_state = fields.Selection([
+        ('not_required', 'Not Required'),
+        ('pending', 'Pending CEO'),
+        ('submitted', 'Awaiting CEO'),
+        ('approved', 'CEO Approved'),
+    ], string='CEO Approval', default='pending', readonly=True, tracking=True,
+       help='CEO must approve directly-created batches before Finance HO can post them.\n'
+            'Batches created from a liability sheet are already CEO-approved at the sheet level.')
+
+    x_from_liability_sheet = fields.Boolean(
+        string='From Liability Sheet',
+        compute='_compute_from_liability_sheet',
+        store=True,
+        copy=False,
+        help='True when this batch was created from a CEO-approved liability sheet.',
+    )
 
     line_ids = fields.One2many(
         'x.batch.payment.line', 'batch_id',
@@ -80,6 +100,13 @@ class BatchPayment(models.Model):
 
     # ── Compute ───────────────────────────────────────────────────────────────
 
+    @api.depends('line_ids.x_liability_sheet_id')
+    def _compute_from_liability_sheet(self):
+        for batch in self:
+            batch.x_from_liability_sheet = bool(
+                any(l.x_liability_sheet_id for l in batch.line_ids)
+            )
+
     @api.depends(
         'line_ids.gross_amount',
         'line_ids.x_total_tax',
@@ -126,6 +153,14 @@ class BatchPayment(models.Model):
                 raise UserError(
                     _('Add at least one payment line before posting.'))
 
+            # Direct batches (not from a liability sheet) require CEO approval first.
+            if not batch.x_from_liability_sheet and batch.x_ceo_approval_state != 'approved':
+                raise UserError(_(
+                    'CEO approval is required before posting this batch.\n\n'
+                    'Please click "Submit to CEO" and wait for the CEO to approve '
+                    'the batch before posting.'
+                ))
+
             # Step 1: validate everything up-front so we don't partially post
             for line in batch.line_ids:
                 if line.payment_id:
@@ -143,6 +178,114 @@ class BatchPayment(models.Model):
                 body=_(
                     'Batch posted. <b>%d</b> payment(s) created.'
                 ) % len(batch.line_ids)
+            )
+
+    def action_submit_to_ceo(self):
+        """Finance HO: submit a direct batch to the CEO for approval.
+
+        Only applicable for batches NOT created from a liability sheet.
+        Liability-sheet batches are already CEO-approved at the sheet level.
+        """
+        for batch in self:
+            if batch.x_from_liability_sheet:
+                raise UserError(_(
+                    'This batch was created from a CEO-approved liability sheet — '
+                    'no separate CEO approval is needed. You can post it directly.'
+                ))
+            if batch.state != 'draft':
+                raise UserError(_('Only draft batches can be submitted for approval.'))
+            if batch.x_ceo_approval_state == 'approved':
+                raise UserError(_('This batch is already CEO-approved.'))
+            if not batch.line_ids:
+                raise UserError(_(
+                    'Add at least one payment line before submitting for approval.'
+                ))
+
+            ceo_users = self.env['res.users'].search([
+                ('group_ids', 'in', self.env.ref(
+                    'purchase_demand_raise.group_ceo_approval').id),
+            ])
+            total_str = '{:,.2f}'.format(batch.total_net)
+            currency_sym = batch.currency_id.symbol or ''
+            matracon_notify.notify_users(
+                batch,
+                ceo_users,
+                _('Batch payment <b>%(name)s</b> (%(currency)s %(total)s) '
+                  'requires CEO approval before Finance HO can post it. '
+                  'Please open the batch and click <b>"Approve (CEO)"</b>.') % {
+                    'name': batch.name,
+                    'currency': currency_sym,
+                    'total': total_str,
+                },
+                summary=_('Batch Payment CEO Approval'),
+            )
+            matracon_notify.schedule_activity(
+                batch,
+                ceo_users,
+                _('Approve Batch Payment %s (%s %s)') % (
+                    batch.name, currency_sym, total_str),
+            )
+            batch.x_ceo_approval_state = 'submitted'
+            batch.message_post(
+                body=_('Batch submitted to CEO for approval by <b>%s</b>.') % self.env.user.name,
+            )
+
+    def action_ceo_approve_batch(self):
+        """CEO approves the batch — Finance HO can then post it."""
+        for batch in self:
+            if batch.x_ceo_approval_state not in ('pending', 'submitted'):
+                raise UserError(_('This batch is not pending CEO approval.'))
+            if batch.state != 'draft':
+                raise UserError(_('Only draft batches can be approved.'))
+
+            batch.x_ceo_approval_state = 'approved'
+            total_str = '{:,.2f}'.format(batch.total_net)
+            currency_sym = batch.currency_id.symbol or ''
+            batch.message_post(
+                body=_('Batch payment <b>%(name)s</b> (%(currency)s %(total)s) '
+                       'approved by CEO <b>%(ceo)s</b>. '
+                       'Finance HO can now post all payments.') % {
+                    'name': batch.name,
+                    'currency': currency_sym,
+                    'total': total_str,
+                    'ceo': self.env.user.name,
+                }
+            )
+            fo_users = self.env['res.users'].search([
+                ('group_ids', 'in', self.env.ref(
+                    'site_operations.group_finance_ho').id),
+            ])
+            matracon_notify.notify_users(
+                batch,
+                fo_users,
+                _('CEO approved batch payment <b>%(name)s</b> (%(currency)s %(total)s) — '
+                  'please add bank/cheque details and post all payments.') % {
+                    'name': batch.name,
+                    'currency': currency_sym,
+                    'total': total_str,
+                },
+                summary=_('Batch Payment Approved — Ready to Post'),
+            )
+            matracon_notify.schedule_activity(
+                batch,
+                fo_users,
+                _('Post batch payment %s') % batch.name,
+            )
+
+    def action_ceo_reverse_batch_approval(self):
+        """CEO reverses approval — Finance HO must re-submit."""
+        for batch in self:
+            if batch.x_ceo_approval_state != 'approved':
+                raise UserError(_('Only approved batches can have approval reversed.'))
+            if batch.state != 'draft':
+                raise UserError(_(
+                    'Cannot reverse approval on a posted batch. '
+                    'Cancel the batch first if needed.'
+                ))
+            batch.x_ceo_approval_state = 'pending'
+            batch.message_post(
+                body=_('CEO reversed approval — batch returned to Pending status. '
+                       'Finance HO must re-submit for a fresh approval.')
             )
 
     def action_cancel(self):
@@ -564,9 +707,17 @@ class BatchPaymentLine(models.Model):
             # Per-vendor memo overrides batch-level memo
             'memo': self.memo or batch.memo or batch.name or '',
             'company_id': batch.company_id.id,
-            # Category / approval — batch is a Finance HO direct operation
+            # Category
             'x_payment_category': 'vendor',
-            'x_ceo_approval_state': 'approved',
+            # CEO approval state:
+            #   • Liability sheet line → CEO already approved at sheet level;
+            #     _validate_ceo_payment_approval() skips the check when
+            #     x_liability_sheet_id is set, so we must NOT force 'approved'
+            #     here — let create() leave it as 'not_required'.
+            #   • Direct batch line → CEO approved the batch itself before
+            #     Finance HO could click "Post All Payments"; stamp 'approved'
+            #     so _validate_ceo_payment_approval() passes.
+            **({'x_ceo_approval_state': 'approved'} if not self.x_liability_sheet_id else {}),
             # Project / accounting
             'x_destination_project_id': (
                 self.x_destination_project_id.id or False

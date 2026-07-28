@@ -307,12 +307,37 @@
         <field name="arch" type="xml">
             <form string="Batch Vendor Payment">
                 <header>
+                    <!-- ── Finance HO: Submit to CEO (direct batches only, not yet approved) ── -->
+                    <button name="action_submit_to_ceo"
+                            type="object"
+                            string="Submit to CEO ▶"
+                            class="btn-primary"
+                            invisible="state != 'draft' or x_from_liability_sheet or x_ceo_approval_state == 'approved'"
+                            confirm="This will notify the CEO to approve this batch. Finance HO cannot post until the CEO approves. Continue?"/>
+
+                    <!-- ── CEO: Approve Batch ── -->
+                    <button name="action_ceo_approve_batch"
+                            type="object"
+                            string="Approve (CEO) ✔"
+                            class="btn-success"
+                            groups="purchase_demand_raise.group_ceo_approval"
+                            invisible="state != 'draft' or x_from_liability_sheet or x_ceo_approval_state not in ('pending', 'submitted')"/>
+
+                    <!-- ── CEO: Reverse Approval ── -->
+                    <button name="action_ceo_reverse_batch_approval"
+                            type="object"
+                            string="Reverse Approval"
+                            groups="purchase_demand_raise.group_ceo_approval"
+                            invisible="state != 'draft' or x_ceo_approval_state != 'approved'"/>
+
+                    <!-- ── Finance HO: Post (liability sheet: always; direct: only after CEO approval) ── -->
                     <button name="action_post"
                             type="object"
                             string="Post All Payments"
                             class="btn-primary"
-                            invisible="state != 'draft'"
+                            invisible="state != 'draft' or (not x_from_liability_sheet and x_ceo_approval_state != 'approved')"
                             confirm="This will create and post one payment per line. All journal entries, WHT deductions, and BPV references will be generated. Continue?"/>
+
                     <button name="action_cancel"
                             type="object"
                             string="Cancel"
@@ -367,11 +392,29 @@
                                    placeholder="Default narration applied to all lines (can be overridden per vendor)"/>
                         </group>
                         <group>
+                            <!-- CEO Approval badge — shown for direct batches only -->
+                            <field name="x_ceo_approval_state"
+                                   widget="badge"
+                                   invisible="x_from_liability_sheet"
+                                   decoration-warning="x_ceo_approval_state == 'pending'"
+                                   decoration-info="x_ceo_approval_state == 'submitted'"
+                                   decoration-success="x_ceo_approval_state == 'approved'"
+                                   readonly="1"/>
                             <field name="x_destination_project_id" invisible="1"/>
+                            <field name="x_from_liability_sheet" invisible="1"/>
                             <field name="company_id" invisible="1"/>
                             <field name="currency_id" invisible="1"/>
                         </group>
                     </group>
+
+                    <!-- ── CEO approval pending banner (direct batch only) ── -->
+                    <div class="alert alert-warning" role="alert"
+                         invisible="x_from_liability_sheet or x_ceo_approval_state == 'approved' or state != 'draft'">
+                        <b>Awaiting CEO Approval.</b>
+                        This batch requires CEO approval before Finance HO can post payments.
+                        Click <b>Submit to CEO ▶</b> to notify the CEO.
+                        Once approved, the <b>Post All Payments</b> button will appear.
+                    </div>
 
                     <!-- ── Posted info banner ── -->
                     <div class="alert alert-success" role="alert"

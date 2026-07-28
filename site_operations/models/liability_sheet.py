@@ -290,6 +290,8 @@ class LiabilitySheet(models.Model):
             'date': fields.Date.today(),
             'memo': _('Liability Sheet %s') % self.name,
             'x_destination_project_id': self.project_analytic_account_id.id or False,
+            # CEO already approved at liability sheet level — no separate batch approval needed.
+            'x_ceo_approval_state': 'not_required',
             'line_ids': [
                 (0, 0, {
                     'partner_id': line.partner_id.id,
