@@ -82,29 +82,27 @@
          </t>
     -->
     <template id="report_sig_4col_labels">
-        <div class="row mt-5">
+        <div class="row mt-4" style="page-break-inside: avoid; break-inside: avoid;">
             <div class="col-3 text-center">
-                <div style="border-top:2px solid #000; margin-top:60px; padding-top:8px;">
+                <div style="border-top:2px solid #000; margin-top:50px; padding-top:8px;">
                     <div style="font-weight:700; font-size:13px;">Prepared By</div>
                 </div>
             </div>
             <div class="col-3 text-center">
-                <div style="border-top:2px solid #000; margin-top:60px; padding-top:8px;">
+                <div style="border-top:2px solid #000; margin-top:50px; padding-top:8px;">
                     <div style="font-weight:700; font-size:13px;">Checked By</div>
                 </div>
             </div>
             <div class="col-3 text-center">
-                <div style="border-top:2px solid #000; margin-top:60px; padding-top:8px;">
+                <div style="border-top:2px solid #000; margin-top:50px; padding-top:8px;">
                     <div style="font-weight:700; font-size:13px;">Approved By</div>
                 </div>
             </div>
-            <!-- Received By: full block with Name, Sign, Date -->
+            <!-- Received By: Name only -->
             <div class="col-3 text-center">
-                <div style="border-top:2px solid #000; margin-top:60px; padding-top:8px;">
+                <div style="border-top:2px solid #000; margin-top:50px; padding-top:8px;">
                     <div style="font-weight:700; font-size:13px;"><t t-esc="extra_label or 'Received By'"/></div>
-                    <div style="font-size:11px; color:#6c757d; margin-top:16px;">Name: __________________</div>
-                    <div style="font-size:11px; color:#6c757d; margin-top:4px;">Sign: ___________________</div>
-                    <div style="font-size:11px; color:#6c757d; margin-top:4px;">Date: ___________________</div>
+                    <div style="font-size:11px; color:#6c757d; margin-top:14px;">Name: __________________</div>
                 </div>
             </div>
         </div>

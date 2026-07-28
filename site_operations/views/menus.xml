@@ -189,6 +189,14 @@
               sequence="25"
               groups="site_operations.group_site_accountant,purchase_demand_raise.group_ceo_approval,site_operations.group_finance_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
+    <!-- Batch Payments — x.batch.payment records (created from Liability Sheet approval) -->
+    <menuitem id="menu_finance_batch_payments"
+              name="Batch Payments"
+              parent="account.menu_finance_payables"
+              action="site_operations.action_batch_payment"
+              sequence="25"
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
     <!-- Payments — all vendor payments (historical + new). Batch payment creation
          is accessible from the Action menu inside this list view. -->
     <menuitem id="menu_finance_ho_payments"

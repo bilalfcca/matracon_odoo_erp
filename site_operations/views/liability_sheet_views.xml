@@ -183,6 +183,19 @@
                         </div>
                     </div>
 
+                    <!-- ── Select All / Deselect All (SA, draft only) ── -->
+                    <div class="d-flex gap-2 mb-2"
+                         invisible="not x_is_site_accountant or state != 'draft'">
+                        <button name="action_select_all_lines"
+                                type="object"
+                                string="✓ Select All"
+                                class="btn btn-sm btn-outline-primary"/>
+                        <button name="action_deselect_all_lines"
+                                type="object"
+                                string="✗ Deselect All"
+                                class="btn btn-sm btn-outline-secondary"/>
+                    </div>
+
                     <!-- ── SA view: ALL lines + selection checkbox (draft state) ── -->
                     <!-- SA sees all lines at all times; non-SA see only selected lines -->
                     <field name="line_ids" widget="one2many"

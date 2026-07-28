@@ -186,6 +186,10 @@ class LiabilitySheet(models.Model):
                 raise UserError(_(
                     'Enter a Recommended Amount for every selected vendor before submitting: %s'
                 ) % ', '.join(missing.mapped('partner_id.display_name')))
+            # Pre-fill approved_amount from recommended_amount so CEO sees it ready to edit
+            for line in selected:
+                if line.recommended_amount > 0 and not line.approved_amount:
+                    line.approved_amount = line.recommended_amount
             sheet.state = 'submitted'
             sheet.message_post(
                 body=Markup(_(
@@ -682,6 +686,16 @@ class LiabilitySheet(models.Model):
     def action_delete_draft(self):
         self.unlink()
         return {'type': 'ir.actions.act_window_close'}
+
+    def action_select_all_lines(self):
+        """Tick the Submit checkbox on every line (SA use in draft state)."""
+        self.ensure_one()
+        self.line_ids.write({'is_selected': True})
+
+    def action_deselect_all_lines(self):
+        """Untick the Submit checkbox on every line (SA use in draft state)."""
+        self.ensure_one()
+        self.line_ids.write({'is_selected': False})
 
 
 class LiabilitySheetLine(models.Model):
