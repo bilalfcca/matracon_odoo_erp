@@ -195,7 +195,9 @@ class ManagementDashboard(models.TransientModel):
         today = fields.Date.context_today(self)
         preset = self.filter_period_preset
         if preset == 'custom':
-            return self.filter_date_from, self.filter_date_to
+            # Odoo Date fields return False (not None) when empty.
+            # Normalize to None so SQL %s::date casts don't crash.
+            return self.filter_date_from or None, self.filter_date_to or None
         if preset == 'all':
             return None, None
         if preset == 'monthly':
@@ -205,7 +207,7 @@ class ManagementDashboard(models.TransientModel):
             return today.replace(month=quarter_start_month, day=1), today
         if preset == 'yearly':
             return today.replace(month=1, day=1), today
-        return self.filter_date_from, self.filter_date_to
+        return self.filter_date_from or None, self.filter_date_to or None
 
     @api.onchange('filter_period_preset')
     def _onchange_filter_period_preset(self):
@@ -1165,10 +1167,18 @@ class ManagementDashboard(models.TransientModel):
         analytics = self._active_analytic_accounts()
         domain = [
             ('payment_type', '=', 'outbound'),
-            ('state', '=', 'posted'),
+            ('state', 'in', self._ACTIVE_PAYMENT_STATES),
         ] + self._payment_date_domain(date_from, date_to)
         if analytics:
-            domain.append(('x_fund_project_id', 'in', analytics.ids))
+            # Check all three project-link fields so no real payment is missed:
+            # x_fund_project_id   — primary project tag (most direct payments)
+            # x_destination_project_id — vendor bill payments where fund isn't set
+            # move_id.x_project_analytic_account_id — standard payment journal entries
+            domain += ['|', '|',
+                ('x_fund_project_id', 'in', analytics.ids),
+                ('x_destination_project_id', 'in', analytics.ids),
+                ('move_id.x_project_analytic_account_id', 'in', analytics.ids),
+            ]
         return {
             'type': 'ir.actions.act_window',
             'name': _('Payments Made'),
@@ -1182,10 +1192,15 @@ class ManagementDashboard(models.TransientModel):
         analytics = self._active_analytic_accounts()
         domain = [
             ('payment_type', '=', 'inbound'),
-            ('state', '=', 'posted'),
+            ('state', 'in', self._ACTIVE_PAYMENT_STATES),
         ] + self._payment_date_domain(date_from, date_to)
         if analytics:
-            domain.append(('x_fund_project_id', 'in', analytics.ids))
+            # Same three-field OR as payments_made — receipts tagged via any channel
+            domain += ['|', '|',
+                ('x_fund_project_id', 'in', analytics.ids),
+                ('x_destination_project_id', 'in', analytics.ids),
+                ('move_id.x_project_analytic_account_id', 'in', analytics.ids),
+            ]
         return {
             'type': 'ir.actions.act_window',
             'name': _('Payments Received'),
@@ -1280,6 +1295,17 @@ class ManagementDashboard(models.TransientModel):
             'res_model': 'account.journal',
             'view_mode': 'list,form',
             'domain': [('type', '=', 'bank')],
+        }
+
+    def action_open_bank_balances(self):
+        """Open per-bank balance breakdown computed from the GL."""
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Bank Balances'),
+            'res_model': 'x.management.dashboard.bank.line',
+            'view_mode': 'list',
+            'domain': [('dashboard_id', '=', self.id)],
+            'context': {'create': False, 'delete': False, 'edit': False},
         }
 
     def action_open_tax_notices(self):

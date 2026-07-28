@@ -134,7 +134,7 @@
                                     <div class="matracon-mgmt-kpi__value">
                                         <field name="kpi_bank_balance" widget="kpi_amount" nolabel="1" readonly="1"/>
                                     </div>
-                                    <button name="action_open_bank_journals" type="object"
+                                    <button name="action_open_bank_balances" type="object"
                                             string="View Banks" class="btn btn-sm btn-link p-0"/>
                                 </div>
                             </div>
