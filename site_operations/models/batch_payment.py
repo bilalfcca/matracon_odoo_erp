@@ -399,7 +399,8 @@ class BatchPaymentLine(models.Model):
 
     @api.onchange('tax_line_ids')
     def _onchange_tax_lines_autofill_fbr(self):
-        """When a WHT line is added, pre-fill FBR partner and WHT payable account."""
+        """When a WHT line is added, pre-fill FBR partner only.
+        WHT Payable Account is intentionally left for manual selection."""
         has_wht = any(
             t.tax_type == 'wht' and t.effect == 'deduct'
             for t in self.tax_line_ids
@@ -416,21 +417,6 @@ class BatchPaymentLine(models.Model):
                 self.x_fbr_partner_id = fbr
                 if not self.x_fbr_account_title:
                     self.x_fbr_account_title = fbr.name
-        if not self.x_fbr_expense_account_id:
-            wht_acct = self.env.ref(
-                'site_operations.account_wht_payable', raise_if_not_found=False
-            )
-            if not wht_acct:
-                company_id = (
-                    self.batch_id.company_id.id
-                    if self.batch_id else self.env.company.id
-                )
-                wht_acct = self.env['account.account'].search([
-                    ('code', '=', '252100'),
-                    ('company_id', '=', company_id),
-                ], limit=1)
-            if wht_acct:
-                self.x_fbr_expense_account_id = wht_acct
 
     def action_assign_fbr_cheque(self):
         """Auto-assign next cheque number from the active series for the FBR bank."""

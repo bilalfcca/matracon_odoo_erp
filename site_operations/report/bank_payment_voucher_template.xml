@@ -21,12 +21,39 @@
     <t t-set="fy_start" t-value="py if pm >= 7 else py - 1"/>
     <t t-set="fy_end"   t-value="fy_start + 1"/>
 
+    <!-- Tax / WHT deduction lines -->
+    <t t-set="deduction_lines" t-value="o.x_tax_line_ids.filtered(lambda t: t.effect == 'deduct' and t.amount > 0) if o.x_tax_line_ids else o.env['x.payment.tax.line'].browse()"/>
+    <t t-set="wht_ded_lines"   t-value="deduction_lines.filtered(lambda t: t.tax_type == 'wht')"/>
+    <t t-set="ret_ded_lines"   t-value="deduction_lines.filtered(lambda t: t.tax_type == 'retention')"/>
+    <t t-set="other_ded_lines" t-value="deduction_lines.filtered(lambda t: t.tax_type == 'other')"/>
+    <t t-set="has_deductions"  t-value="bool(deduction_lines)"/>
+    <t t-set="wht_total"       t-value="sum(wht_ded_lines.mapped('amount')) if wht_ded_lines else 0.0"/>
+    <t t-set="ret_total"       t-value="sum(ret_ded_lines.mapped('amount')) if ret_ded_lines else 0.0"/>
+    <t t-set="other_ded_total" t-value="sum(other_ded_lines.mapped('amount')) if other_ded_lines else 0.0"/>
+    <t t-set="total_deductions" t-value="wht_total + ret_total + other_ded_total"/>
+
+    <!-- WHT companion payment (FBR) -->
+    <t t-set="wht_companion" t-value="o.x_wht_payment_id"/>
+    <t t-set="fbr_alloc"     t-value="wht_companion.x_bank_allocation_ids[:1] if wht_companion else False"/>
+
     <!-- Payable / debit GL line from the posted JE -->
-    <t t-set="jnl_lines" t-value="o.move_id.line_ids if o.move_id else o.env['account.move.line'].browse()"/>
-    <t t-set="debit_line" t-value="jnl_lines.filtered(lambda l: l.debit > 0)[:1]"/>
+    <t t-set="jnl_lines"   t-value="o.move_id.line_ids if o.move_id else o.env['account.move.line'].browse()"/>
+    <t t-set="debit_line"  t-value="jnl_lines.filtered(lambda l: l.debit > 0)[:1]"/>
     <t t-set="debit_account_code" t-value="debit_line.account_id.code if debit_line else (o.x_expense_account_id.code or '')"/>
     <t t-set="debit_account_name" t-value="debit_line.account_id.name if debit_line else (o.x_expense_account_id.name or '')"/>
-    <t t-set="debit_amount" t-value="debit_line.debit if debit_line else o.amount"/>
+
+    <!-- Gross amount = net payment + all deductions (clears full AP balance) -->
+    <t t-set="gross_amount" t-value="(o.x_gross_approved_amount or (o.amount + total_deductions)) if has_deductions else o.amount"/>
+
+    <!-- Retention credit account: from the tax deduction JE (partner-tagged credit = retention) -->
+    <t t-set="tax_ded_move_lines" t-value="o.x_tax_deduction_move_id.line_ids if o.x_tax_deduction_move_id else o.env['account.move.line'].browse()"/>
+    <t t-set="ret_credit_line"    t-value="tax_ded_move_lines.filtered(lambda l: l.credit > 0 and l.partner_id == o.partner_id)[:1]"/>
+    <t t-set="wht_credit_line"    t-value="tax_ded_move_lines.filtered(lambda l: l.credit > 0 and not l.partner_id)[:1]"/>
+
+    <!-- WHT Payable account: companion's expense account → deduction JE → fallback label -->
+    <t t-set="wht_acct" t-value="wht_companion.x_expense_account_id if wht_companion and wht_companion.x_expense_account_id else (wht_credit_line.account_id if wht_credit_line else False)"/>
+    <t t-set="wht_acct_code" t-value="wht_acct.code if wht_acct else ''"/>
+    <t t-set="wht_acct_name" t-value="wht_acct.name if wht_acct else 'WHT Payable'"/>
 
     <!-- Bank / credit rows -->
     <t t-set="has_allocs" t-value="bool(o.x_bank_allocation_ids)"/>
@@ -128,7 +155,10 @@
         </thead>
 
         <tbody>
-            <!-- ── DEBIT ROW: Payable / Expense account ── -->
+            <!-- ── DEBIT ROW: Vendor AP account ──
+                 When deductions exist we show the GROSS amount so the row
+                 reconciles to the full AP balance cleared (net + WHT + retention).
+            ── -->
             <tr style="border-bottom:1px solid #dee2e6;">
                 <td style="padding:7px 8px; border:1px solid #ccc; font-family:monospace; font-size:10pt; vertical-align:top;">
                     <t t-esc="debit_account_code or '—'"/>
@@ -147,16 +177,32 @@
                             Project: <t t-esc="o.x_destination_project_id.name"/>
                         </div>
                     </t>
+                    <!-- Show gross breakdown when deductions exist -->
+                    <t t-if="has_deductions">
+                        <div style="font-size:9pt; color:#555; margin-top:4px; padding-top:4px; border-top:1px dashed #ccc;">
+                            Net to Vendor:&#160;
+                            <t t-esc="'{:,.2f}'.format(o.amount)"/>&#160;
+                            <t t-if="wht_total > 0">
+                                | WHT:&#160;<t t-esc="'{:,.2f}'.format(wht_total)"/>
+                            </t>
+                            <t t-if="ret_total > 0">
+                                | Retention:&#160;<t t-esc="'{:,.2f}'.format(ret_total)"/>
+                            </t>
+                            <t t-if="other_ded_total > 0">
+                                | Other:&#160;<t t-esc="'{:,.2f}'.format(other_ded_total)"/>
+                            </t>
+                        </div>
+                    </t>
                 </td>
                 <td style="padding:7px 8px; border:1px solid #ccc; text-align:right; font-weight:600; vertical-align:top;">
-                    <t t-esc="'{:,.2f}'.format(debit_amount)"/>
+                    <t t-esc="'{:,.2f}'.format(gross_amount)"/>
                 </td>
                 <td style="padding:7px 8px; border:1px solid #ccc; text-align:right; color:#aaa; vertical-align:top;">
                     —
                 </td>
             </tr>
 
-            <!-- ── BANK / CREDIT ROWS ── -->
+            <!-- ── VENDOR BANK / CREDIT ROWS (net payment to vendor) ── -->
 
             <!-- Case A: Multiple bank allocations -->
             <t t-if="has_allocs">
@@ -197,7 +243,7 @@
                 </t>
             </t>
 
-            <!-- Case B: Single bank (no allocations) -->
+            <!-- Case B: Single bank (no allocation records) -->
             <t t-else="">
                 <tr style="border-bottom:1px solid #dee2e6;">
                     <td style="padding:7px 8px; border:1px solid #ccc; font-family:monospace; font-size:10pt; vertical-align:top;">
@@ -239,16 +285,159 @@
                 </tr>
             </t>
 
+            <!-- ════════════════════════════════════════════════════
+                 WHT DEDUCTION ROW(S)
+                 Shows the WHT Payable credit side + FBR cheque details
+                 so Finance HO has everything to issue the FBR cheque
+                 from this single document.
+            ════════════════════════════════════════════════════ -->
+            <t t-if="wht_total > 0">
+                <tr style="border-bottom:1px solid #dee2e6; background:#fffbf0;">
+                    <td style="padding:7px 8px; border:1px solid #ccc; font-family:monospace; font-size:10pt; vertical-align:top;">
+                        <t t-esc="wht_acct_code or '—'"/>
+                    </td>
+                    <td style="padding:7px 8px; border:1px solid #ccc; vertical-align:top;">
+                        <div style="font-weight:600; color:#7a4500;">
+                            <t t-esc="wht_acct_name"/>
+                            &#160;
+                            <span style="font-size:9pt; background:#ffecd0; padding:1px 6px; border-radius:3px;">
+                                WHT Deducted
+                            </span>
+                        </div>
+                        <!-- Individual WHT line descriptions -->
+                        <t t-foreach="wht_ded_lines" t-as="wl">
+                            <div style="font-size:9.5pt; color:#555; margin-top:3px;">
+                                <t t-esc="wl.name or (wl.tax_id.name if wl.tax_id else 'Withholding Tax')"/>
+                                <t t-if="wl.tax_id and wl.tax_id.amount">
+                                    &#160;(<t t-esc="'{:.1f}%'.format(wl.tax_id.amount)"/>)
+                                </t>
+                                — Rs. <t t-esc="'{:,.2f}'.format(wl.amount)"/>
+                            </div>
+                        </t>
+                        <!-- FBR cheque details (from companion payment or batch line fields) -->
+                        <t t-if="wht_companion">
+                            <table style="margin-top:8px; font-size:9.5pt; border-collapse:collapse; width:auto;">
+                                <tr style="background:#fff3dc;">
+                                    <td colspan="4" style="padding:3px 10px; font-weight:700; color:#7a4500; border:1px solid #e0b060;">
+                                        FBR Payment Details
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="border:1px solid #deb86c; padding:3px 10px; background:#fffbf0; font-weight:600;">
+                                        Payee
+                                    </td>
+                                    <td style="border:1px solid #deb86c; padding:3px 14px; min-width:150px;">
+                                        <t t-esc="wht_companion.partner_id.name or 'FBR'"/>
+                                    </td>
+                                    <td style="border:1px solid #deb86c; padding:3px 10px; background:#fffbf0; font-weight:600; padding-left:12px;">
+                                        Bank
+                                    </td>
+                                    <td style="border:1px solid #deb86c; padding:3px 14px; min-width:130px;">
+                                        <t t-esc="wht_companion.journal_id.name or '—'"/>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="border:1px solid #deb86c; padding:3px 10px; background:#fffbf0; font-weight:600;">
+                                        Account Title
+                                    </td>
+                                    <td style="border:1px solid #deb86c; padding:3px 14px;">
+                                        <t t-esc="(fbr_alloc.x_account_title if fbr_alloc else False) or wht_companion.x_account_title or wht_companion.partner_id.name or 'FBR'"/>
+                                    </td>
+                                    <td style="border:1px solid #deb86c; padding:3px 10px; background:#fffbf0; font-weight:600; padding-left:12px;">
+                                        Cheque No
+                                    </td>
+                                    <td style="border:1px solid #deb86c; padding:3px 14px;">
+                                        <t t-esc="(fbr_alloc.x_cheque_number if fbr_alloc else False) or '—'"/>
+                                    </td>
+                                </tr>
+                            </table>
+                        </t>
+                        <!-- Show WHT pending note when companion not yet posted -->
+                        <t t-elif="wht_total > 0">
+                            <div style="font-size:9pt; color:#999; margin-top:6px; font-style:italic;">
+                                FBR WHT payment pending — details will appear after posting.
+                            </div>
+                        </t>
+                    </td>
+                    <td style="padding:7px 8px; border:1px solid #ccc; text-align:right; color:#aaa; vertical-align:top;">
+                        —
+                    </td>
+                    <td style="padding:7px 8px; border:1px solid #ccc; text-align:right; font-weight:600; color:#7a4500; vertical-align:top;">
+                        <t t-esc="'{:,.2f}'.format(wht_total)"/>
+                    </td>
+                </tr>
+            </t>
+
+            <!-- ════════════════════════════════════════════════════
+                 RETENTION DEDUCTION ROW(S)
+                 Credit side: Retention Payable (stays owed to vendor)
+            ════════════════════════════════════════════════════ -->
+            <t t-if="ret_total > 0">
+                <tr style="border-bottom:1px solid #dee2e6; background:#f3f8ff;">
+                    <td style="padding:7px 8px; border:1px solid #ccc; font-family:monospace; font-size:10pt; vertical-align:top;">
+                        <t t-esc="ret_credit_line.account_id.code if ret_credit_line else '—'"/>
+                    </td>
+                    <td style="padding:7px 8px; border:1px solid #ccc; vertical-align:top;">
+                        <div style="font-weight:600; color:#0a4275;">
+                            <t t-esc="ret_credit_line.account_id.name if ret_credit_line else 'Retention Payable'"/>
+                            &#160;
+                            <span style="font-size:9pt; background:#d0e8ff; padding:1px 6px; border-radius:3px;">
+                                Retention
+                            </span>
+                        </div>
+                        <t t-foreach="ret_ded_lines" t-as="rl">
+                            <div style="font-size:9.5pt; color:#555; margin-top:3px;">
+                                <t t-esc="rl.name or 'Retention Money'"/>
+                                — Rs. <t t-esc="'{:,.2f}'.format(rl.amount)"/>
+                            </div>
+                        </t>
+                        <div style="font-size:9pt; color:#555; margin-top:4px;">
+                            Retained — payable back to
+                            &#160;<b><t t-esc="o.partner_id.name"/></b>
+                            on contract completion.
+                        </div>
+                    </td>
+                    <td style="padding:7px 8px; border:1px solid #ccc; text-align:right; color:#aaa; vertical-align:top;">
+                        —
+                    </td>
+                    <td style="padding:7px 8px; border:1px solid #ccc; text-align:right; font-weight:600; color:#0a4275; vertical-align:top;">
+                        <t t-esc="'{:,.2f}'.format(ret_total)"/>
+                    </td>
+                </tr>
+            </t>
+
+            <!-- ════════════════════════════════════════════════════
+                 OTHER DEDUCTION ROWS (tax_type = 'other')
+            ════════════════════════════════════════════════════ -->
+            <t t-foreach="other_ded_lines" t-as="od">
+                <tr style="border-bottom:1px solid #dee2e6;">
+                    <td style="padding:7px 8px; border:1px solid #ccc; font-family:monospace; font-size:10pt; vertical-align:top;">—</td>
+                    <td style="padding:7px 8px; border:1px solid #ccc; vertical-align:top;">
+                        <div style="font-weight:600;">
+                            <t t-esc="od.name or 'Other Deduction'"/>
+                            &#160;
+                            <span style="font-size:9pt; background:#f0f0f0; padding:1px 6px; border-radius:3px;">
+                                Deduction
+                            </span>
+                        </div>
+                    </td>
+                    <td style="padding:7px 8px; border:1px solid #ccc; text-align:right; color:#aaa; vertical-align:top;">—</td>
+                    <td style="padding:7px 8px; border:1px solid #ccc; text-align:right; font-weight:600; vertical-align:top;">
+                        <t t-esc="'{:,.2f}'.format(od.amount)"/>
+                    </td>
+                </tr>
+            </t>
+
             <!-- ── TOTAL ROW ── -->
             <tr style="background:#f0f0f0; font-weight:700; font-size:11pt;">
                 <td style="padding:7px 8px; border:1.5px solid #888;" colspan="2">
                     Total
                 </td>
                 <td style="padding:7px 8px; border:1.5px solid #888; text-align:right;">
-                    <t t-esc="'{:,.2f}'.format(debit_amount)"/>
+                    <t t-esc="'{:,.2f}'.format(gross_amount)"/>
                 </td>
                 <td style="padding:7px 8px; border:1.5px solid #888; text-align:right;">
-                    <t t-esc="'{:,.2f}'.format(o.amount)"/>
+                    <t t-esc="'{:,.2f}'.format(gross_amount)"/>
                 </td>
             </tr>
 
@@ -257,11 +446,31 @@
 
     <!-- ════════════════════════════════════════════════════════════
          AMOUNT IN WORDS
+         Shows net-to-vendor and WHT amounts separately when applicable.
     ═══════════════════════════════════════════════════════════════ -->
-    <div style="margin-top:14px; padding:8px 12px; border:1px solid #ccc;
-                background:#fafafa; font-size:10.5pt; border-radius:3px;">
-        <span style="font-weight:700; margin-right:8px;">Amount in Words:</span>
-        <t t-esc="o.currency_id.amount_to_text(o.amount)"/>
+    <div style="margin-top:14px; border:1px solid #ccc; border-radius:3px; overflow:hidden;">
+        <!-- Net to vendor (bank payment) -->
+        <div style="padding:8px 12px; background:#fafafa; font-size:10.5pt;">
+            <span style="font-weight:700; margin-right:8px;">
+                <t t-if="has_deductions">Net to Vendor:</t>
+                <t t-else="">Amount in Words:</t>
+            </span>
+            <t t-esc="o.currency_id.amount_to_text(o.amount)"/>
+        </div>
+        <!-- WHT to FBR (separate cheque) -->
+        <t t-if="wht_total > 0">
+            <div style="padding:8px 12px; background:#fffbf0; font-size:10.5pt; border-top:1px solid #e8d9b0;">
+                <span style="font-weight:700; margin-right:8px; color:#7a4500;">WHT to FBR:</span>
+                <t t-esc="o.currency_id.amount_to_text(wht_total)"/>
+            </div>
+        </t>
+        <!-- Retention (held back) -->
+        <t t-if="ret_total > 0">
+            <div style="padding:8px 12px; background:#f3f8ff; font-size:10.5pt; border-top:1px solid #b0cce8;">
+                <span style="font-weight:700; margin-right:8px; color:#0a4275;">Retention:</span>
+                <t t-esc="o.currency_id.amount_to_text(ret_total)"/>
+            </div>
+        </t>
     </div>
 
     <!-- ════════════════════════════════════════════════════════════
