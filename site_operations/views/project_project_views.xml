@@ -17,6 +17,7 @@
                 <field name="x_billed_to_client" string="Billed to Client" sum="Total Billed" optional="show"/>
                 <field name="x_financial_completion_pct" string="Financial %" optional="show"/>
                 <field name="x_remaining_work_value" string="Remaining to Bill" sum="Total Remaining" optional="show"/>
+                <field name="x_opening_balance" string="Opening Balance" sum="Total Opening" optional="show"/>
                 <field name="x_funds_received" string="Funds Received" sum="Total Received"/>
                 <field name="x_total_spent" string="Total Spent" sum="Total Spent"/>
                 <field name="x_available_balance" string="Available Balance" sum="Total Available"/>
@@ -36,6 +37,8 @@
                 <group string="Project Fund Summary" name="matracon_fund_summary">
                     <group>
                         <field name="x_analytic_account_id"/>
+                        <field name="x_opening_balance"
+                               help="Pre-system opening balance — added to Funds Received when computing Available Balance."/>
                         <field name="x_funds_received" readonly="1"/>
                         <field name="x_total_spent" readonly="1"/>
                     </group>

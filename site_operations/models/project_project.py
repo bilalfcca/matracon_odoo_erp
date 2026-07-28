@@ -35,6 +35,16 @@ class ProjectProjectMatracon(models.Model):
     )
 
     # ── Live financial metrics (fund pool model) ───────────────────────────────
+    x_opening_balance = fields.Monetary(
+        string='Opening Balance',
+        currency_field='currency_id',
+        default=0.0,
+        help=(
+            'One-time opening balance for this project — representing funds that '
+            'existed before the system was set up. Added on top of Funds Received '
+            'when computing Available Balance.'
+        ),
+    )
     x_funds_received = fields.Monetary(
         string='Funds Received',
         compute='_compute_project_financials',
@@ -238,7 +248,7 @@ class ProjectProjectMatracon(models.Model):
         ])
         total_spent += sum(outbound_direct.mapped('amount'))
 
-        available = funds_received - total_spent
+        available = self.x_opening_balance + funds_received - total_spent
 
         # ── Liabilities: from partner ledger (GL) — single source of truth ──────
         # Matches the Partner Ledger exactly; net of ALL payments regardless of
@@ -313,6 +323,7 @@ class ProjectProjectMatracon(models.Model):
             ('x_fund_project_id', '=', aid),
             ('x_allocation_ids', '=', False),
         ]).mapped('amount'))
+        # Fallback path — no project record; opening balance can't be retrieved
         return funds_in - spent
 
     @api.model
