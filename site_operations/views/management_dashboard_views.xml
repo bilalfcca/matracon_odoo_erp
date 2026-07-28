@@ -319,6 +319,7 @@
                                             <list create="false" delete="false" edit="false">
                                                 <field name="bank_name"/>
                                                 <field name="balance" widget="monetary" sum="Total"/>
+                                                <field name="currency_id" column_invisible="1"/>
                                             </list>
                                         </field>
                                     </div>
@@ -431,6 +432,7 @@
                                         <field name="work_completion_pct" string="Work %" optional="show"/>
                                         <field name="financial_completion_pct" string="Financial %" optional="show"/>
                                         <field name="remaining_work_value" string="Project Progress" widget="monetary" options="{'currency_field': 'currency_id'}" optional="show"/>
+                                        <field name="currency_id" column_invisible="1"/>
                                     </list>
                                 </field>
                             </div>
@@ -529,6 +531,7 @@
                                         <field name="bg_amount" widget="monetary" sum="Total"/>
                                         <field name="expiry_date"/>
                                         <field name="state" widget="badge"/>
+                                        <field name="currency_id" column_invisible="1"/>
                                     </list>
                                 </field>
                             </div>
@@ -592,6 +595,7 @@
                                                 <field name="margin_amount" widget="monetary" sum="Total"/>
                                                 <field name="available_limit" widget="monetary" sum="Total"/>
                                                 <field name="utilization_pct" string="Util %"/>
+                                                <field name="currency_id" column_invisible="1"/>
                                             </list>
                                         </field>
                                     </div>
