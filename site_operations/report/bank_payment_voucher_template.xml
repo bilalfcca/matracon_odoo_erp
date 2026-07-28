@@ -447,10 +447,13 @@
 
     <!-- ════════════════════════════════════════════════════════════
          SIGNATURE BLOCK
+         50px top margin gives signatories space to sign above each line.
     ═══════════════════════════════════════════════════════════════ -->
-    <t t-call="site_operations.report_sig_4col_labels">
-        <t t-set="extra_label">Received By</t>
-    </t>
+    <div style="margin-top:50px;">
+        <t t-call="site_operations.report_sig_4col_labels">
+            <t t-set="extra_label">Received By</t>
+        </t>
+    </div>
 
 </div>
 </t>
