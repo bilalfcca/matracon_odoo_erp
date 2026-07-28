@@ -147,6 +147,69 @@
                                     <field name="effect"/>
                                 </list>
                             </field>
+
+                            <!-- ── FBR Payment Details ── -->
+                            <!-- Visible as soon as a WHT deduction line exists.
+                                 Finance HO fills bank/cheque here; on batch post a
+                                 companion account.payment is created for FBR and posted
+                                 immediately, producing a full BPV for the WHT cheque. -->
+                            <div class="alert alert-warning mt-3 mb-2" role="alert"
+                                 invisible="not x_has_wht or payment_id != False">
+                                <b>WHT detected.</b>
+                                Two cheques will be issued: one to the vendor (Net Payable)
+                                and one to FBR (WHT amount).
+                                Fill in the FBR bank details below so both BPVs are printed on posting.
+                            </div>
+                            <group string="FBR Payment Details (WHT Cheque)"
+                                   invisible="not x_has_wht"
+                                   class="mt-2">
+                                <group string="Payee">
+                                    <field name="x_fbr_partner_id"
+                                           options="{'no_create': True}"
+                                           readonly="payment_id != False"/>
+                                    <field name="x_fbr_account_title"
+                                           readonly="payment_id != False"/>
+                                    <field name="x_fbr_expense_account_id"
+                                           options="{'no_create': True}"
+                                           string="WHT Payable Account"
+                                           readonly="payment_id != False"/>
+                                </group>
+                                <group string="Bank / Cheque">
+                                    <field name="x_fbr_journal_id"
+                                           options="{'no_create': True}"
+                                           readonly="payment_id != False"/>
+                                    <div class="o_field_widget o_wrap_field_widget" invisible="payment_id != False">
+                                        <label for="x_fbr_cheque_number" string="Cheque No. (FBR)"/>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <field name="x_fbr_cheque_number" nolabel="1"/>
+                                            <button name="action_assign_fbr_cheque"
+                                                    type="object"
+                                                    string="Auto"
+                                                    icon="fa-hashtag"
+                                                    class="btn btn-sm btn-secondary"
+                                                    title="Auto-assign next cheque number from active series"
+                                                    invisible="not x_fbr_journal_id"/>
+                                        </div>
+                                    </div>
+                                    <field name="x_fbr_cheque_number"
+                                           string="Cheque No. (FBR)"
+                                           readonly="1"
+                                           invisible="payment_id == False"/>
+                                </group>
+                            </group>
+
+                            <!-- Posted FBR payment link -->
+                            <div invisible="not x_fbr_payment_id" class="alert alert-info mt-2">
+                                <b>FBR WHT Payment Posted:</b>
+                                <field name="x_fbr_payment_id" readonly="1" class="ms-2"/>
+                                —
+                                <field name="x_fbr_bpv_ref" readonly="1" class="ms-1"/>
+                                <button name="action_print_fbr_bpv"
+                                        type="object"
+                                        string="Print FBR BPV"
+                                        class="btn btn-sm btn-warning ms-3"
+                                        icon="fa-print"/>
+                            </div>
                         </page>
                     </notebook>
 
@@ -176,6 +239,9 @@
 
                     <field name="currency_id" invisible="1"/>
                     <field name="payment_id" invisible="1"/>
+                    <field name="x_has_wht" invisible="1"/>
+                    <field name="x_fbr_payment_id" invisible="1"/>
+                    <field name="x_fbr_bpv_ref" invisible="1"/>
                 </sheet>
             </form>
         </field>
@@ -211,7 +277,22 @@
                         icon="fa-print"
                         title="Print Bank Payment Voucher"
                         invisible="not payment_id"/>
+                <!-- FBR WHT companion columns (optional) -->
+                <field name="x_fbr_bpv_ref" readonly="1" optional="hide"
+                       string="FBR BPV Ref"/>
+                <button name="action_view_fbr_payment"
+                        type="object"
+                        icon="fa-university"
+                        title="Open FBR WHT payment"
+                        invisible="not x_fbr_payment_id"/>
+                <button name="action_print_fbr_bpv"
+                        type="object"
+                        icon="fa-print"
+                        title="Print FBR Bank Payment Voucher"
+                        class="text-warning"
+                        invisible="not x_fbr_payment_id"/>
                 <field name="payment_id" column_invisible="1"/>
+                <field name="x_fbr_payment_id" column_invisible="1"/>
                 <field name="currency_id" column_invisible="1"/>
             </list>
         </field>

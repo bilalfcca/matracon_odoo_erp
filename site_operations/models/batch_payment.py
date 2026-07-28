@@ -309,6 +309,47 @@ class BatchPaymentLine(models.Model):
         readonly=True, copy=False,
     )
 
+    # ── WHT / FBR companion payment fields ───────────────────────────────────
+    # When a WHT deduction line is present Finance HO must issue two cheques:
+    #   1. Net amount   → Original vendor  (handled by bank_line_ids above)
+    #   2. WHT amount   → FBR / Federal Board of Revenue  (fields below)
+    # These fields drive the auto-created WHT companion payment on batch post.
+
+    x_has_wht = fields.Boolean(
+        'Has WHT Deduction',
+        compute='_compute_has_wht', store=True,
+        help='True when at least one WHT deduction tax line is present.',
+    )
+    x_fbr_partner_id = fields.Many2one(
+        'res.partner', string='FBR Payee',
+        help='Payee for the WHT cheque — usually "Federal Board of Revenue (FBR)". '
+             'Auto-filled when a WHT line is added.',
+    )
+    x_fbr_journal_id = fields.Many2one(
+        'account.journal', string='Bank / Journal (FBR)',
+        domain="[('type', 'in', ('bank', 'cash'))]",
+        help='Bank journal from which the FBR WHT cheque will be issued.',
+    )
+    x_fbr_cheque_number = fields.Char(string='Cheque No. (FBR)')
+    x_fbr_account_title = fields.Char(
+        string='Account Title (FBR)',
+        help='Account holder name on the FBR cheque.',
+    )
+    x_fbr_expense_account_id = fields.Many2one(
+        'account.account', string='WHT Payable Account',
+        help='GL account to debit on the FBR payment JE (clears WHT Payable liability). '
+             'Auto-filled from the WHT Payable account configured in Chart of Accounts.',
+    )
+    x_fbr_payment_id = fields.Many2one(
+        'account.payment', string='WHT Payment (FBR)',
+        readonly=True, copy=False,
+        help='Auto-created companion payment to FBR on batch posting.',
+    )
+    x_fbr_bpv_ref = fields.Char(
+        string='FBR BPV Ref',
+        related='x_fbr_payment_id.x_bpv_ref', readonly=True, store=False,
+    )
+
     # ── After posting ─────────────────────────────────────────────────────────
 
     payment_id = fields.Many2one(
@@ -332,6 +373,14 @@ class BatchPaymentLine(models.Model):
 
     # ── Compute ───────────────────────────────────────────────────────────────
 
+    @api.depends('tax_line_ids.tax_type', 'tax_line_ids.effect')
+    def _compute_has_wht(self):
+        for line in self:
+            line.x_has_wht = any(
+                t.tax_type == 'wht' and t.effect == 'deduct'
+                for t in line.tax_line_ids
+            )
+
     @api.depends(
         'tax_line_ids.amount', 'tax_line_ids.effect', 'gross_amount',
     )
@@ -345,6 +394,86 @@ class BatchPaymentLine(models.Model):
             )
             line.x_total_tax = deductions
             line.x_net_payable = max(line.gross_amount - deductions + additions, 0.0)
+
+    # ── Onchange helpers ──────────────────────────────────────────────────────
+
+    @api.onchange('tax_line_ids')
+    def _onchange_tax_lines_autofill_fbr(self):
+        """When a WHT line is added, pre-fill FBR partner and WHT payable account."""
+        has_wht = any(
+            t.tax_type == 'wht' and t.effect == 'deduct'
+            for t in self.tax_line_ids
+        )
+        if not has_wht:
+            return
+        if not self.x_fbr_partner_id:
+            fbr = self.env['res.partner'].search(
+                ['|', ('name', 'ilike', 'Federal Board of Revenue'),
+                       ('name', 'ilike', 'FBR')],
+                limit=1,
+            )
+            if fbr:
+                self.x_fbr_partner_id = fbr
+                if not self.x_fbr_account_title:
+                    self.x_fbr_account_title = fbr.name
+        if not self.x_fbr_expense_account_id:
+            wht_acct = self.env.ref(
+                'site_operations.account_wht_payable', raise_if_not_found=False
+            )
+            if not wht_acct:
+                company_id = (
+                    self.batch_id.company_id.id
+                    if self.batch_id else self.env.company.id
+                )
+                wht_acct = self.env['account.account'].search([
+                    ('code', '=', '252100'),
+                    ('company_id', '=', company_id),
+                ], limit=1)
+            if wht_acct:
+                self.x_fbr_expense_account_id = wht_acct
+
+    def action_assign_fbr_cheque(self):
+        """Auto-assign next cheque number from the active series for the FBR bank."""
+        self.ensure_one()
+        if not self.x_fbr_journal_id:
+            raise UserError(_('Select a Bank / Journal for the FBR payment first.'))
+        series = self.env['x.cheque.series'].search([
+            ('bank_journal_id', '=', self.x_fbr_journal_id.id),
+            ('state', '=', 'active'),
+        ], limit=1)
+        if not series:
+            raise UserError(_(
+                'No active cheque series found for bank "%s". '
+                'Set one up under Accounting → Configuration → Cheque Series.'
+            ) % self.x_fbr_journal_id.name)
+        self.x_fbr_cheque_number = series.get_next_cheque_number()
+        return False
+
+    def action_view_fbr_payment(self):
+        """Open the WHT companion payment to FBR."""
+        self.ensure_one()
+        if not self.x_fbr_payment_id:
+            raise UserError(_('No FBR WHT payment has been created for this line yet.'))
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('WHT Payment — FBR'),
+            'res_model': 'account.payment',
+            'view_mode': 'form',
+            'res_id': self.x_fbr_payment_id.id,
+        }
+
+    def action_print_fbr_bpv(self):
+        """Print the Bank Payment Voucher for the FBR WHT payment."""
+        self.ensure_one()
+        if not self.x_fbr_payment_id:
+            raise UserError(_(
+                'Post the batch first — the FBR BPV is generated on posting.'
+            ))
+        return {
+            'type': 'ir.actions.act_url',
+            'url': '/site_operations/print/account.payment/%d' % self.x_fbr_payment_id.id,
+            'target': 'new',
+        }
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -386,6 +515,21 @@ class BatchPaymentLine(models.Model):
                 'alloc': bank_total,
                 'net': self.x_net_payable,
             })
+        # WHT present → FBR payment details are required
+        wht_lines = self.tax_line_ids.filtered(
+            lambda t: t.tax_type == 'wht' and t.effect == 'deduct' and t.amount > 0
+        )
+        if wht_lines:
+            if not self.x_fbr_journal_id:
+                raise UserError(_(
+                    'Vendor "%s": WHT deduction is present — select a Bank / Journal '
+                    'for the FBR payment (Tax / WHT tab → FBR Payment section).'
+                ) % self.partner_id.name)
+            if not self.x_fbr_expense_account_id:
+                raise UserError(_(
+                    'Vendor "%s": WHT deduction is present — set the WHT Payable Account '
+                    'for the FBR payment (Tax / WHT tab → FBR Payment section).'
+                ) % self.partner_id.name)
 
     # ── Posting ───────────────────────────────────────────────────────────────
 
@@ -498,10 +642,51 @@ class BatchPaymentLine(models.Model):
             })
 
         # ── Post the payment (all Matracon hooks fire here) ──────────────────
+        # This also fires _create_wht_payment_if_needed() which auto-creates a
+        # DRAFT WHT companion to FBR when WHT deduction lines are present.
         payment.action_post()
 
         # ── Link back ────────────────────────────────────────────────────────
         self.payment_id = payment.id
+
+        # ── WHT companion to FBR — complete and post ─────────────────────────
+        # _create_wht_payment_if_needed() (called inside action_post above) already
+        # created a DRAFT payment to FBR.  If the batch line carries FBR details
+        # (journal, expense account), we update the companion with those details
+        # and post it immediately so Finance HO gets a complete BPV for FBR as well.
+        wht_companion = payment.x_wht_payment_id
+        if wht_companion and self.x_fbr_journal_id:
+            # Stamp FBR-specific fields on the companion (while still draft)
+            companion_vals = {
+                'journal_id': self.x_fbr_journal_id.id,
+            }
+            if self.x_fbr_partner_id:
+                companion_vals['partner_id'] = self.x_fbr_partner_id.id
+                companion_vals['x_payee_id'] = self.x_fbr_partner_id.id
+            if self.x_fbr_expense_account_id:
+                companion_vals['x_expense_account_id'] = self.x_fbr_expense_account_id.id
+            if self.x_fbr_account_title:
+                companion_vals['x_account_title'] = self.x_fbr_account_title
+            wht_companion.write(companion_vals)
+
+            # Create one bank allocation line carrying the cheque details for BPV
+            self.env['x.payment.bank.allocation'].create({
+                'payment_id': wht_companion.id,
+                'journal_id': self.x_fbr_journal_id.id,
+                'allocation_amount': wht_companion.amount,
+                'x_cheque_number': self.x_fbr_cheque_number or False,
+                'x_account_title': (
+                    self.x_fbr_account_title
+                    or (self.x_fbr_partner_id.name if self.x_fbr_partner_id else 'FBR')
+                ),
+            })
+
+            # Post the WHT companion — BPV ref is auto-assigned inside action_post.
+            # The companion has x_origin_payment_id set (auto-approved) and no tax
+            # lines, so _create_tax_deduction_entries and _create_wht_payment_if_needed
+            # both return early without side effects.
+            wht_companion.action_post()
+            self.x_fbr_payment_id = wht_companion.id
 
     def action_view_payment(self):
         self.ensure_one()
