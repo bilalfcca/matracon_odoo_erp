@@ -66,14 +66,14 @@
             <!-- ── Journal Lines Table ───────────────────────────────────────── -->
             <table class="table table-bordered table-sm" style="font-size:10pt;">
                 <thead>
-                    <tr style="background-color:#1a3050; color:#ffffff;">
-                        <th style="width:4%; border-color:#1a3050;">#</th>
-                        <th style="width:12%; border-color:#1a3050;">Account Code</th>
-                        <th style="width:28%; border-color:#1a3050;">Account Name</th>
-                        <th style="width:18%; border-color:#1a3050;">Partner</th>
-                        <th style="border-color:#1a3050;">Description</th>
-                        <th class="text-end" style="width:11%; border-color:#1a3050;">Debit</th>
-                        <th class="text-end" style="width:11%; border-color:#1a3050;">Credit</th>
+                    <tr style="background-color:#1a3050;">
+                        <th style="width:4%; border-color:#1a3050; color:#ffffff;">#</th>
+                        <th style="width:12%; border-color:#1a3050; color:#ffffff;">Account Code</th>
+                        <th style="width:28%; border-color:#1a3050; color:#ffffff;">Account Name</th>
+                        <th style="width:18%; border-color:#1a3050; color:#ffffff;">Partner</th>
+                        <th style="border-color:#1a3050; color:#ffffff;">Description</th>
+                        <th class="text-end" style="width:11%; border-color:#1a3050; color:#ffffff;">Debit</th>
+                        <th class="text-end" style="width:11%; border-color:#1a3050; color:#ffffff;">Credit</th>
                     </tr>
                 </thead>
                 <tbody>
