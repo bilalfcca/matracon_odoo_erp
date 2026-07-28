@@ -117,6 +117,14 @@
                 <field name="x_bill_copy_filename" invisible="1"/>
             </xpath>
 
+            <!-- Cheque / payment info — only for journal entries (direct bank payments) -->
+            <xpath expr="//field[@name='narration']" position="before">
+                <group invisible="move_type != 'entry'" string="Payment Details">
+                    <field name="x_cheque_number" placeholder="e.g. CHQ-001 / RTGS-2026-001"/>
+                    <field name="x_account_title" placeholder="Beneficiary name / bank account title"/>
+                </group>
+            </xpath>
+
             <!-- Liability-registered info banner (kept before narration) -->
             <xpath expr="//field[@name='narration']" position="before">
                 <div class="alert alert-info mb-2 py-1"

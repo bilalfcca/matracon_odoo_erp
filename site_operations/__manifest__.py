@@ -59,6 +59,7 @@
         'views/site_store_dashboard_views.xml',
         'views/liability_sheet_views.xml',
         'views/vendor_bill_views.xml',
+        'views/account_move_line_views.xml',
         'views/vendor_payment_views.xml',
         'views/batch_payment_views.xml',
         'views/account_account_views.xml',

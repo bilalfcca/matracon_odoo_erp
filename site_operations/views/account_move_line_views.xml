@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ═══════════════════════════════════════════════════════════════════
+         Journal Items list — add Cheque No. + Account Title columns
+         Inherits the standard account.view_move_line_tree.
+         Both fields are optional so they don't clutter the default view,
+         but are always present in the column chooser and in Excel exports.
+    ═══════════════════════════════════════════════════════════════════ -->
+    <record id="view_move_line_tree_cheque_cols" model="ir.ui.view">
+        <field name="name">account.move.line.list.cheque.cols</field>
+        <field name="model">account.move.line</field>
+        <field name="inherit_id" ref="account.view_move_line_tree"/>
+        <field name="arch" type="xml">
+            <!-- Insert after the Label (name) column so it is logically grouped
+                 with the description columns. -->
+            <field name="name" position="after">
+                <field name="x_cheque_number"
+                       string="Cheque / Ref No."
+                       optional="show"
+                       readonly="1"/>
+                <field name="x_account_title"
+                       string="Account Title"
+                       optional="hide"
+                       readonly="1"/>
+            </field>
+        </field>
+    </record>
+</odoo>

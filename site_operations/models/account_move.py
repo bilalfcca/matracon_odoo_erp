@@ -25,7 +25,9 @@ class AccountMoveSiteOps(models.Model):
                 ADD COLUMN IF NOT EXISTS x_wht_tax_id                    INTEGER,
                 ADD COLUMN IF NOT EXISTS x_fbr_payment_id                INTEGER,
                 ADD COLUMN IF NOT EXISTS x_source_picking_id             INTEGER,
-                ADD COLUMN IF NOT EXISTS x_bill_copy_filename            VARCHAR
+                ADD COLUMN IF NOT EXISTS x_bill_copy_filename            VARCHAR,
+                ADD COLUMN IF NOT EXISTS x_cheque_number                 VARCHAR,
+                ADD COLUMN IF NOT EXISTS x_account_title                 VARCHAR
         """)
         return super()._register_hook()
 
@@ -99,6 +101,17 @@ class AccountMoveSiteOps(models.Model):
     )
     x_fbr_payment_id = fields.Many2one(
         'account.payment', string='FBR WHT Payment Draft', readonly=True, copy=False)
+
+    # ── Cheque / payment info (used on journal entries that represent direct payments)
+    x_cheque_number = fields.Char(
+        string='Cheque / Reference No.',
+        tracking=True,
+        help='Cheque or RTGS/NEFT reference number for this journal entry.',
+    )
+    x_account_title = fields.Char(
+        string='Account Title',
+        help='Bank account title / beneficiary name for this journal entry payment.',
+    )
 
     vendor_bill_count = fields.Integer(compute='_compute_linked_counts')
     liability_sheet_count = fields.Integer(compute='_compute_linked_counts')
@@ -897,6 +910,29 @@ class AccountMoveLineSiteOps(models.Model):
       Odoo's own accounting recompute creates them automatically.
     """
     _inherit = 'account.move.line'
+
+    @api.model
+    def _register_hook(self):
+        self.env.cr.execute("""
+            ALTER TABLE account_move_line
+                ADD COLUMN IF NOT EXISTS x_cheque_number VARCHAR,
+                ADD COLUMN IF NOT EXISTS x_account_title VARCHAR
+        """)
+        return super()._register_hook()
+
+    # Stored related fields so they appear in Export and can be searched/filtered.
+    x_cheque_number = fields.Char(
+        related='move_id.x_cheque_number',
+        string='Cheque / Ref No.',
+        store=True,
+        readonly=True,
+    )
+    x_account_title = fields.Char(
+        related='move_id.x_account_title',
+        string='Account Title',
+        store=True,
+        readonly=True,
+    )
 
     @api.model_create_multi
     def create(self, vals_list):
