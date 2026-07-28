@@ -1017,6 +1017,17 @@ class PettyCashExpense(models.Model):
                     '"Signed Voucher" field above\n'
                     '4. Then click Post again.'
                 ))
+            # Validate petty cash account early (before state change) so the error
+            # message is clear and the transaction is clean.
+            pc_account = expense._get_petty_cash_account()
+            if not pc_account:
+                raise UserError(_(
+                    'No "Cash in Hand" (Petty Cash) account is configured for this site.\n\n'
+                    'Please go to:\n'
+                    'Configuration → Site Configurations → %s → '
+                    'set the "Petty Cash Account (Cash in Hand)" field.\n\n'
+                    'Then try posting again.'
+                ) % (expense.project_analytic_account_id.name or _('your site')))
             balance_before = expense.fund_id.balance
             if balance_before < expense.amount - 0.01:
                 raise UserError(_(
@@ -1130,7 +1141,14 @@ class PettyCashExpense(models.Model):
                 credit_account = cash_journal.default_account_id
 
         if not credit_account:
-            return  # Cannot determine Cash-in-Hand account — skip silently
+            raise UserError(_(
+                'Cannot post this petty cash expense: no Cash-in-Hand account is configured '
+                'for this site.\n\n'
+                'Please go to:\n'
+                'Configuration → Site Configurations → [your site] → '
+                'set the "Petty Cash Account (Cash in Hand)" field.\n\n'
+                'Then try posting again.'
+            ))
 
         # ── Journal for the entry ─────────────────────────────────────────────
         Journal = self.env['account.journal']
@@ -1208,8 +1226,14 @@ class PettyCashExpense(models.Model):
             ],
         }
         if not cash_journal:
-            # Need at least some journal — skip if none
-            return
+            raise UserError(_(
+                'Cannot post this petty cash expense: no Cash journal is configured '
+                'for this site.\n\n'
+                'Please go to:\n'
+                'Accounting → Configuration → Journals → create a Cash journal '
+                'and link it to this site.\n\n'
+                'Then try posting again.'
+            ))
         move = self.env['account.move'].create(move_vals)
         move.action_post()
         self.x_account_move_id = move
