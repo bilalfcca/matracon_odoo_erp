@@ -154,14 +154,14 @@
         <!-- ── FOOTER (repeats every page via wkhtmltopdf footer-html) ── -->
         <div class="footer" style="
                 font-family: Arial, sans-serif;
-                font-size: 8px;
+                font-size: 12px;
                 color: #444;
                 text-align: center;
-                padding: 1mm 12mm 1mm 12mm;
+                padding: 1mm 12mm 12mm 12mm;
                 width: 100%;
                 box-sizing: border-box;
                 background: #ffffff;">
-            <div style="border-top:1px solid #aaa; margin-bottom:2px;"></div>
+            <div style="border-top:1px solid #aaa; margin-bottom:4px;"></div>
             <div>
                 <strong>Head Office</strong>&#160;:&#160;17, Street No. 89, G-6/3, Islamabad,
                 UAN: 0092-51-111-025-025&#160;&#160;Fax: +92-51-2101183&#160;&#160;E-mail: matracon@gmail.com
