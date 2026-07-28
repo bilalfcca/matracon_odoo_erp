@@ -758,3 +758,13 @@ def post_migrate_hook(env):
             old_menu.sudo().unlink()
     except Exception:
         pass
+    # Hide the enterprise Vendors > Batch Payments menu (account_batch_payment module).
+    # Matracon uses its own x.batch.payment model; the enterprise menu is redundant
+    # and appears above Liability Sheets which is confusing.
+    try:
+        bp_menu = env.ref('account_batch_payment.menu_batch_payment_purchases',
+                          raise_if_not_found=False)
+        if bp_menu and bp_menu.active:
+            bp_menu.sudo().write({'active': False})
+    except Exception:
+        pass

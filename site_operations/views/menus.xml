@@ -20,6 +20,7 @@
         <field name="active" eval="False"/>
     </record>
 
+
     <!-- ── Single "Dashboard" in Purchase — routes to the right dashboard ──────
          The server action (action_site_store_dashboard) already handles routing:
            • Admin / PO / HO / CEO → Procurement HO Dashboard
