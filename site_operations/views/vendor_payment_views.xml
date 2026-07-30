@@ -207,11 +207,15 @@
             <xpath expr="//group[@name='group1']/field[@name='partner_id'][1]" position="attributes">
                 <attribute name="invisible">partner_type != 'customer' or x_payment_category in ('petty_cash', 'salary')</attribute>
                 <attribute name="required">partner_type == 'customer' and x_payment_category not in ('petty_cash', 'salary')</attribute>
+                <!-- no_quick_create: force "Create and Edit" dialog so tag/description fields are filled -->
+                <attribute name="options">{'no_quick_create': True}</attribute>
             </xpath>
             <!-- Vendor field: hidden for petty_cash/salary; on WHT payments x_payee_id takes over -->
             <xpath expr="//group[@name='group1']/field[@name='partner_id'][2]" position="attributes">
                 <attribute name="invisible">partner_type != 'supplier' or x_payment_category in ('petty_cash', 'salary') or x_origin_payment_id</attribute>
                 <attribute name="required">partner_type == 'supplier' and x_payment_category not in ('petty_cash', 'salary') and not x_origin_payment_id</attribute>
+                <!-- no_quick_create: force "Create and Edit" dialog so tag/description fields are filled -->
+                <attribute name="options">{'no_quick_create': True}</attribute>
             </xpath>
 
             <xpath expr="//group[@name='group1']/field[@name='partner_id'][2]" position="after">

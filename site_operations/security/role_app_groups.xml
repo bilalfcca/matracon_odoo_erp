@@ -77,7 +77,7 @@
             ]"/>
         </record>
 
-        <!-- Finance HO: Accounting + Employees + Payroll + Attendance + Compliance (all admin) -->
+        <!-- Finance HO: Accounting + Employees + Payroll + Attendance + Compliance + Contacts -->
         <record id="group_finance_ho" model="res.groups">
             <field name="implied_ids" eval="[
                 (6, 0, [
@@ -85,11 +85,13 @@
                     ref('hr.group_hr_manager'),
                     ref('hr_attendance.group_hr_attendance_officer'),
                     ref('base.group_allow_export'),
+                    ref('base.group_partner_manager'),
                     ref('group_mtr_app_accounting'),
                     ref('group_mtr_app_hr'),
                     ref('group_mtr_app_attendance'),
                     ref('group_mtr_app_payroll'),
                     ref('group_mtr_app_compliance'),
+                    ref('group_mtr_app_contacts'),
                 ])
             ]"/>
         </record>

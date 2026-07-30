@@ -165,7 +165,7 @@
                                    class="mt-2">
                                 <group string="Payee">
                                     <field name="x_fbr_partner_id"
-                                           options="{'no_create': True}"
+                                           options="{'no_quick_create': True}"
                                            readonly="payment_id != False"/>
                                     <field name="x_fbr_account_title"
                                            readonly="payment_id != False"/>
