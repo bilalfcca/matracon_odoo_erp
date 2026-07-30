@@ -1266,6 +1266,67 @@ class PettyCashExpense(models.Model):
         move.action_post()
         self.x_account_move_id = move
 
+    def action_reset_to_draft(self):
+        """Reset a posted petty cash expense back to Draft.
+
+        Steps:
+          1. Cancel/reverse the linked journal entry (if any) so the GL is clean.
+          2. If this was an employee advance, subtract the amount from the
+             employee's outstanding advance balance.
+          3. Clear snapshot fields (balance_before / balance_after) and the
+             link to the journal entry.
+          4. Set state → 'draft'.
+
+        Access: Finance HO, Matracon Admin, System Administrator.
+        Site Accountants are intentionally excluded — they can post but cannot
+        undo a posting without Finance HO involvement.
+        """
+        allowed_groups = [
+            'site_operations.group_finance_ho',
+            'purchase_demand_raise.group_matracon_admin',
+            'base.group_system',
+        ]
+        if not any(self.env.user.has_group(g) for g in allowed_groups):
+            raise UserError(_(
+                'Only Finance HO or Matracon Admin can reset a petty cash expense to Draft.'
+            ))
+
+        for expense in self:
+            if expense.state == 'draft':
+                continue  # already draft, skip silently
+
+            # ── 1. Cancel the journal entry ───────────────────────────────────
+            move = expense.x_account_move_id
+            if move and move.state == 'posted':
+                move.button_cancel()   # resets the JE to cancel state
+            elif move and move.state != 'cancel':
+                # Draft JE — just unlink it
+                move.unlink()
+
+            # ── 2. Reverse employee advance balance ───────────────────────────
+            if expense.is_employee_advance and expense.employee_id:
+                emp = expense.employee_id.sudo()
+                new_balance = (emp.x_advance_balance or 0.0) - expense.amount
+                emp.x_advance_balance = max(new_balance, 0.0)
+                expense.message_post(body=Markup(_(
+                    'Reset to Draft: employee advance for <b>%(emp)s</b> reversed. '
+                    'Outstanding balance adjusted by <b>−%(sym)s %(amount)s</b>.'
+                )) % {
+                    'emp': emp.name,
+                    'sym': expense.currency_id.symbol,
+                    'amount': f'{expense.amount:,.2f}',
+                })
+
+            # ── 3. Clear snapshot & JE link ───────────────────────────────────
+            expense.write({
+                'state': 'draft',
+                'x_account_move_id': False,
+                'x_balance_before': 0.0,
+                'x_balance_after': 0.0,
+            })
+
+            expense.message_post(body=_('Expense reset to Draft.'))
+
     def action_print_expense_voucher(self):
         return self.env.ref(
             'site_operations.action_report_petty_cash_expense'

@@ -199,6 +199,14 @@
                     <button name="action_post" type="object" string="Post Expense"
                             class="btn-primary" invisible="state != 'draft'"
                             groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_head_office"/>
+                    <!-- Reset to Draft — Finance HO / Admin only.
+                         Cancels the linked JE and reverses any employee advance balance. -->
+                    <button name="action_reset_to_draft" type="object"
+                            string="↩ Reset to Draft"
+                            class="btn-secondary"
+                            invisible="state != 'posted'"
+                            groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin,base.group_system"
+                            confirm="Reset this expense to Draft? The linked journal entry will be cancelled and the GL reversed. This cannot be undone automatically — you will need to re-post or delete the expense."/>
                     <field name="state" widget="statusbar"/>
                     <button name="action_delete_draft" type="object"
                             string="Delete" class="btn-danger"
