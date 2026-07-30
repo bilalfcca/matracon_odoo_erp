@@ -113,6 +113,24 @@ class AccountMoveSiteOps(models.Model):
         help='Bank account title / beneficiary name for this journal entry payment.',
     )
 
+    def write(self, vals):
+        res = super().write(vals)
+        # Propagate cheque number / account title from the move header down to ALL
+        # its journal lines that do not yet have their own per-line value.
+        # This covers:
+        #   • Manual journal entries typed by the user on the JE form header
+        #   • Single-bank payments (cheque propagated from payment → move → lines)
+        # Multi-bank allocation payments stamp each line directly in
+        # _prepare_move_line_default_vals (payment_allocation logic) and are NOT
+        # affected here because their lines already carry per-line values.
+        for field in ('x_cheque_number', 'x_account_title'):
+            if field in vals and vals[field]:
+                for move in self:
+                    blank_lines = move.line_ids.filtered(lambda l: not l[field])
+                    if blank_lines:
+                        blank_lines.write({field: vals[field]})
+        return res
+
     vendor_bill_count = fields.Integer(compute='_compute_linked_counts')
     liability_sheet_count = fields.Integer(compute='_compute_linked_counts')
     picking_count = fields.Integer(compute='_compute_linked_counts')
@@ -920,18 +938,19 @@ class AccountMoveLineSiteOps(models.Model):
         """)
         return super()._register_hook()
 
-    # Stored related fields so they appear in Export and can be searched/filtered.
+    # Standalone stored fields (NOT related) so each move line can hold its own
+    # cheque number — essential for multi-bank allocation payments where each
+    # bank split line carries a different cheque number.
+    # Propagation from move → lines is handled by AccountMoveSiteOps.write().
     x_cheque_number = fields.Char(
-        related='move_id.x_cheque_number',
         string='Cheque / Ref No.',
         store=True,
-        readonly=True,
+        copy=False,
     )
     x_account_title = fields.Char(
-        related='move_id.x_account_title',
         string='Account Title',
         store=True,
-        readonly=True,
+        copy=False,
     )
 
     @api.model_create_multi

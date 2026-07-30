@@ -1400,19 +1400,24 @@ class AccountPaymentSiteOps(models.Model):
             lines.write({'analytic_distribution': dist})
 
     def _matracon_propagate_cheque_to_move(self):
-        """Copy x_cheque_number from this payment → its linked journal entry.
+        """Copy x_cheque_number / x_account_title from this payment to its JE.
 
-        The journal items list (Chart of Accounts drill-down) reads
-        x_cheque_number from account.move via the related field on
-        account.move.line.  Without this step the cheque column is always
-        blank for payment entries because account.payment.x_cheque_number
-        and account.move.x_cheque_number are independent Char fields.
+        Single-bank payments: payment.x_cheque_number is set; write it to
+        move.x_cheque_number and to all move lines that don't yet have their
+        own per-line value (AccountMoveSiteOps.write() handles the cascade).
+
+        Multi-bank allocation payments: payment.x_cheque_number is blank;
+        each split line already has its allocation's cheque stamped in
+        _prepare_move_line_default_vals — nothing to do at move level.
         """
         self.ensure_one()
-        if not self.x_cheque_number or not self.move_id:
+        if not self.move_id:
             return
-        if not self.move_id.x_cheque_number:
+        if self.x_cheque_number and not self.move_id.x_cheque_number:
+            # write() on move propagates to blank lines via our override
             self.move_id.sudo().write({'x_cheque_number': self.x_cheque_number})
+        if self.x_account_title and not self.move_id.x_account_title:
+            self.move_id.sudo().write({'x_account_title': self.x_account_title})
 
     def _prepare_move_line_default_vals(self, write_off_line_vals=None, force_balance=None):
         line_vals_list = super()._prepare_move_line_default_vals(
@@ -1515,6 +1520,13 @@ class AccountPaymentSiteOps(models.Model):
                             if base_name
                             else alloc.journal_id.name
                         )
+                        # Stamp the allocation-level cheque number and account title
+                        # so each bank split line carries its own reference in the
+                        # Chart of Accounts journal items drill-down.
+                        if alloc.x_cheque_number:
+                            split['x_cheque_number'] = alloc.x_cheque_number
+                        if alloc.x_account_title:
+                            split['x_account_title'] = alloc.x_account_title
                         line_vals_list.append(split)
 
         analytic = None
