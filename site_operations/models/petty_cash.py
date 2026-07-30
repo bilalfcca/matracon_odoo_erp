@@ -791,6 +791,18 @@ class PettyCashRequest(models.Model):
         self.unlink()
         return {'type': 'ir.actions.act_window_close'}
 
+    # ── Convenience proxy ─────────────────────────────────────────────────────
+
+    def _get_petty_cash_account(self):
+        """Convenience proxy — delegates to fund_id._get_petty_cash_account().
+
+        Defined here so that both ``request._get_petty_cash_account()`` AND
+        ``request.fund_id._get_petty_cash_account()`` work identically.
+        Prevents AttributeError if a caller forgets the fund_id indirection.
+        """
+        self.ensure_one()
+        return self.fund_id._get_petty_cash_account()
+
 
 class PettyCashExpense(models.Model):
     _name = 'x.petty.cash.expense'
@@ -1016,6 +1028,18 @@ class PettyCashExpense(models.Model):
             ], limit=1)
             if journal:
                 self.journal_id = journal
+
+    # ── Convenience proxy ─────────────────────────────────────────────────────
+
+    def _get_petty_cash_account(self):
+        """Convenience proxy — delegates to fund_id._get_petty_cash_account().
+
+        Defined here so that both ``expense._get_petty_cash_account()`` AND
+        ``expense.fund_id._get_petty_cash_account()`` work identically.
+        Prevents AttributeError if a caller forgets the fund_id indirection.
+        """
+        self.ensure_one()
+        return self.fund_id._get_petty_cash_account()
 
     # ── Actions ───────────────────────────────────────────────────────────────
 
