@@ -1024,6 +1024,15 @@ class AccountPaymentSiteOps(models.Model):
             ('company_id', '=', self.company_id.id),
         ], limit=1) or self.journal_id
 
+        # Resolve FBR partner once — used on WHT credit line so the liability
+        # appears in FBR's partner ledger (Credit when liability is created,
+        # Debit when FBR payment is processed).
+        fbr_partner = self.env['res.partner'].search(
+            ['|', ('name', 'ilike', 'Federal Board of Revenue'),
+                  ('name', 'ilike', 'FBR')],
+            limit=1,
+        )
+
         line_vals = []
         descriptions = []
         for tl in deduction_lines:
@@ -1032,7 +1041,9 @@ class AccountPaymentSiteOps(models.Model):
                 if not credit_account:
                     continue
                 label = _('WHT — %s') % (tl.tax_id.name if tl.tax_id else 'WHT')
-                # Dr AP (vendor) — no credit-side partner; WHT is owed to FBR
+                # Dr AP (vendor) — reduces their payable balance
+                # Cr WHT Payable (FBR as partner) — creates the WHT liability in
+                #   FBR's partner ledger so both sides of the WHT account are visible
                 line_vals += [
                     {
                         'name': label,
@@ -1049,7 +1060,9 @@ class AccountPaymentSiteOps(models.Model):
                     {
                         'name': label,
                         'account_id': credit_account.id,
-                        'partner_id': False,
+                        # Tag FBR as partner so this liability appears in their
+                        # partner ledger (Credit = liability to FBR created)
+                        'partner_id': fbr_partner.id if fbr_partner else False,
                         'debit': 0.0,
                         'credit': tl.amount,
                     },
@@ -1614,12 +1627,18 @@ class AccountPaymentSiteOps(models.Model):
             src_ids = self.x_source_project_ids.ids
             origin_label = self.partner_id.name or ''
 
-        # Optionally pre-fill FBR as vendor if they exist — FO can select/change later.
+        # Pre-fill FBR as vendor if they exist — FO can select/change later.
         fbr_partner = self.env['res.partner'].search(
             ['|', ('name', 'ilike', 'Federal Board of Revenue'),
                   ('name', 'ilike', 'FBR')],
             limit=1,
         )
+
+        # Resolve the WHT payable account so the companion payment's JE
+        # correctly debits it when posted (Dr WHT Payable / Cr Bank).
+        # Without this, the companion would debit FBR's default AP account
+        # instead, leaving the WHT payable account unbalanced.
+        wht_account = self._get_deduction_account('account_wht_payable')
 
         memo = _('WHT — %s | %s') % (origin_label, self.name or '')
 
@@ -1636,6 +1655,11 @@ class AccountPaymentSiteOps(models.Model):
             'x_destination_project_id': self.x_destination_project_id.id or False,
             'x_source_project_ids': [(6, 0, src_ids)],
             'x_origin_payment_id': self.id,
+            # Set the expense account so the companion JE debits WHT Payable
+            # (not FBR's default AP) → WHT account shows both sides:
+            #   Credit when liability created (vendor payment)
+            #   Debit  when WHT paid to FBR  (this companion payment)
+            'x_expense_account_id': wht_account.id if wht_account else False,
         })
         self.x_wht_payment_id = wht_payment.id
         self.message_post(body=_(
