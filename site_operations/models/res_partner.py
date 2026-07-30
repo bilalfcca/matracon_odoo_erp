@@ -80,7 +80,7 @@ class ResPartnerSiteOps(models.Model):
     #
     #   1. _name_search  — typing in the dropdown also matches:
     #        • hr.employee.department_id.name  (e.g. "Civil", "Electrical")
-    #        • res.partner.phone / mobile
+    #        • res.partner.phone (mobile removed in Odoo 19)
     #        • res.partner.email
     #      so the user can type "Civil" and see all Civil-dept employees, or
     #      type a phone number to locate someone directly.
@@ -102,12 +102,12 @@ class ResPartnerSiteOps(models.Model):
                 .ids
             )
             base_domain = list(domain or [])
-            # OR across name, phone, mobile, email, and department match
+            # OR across name, phone, email, and department match
+            # Note: res.partner.mobile was removed in Odoo 19; use phone only.
             search_domain = base_domain + [
-                '|', '|', '|', '|',
+                '|', '|', '|',
                 ('name', operator, name),
                 ('phone', operator, name),
-                ('mobile', operator, name),
                 ('email', operator, name),
                 ('id', 'in', dept_partner_ids),
             ]
@@ -135,7 +135,7 @@ class ResPartnerSiteOps(models.Model):
             if partner.employee:
                 emp = emp_map.get(partner.id)
                 dept = emp.department_id.name if emp and emp.department_id else ''
-                phone = partner.phone or partner.mobile or ''
+                phone = partner.phone or ''  # mobile removed in Odoo 19
                 email = partner.email or ''
                 extra = ', '.join(filter(None, [dept, phone, email]))
                 partner.display_name = (
