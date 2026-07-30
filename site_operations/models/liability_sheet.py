@@ -788,9 +788,12 @@ class LiabilitySheetLine(models.Model):
             self.description = partner_desc
 
     def write(self, vals):
+        # self.env.su is True when called via sudo() — allow system-driven pre-fills
+        # (e.g. action_submit pre-filling approved_amount from recommended_amount).
         user = self.env.user
         can_approve = (
-            user.has_group('purchase_demand_raise.group_ceo_approval')
+            self.env.su
+            or user.has_group('purchase_demand_raise.group_ceo_approval')
             or user.has_group('purchase_demand_raise.group_matracon_admin')
             or user.has_group('base.group_system')
         )
