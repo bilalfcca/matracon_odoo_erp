@@ -1047,7 +1047,7 @@ class PettyCashExpense(models.Model):
                 ))
             # Validate petty cash account early (before state change) so the error
             # message is clear and the transaction is clean.
-            pc_account = expense._get_petty_cash_account()
+            pc_account = expense.fund_id._get_petty_cash_account()
             if not pc_account:
                 raise UserError(_(
                     'No "Cash in Hand" (Petty Cash) account is configured for this site.\n\n'
