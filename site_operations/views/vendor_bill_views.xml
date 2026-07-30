@@ -117,12 +117,20 @@
                 <field name="x_bill_copy_filename" invisible="1"/>
             </xpath>
 
-            <!-- Cheque / payment info — only for journal entries (direct bank payments) -->
-            <xpath expr="//field[@name='narration']" position="before">
-                <group invisible="move_type != 'entry'" string="Payment Details">
-                    <field name="x_cheque_number" placeholder="e.g. CHQ-001 / RTGS-2026-001"/>
-                    <field name="x_account_title" placeholder="Beneficiary name / bank account title"/>
-                </group>
+            <!-- Cheque / payment info — placed in the header left-group, below Reference.
+                 The entry-specific ref field is the one WITHOUT nolabel="1" (the first ref
+                 has nolabel to suppress its label for bills; the entry ref renders normally). -->
+            <xpath expr="//field[@name='ref'][not(@nolabel)]" position="after">
+                <field name="x_cheque_number"
+                       invisible="move_type != 'entry'"
+                       readonly="state == 'posted'"
+                       string="Cheque No."
+                       placeholder="e.g. CHQ-001 / RTGS-2026-001"/>
+                <field name="x_account_title"
+                       invisible="move_type != 'entry'"
+                       readonly="state == 'posted'"
+                       string="Account Title"
+                       placeholder="Beneficiary name / bank account title"/>
             </xpath>
 
             <!-- Liability-registered info banner (kept before narration) -->
