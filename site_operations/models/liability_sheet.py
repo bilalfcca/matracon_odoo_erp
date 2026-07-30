@@ -186,10 +186,12 @@ class LiabilitySheet(models.Model):
                 raise UserError(_(
                     'Enter a Recommended Amount for every selected vendor before submitting: %s'
                 ) % ', '.join(missing.mapped('partner_id.display_name')))
-            # Pre-fill approved_amount from recommended_amount so CEO sees it ready to edit
+            # Pre-fill approved_amount from recommended_amount so CEO sees it ready to edit.
+            # Use sudo() because LiabilitySheetLine.write() guards approved_amount against
+            # non-CEO users — this is a system-driven pre-fill, not a manual CEO action.
             for line in selected:
                 if line.recommended_amount > 0 and not line.approved_amount:
-                    line.approved_amount = line.recommended_amount
+                    line.sudo().write({'approved_amount': line.recommended_amount})
             sheet.state = 'submitted'
             sheet.message_post(
                 body=Markup(_(
