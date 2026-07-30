@@ -170,20 +170,26 @@
                                 <t t-esc="line.name"/>
                             </div>
                         </t>
-                        <!-- Bank details sub-row on credit line (matches BPV style) -->
-                        <t t-if="line.credit > 0 and (o.x_account_title or o.x_cheque_number)">
+                        <!-- Bank / cheque details sub-row — shown on any line that carries
+                             its own x_account_title or x_cheque_number (same concept as BPV).
+                             Falls back to the move-header value when the line field is blank,
+                             so single-cheque entries (where the header value propagates to all
+                             lines) still render correctly. -->
+                        <t t-set="line_account_title"  t-value="line.x_account_title  or o.x_account_title"/>
+                        <t t-set="line_cheque_number"  t-value="line.x_cheque_number  or o.x_cheque_number"/>
+                        <t t-if="line_account_title or line_cheque_number">
                             <table style="margin-top:6px; font-size:9.5pt; border-collapse:collapse; width:auto;">
                                 <tr>
-                                    <t t-if="o.x_account_title">
+                                    <t t-if="line_account_title">
                                         <td style="border:1px solid #aaa; padding:3px 10px; background:#f8f8f8; font-weight:600;">Account Title</td>
                                         <td style="border:1px solid #aaa; padding:3px 14px; min-width:130px;">
-                                            <t t-esc="o.x_account_title"/>
+                                            <t t-esc="line_account_title"/>
                                         </td>
                                     </t>
-                                    <t t-if="o.x_cheque_number">
+                                    <t t-if="line_cheque_number">
                                         <td style="border:1px solid #aaa; padding:3px 10px; background:#f8f8f8; font-weight:600; padding-left:16px;">Cheque No</td>
                                         <td style="border:1px solid #aaa; padding:3px 14px; min-width:110px;">
-                                            <t t-esc="o.x_cheque_number"/>
+                                            <t t-esc="line_cheque_number"/>
                                         </td>
                                     </t>
                                     <td style="border:1px solid #aaa; padding:3px 10px; background:#f8f8f8; font-weight:600; padding-left:16px;">Date</td>

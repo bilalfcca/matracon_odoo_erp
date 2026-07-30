@@ -59,7 +59,7 @@
                     <group>
                         <group string="Vendor">
                             <field name="partner_id"
-                                   options="{'no_create': True}"
+                                   options="{'no_quick_create': True}"
                                    readonly="payment_id != False"/>
                             <field name="x_expense_account_id"
                                    options="{'no_create': True}"
@@ -440,7 +440,7 @@
                                 <list string="Payment Lines" create="1" delete="1">
                                     <field name="sequence" widget="handle"/>
                                     <field name="partner_id"
-                                           options="{'no_create': True}"/>
+                                           options="{'no_quick_create': True}"/>
                                     <field name="x_expense_account_id"
                                            options="{'no_create': True}"
                                            optional="show"/>

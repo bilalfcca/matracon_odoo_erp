@@ -133,6 +133,19 @@
                        placeholder="Beneficiary name / bank account title"/>
             </xpath>
 
+            <!-- Cheque No. and Account Title per line in Journal Items tab —
+                 each move line can carry its own cheque/ref and account title.
+                 Inserted after the Label (name) column; optional="show" so they
+                 appear by default but can be hidden via the column chooser. -->
+            <xpath expr="//page[@id='aml_tab']//field[@name='name']" position="after">
+                <field name="x_cheque_number"
+                       string="Cheque No."
+                       optional="show"/>
+                <field name="x_account_title"
+                       string="Account Title"
+                       optional="show"/>
+            </xpath>
+
             <!-- Liability-registered info banner (kept before narration) -->
             <xpath expr="//field[@name='narration']" position="before">
                 <div class="alert alert-info mb-2 py-1"
