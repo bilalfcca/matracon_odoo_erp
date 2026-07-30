@@ -768,3 +768,50 @@ def post_migrate_hook(env):
             bp_menu.sudo().write({'active': False})
     except Exception:
         pass
+    # Backfill cheque numbers from payments → journal entries (and → journal lines).
+    try:
+        backfill_payment_cheque_numbers(env)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(
+            'post_migrate_hook: backfill_payment_cheque_numbers failed: %s', e)
+
+
+def backfill_payment_cheque_numbers(env):
+    """Propagate x_cheque_number from posted account.payment → account.move → account.move.line.
+
+    For payments posted before _matracon_propagate_cheque_to_move() was added, the
+    cheque number lived only on account.payment and was never written to the linked
+    account.move.  This one-time SQL pass fills the gap so the Chart of Accounts
+    drill-down shows the correct cheque / reference numbers.
+
+    The UPDATE on account_move_line is needed because x_cheque_number there is a
+    store=True related field — Odoo's ORM recompute is not triggered by a raw SQL
+    UPDATE on the parent, so we patch both tables directly.
+    """
+    import logging
+    _log = logging.getLogger(__name__)
+
+    env.cr.execute("""
+        UPDATE account_move am
+           SET x_cheque_number = ap.x_cheque_number
+          FROM account_payment ap
+         WHERE ap.move_id = am.id
+           AND ap.x_cheque_number IS NOT NULL
+           AND ap.x_cheque_number != ''
+           AND (am.x_cheque_number IS NULL OR am.x_cheque_number = '')
+    """)
+    move_rows = env.cr.rowcount
+    _log.info('backfill_payment_cheque_numbers: updated %d account_move rows', move_rows)
+
+    env.cr.execute("""
+        UPDATE account_move_line aml
+           SET x_cheque_number = am.x_cheque_number
+          FROM account_move am
+         WHERE aml.move_id = am.id
+           AND am.x_cheque_number IS NOT NULL
+           AND am.x_cheque_number != ''
+           AND (aml.x_cheque_number IS NULL OR aml.x_cheque_number = '')
+    """)
+    line_rows = env.cr.rowcount
+    _log.info('backfill_payment_cheque_numbers: updated %d account_move_line rows', line_rows)

@@ -1363,6 +1363,7 @@ class AccountPaymentSiteOps(models.Model):
         for payment in self.filtered(lambda p: p.state in _POSTED_STATES):
             payment._matracon_ensure_fund_allocations()
             payment._matracon_tag_payment_move_analytic()
+            payment._matracon_propagate_cheque_to_move()
             payment._matracon_create_interproject_entries()
             payment._matracon_update_liability_on_post()
             payment._matracon_update_petty_cash_on_post()
@@ -1397,6 +1398,21 @@ class AccountPaymentSiteOps(models.Model):
         )
         if lines:
             lines.write({'analytic_distribution': dist})
+
+    def _matracon_propagate_cheque_to_move(self):
+        """Copy x_cheque_number from this payment → its linked journal entry.
+
+        The journal items list (Chart of Accounts drill-down) reads
+        x_cheque_number from account.move via the related field on
+        account.move.line.  Without this step the cheque column is always
+        blank for payment entries because account.payment.x_cheque_number
+        and account.move.x_cheque_number are independent Char fields.
+        """
+        self.ensure_one()
+        if not self.x_cheque_number or not self.move_id:
+            return
+        if not self.move_id.x_cheque_number:
+            self.move_id.sudo().write({'x_cheque_number': self.x_cheque_number})
 
     def _prepare_move_line_default_vals(self, write_off_line_vals=None, force_balance=None):
         line_vals_list = super()._prepare_move_line_default_vals(
