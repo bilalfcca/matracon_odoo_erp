@@ -346,6 +346,34 @@
               groups="purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
     <!-- ════════════════════════════════════════════════════════════════════
+         MANAGEMENT DASHBOARD — Standalone App (CEO, Finance HO, Admin)
+         Separate top-level app so management doesn't need to enter
+         Accounting.  The old Accounting and Project entries are hidden.
+    ════════════════════════════════════════════════════════════════════ -->
+    <menuitem id="menu_matracon_mgmt_root"
+              name="Dashboard"
+              web_icon="site_operations,static/description/dashboard_icon.png"
+              sequence="60"
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
+    <menuitem id="menu_matracon_mgmt_dashboard"
+              name="Management Dashboard"
+              parent="site_operations.menu_matracon_mgmt_root"
+              action="site_operations.action_management_dashboard"
+              sequence="10"
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
+    <!-- Hide the old Accounting → Management Dashboard entry -->
+    <record id="menu_management_dashboard" model="ir.ui.menu">
+        <field name="active" eval="False"/>
+    </record>
+
+    <!-- Hide the old Project → Management Dashboard entry -->
+    <record id="menu_management_dashboard_project" model="ir.ui.menu">
+        <field name="active" eval="False"/>
+    </record>
+
+    <!-- ════════════════════════════════════════════════════════════════════
          COMPLIANCE — Standalone App (CEO, Finance HO, Admin only)
          Bank Guarantees · Tax Notices · WHT Certificates · PDCs
     ════════════════════════════════════════════════════════════════════ -->

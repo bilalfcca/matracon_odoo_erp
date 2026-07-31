@@ -1170,14 +1170,17 @@ class ManagementDashboard(models.TransientModel):
             ('state', 'in', self._ACTIVE_PAYMENT_STATES),
         ] + self._payment_date_domain(date_from, date_to)
         if analytics:
-            # Check all three project-link fields so no real payment is missed:
-            # x_fund_project_id   — primary project tag (most direct payments)
-            # x_destination_project_id — vendor bill payments where fund isn't set
-            # move_id.x_project_analytic_account_id — standard payment journal entries
-            domain += ['|', '|',
+            # Four project-link channels so no real payment is ever missed:
+            # 1. x_fund_project_id             — primary project tag (batch payments)
+            # 2. x_destination_project_id      — vendor bill payments
+            # 3. move_id.x_project_analytic_account_id — standard payment JE header
+            # 4. x_allocation_ids.project_analytic_account_id — multi-source
+            #    batch payments where the project is only tracked via allocation lines
+            domain += ['|', '|', '|',
                 ('x_fund_project_id', 'in', analytics.ids),
                 ('x_destination_project_id', 'in', analytics.ids),
                 ('move_id.x_project_analytic_account_id', 'in', analytics.ids),
+                ('x_allocation_ids.project_analytic_account_id', 'in', analytics.ids),
             ]
         return {
             'type': 'ir.actions.act_window',
@@ -1195,11 +1198,12 @@ class ManagementDashboard(models.TransientModel):
             ('state', 'in', self._ACTIVE_PAYMENT_STATES),
         ] + self._payment_date_domain(date_from, date_to)
         if analytics:
-            # Same three-field OR as payments_made — receipts tagged via any channel
-            domain += ['|', '|',
+            # Same four-field OR as payments_made — receipts tagged via any channel
+            domain += ['|', '|', '|',
                 ('x_fund_project_id', 'in', analytics.ids),
                 ('x_destination_project_id', 'in', analytics.ids),
                 ('move_id.x_project_analytic_account_id', 'in', analytics.ids),
+                ('x_allocation_ids.project_analytic_account_id', 'in', analytics.ids),
             ]
         return {
             'type': 'ir.actions.act_window',
