@@ -22,6 +22,8 @@ class ManagementDashboard(models.TransientModel):
     filter_dashboard_tab = fields.Selection([
         ('overview', 'Management Overview'),
         ('project', 'Project Dashboard'),
+        ('vendors', 'Vendors'),
+        ('subcontractors', 'Subcontractors'),
         ('bank_guarantee', 'Bank Guarantees'),
     ], string='Dashboard View', default='overview', required=True)
 
@@ -809,8 +811,11 @@ class ManagementDashboard(models.TransientModel):
         else:
             kpi_net_balance = funds_received - total_spent_lifetime
 
-        # Liability partner breakdown always from open liability sheets
+        # Liability partner breakdown always from GL — sorted by outstanding balance DESC
+        # (highest liability first so the view always shows top accounts at the top)
         vendor_lines, sub_lines = self._liability_lines_for_analytics(analytics)
+        vendor_lines = sorted(vendor_lines, key=lambda l: l['liability_amount'], reverse=True)
+        sub_lines    = sorted(sub_lines,    key=lambda l: l['liability_amount'], reverse=True)
 
         facilities = self.env['x.bank.guarantee.facility'].sudo().search([])
         bg_total_facility = sum(facilities.mapped('total_limit'))
@@ -1342,3 +1347,133 @@ class ManagementDashboard(models.TransientModel):
         """Open selected project from summary table."""
         self.ensure_one()
         return self.action_open_project_financial_overview()
+
+    # ── Tab-specific dashboard openers ────────────────────────────────────────
+
+    @api.model
+    def action_open_dashboard_tab(self, tab):
+        """Open the dashboard pre-set to *tab*."""
+        if not self._can_open_dashboard():
+            raise UserError(_(
+                'This dashboard is available to Finance HO, CEO, and Admin roles only.'
+            ))
+        dashboard = self.create({'filter_dashboard_tab': tab})
+        self._refresh_dashboard_data(dashboard)
+        tab_names = {
+            'overview':       _('Management Overview'),
+            'project':        _('Project Dashboard'),
+            'vendors':        _('Vendors Dashboard'),
+            'subcontractors': _('Subcontractors Dashboard'),
+            'bank_guarantee': _('Bank Guarantee Management'),
+        }
+        return {
+            'type': 'ir.actions.act_window',
+            'name': tab_names.get(tab, _('Management Dashboard')),
+            'res_model': self._name,
+            'res_id': dashboard.id,
+            'view_mode': 'form',
+            'target': 'current',
+        }
+
+    @api.model
+    def action_open_project_dashboard(self):
+        return self.action_open_dashboard_tab('project')
+
+    @api.model
+    def action_open_vendors_dashboard(self):
+        return self.action_open_dashboard_tab('vendors')
+
+    @api.model
+    def action_open_subcontractors_dashboard(self):
+        return self.action_open_dashboard_tab('subcontractors')
+
+    @api.model
+    def action_open_bg_dashboard(self):
+        return self.action_open_dashboard_tab('bank_guarantee')
+
+    # ── Drilldown actions ─────────────────────────────────────────────────────
+
+    def action_open_vendor_bills(self):
+        """All posted vendor bills for the current scope/period."""
+        analytics = self._active_analytic_accounts()
+        date_from, date_to = self._resolve_date_range()
+        domain = [
+            ('move_type', '=', 'in_invoice'),
+            ('state', '=', 'posted'),
+        ]
+        if analytics:
+            domain.append(('x_project_analytic_account_id', 'in', analytics.ids))
+        if date_from:
+            domain.append(('invoice_date', '>=', date_from))
+        if date_to:
+            domain.append(('invoice_date', '<=', date_to))
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Vendor Bills'),
+            'res_model': 'account.move',
+            'view_mode': 'list,form',
+            'domain': domain,
+        }
+
+    def action_open_sub_vendor_bills(self):
+        """All posted vendor bills for subcontractor partners in current scope."""
+        analytics = self._active_analytic_accounts()
+        date_from, date_to = self._resolve_date_range()
+        sub_partner_ids = self.sub_liability_line_ids.mapped('partner_id').ids or [0]
+        domain = [
+            ('move_type', '=', 'in_invoice'),
+            ('state', '=', 'posted'),
+            ('partner_id', 'in', sub_partner_ids),
+        ]
+        if analytics:
+            domain.append(('x_project_analytic_account_id', 'in', analytics.ids))
+        if date_from:
+            domain.append(('invoice_date', '>=', date_from))
+        if date_to:
+            domain.append(('invoice_date', '<=', date_to))
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Subcontractor Bills'),
+            'res_model': 'account.move',
+            'view_mode': 'list,form',
+            'domain': domain,
+        }
+
+    def action_open_subcontractor_ipcs(self):
+        """All subcontractor IPCs for current scope."""
+        analytics = self._active_analytic_accounts()
+        domain = [('state', 'in', ('submitted', 'approved', 'paid'))]
+        if analytics:
+            domain.append(('project_analytic_account_id', 'in', analytics.ids))
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Subcontractor IPCs'),
+            'res_model': 'x.subcontractor.ipc',
+            'view_mode': 'list,form',
+            'domain': domain,
+        }
+
+    def action_open_sub_payments(self):
+        """All outbound payments to subcontractor partners in current scope."""
+        analytics = self._active_analytic_accounts()
+        date_from, date_to = self._resolve_date_range()
+        sub_partner_ids = self.sub_liability_line_ids.mapped('partner_id').ids or [0]
+        domain = [
+            ('payment_type', '=', 'outbound'),
+            ('state', 'in', self._ACTIVE_PAYMENT_STATES),
+            ('partner_id', 'in', sub_partner_ids),
+        ] + self._payment_date_domain(date_from, date_to)
+        if analytics:
+            domain += ['|', '|', '|',
+                ('x_fund_project_id', 'in', analytics.ids),
+                ('x_destination_project_id', 'in', analytics.ids),
+                ('move_id.x_project_analytic_account_id', 'in', analytics.ids),
+                ('x_allocation_ids.project_analytic_account_id', 'in', analytics.ids),
+            ]
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Subcontractor Payments'),
+            'res_model': 'account.payment',
+            'view_mode': 'list,form',
+            'domain': domain,
+        }

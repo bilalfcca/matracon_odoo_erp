@@ -538,6 +538,189 @@
                         </div>
                     </div>
 
+                    <!-- ══ TAB: Vendors ══ -->
+                    <div invisible="filter_dashboard_tab != 'vendors'">
+
+                        <!-- KPI summary row -->
+                        <div class="row g-3 mb-3">
+                            <div class="col-12 col-md-4">
+                                <div class="card matracon-mgmt-kpi h-100" style="border-left:3px solid #dc3545;">
+                                    <div class="card-body py-3">
+                                        <small class="matracon-mgmt-kpi__label">Total Vendor Outstanding</small>
+                                        <div class="matracon-mgmt-kpi__value text-danger">
+                                            <field name="kpi_vendor_liability" widget="monetary" nolabel="1" readonly="1"/>
+                                        </div>
+                                        <button name="action_open_vendor_liabilities" type="object"
+                                                string="View Liabilities" class="btn btn-sm btn-link p-0"/>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-12 col-md-4">
+                                <div class="card matracon-mgmt-kpi h-100" style="border-left:3px solid #1a3a5c;">
+                                    <div class="card-body py-3">
+                                        <small class="matracon-mgmt-kpi__label">Payments Made (Period)</small>
+                                        <div class="matracon-mgmt-kpi__value">
+                                            <field name="kpi_payments_made" widget="monetary" nolabel="1" readonly="1"/>
+                                        </div>
+                                        <button name="action_open_payments_made" type="object"
+                                                string="View Payments" class="btn btn-sm btn-link p-0"/>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-12 col-md-4">
+                                <div class="card matracon-mgmt-kpi h-100" style="border-left:3px solid #fd7e14;">
+                                    <div class="card-body py-3">
+                                        <small class="matracon-mgmt-kpi__label">Site Inventory Value</small>
+                                        <div class="matracon-mgmt-kpi__value" style="color:#fd7e14;">
+                                            <field name="kpi_inventory_value" widget="monetary" nolabel="1" readonly="1"/>
+                                        </div>
+                                        <button name="action_open_inventory_bills" type="object"
+                                                string="View Bills" class="btn btn-sm btn-link p-0"/>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Vendor liability table — sorted by outstanding balance DESC -->
+                        <div class="card border-0 matracon-dash-card mb-3">
+                            <div class="card-header py-2 px-3 d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong>Vendor Outstanding Balances</strong>
+                                    <span class="badge bg-danger ms-2 small">sorted by balance ↓</span>
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <button name="action_open_vendor_bills" type="object"
+                                            string="All Bills" class="btn btn-sm btn-outline-secondary"/>
+                                    <button name="action_open_payments_made" type="object"
+                                            string="All Payments" class="btn btn-sm btn-outline-secondary"/>
+                                    <button name="action_open_vendor_liabilities" type="object"
+                                            string="All Liabilities" class="btn btn-sm btn-outline-danger"/>
+                                </div>
+                            </div>
+                            <div class="card-body p-0 matracon-dash-table-wrap">
+                                <field name="vendor_liability_line_ids" nolabel="1" readonly="1">
+                                    <list create="false" delete="false" edit="false"
+                                          decoration-danger="liability_amount > 0"
+                                          decoration-success="liability_amount &lt;= 0 and paid_amount > 0">
+                                        <field name="partner_name" string="Vendor"/>
+                                        <field name="category_label" string="Type"/>
+                                        <field name="total_value" widget="monetary" string="Total Billed" sum="Total Billed"/>
+                                        <field name="paid_amount" widget="monetary" string="Total Paid" sum="Total Paid"/>
+                                        <field name="liability_amount" widget="monetary"
+                                               string="Outstanding" sum="Total Outstanding"/>
+                                        <field name="currency_id" column_invisible="1"/>
+                                    </list>
+                                </field>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- ══ TAB: Subcontractors ══ -->
+                    <div invisible="filter_dashboard_tab != 'subcontractors'">
+
+                        <!-- KPI summary row -->
+                        <div class="row g-3 mb-3">
+                            <div class="col-12 col-md-4">
+                                <div class="card matracon-mgmt-kpi h-100" style="border-left:3px solid #dc3545;">
+                                    <div class="card-body py-3">
+                                        <small class="matracon-mgmt-kpi__label">Total Sub Outstanding</small>
+                                        <div class="matracon-mgmt-kpi__value text-danger">
+                                            <field name="kpi_sub_liability" widget="monetary" nolabel="1" readonly="1"/>
+                                        </div>
+                                        <button name="action_open_sub_liabilities" type="object"
+                                                string="View Liabilities" class="btn btn-sm btn-link p-0"/>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-12 col-md-4">
+                                <div class="card matracon-mgmt-kpi h-100" style="border-left:3px solid #1a3a5c;">
+                                    <div class="card-body py-3">
+                                        <small class="matracon-mgmt-kpi__label">Payments to Subs (Period)</small>
+                                        <div class="matracon-mgmt-kpi__value">
+                                            <field name="kpi_payments_made" widget="monetary" nolabel="1" readonly="1"/>
+                                        </div>
+                                        <button name="action_open_sub_payments" type="object"
+                                                string="View Payments" class="btn btn-sm btn-link p-0"/>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-12 col-md-4">
+                                <div class="card matracon-mgmt-kpi h-100" style="border-left:3px solid #6f42c1;">
+                                    <div class="card-body py-3">
+                                        <small class="matracon-mgmt-kpi__label">Active IPCs</small>
+                                        <div class="matracon-mgmt-kpi__value" style="color:#6f42c1;">
+                                            <field name="kpi_total_liabilities" widget="monetary" nolabel="1" readonly="1"/>
+                                        </div>
+                                        <button name="action_open_subcontractor_ipcs" type="object"
+                                                string="View All IPCs" class="btn btn-sm btn-link p-0"/>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Subcontractor liability table — sorted by outstanding balance DESC -->
+                        <div class="card border-0 matracon-dash-card mb-3">
+                            <div class="card-header py-2 px-3 d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong>Subcontractor Outstanding Balances</strong>
+                                    <span class="badge bg-danger ms-2 small">sorted by balance ↓</span>
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <button name="action_open_sub_vendor_bills" type="object"
+                                            string="All Bills" class="btn btn-sm btn-outline-secondary"/>
+                                    <button name="action_open_sub_payments" type="object"
+                                            string="All Payments" class="btn btn-sm btn-outline-secondary"/>
+                                    <button name="action_open_subcontractor_ipcs" type="object"
+                                            string="All IPCs" class="btn btn-sm btn-outline-secondary"/>
+                                    <button name="action_open_sub_liabilities" type="object"
+                                            string="All Liabilities" class="btn btn-sm btn-outline-danger"/>
+                                </div>
+                            </div>
+                            <div class="card-body p-0 matracon-dash-table-wrap">
+                                <field name="sub_liability_line_ids" nolabel="1" readonly="1">
+                                    <list create="false" delete="false" edit="false"
+                                          decoration-danger="liability_amount > 0"
+                                          decoration-success="liability_amount &lt;= 0 and paid_amount > 0">
+                                        <field name="partner_name" string="Subcontractor"/>
+                                        <field name="category_label" string="Work Type"/>
+                                        <field name="total_value" widget="monetary" string="Total Owed" sum="Total Owed"/>
+                                        <field name="paid_amount" widget="monetary" string="Total Paid" sum="Total Paid"/>
+                                        <field name="liability_amount" widget="monetary"
+                                               string="Outstanding" sum="Total Outstanding"/>
+                                        <field name="currency_id" column_invisible="1"/>
+                                    </list>
+                                </field>
+                            </div>
+                        </div>
+
+                        <!-- IPC Summary for subcontractors -->
+                        <div class="card border-0 matracon-dash-card mb-3">
+                            <div class="card-header py-2 px-3 d-flex justify-content-between">
+                                <strong>Subcontractor IPCs (Recent)</strong>
+                                <button name="action_open_subcontractor_ipcs" type="object"
+                                        string="View All" class="btn btn-sm btn-outline-primary"/>
+                            </div>
+                            <div class="card-body p-0 matracon-dash-table-wrap">
+                                <field name="ipc_line_ids" nolabel="1" readonly="1">
+                                    <list create="false" delete="false" edit="false">
+                                        <field name="ipc_name"/>
+                                        <field name="subcontractor_name"/>
+                                        <field name="project_name"/>
+                                        <field name="period"/>
+                                        <field name="ipc_date"/>
+                                        <field name="gross_work_done" widget="monetary" options="{'currency_field': 'currency_id'}"/>
+                                        <field name="total_deductions" widget="monetary" options="{'currency_field': 'currency_id'}"/>
+                                        <field name="net_payable" widget="monetary" options="{'currency_field': 'currency_id'}" sum="Total Net Payable"/>
+                                        <field name="state"/>
+                                        <field name="currency_id" column_invisible="1"/>
+                                    </list>
+                                </field>
+                            </div>
+                        </div>
+
+                    </div>
+
                     <!-- ══ TAB: Bank Guarantee Management ══ -->
                     <div invisible="filter_dashboard_tab != 'bank_guarantee'">
 
@@ -661,6 +844,35 @@
         <field name="model_id" ref="model_x_management_dashboard"/>
         <field name="state">code</field>
         <field name="code">action = model.action_open_dashboard()</field>
+    </record>
+
+    <!-- Tab-specific openers — each lands on a specific dashboard tab -->
+    <record id="action_management_dashboard_project_tab" model="ir.actions.server">
+        <field name="name">Project Dashboard</field>
+        <field name="model_id" ref="model_x_management_dashboard"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_open_project_dashboard()</field>
+    </record>
+
+    <record id="action_management_dashboard_vendors_tab" model="ir.actions.server">
+        <field name="name">Vendors Dashboard</field>
+        <field name="model_id" ref="model_x_management_dashboard"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_open_vendors_dashboard()</field>
+    </record>
+
+    <record id="action_management_dashboard_sub_tab" model="ir.actions.server">
+        <field name="name">Subcontractors Dashboard</field>
+        <field name="model_id" ref="model_x_management_dashboard"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_open_subcontractors_dashboard()</field>
+    </record>
+
+    <record id="action_management_dashboard_bg_tab" model="ir.actions.server">
+        <field name="name">Bank Guarantees Dashboard</field>
+        <field name="model_id" ref="model_x_management_dashboard"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_open_bg_dashboard()</field>
     </record>
 
 </odoo>
