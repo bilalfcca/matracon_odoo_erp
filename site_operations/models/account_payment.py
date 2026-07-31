@@ -93,6 +93,11 @@ class AccountPaymentSiteOps(models.Model):
         ('approved', 'CEO Approved'),
     ], string='CEO Approval', default='not_required', tracking=True)
 
+    # ── CEO approval tracking for digital signatures on PDF ──────────────────
+    x_ceo_approved_by_id = fields.Many2one(
+        'res.users', string='CEO Approved By', readonly=True, copy=False, index=True,
+        help='User who CEO-approved this payment. Signature shown on printed BPV.')
+
     # ── CEO Direct Payment ────────────────────────────────────────────────────
     x_ceo_direct_payment = fields.Boolean(
         string='CEO Direct Payment', default=False,
@@ -725,6 +730,7 @@ class AccountPaymentSiteOps(models.Model):
             if payment.x_ceo_approval_state not in ('pending', 'submitted'):
                 raise UserError(_('This payment is not pending CEO approval.'))
             payment.x_ceo_approval_state = 'approved'
+            payment.x_ceo_approved_by_id = self.env.uid
             # Close the CEO activity that was created when the payment was submitted
             matracon_notify.close_activities(payment, summary_contains='Approve')
             vendor = payment.partner_id.name or '—'

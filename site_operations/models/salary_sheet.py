@@ -42,6 +42,11 @@ class SalarySheet(models.Model):
         'res.currency', default=lambda self: self.env.company.currency_id)
     wht_certificate_count = fields.Integer(compute='_compute_wht_certificate_count')
 
+    # ── Approval tracking for digital signatures on PDF ───────────────────
+    x_ceo_approved_by_id = fields.Many2one(
+        'res.users', string='CEO Approved By', readonly=True, copy=False, index=True,
+        help='User who CEO-approved this salary sheet. Signature shown on printed PDF.')
+
     # ── Physical Signature (download → sign → upload) ─────────────────────────
     signed_sheet = fields.Binary(
         string='Signed Salary Sheet (Upload)',
@@ -205,6 +210,7 @@ class SalarySheet(models.Model):
             if sheet.state != 'submitted':
                 raise UserError(_('Only submitted salary sheets can be approved.'))
             sheet.state = 'approved'
+            sheet.x_ceo_approved_by_id = self.env.uid
             # Close the CEO activity created when the sheet was submitted
             matracon_notify.close_activities(sheet, summary_contains='Approve salary sheet')
 

@@ -73,6 +73,11 @@ class LiabilitySheet(models.Model):
     pm_signed_sheet = fields.Binary(string='PM Signed Copy (Upload)')
     pm_signed_sheet_filename = fields.Char()
 
+    # ── Approval tracking for digital signatures on PDF ───────────────────
+    x_ceo_approved_by_id = fields.Many2one(
+        'res.users', string='CEO Approved By', readonly=True, copy=False, index=True,
+        help='User who CEO-approved this liability sheet. Signature shown on printed PDF.')
+
     line_ids = fields.One2many(
         'x.liability.sheet.line', 'sheet_id', string='Liability Lines')
 
@@ -239,6 +244,7 @@ class LiabilitySheet(models.Model):
             # Create ONE batch payment (Finance HO posts it after adding bank + cheques)
             batch = sheet._create_ceo_batch_payment(lines)
             sheet.state = 'approved'
+            sheet.x_ceo_approved_by_id = self.env.uid
             # Close the CEO activity that was created on submission
             matracon_notify.close_activities(sheet, summary_contains='Approve Liability Sheet')
             msg = Markup(_(

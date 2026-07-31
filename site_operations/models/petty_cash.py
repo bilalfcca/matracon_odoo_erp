@@ -260,6 +260,14 @@ class PettyCashRequest(models.Model):
     currency_id = fields.Many2one(
         'res.currency', default=lambda self: self.env.company.currency_id)
 
+    # ── Approval tracking for digital signatures on PDF ───────────────────
+    x_ceo_approved_by_id = fields.Many2one(
+        'res.users', string='CEO Approved By', readonly=True, copy=False, index=True,
+        help='User who CEO-approved this request. Signature shown on printed PDF.')
+    x_released_by_id = fields.Many2one(
+        'res.users', string='Released By', readonly=True, copy=False, index=True,
+        help='Finance HO user who released the funds. Signature shown on printed PDF.')
+
     # PM-signed document — mandatory before submitting to Finance HO.
     # Workflow: print the petty cash request, get it physically signed by the
     # Project Manager, scan/photograph it and upload here.  action_submit()
@@ -388,6 +396,7 @@ class PettyCashRequest(models.Model):
         """Core approval logic — called by both single and bulk approve."""
         self.ensure_one()
         self.state = 'ceo_approved'
+        self.x_ceo_approved_by_id = self.env.uid
         # Close the CEO activity scheduled on submission
         matracon_notify.close_activities(self, summary_contains='Approve petty cash')
         self.message_post(
@@ -601,6 +610,7 @@ class PettyCashRequest(models.Model):
         payment.destination_account_id = petty_cash_account.id
 
         self.payment_id = payment.id
+        self.x_released_by_id = self.env.uid
         return {
             'type': 'ir.actions.act_window',
             'res_model': 'account.payment',

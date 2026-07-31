@@ -263,18 +263,48 @@
                     </table>
 
                     <!-- ── Approval Signatures ───────────────────────────────── -->
+                    <t t-set="_ss_prep" t-value="sheet.sudo().create_uid"/>
+                    <t t-set="_ss_ceo"  t-value="sheet.sudo().x_ceo_approved_by_id"/>
                     <div class="approval-row">
+                        <!-- Accounts Manager (Prepared By) -->
                         <div class="approval-col">
-                            <div class="sig-space"></div>
+                            <div class="sig-space">
+                                <t t-if="_ss_prep and _ss_prep.x_sign_signature">
+                                    <img t-att-src="image_data_uri(_ss_prep.x_sign_signature)"
+                                         style="max-height:28px; max-width:120px; object-fit:contain;"/>
+                                </t>
+                            </div>
                             <div class="sig-label">ACCOUNTS MANAGER</div>
+                            <t t-if="_ss_prep">
+                                <div style="font-size:7px; color:#374151; margin-top:2px; font-weight:600;">
+                                    <t t-esc="_ss_prep.name"/>
+                                </div>
+                            </t>
                         </div>
+                        <!-- Verified By PM (manual) -->
                         <div class="approval-col">
                             <div class="sig-space"></div>
                             <div class="sig-label">VERIFIED BY PM</div>
                         </div>
+                        <!-- Approved By CEO -->
                         <div class="approval-col">
-                            <div class="sig-space"></div>
-                            <div class="sig-label">APPROVED BY CEO</div>
+                            <div class="sig-space">
+                                <t t-if="_ss_ceo and _ss_ceo.x_sign_signature">
+                                    <img t-att-src="image_data_uri(_ss_ceo.x_sign_signature)"
+                                         style="max-height:28px; max-width:120px; object-fit:contain;"/>
+                                </t>
+                            </div>
+                            <t t-if="_ss_ceo">
+                                <div class="sig-label" style="border-top-color: #198754; color: #198754;">
+                                    &#10003; APPROVED BY CEO
+                                </div>
+                                <div style="font-size:7px; color:#374151; margin-top:2px; font-weight:600;">
+                                    <t t-esc="_ss_ceo.name"/>
+                                </div>
+                            </t>
+                            <t t-else="">
+                                <div class="sig-label">APPROVED BY CEO</div>
+                            </t>
                         </div>
                     </div>
 

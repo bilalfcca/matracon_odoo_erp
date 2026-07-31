@@ -443,6 +443,8 @@
     <div style="margin-top:10px;">
         <t t-call="site_operations.report_sig_4col_labels">
             <t t-set="extra_label">Received By</t>
+            <t t-set="sig_prepared_user" t-value="o.sudo().create_uid"/>
+            <t t-set="sig_approved_user" t-value="o.sudo().x_ceo_approved_by_id"/>
         </t>
     </div>
 

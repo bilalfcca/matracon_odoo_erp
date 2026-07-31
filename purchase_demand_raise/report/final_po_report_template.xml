@@ -322,6 +322,19 @@
                     <t t-set="sig" t-value="o.env['x.po.signature.config'].sudo().search(
                         [('company_id','=',o.company_id.id)], limit=1)"/>
 
+                    <!-- Determine which CEO signature image to show:
+                         1. x.po.signature.config.x_ceo_signature (uploaded image)
+                         2. CEO user's x_sign_signature (drawn/typed in Preferences)  -->
+                    <t t-set="_po_ceo_img" t-value="sig.x_ceo_signature if (sig and sig.x_ceo_signature) else False"/>
+                    <t t-set="_po_ceo_user" t-value="False"/>
+                    <t t-if="not _po_ceo_img">
+                        <!-- Fall back: find a user in CEO Approval group who has drawn their signature -->
+                        <t t-set="_ceo_grp" t-value="env['res.groups'].sudo().search([('name','=','CEO Approval')], limit=1)"/>
+                        <t t-if="_ceo_grp">
+                            <t t-set="_po_ceo_user" t-value="_ceo_grp.users.filtered(lambda u: u.x_sign_signature)[:1]"/>
+                        </t>
+                    </t>
+
                     <p style="margin:24px 0 0 0; font-size:13px; line-height:1.9; text-align:justify;">Thanking you.</p>
                     <p style="margin:0; font-size:13px; line-height:1.9; text-align:justify;">For &amp; on behalf of</p>
                     <p style="margin:0; font-size:13px; line-height:1.9; font-weight:bold; text-align:justify;">
@@ -329,15 +342,19 @@
                     </p>
 
                     <div style="margin-top:8px; min-height:52px;">
-                        <t t-if="sig and sig.x_ceo_signature">
-                            <img t-att-src="image_data_uri(sig.x_ceo_signature)"
+                        <t t-if="_po_ceo_img">
+                            <img t-att-src="image_data_uri(_po_ceo_img)"
+                                 style="max-height:52px; max-width:160px; object-fit:contain; display:block;"/>
+                        </t>
+                        <t t-elif="_po_ceo_user and _po_ceo_user.x_sign_signature">
+                            <img t-att-src="image_data_uri(_po_ceo_user.x_sign_signature)"
                                  style="max-height:52px; max-width:160px; object-fit:contain; display:block;"/>
                         </t>
                     </div>
 
                     <div style="border-top:1px solid #000; padding-top:3px; display:inline-block; min-width:160px;">
                         <p style="margin:0; font-weight:bold; font-size:13px;">
-                            <t t-esc="(sig and sig.x_ceo_name) or 'JEHANZEB SAULAT'"/>
+                            <t t-esc="(sig and sig.x_ceo_name) or (_po_ceo_user and _po_ceo_user.name) or 'JEHANZEB SAULAT'"/>
                         </p>
                         <p style="margin:0; font-size:12px;">
                             <t t-esc="(sig and sig.x_ceo_title) or 'CEO'"/>

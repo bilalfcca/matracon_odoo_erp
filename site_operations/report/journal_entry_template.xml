@@ -244,6 +244,7 @@
     ═══════════════════════════════════════════════════════════════ -->
     <div style="margin-top:50px;">
         <t t-call="site_operations.report_sig_4col_labels">
+            <t t-set="sig_prepared_user" t-value="o.sudo().create_uid"/>
             <t t-set="extra_label">Received By</t>
         </t>
     </div>
