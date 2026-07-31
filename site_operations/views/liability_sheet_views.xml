@@ -263,6 +263,14 @@
                   decoration-primary="state == 'approved'"
                   decoration-warning="state == 'submitted'"
                   decoration-muted="state == 'draft'">
+                <!-- ── Bulk action buttons — appear when records are selected ── -->
+                <header>
+                    <button name="action_download_pdf"
+                            type="object"
+                            string="⬇ Download for PM Signature"
+                            class="btn-secondary"
+                            confirm="Download PDF for the selected liability sheet(s)?"/>
+                </header>
                 <field name="name" string="Reference"/>
                 <field name="project_analytic_account_id" string="Project"/>
                 <field name="date_from" string="Date From"/>

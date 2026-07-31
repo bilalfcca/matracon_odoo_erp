@@ -532,7 +532,15 @@ class LiabilitySheet(models.Model):
             sheet.message_post(body=Markup('').join(msg_parts))
 
     def action_download_pdf(self):
-        """Download unsigned sheet for offline PM signature."""
+        """Download liability sheet PDF for the current record(s).
+
+        When called from the form view, ``self`` is a single record.
+        When called from the list view header (multiple checkboxes ticked),
+        ``self`` is the recordset of ONLY the selected records — the header
+        button mechanism guarantees this so the download is scoped correctly.
+        """
+        if not self:
+            raise UserError(_('No liability sheet selected.'))
         return self.env.ref(
             'site_operations.action_report_liability_sheet').report_action(self)
 

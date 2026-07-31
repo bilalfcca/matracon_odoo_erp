@@ -146,6 +146,11 @@ access_postdated_cheque_admin,postdated.cheque.admin,model_x_postdated_cheque,pu
 access_cheque_series_fo,cheque.series.fo,model_x_cheque_series,site_operations.group_finance_ho,1,1,1,1
 access_cheque_series_ceo,cheque.series.ceo,model_x_cheque_series,purchase_demand_raise.group_ceo_approval,1,1,1,1
 access_cheque_series_admin,cheque.series.admin,model_x_cheque_series,purchase_demand_raise.group_matracon_admin,1,1,1,1
+access_cheque_leaf_fo,cheque.leaf.fo,model_x_cheque_leaf,site_operations.group_finance_ho,1,1,1,1
+access_cheque_leaf_ceo,cheque.leaf.ceo,model_x_cheque_leaf,purchase_demand_raise.group_ceo_approval,1,0,0,0
+access_cheque_leaf_sa,cheque.leaf.sa,model_x_cheque_leaf,site_operations.group_site_accountant,1,0,0,0
+access_cheque_leaf_ho,cheque.leaf.ho,model_x_cheque_leaf,purchase_demand_raise.group_head_office,1,0,0,0
+access_cheque_leaf_admin,cheque.leaf.admin,model_x_cheque_leaf,purchase_demand_raise.group_matracon_admin,1,1,1,1
 access_subcontractor_ipc_site_accountant,subcontractor.ipc.site.accountant,model_x_subcontractor_ipc,site_operations.group_site_accountant,1,1,1,1
 access_subcontractor_ipc_fo,subcontractor.ipc.fo,model_x_subcontractor_ipc,site_operations.group_finance_ho,1,1,1,1
 access_subcontractor_ipc_ceo,subcontractor.ipc.ceo,model_x_subcontractor_ipc,purchase_demand_raise.group_ceo_approval,1,1,1,1
@@ -269,3 +274,8 @@ access_batch_payment_line_tax_matracon_admin,batch.payment.line.tax.matracon.adm
 access_batch_payment_line_proj_alloc_finance_ho,batch.payment.line.proj.alloc.finance.ho,model_x_batch_payment_line_project_allocation,site_operations.group_finance_ho,1,1,1,1
 access_batch_payment_line_proj_alloc_head_office,batch.payment.line.proj.alloc.head.office,model_x_batch_payment_line_project_allocation,purchase_demand_raise.group_head_office,1,1,1,1
 access_batch_payment_line_proj_alloc_matracon_admin,batch.payment.line.proj.alloc.matracon.admin,model_x_batch_payment_line_project_allocation,purchase_demand_raise.group_matracon_admin,1,1,1,1
+access_partner_wht_exemption_finance_ho,partner.wht.exemption.finance.ho,model_x_partner_wht_exemption,site_operations.group_finance_ho,1,1,1,1
+access_partner_wht_exemption_head_office,partner.wht.exemption.head.office,model_x_partner_wht_exemption,purchase_demand_raise.group_head_office,1,0,0,0
+access_partner_wht_exemption_ceo,partner.wht.exemption.ceo,model_x_partner_wht_exemption,purchase_demand_raise.group_ceo_approval,1,0,0,0
+access_partner_wht_exemption_matracon_admin,partner.wht.exemption.matracon.admin,model_x_partner_wht_exemption,purchase_demand_raise.group_matracon_admin,1,1,1,1
+access_partner_wht_exemption_site_accountant,partner.wht.exemption.site.accountant,model_x_partner_wht_exemption,site_operations.group_site_accountant,1,0,0,0

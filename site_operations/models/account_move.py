@@ -108,10 +108,65 @@ class AccountMoveSiteOps(models.Model):
         tracking=True,
         help='Cheque or RTGS/NEFT reference number for this journal entry.',
     )
+    x_bank_journal_id = fields.Many2one(
+        'account.journal',
+        string='Bank',
+        domain="[('type', 'in', ('bank', 'cash'))]",
+        tracking=True,
+        help='Bank / cash journal for this journal entry payment. '
+             'Determines which cheque series is available in the dropdown below.',
+    )
+    x_cheque_leaf_id = fields.Many2one(
+        'x.cheque.leaf',
+        string='Cheque No. (Series)',
+        domain="[('bank_journal_id', '=', x_bank_journal_id), ('state', '=', 'available')]",
+        ondelete='set null',
+        tracking=True,
+        help='Select from active cheque series for the chosen bank. '
+             'Auto-fills Cheque No. and marks the leaf as used on posting.',
+    )
     x_account_title = fields.Char(
         string='Account Title',
         help='Bank account title / beneficiary name for this journal entry payment.',
     )
+
+    @api.onchange('x_bank_journal_id')
+    def _onchange_je_bank_journal(self):
+        """Clear cheque leaf when bank journal changes — leaf is bank-specific."""
+        if self.x_cheque_leaf_id and (
+            self.x_cheque_leaf_id.bank_journal_id != self.x_bank_journal_id
+        ):
+            leaf = self.x_cheque_leaf_id
+            self.x_cheque_leaf_id = False
+            self.x_cheque_number = False
+            leaf.sudo().write({'state': 'available'})
+
+    @api.onchange('x_cheque_leaf_id')
+    def _onchange_je_cheque_leaf(self):
+        if self.x_cheque_leaf_id:
+            self.x_cheque_number = self.x_cheque_leaf_id.cheque_number
+
+    @api.onchange('journal_id')
+    def _onchange_je_journal_clear_leaf(self):
+        """When main journal changes to a bank type, sync x_bank_journal_id."""
+        if self.journal_id and self.journal_id.type in ('bank', 'cash'):
+            if not self.x_bank_journal_id:
+                self.x_bank_journal_id = self.journal_id
+        # Clear leaf if bank no longer matches
+        if self.x_cheque_leaf_id and (
+            self.x_cheque_leaf_id.bank_journal_id != self.x_bank_journal_id
+        ):
+            leaf = self.x_cheque_leaf_id
+            self.x_cheque_leaf_id = False
+            self.x_cheque_number = False
+            leaf.sudo().write({'state': 'available'})
+
+    def action_discard_je_cheque_leaf(self):
+        """Discard the assigned cheque leaf — marks it unusable and clears it from the JE."""
+        self.ensure_one()
+        if self.x_cheque_leaf_id:
+            self.x_cheque_leaf_id.sudo().action_discard()
+            self.x_cheque_leaf_id = False
 
     def write(self, vals):
         res = super().write(vals)
@@ -396,6 +451,9 @@ class AccountMoveSiteOps(models.Model):
         for move in self.filtered(
             lambda m: m.move_type == 'in_invoice' and m.state == 'posted'
         ):
+            # Close the "Review vendor bill" activity scheduled for site accountants
+            # when the bill was auto-created from a stock receipt validation.
+            matracon_notify.close_activities(move, summary_contains='Review vendor bill')
             # Apply project analytic AFTER posting so Odoo's own line recompute
             # (tax lines, payment-term lines) cannot overwrite the distribution.
             # Backcharge-generated bills are excluded — their picking sets analytics.
@@ -434,6 +492,15 @@ class AccountMoveSiteOps(models.Model):
         ):
             move._ensure_liability_from_journal_entry()
 
+        # Mark cheque leaves as used for posted journal entries
+        for move in self.filtered(
+            lambda m: m.move_type == 'entry'
+            and m.state == 'posted'
+            and m.x_cheque_leaf_id
+            and m.x_cheque_leaf_id.state == 'available'
+        ):
+            move.x_cheque_leaf_id.sudo().write({'state': 'used'})
+
         return res
 
     def button_draft(self):
@@ -451,6 +518,13 @@ class AccountMoveSiteOps(models.Model):
         ):
             move._reverse_liability_sheet_from_bill()
         res = super().button_draft()
+        # Release cheque leaves back to available when JE is reset to draft
+        for move in self.filtered(
+            lambda m: m.move_type == 'entry'
+            and m.x_cheque_leaf_id
+            and m.x_cheque_leaf_id.state == 'used'
+        ):
+            move.x_cheque_leaf_id.sudo().write({'state': 'available'})
         # Recompute after draft: pass pre-reset analytics so the compute runs
         # even though the invoices are no longer 'posted'.
         self._matracon_update_project_billed_amount(extra_analytic_ids=pre_analytics)
@@ -934,7 +1008,8 @@ class AccountMoveLineSiteOps(models.Model):
         self.env.cr.execute("""
             ALTER TABLE account_move_line
                 ADD COLUMN IF NOT EXISTS x_cheque_number VARCHAR,
-                ADD COLUMN IF NOT EXISTS x_account_title VARCHAR
+                ADD COLUMN IF NOT EXISTS x_account_title VARCHAR,
+                ADD COLUMN IF NOT EXISTS x_cheque_leaf_id INTEGER
         """)
         return super()._register_hook()
 
@@ -952,6 +1027,20 @@ class AccountMoveLineSiteOps(models.Model):
         store=True,
         copy=False,
     )
+    x_cheque_leaf_id = fields.Many2one(
+        'x.cheque.leaf',
+        string='Cheque No. (Series)',
+        domain="[('bank_journal_id', '=', parent.x_bank_journal_id), ('state', '=', 'available')]",
+        ondelete='set null',
+        store=True,
+        copy=False,
+        help='Select from the active cheque series filtered by the journal entry bank.',
+    )
+
+    @api.onchange('x_cheque_leaf_id')
+    def _onchange_line_cheque_leaf(self):
+        if self.x_cheque_leaf_id:
+            self.x_cheque_number = self.x_cheque_leaf_id.cheque_number
 
     @api.model_create_multi
     def create(self, vals_list):

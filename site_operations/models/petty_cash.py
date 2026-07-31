@@ -1093,6 +1093,7 @@ class PettyCashExpense(models.Model):
 
             expense.state = 'posted'
             expense._create_journal_entry()
+            matracon_notify.close_activities(expense, summary_contains='Post petty cash expense')
 
             balance_after = balance_before - expense.amount
             # Store the running balance snapshot

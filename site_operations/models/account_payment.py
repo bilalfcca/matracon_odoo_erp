@@ -684,6 +684,12 @@ class AccountPaymentSiteOps(models.Model):
         ])
         for payment in self.filtered(
             lambda p: p.x_ceo_approval_state == 'pending'
+            # Vendor payments always go through the Batch Payment system.
+            # CEO approval for vendor payments is requested at batch level
+            # (x.batch.payment.action_submit_to_ceo) — never on individual
+            # account.payment records.  Salary / petty-cash payments are
+            # created individually and still need individual CEO notification.
+            and p.x_payment_category != 'vendor'
         ):
             matracon_notify.notify_users(
                 payment,
@@ -1022,10 +1028,20 @@ class AccountPaymentSiteOps(models.Model):
         if not deduction_lines:
             return
 
-        # Resolve accounts
-        wht_account = self._get_deduction_account('account_wht_payable')
+        # Resolve accounts.
+        # WHT: prefer the per-exemption account stored on each tax line so that
+        # the Credit here (liability created) and the Debit on the FBR companion
+        # payment both land on the SAME account (e.g. 420402 Income Tax 153(1)(A)).
+        # Falls back to the system-level default (xmlid / code 252100).
+        wht_account_default = self._get_deduction_account('account_wht_payable')
         retention_account = self._get_deduction_account('account_retention_payable')
-        if not wht_account and not retention_account:
+
+        has_wht = wht_account_default or any(
+            tl.x_exemption_id and tl.x_exemption_id.x_wht_payable_account_id
+            for tl in deduction_lines
+            if tl.tax_type == 'wht'
+        )
+        if not has_wht and not retention_account:
             return  # Nothing to post — accounts not set up
 
         # Vendor AP account — read from the existing payment JE
@@ -1063,7 +1079,12 @@ class AccountPaymentSiteOps(models.Model):
         descriptions = []
         for tl in deduction_lines:
             if tl.tax_type == 'wht':
-                credit_account = wht_account
+                # Use the exemption-specific account when available; else system default.
+                credit_account = (
+                    (tl.x_exemption_id.x_wht_payable_account_id
+                     if tl.x_exemption_id else False)
+                    or wht_account_default
+                )
                 if not credit_account:
                     continue
                 label = _('WHT — %s') % (tl.tax_id.name if tl.tax_id else 'WHT')

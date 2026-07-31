@@ -31,6 +31,7 @@ from . import liability_sheet
 from . import project_project
 from . import project_site_config
 from . import account_move
+from . import res_partner_wht_exemption
 from . import res_partner
 from . import res_users
 from . import site_store_dashboard

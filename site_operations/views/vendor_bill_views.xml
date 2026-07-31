@@ -119,12 +119,40 @@
 
             <!-- Cheque / payment info — placed in the header left-group, below Reference.
                  The entry-specific ref field is the one WITHOUT nolabel="1" (the first ref
-                 has nolabel to suppress its label for bills; the entry ref renders normally). -->
+                 has nolabel to suppress its label for bills; the entry ref renders normally).
+                 Cheque series dropdown: HO / Finance HO only.
+                 Manual cheque number: all users (SA can type manually). -->
             <xpath expr="//field[@name='ref'][not(@nolabel)]" position="after">
+                <!-- Bank selector + Cheque series — HO / Finance HO / Admin only -->
+                <div invisible="move_type != 'entry'"
+                     groups="purchase_demand_raise.group_head_office,site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin">
+                    <field name="x_bank_journal_id"
+                           string="Bank"
+                           readonly="state == 'posted'"
+                           options="{'no_create': True, 'no_open': True}"
+                           placeholder="Select bank / cash journal"/>
+                    <label for="x_cheque_leaf_id" string="Cheque No. (Series)"/>
+                    <div class="d-flex align-items-center gap-2">
+                        <field name="x_cheque_leaf_id"
+                               nolabel="1"
+                               readonly="state == 'posted'"
+                               options="{'no_create': True, 'no_open': True}"
+                               domain="[('bank_journal_id', '=', x_bank_journal_id), ('state', '=', 'available')]"/>
+                        <button name="action_discard_je_cheque_leaf"
+                                type="object"
+                                string="Discard"
+                                icon="fa-ban"
+                                class="btn btn-sm btn-warning"
+                                title="Mark this cheque as discarded (spoiled/faulty)"
+                                confirm="Mark this cheque as discarded? It cannot be reused."
+                                invisible="not x_cheque_leaf_id or state == 'posted'"/>
+                    </div>
+                </div>
+                <!-- Manual cheque number — all users -->
                 <field name="x_cheque_number"
                        invisible="move_type != 'entry'"
                        readonly="state == 'posted'"
-                       string="Cheque No."
+                       string="Cheque No. (Manual)"
                        placeholder="e.g. CHQ-001 / RTGS-2026-001"/>
                 <field name="x_account_title"
                        invisible="move_type != 'entry'"
@@ -133,13 +161,18 @@
                        placeholder="Beneficiary name / bank account title"/>
             </xpath>
 
-            <!-- Cheque No. and Account Title per line in Journal Items tab —
-                 each move line can carry its own cheque/ref and account title.
-                 Inserted after the Label (name) column; optional="show" so they
-                 appear by default but can be hidden via the column chooser. -->
+            <!-- Cheque series + manual + Account Title per line in Journal Items tab.
+                 Series dropdown: HO / Finance HO / Admin only.
+                 Manual char: all users.
+                 Both optional so they can be hidden via the column chooser. -->
             <xpath expr="//page[@id='aml_tab']//field[@name='name']" position="after">
+                <field name="x_cheque_leaf_id"
+                       string="Cheque No. (Series)"
+                       optional="show"
+                       options="{'no_create': True, 'no_open': True}"
+                       groups="purchase_demand_raise.group_head_office,site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"/>
                 <field name="x_cheque_number"
-                       string="Cheque No."
+                       string="Cheque No. (Manual)"
                        optional="show"/>
                 <field name="x_account_title"
                        string="Account Title"

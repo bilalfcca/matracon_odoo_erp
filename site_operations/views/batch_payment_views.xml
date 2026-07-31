@@ -13,14 +13,21 @@
                 <field name="available_balance" optional="show" readonly="1"/>
                 <field name="allocation_amount" optional="show"/>
                 <field name="x_account_title" optional="show"/>
-                <field name="x_cheque_number" optional="show"/>
-                <button name="action_assign_cheque_number"
+                <field name="x_cheque_leaf_id" optional="show"
+                       string="Cheque No. (Series)"
+                       options="{'no_create': True, 'no_open': True}"
+                       domain="[('bank_journal_id', '=', journal_id), ('state', '=', 'available')]"/>
+                <field name="x_cheque_number" optional="show"
+                       string="Cheque No. (Manual)"
+                       placeholder="Enter manually"/>
+                <button name="action_discard_leaf"
                         type="object"
-                        string="Auto"
-                        icon="fa-hashtag"
-                        class="btn-sm"
-                        title="Auto-assign next cheque number from series"
-                        invisible="not journal_id"/>
+                        string="Discard"
+                        icon="fa-ban"
+                        class="btn-sm btn-warning"
+                        title="Discard this cheque (spoiled/faulty) — it will be removed from future use"
+                        confirm="Mark this cheque as discarded? It cannot be reused."
+                        invisible="not x_cheque_leaf_id"/>
             </list>
         </field>
     </record>
@@ -110,14 +117,21 @@
                                     <field name="available_balance" readonly="1"/>
                                     <field name="allocation_amount"/>
                                     <field name="x_account_title"/>
-                                    <field name="x_cheque_number"/>
-                                    <button name="action_assign_cheque_number"
+                                    <field name="x_cheque_leaf_id"
+                                           string="Cheque No. (Series)"
+                                           options="{'no_create': True, 'no_open': True}"
+                                           domain="[('bank_journal_id', '=', journal_id), ('state', '=', 'available')]"/>
+                                    <field name="x_cheque_number"
+                                           string="Cheque No. (Manual)"
+                                           placeholder="Enter manually"/>
+                                    <button name="action_discard_leaf"
                                             type="object"
-                                            string="Auto"
-                                            icon="fa-hashtag"
-                                            class="btn-sm"
-                                            title="Auto-assign next cheque number from series"
-                                            invisible="not journal_id"/>
+                                            string="Discard"
+                                            icon="fa-ban"
+                                            class="btn-sm btn-warning"
+                                            title="Discard this cheque (spoiled/faulty)"
+                                            confirm="Mark this cheque as discarded? It cannot be reused."
+                                            invisible="not x_cheque_leaf_id"/>
                                 </list>
                             </field>
                         </page>
@@ -139,6 +153,12 @@
                                     <field name="tax_type"/>
                                     <field name="name" optional="show"/>
                                     <field name="tax_id" optional="show"/>
+                                    <field name="x_exemption_rate"
+                                           string="Exemption Rate %"
+                                           optional="show"
+                                           digits="[5,2]"
+                                           help="WHT rate from the partner's exemption certificate. Auto-filled when vendor has an active exemption. Editable."/>
+                                    <field name="x_exemption_id" column_invisible="1"/>
                                     <field name="x_fixed_amount"
                                            optional="show"
                                            string="Fixed Amount"
@@ -147,6 +167,47 @@
                                     <field name="effect"/>
                                 </list>
                             </field>
+
+                            <!-- ── WHT Exemption Certificate Card ── -->
+                            <div class="mt-2 px-3 py-2 rounded"
+                                 style="background:#fff8ec; border:1px solid #d4a843; font-size:12px;"
+                                 invisible="not x_active_exemption_id">
+                                <!-- Heading -->
+                                <div class="fw-bold mb-1" style="color:#7a4500; font-size:13px;">
+                                    <i class="fa fa-file-text-o me-1"/>
+                                    WHT EXEMPTION DETAILS
+                                </div>
+                                <!-- Row 1: Tax Year · Period · Rate · Barcode -->
+                                <div class="mb-1">
+                                    <span class="me-4">
+                                        <b>Tax Year: </b>
+                                        <field name="x_exc_tax_year" readonly="1" nolabel="1" class="d-inline"/>
+                                    </span>
+                                    <span class="me-4">
+                                        <b>Period: </b>
+                                        <field name="x_exc_period_display" readonly="1" nolabel="1" class="d-inline"/>
+                                    </span>
+                                    <span class="me-4">
+                                        <b>Rate: </b>
+                                        <field name="x_exc_rate" readonly="1" nolabel="1"
+                                               digits="[5,2]" class="d-inline"
+                                               style="color:#7a4500; font-weight:700;"/>
+                                        <b> %</b>
+                                    </span>
+                                    <span>
+                                        <b>Barcode: </b>
+                                        <field name="x_exc_barcode" readonly="1" nolabel="1" class="d-inline"/>
+                                    </span>
+                                </div>
+                                <!-- Row 2: Description -->
+                                <div>
+                                    <b>Description: </b>
+                                    <field name="x_exc_description" readonly="1" nolabel="1" class="d-inline"/>
+                                </div>
+                                <!-- Hidden: needed to trigger x_exc_period_display recompute -->
+                                <field name="x_exc_period_from" readonly="1" nolabel="1" invisible="1"/>
+                                <field name="x_exc_period_to" readonly="1" nolabel="1" invisible="1"/>
+                            </div>
 
                             <!-- ── FBR Payment Details ── -->
                             <!-- Visible as soon as a WHT deduction line exists.
@@ -173,24 +234,43 @@
                                            options="{'no_create': True}"
                                            string="WHT Payable Account"
                                            readonly="payment_id != False"/>
+                                    <field name="x_fbr_destination_project_id"
+                                           string="Tax Source Project"
+                                           options="{'no_create': True}"
+                                           readonly="payment_id != False"
+                                           help="Project charged for the WHT cheque to FBR. Auto-filled from the vendor payment project — change here if WHT should be charged to a different project."/>
                                 </group>
                                 <group string="Bank / Cheque">
                                     <field name="x_fbr_journal_id"
                                            options="{'no_create': True}"
                                            readonly="payment_id != False"/>
-                                    <div class="o_field_widget o_wrap_field_widget" invisible="payment_id != False">
-                                        <label for="x_fbr_cheque_number" string="Cheque No. (FBR)"/>
+                                    <!-- Editable: leaf dropdown + manual entry + discard button -->
+                                    <div class="o_field_widget o_wrap_field_widget"
+                                         invisible="payment_id != False">
+                                        <label for="x_fbr_cheque_leaf_id" string="Cheque No. (FBR)"/>
                                         <div class="d-flex align-items-center gap-2">
-                                            <field name="x_fbr_cheque_number" nolabel="1"/>
-                                            <button name="action_assign_fbr_cheque"
+                                            <field name="x_fbr_cheque_leaf_id"
+                                                   nolabel="1"
+                                                   options="{'no_create': True, 'no_open': True}"
+                                                   domain="[('bank_journal_id', '=', x_fbr_journal_id), ('state', '=', 'available')]"/>
+                                            <button name="action_discard_fbr_leaf"
                                                     type="object"
-                                                    string="Auto"
-                                                    icon="fa-hashtag"
-                                                    class="btn btn-sm btn-secondary"
-                                                    title="Auto-assign next cheque number from active series"
-                                                    invisible="not x_fbr_journal_id"/>
+                                                    string="Discard"
+                                                    icon="fa-ban"
+                                                    class="btn btn-sm btn-warning"
+                                                    title="Discard this FBR cheque (spoiled/faulty)"
+                                                    confirm="Mark this FBR cheque as discarded? It cannot be reused."
+                                                    invisible="not x_fbr_cheque_leaf_id"/>
+                                        </div>
+                                        <div class="mt-1">
+                                            <small class="text-muted d-block mb-1">or enter manually:</small>
+                                            <field name="x_fbr_cheque_number"
+                                                   nolabel="1"
+                                                   placeholder="Cheque number"
+                                                   class="w-100"/>
                                         </div>
                                     </div>
+                                    <!-- Read-only: show number after posting -->
                                     <field name="x_fbr_cheque_number"
                                            string="Cheque No. (FBR)"
                                            readonly="1"

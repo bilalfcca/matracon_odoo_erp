@@ -111,7 +111,14 @@ class PaymentBankAllocation(models.Model):
         currency_field='currency_id',
     )
 
-    x_cheque_number = fields.Char(string='Cheque No.')
+    x_cheque_leaf_id = fields.Many2one(
+        'x.cheque.leaf', string='Cheque No.',
+        domain="[('bank_journal_id', '=', journal_id), ('state', '=', 'available')]",
+        ondelete='set null',
+    )
+    # Kept as Char for BPV printing / legacy compatibility;
+    # auto-populated from leaf when a leaf is selected.
+    x_cheque_number = fields.Char(string='Cheque No. (ref)')
 
     x_account_title = fields.Char(
         string='Account Title',
@@ -126,24 +133,71 @@ class PaymentBankAllocation(models.Model):
 
     @api.onchange('journal_id')
     def _onchange_journal_id(self):
-        """Real-time update when journal is selected directly in the list row."""
+        """Clear leaf when journal changes so domain is re-evaluated."""
         self.available_balance = self._get_journal_balance(self.journal_id)
+        if self.x_cheque_leaf_id and (
+                self.x_cheque_leaf_id.bank_journal_id != self.journal_id):
+            old_leaf = self.x_cheque_leaf_id
+            self.x_cheque_leaf_id = False
+            self.x_cheque_number = False
+            # Release the leaf in the same transaction (onchange only, no DB write yet)
+            if old_leaf:
+                old_leaf.sudo().write({'state': 'available'})
 
-    def action_assign_cheque_number(self):
-        """Auto-assign the next cheque number from the active series for this bank."""
+    @api.onchange('x_cheque_leaf_id')
+    def _onchange_cheque_leaf_id(self):
+        """Auto-fill the cheque number char from the selected leaf."""
+        if self.x_cheque_leaf_id:
+            self.x_cheque_number = self.x_cheque_leaf_id.cheque_number
+        else:
+            self.x_cheque_number = False
+
+    # ── ORM: reserve / release leaf on write/create/unlink ───────────────────
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        records = super().create(vals_list)
+        for rec in records:
+            if rec.x_cheque_leaf_id:
+                rec.x_cheque_leaf_id.sudo().write({'state': 'used'})
+                if not rec.x_cheque_number:
+                    rec.x_cheque_number = rec.x_cheque_leaf_id.cheque_number
+        return records
+
+    def write(self, vals):
+        if 'x_cheque_leaf_id' in vals:
+            # Release old leaves before the write changes the FK
+            old_leaves = {rec.id: rec.x_cheque_leaf_id for rec in self}
+        res = super().write(vals)
+        if 'x_cheque_leaf_id' in vals:
+            for rec in self:
+                old_leaf = old_leaves.get(rec.id)
+                if old_leaf and old_leaf != rec.x_cheque_leaf_id:
+                    old_leaf.sudo().write({'state': 'available'})
+                if rec.x_cheque_leaf_id:
+                    rec.x_cheque_leaf_id.sudo().write({'state': 'used'})
+                    if not rec.x_cheque_number:
+                        rec.x_cheque_number = rec.x_cheque_leaf_id.cheque_number
+        return res
+
+    def unlink(self):
+        # Release leaves that are not yet linked to a posted payment
+        for rec in self:
+            if rec.x_cheque_leaf_id and not rec.x_cheque_leaf_id.payment_id:
+                rec.x_cheque_leaf_id.sudo().write({'state': 'available'})
+        return super().unlink()
+
+    def action_discard_leaf(self):
+        """Discard the assigned cheque (spoiled/faulty) and clear the field."""
         self.ensure_one()
-        if not self.journal_id:
-            raise UserError(_('Select a bank / journal first.'))
-        series = self.env['x.cheque.series'].search([
-            ('bank_journal_id', '=', self.journal_id.id),
-            ('state', '=', 'active'),
-        ], limit=1)
-        if not series:
-            raise UserError(_(
-                'No active cheque series found for bank "%s". '
-                'Please set one up under Accounting → Configuration → Cheque Series.'
-            ) % self.journal_id.name)
-        self.x_cheque_number = series.get_next_cheque_number()
+        if not self.x_cheque_leaf_id:
+            raise UserError(_('No cheque assigned — nothing to discard.'))
+        leaf = self.x_cheque_leaf_id
+        self.write({'x_cheque_leaf_id': False, 'x_cheque_number': False})
+        leaf.sudo().write({
+            'state': 'discarded',
+            'discarded_date': fields.Date.today(),
+        })
         return False
 
     @api.model

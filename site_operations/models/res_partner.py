@@ -21,6 +21,11 @@ class ResPartnerSiteOps(models.Model):
              'Hides them from vendor/customer selection lists.'
     )
 
+    x_wht_exemption_ids = fields.One2many(
+        'x.partner.wht.exemption', 'partner_id',
+        string='WHT Exemptions',
+    )
+
     x_material_issuance_count = fields.Integer(
         string='Material Issuances',
         compute='_compute_x_material_issuance_count',
