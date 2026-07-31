@@ -61,13 +61,13 @@
               sequence="5"
               groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin"/>
 
-    <!-- Purchase → Configuration → T&C Templates (Head Office + Admin) -->
+    <!-- Purchase → Configuration → T&C Templates (Procurement HO + Head Office + Admin) -->
     <menuitem id="menu_po_terms_templates"
               name="T&amp;C Templates"
               parent="purchase.menu_purchase_config"
               action="purchase_demand_raise.action_po_terms_template"
               sequence="48"
-              groups="purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+              groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
     <!-- Purchase → Configuration → Site Project Configurations (Matracon Admin) -->
     <menuitem id="menu_project_site_config_matracon_admin"

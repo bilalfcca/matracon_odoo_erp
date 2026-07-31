@@ -231,6 +231,9 @@
                                             <field name="x_product_id" string="Product" readonly="1"/>
                                             <field name="x_uom_id" string="UoM" readonly="1"/>
                                             <field name="x_qty" string="Qty" readonly="1"/>
+                                            <field name="x_currency_id" string="Currency"
+                                                   optional="show"
+                                                   options="{'no_create': True, 'no_open': True}"/>
                                             <field name="x_unit_price" string="Unit Price"/>
                                             <field name="x_total_price" string="Total" readonly="1"/>
                                             <field name="x_gst_rate" string="GST %"/>
@@ -289,8 +292,13 @@
                                             <!-- 4. Payment Terms (Odoo standard) -->
                                             <field name="x_payment_term_id"
                                                    string="Payment Terms"
-                                                   options="{'no_create': True, 'no_open': True}"
+                                                   options="{'no_create': False, 'no_open': True}"
                                                    placeholder="Select standard payment terms…"/>
+                                            <!-- Custom note — shown only when "Other / Custom Terms" selected -->
+                                            <field name="x_custom_payment_note"
+                                                   string="Custom Note"
+                                                   placeholder="Specify custom arrangement…"
+                                                   invisible="not x_payment_term_id or x_payment_term_id.name != 'Other / Custom Terms'"/>
 
                                             <!-- 2. Taxes &amp; Duties -->
                                             <field name="x_tax_opt_id"

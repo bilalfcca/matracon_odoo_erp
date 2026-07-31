@@ -494,7 +494,11 @@ class CSVendor(models.Model):
     x_payment_term_id = fields.Many2one(
         'account.payment.term',
         string='Payment Terms',
-        help='Select from standard payment terms.',
+        help='Select from standard payment terms. Choose "Other / Custom Terms" to enter custom text.',
+    )
+    x_custom_payment_note = fields.Char(
+        string='Custom Payment Note',
+        help='Specify custom payment arrangement (shown when "Other / Custom Terms" is selected).',
     )
 
     # 5. Delivery Time
@@ -772,6 +776,9 @@ class CSVendor(models.Model):
             # Payment Terms (standard Odoo dropdown)
             if self.x_payment_term_id:
                 vals['payment_term_id'] = self.x_payment_term_id.id
+            # Custom payment note (when "Other / Custom Terms" is selected)
+            if self.x_custom_payment_note:
+                vals['x_quote_payment_terms'] = self.x_custom_payment_note
             # T&C (if any set on the vendor row — kept for backward compat)
             if self.x_tc_text:
                 vals['note'] = self.x_tc_text
@@ -793,7 +800,7 @@ class CSVendor(models.Model):
                 vals['x_quote_warranty'] = self.x_warranty
             pr.sudo().write(vals)
 
-            # Copy winning prices to PR lines
+            # Copy winning prices (and per-line currency) to PR lines
             for cs_line in self.x_line_ids:
                 if not cs_line.x_product_id:
                     continue
@@ -802,6 +809,8 @@ class CSVendor(models.Model):
                 )[:1]
                 if pr_line and cs_line.x_unit_price:
                     pr_line.price_unit = cs_line.x_unit_price
+                if pr_line and cs_line.x_currency_id:
+                    pr_line.x_line_currency_id = cs_line.x_currency_id
 
             pr.message_post(
                 body=Markup(
@@ -984,6 +993,12 @@ class CSVendorLine(models.Model):
                 # NOTE: cannot read the field being computed; always assign a value
                 line.x_qty = 1.0
 
+    x_currency_id = fields.Many2one(
+        'res.currency',
+        string='Currency',
+        default=lambda self: self.env.company.currency_id,
+        help='Currency vendor quoted in. Copied to PO line when this vendor is chosen.',
+    )
     x_unit_price = fields.Float(string='Unit Price', digits='Product Price')
     x_total_price = fields.Float(
         string='Total Price', compute='_compute_line_totals', store=True,

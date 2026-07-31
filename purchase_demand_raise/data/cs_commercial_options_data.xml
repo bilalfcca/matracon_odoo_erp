@@ -195,4 +195,10 @@
         <field name="sequence">6</field>
     </record>
 
+    <!-- ── Payment Terms: special "Other / Custom" option ──────────── -->
+    <record id="payment_term_other_custom" model="account.payment.term">
+        <field name="name">Other / Custom Terms</field>
+        <field name="note">As per separate agreement / custom arrangement with the vendor.</field>
+    </record>
+
 </odoo>
