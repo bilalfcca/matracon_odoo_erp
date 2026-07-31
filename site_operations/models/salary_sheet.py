@@ -205,6 +205,8 @@ class SalarySheet(models.Model):
             if sheet.state != 'submitted':
                 raise UserError(_('Only submitted salary sheets can be approved.'))
             sheet.state = 'approved'
+            # Close the CEO activity created when the sheet was submitted
+            matracon_notify.close_activities(sheet, summary_contains='Approve salary sheet')
 
             # ── Reduce employee advance balances by the deducted amounts ──────
             advance_log = []
@@ -351,6 +353,8 @@ class SalarySheet(models.Model):
             'x_ceo_approval_state': 'approved',
             'x_tax_line_ids': tax_lines,
         })
+        # Close Finance HO activity created after CEO approval
+        matracon_notify.close_activities(self, summary_contains='Create salary payment')
         return {
             'type': 'ir.actions.act_window',
             'res_model': 'account.payment',

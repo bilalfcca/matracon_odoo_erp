@@ -239,6 +239,8 @@ class LiabilitySheet(models.Model):
             # Create ONE batch payment (Finance HO posts it after adding bank + cheques)
             batch = sheet._create_ceo_batch_payment(lines)
             sheet.state = 'approved'
+            # Close the CEO activity that was created on submission
+            matracon_notify.close_activities(sheet, summary_contains='Approve Liability Sheet')
             msg = Markup(_(
                 'Liability Sheet approved by CEO <b>%(ceo)s</b>. '
                 'Total Approved: <b>%(total)s</b>.<br/>'
@@ -398,6 +400,8 @@ class LiabilitySheet(models.Model):
                     'Some approved lines are not fully paid yet: %s'
                 ) % ', '.join(unpaid.mapped('partner_id.display_name')))
             sheet.state = 'paid'
+            # Close the Finance HO activity that was created on CEO approval
+            matracon_notify.close_activities(sheet)
             sheet.message_post(body=_('All approved payments completed — sheet closed by Finance HO.'))
             next_sheet = sheet._create_next_period_sheet()
             if next_sheet:
@@ -466,6 +470,7 @@ class LiabilitySheet(models.Model):
             sheet.line_ids.write({'is_locked': False, 'payment_id': False})
             prev_state = dict(sheet._fields['state'].selection).get(sheet.state, sheet.state)
             sheet.state = 'draft'
+            matracon_notify.close_activities(sheet)
             sheet.message_post(body=Markup(_(
                 'Liability Sheet reset to <b>Draft</b> by <b>%(user)s</b> '
                 '(was: <i>%(prev)s</i>).'
@@ -506,6 +511,7 @@ class LiabilitySheet(models.Model):
             # Unlock all lines and clear draft payment links.
             sheet.line_ids.write({'is_locked': False, 'payment_id': False})
             sheet.state = 'draft'
+            matracon_notify.close_activities(sheet)
 
             # Build detailed chatter message — always preserved.
             msg_parts = [Markup(_(

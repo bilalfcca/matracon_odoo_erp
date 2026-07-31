@@ -637,6 +637,8 @@ class BankGuarantee(models.Model):
                 'amount_change': -rec.bg_amount,
                 'amendment_date': fields.Date.context_today(rec),
             })]
+            # Close all pending activities (expiry alerts, etc.)
+            matracon_notify.close_activities(rec)
 
     def action_amend(self):
         self.ensure_one()
@@ -656,10 +658,14 @@ class BankGuarantee(models.Model):
 
     def action_reset_draft(self):
         resettable = ('pending', 'active', 'locked', 'released', 'expired', 'cancelled')
-        self.filtered(lambda r: r.state in resettable).write({'state': 'draft'})
+        for rec in self.filtered(lambda r: r.state in resettable):
+            rec.write({'state': 'draft'})
+            matracon_notify.close_activities(rec)
 
     def action_cancel(self):
-        self.filtered(lambda r: r.state in ('draft', 'pending')).write({'state': 'cancelled'})
+        for rec in self.filtered(lambda r: r.state in ('draft', 'pending')):
+            rec.write({'state': 'cancelled'})
+            matracon_notify.close_activities(rec)
 
     # ── Notification helpers ─────────────────────────────────────────────────
 

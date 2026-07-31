@@ -140,6 +140,11 @@ class AccountPaymentSiteOps(models.Model):
              'this field does not affect whether the payment appears in an IPC.',
     )
 
+    x_cheque_leaf_id = fields.Many2one(
+        'x.cheque.leaf', string='Cheque No.',
+        domain="[('bank_journal_id', '=', journal_id), ('state', '=', 'available')]",
+        ondelete='set null', tracking=True,
+    )
     x_cheque_number = fields.Char(string='Cheque / Reference No.', tracking=True)
 
     x_is_cheque_payment = fields.Boolean(
@@ -271,11 +276,28 @@ class AccountPaymentSiteOps(models.Model):
             'domain': [('payment_id', '=', self.id)],
         }
 
+    @api.onchange('x_cheque_leaf_id')
+    def _onchange_cheque_leaf_id(self):
+        """Auto-fill x_cheque_number from the selected leaf."""
+        if self.x_cheque_leaf_id:
+            self.x_cheque_number = self.x_cheque_leaf_id.cheque_number
+        # Don't clear x_cheque_number when leaf is unset — user may have typed manually.
+
     def action_assign_cheque_number(self):
-        """Auto-assign next cheque number from the active series for this bank."""
+        """Kept for backward compat — picks next available leaf (or legacy counter)."""
         self.ensure_one()
         if not self.journal_id:
             raise UserError(_('Select a payment journal first.'))
+        # Prefer leaf-based assignment
+        leaf = self.env['x.cheque.leaf'].search([
+            ('bank_journal_id', '=', self.journal_id.id),
+            ('state', '=', 'available'),
+        ], order='number_int asc', limit=1)
+        if leaf:
+            self.x_cheque_leaf_id = leaf
+            self.x_cheque_number = leaf.cheque_number
+            return
+        # Legacy fallback
         series = self.env['x.cheque.series'].search([
             ('bank_journal_id', '=', self.journal_id.id),
             ('state', '=', 'active'),
@@ -697,6 +719,8 @@ class AccountPaymentSiteOps(models.Model):
             if payment.x_ceo_approval_state not in ('pending', 'submitted'):
                 raise UserError(_('This payment is not pending CEO approval.'))
             payment.x_ceo_approval_state = 'approved'
+            # Close the CEO activity that was created when the payment was submitted
+            matracon_notify.close_activities(payment, summary_contains='Approve')
             vendor = payment.partner_id.name or '—'
             amount_str = '{:,.2f}'.format(payment.amount)
             currency_sym = payment.currency_id.symbol or ''
@@ -757,6 +781,8 @@ class AccountPaymentSiteOps(models.Model):
                     'Cancel the payment first if needed.'
                 ))
             payment.x_ceo_approval_state = 'pending'
+            # Close Finance HO 'Process payment' activity since approval was reversed
+            matracon_notify.close_activities(payment, summary_contains='Process payment')
             payment.message_post(
                 body=_('CEO reversed approval — payment returned to Pending status. '
                        'Finance HO must re-submit for a fresh approval.')
@@ -1267,30 +1293,32 @@ class AccountPaymentSiteOps(models.Model):
             )
 
     def _get_next_bpv_ref(self):
-        """Return the next BPV-YY-MM-XXXXX reference for the current month."""
+        """Return the next BPV-YY-MM-XXXXXX reference.
+
+        Counter is YEARLY — it never resets mid-year.  If January closes at 50,
+        February starts at 51.  The 6-digit zero-padded sequence is shared
+        across all months within the same financial/calendar year.
+        Format: BPV-26-07-000001
+        """
         today = fields.Date.context_today(self)
         yy = today.year % 100
         mm = today.month
-        prefix = 'BPV-%02d-%02d-' % (yy, mm)
+        # Search all months in the current year to find the global max sequence
+        year_pattern = 'BPV-%02d-' % yy
         self.env.cr.execute(
             """
-            SELECT x_bpv_ref FROM account_payment
-            WHERE x_bpv_ref LIKE %s
-            ORDER BY x_bpv_ref DESC
-            LIMIT 1
+            SELECT COALESCE(
+                MAX(CAST(split_part(x_bpv_ref, '-', 4) AS INTEGER)),
+                0
+            )
+            FROM account_payment
+            WHERE x_bpv_ref ~ %s
             """,
-            (prefix + '%',),
+            (r'^BPV-%02d-[0-9]{2}-[0-9]+$' % yy,),
         )
         row = self.env.cr.fetchone()
-        if row:
-            try:
-                last_seq = int(row[0].split('-')[-1])
-            except (ValueError, IndexError):
-                last_seq = 0
-            next_seq = last_seq + 1
-        else:
-            next_seq = 1
-        return prefix + '%05d' % next_seq
+        next_seq = (row[0] or 0) + 1
+        return 'BPV-%02d-%02d-%06d' % (yy, mm, next_seq)
 
     def action_post(self):
         """Auto-assign cheque number from series before posting if not already set."""
@@ -1388,6 +1416,8 @@ class AccountPaymentSiteOps(models.Model):
             # carries a WHT deduction line — vendor, salary, or any other category.
             if payment.payment_type == 'outbound':
                 payment._create_wht_payment_if_needed()
+            # Close any pending Todo activities (CEO approval / FO process) on this payment
+            matracon_notify.close_activities(payment)
         return res
 
     def _matracon_tag_payment_move_analytic(self):

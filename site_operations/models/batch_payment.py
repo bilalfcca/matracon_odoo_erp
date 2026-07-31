@@ -174,6 +174,7 @@ class BatchPayment(models.Model):
                 line._create_and_post_payment()
 
             batch.state = 'posted'
+            matracon_notify.close_activities(batch)
             batch.message_post(
                 body=_(
                     'Batch posted. <b>%d</b> payment(s) created.'
@@ -239,6 +240,8 @@ class BatchPayment(models.Model):
                 raise UserError(_('Only draft batches can be approved.'))
 
             batch.x_ceo_approval_state = 'approved'
+            # Close the CEO activity that was scheduled on submission
+            matracon_notify.close_activities(batch, summary_contains='Approve Batch Payment')
             total_str = '{:,.2f}'.format(batch.total_net)
             currency_sym = batch.currency_id.symbol or ''
             batch.message_post(
@@ -283,6 +286,8 @@ class BatchPayment(models.Model):
                     'Cancel the batch first if needed.'
                 ))
             batch.x_ceo_approval_state = 'pending'
+            # Close any FO 'Post batch payment' activity that was created on CEO approval
+            matracon_notify.close_activities(batch, summary_contains='Post batch payment')
             batch.message_post(
                 body=_('CEO reversed approval — batch returned to Pending status. '
                        'Finance HO must re-submit for a fresh approval.')
@@ -296,6 +301,7 @@ class BatchPayment(models.Model):
                     'Cancel the individual payments directly if needed.'
                 ))
             batch.state = 'cancelled'
+            matracon_notify.close_activities(batch)
             batch.message_post(body=_('Batch cancelled.'))
 
     def action_reset_to_draft(self):
@@ -463,6 +469,30 @@ class BatchPaymentLine(models.Model):
         compute='_compute_has_wht', store=True,
         help='True when at least one WHT deduction tax line is present.',
     )
+    # Exemption certificate linked to the first WHT deduction line (if any).
+    # Computed so the view can display exemption details as a styled card.
+    x_active_exemption_id = fields.Many2one(
+        'x.partner.wht.exemption', string='WHT Exemption',
+        compute='_compute_has_wht', store=False,
+        help='Auto-filled from the WHT tax line when vendor has an exemption certificate.',
+    )
+    x_exc_tax_year = fields.Char(related='x_active_exemption_id.tax_year', string='Tax Year', store=False)
+    x_exc_period_from = fields.Date(related='x_active_exemption_id.period_from', string='Period From', store=False)
+    x_exc_period_to = fields.Date(related='x_active_exemption_id.period_to', string='Period To', store=False)
+    x_exc_barcode = fields.Char(related='x_active_exemption_id.barcode_number', string='Barcode No.', store=False)
+    x_exc_description = fields.Char(related='x_active_exemption_id.description', string='Description', store=False)
+    x_exc_rate = fields.Float(related='x_active_exemption_id.rate', string='Rate %', digits=(5, 2), store=False)
+    x_exc_period_display = fields.Char(
+        string='Period', compute='_compute_exc_period_display', store=False,
+        help='Formatted period range for compact display in the payment dialog.',
+    )
+
+    @api.depends('x_exc_period_from', 'x_exc_period_to')
+    def _compute_exc_period_display(self):
+        for line in self:
+            frm = line.x_exc_period_from.strftime('%d %b %Y') if line.x_exc_period_from else '—'
+            to = line.x_exc_period_to.strftime('%d %b %Y') if line.x_exc_period_to else '—'
+            line.x_exc_period_display = '%s – %s' % (frm, to)
     x_fbr_partner_id = fields.Many2one(
         'res.partner', string='FBR Payee',
         help='Payee for the WHT cheque — usually "Federal Board of Revenue (FBR)". '
@@ -473,7 +503,13 @@ class BatchPaymentLine(models.Model):
         domain="[('type', 'in', ('bank', 'cash'))]",
         help='Bank journal from which the FBR WHT cheque will be issued.',
     )
-    x_fbr_cheque_number = fields.Char(string='Cheque No. (FBR)')
+    x_fbr_cheque_leaf_id = fields.Many2one(
+        'x.cheque.leaf', string='Cheque No. (FBR)',
+        domain="[('bank_journal_id', '=', x_fbr_journal_id), ('state', '=', 'available')]",
+        ondelete='set null',
+    )
+    # Char kept for companion payment creation / BPV; auto-filled from leaf
+    x_fbr_cheque_number = fields.Char(string='Cheque No. (FBR ref)')
     x_fbr_account_title = fields.Char(
         string='Account Title (FBR)',
         help='Account holder name on the FBR cheque.',
@@ -482,6 +518,12 @@ class BatchPaymentLine(models.Model):
         'account.account', string='WHT Payable Account',
         help='GL account to debit on the FBR payment JE (clears WHT Payable liability). '
              'Auto-filled from the WHT Payable account configured in Chart of Accounts.',
+    )
+    x_fbr_destination_project_id = fields.Many2one(
+        'account.analytic.account',
+        string='Tax Source Project',
+        help='Project charged for the WHT payment to FBR. '
+             'Auto-filled from the vendor payment project but can be changed independently.',
     )
     x_fbr_payment_id = fields.Many2one(
         'account.payment', string='WHT Payment (FBR)',
@@ -516,13 +558,17 @@ class BatchPaymentLine(models.Model):
 
     # ── Compute ───────────────────────────────────────────────────────────────
 
-    @api.depends('tax_line_ids.tax_type', 'tax_line_ids.effect')
+    @api.depends('tax_line_ids.tax_type', 'tax_line_ids.effect', 'tax_line_ids.x_exemption_id')
     def _compute_has_wht(self):
         for line in self:
-            line.x_has_wht = any(
-                t.tax_type == 'wht' and t.effect == 'deduct'
-                for t in line.tax_line_ids
-            )
+            wht_lines = [
+                t for t in line.tax_line_ids
+                if t.tax_type == 'wht' and t.effect == 'deduct'
+            ]
+            line.x_has_wht = bool(wht_lines)
+            # Pick the first WHT line that carries an exemption certificate
+            exc_line = next((t for t in wht_lines if t.x_exemption_id), None)
+            line.x_active_exemption_id = exc_line.x_exemption_id.id if exc_line else False
 
     @api.depends(
         'tax_line_ids.amount', 'tax_line_ids.effect', 'gross_amount',
@@ -540,10 +586,48 @@ class BatchPaymentLine(models.Model):
 
     # ── Onchange helpers ──────────────────────────────────────────────────────
 
+    @api.onchange('partner_id')
+    def _onchange_partner_id_wht_exemption(self):
+        """When vendor changes, replace WHT exemption tax lines for the new vendor.
+
+        Always clears old exemption-driven lines first (even when new vendor has none).
+        Looks for an exemption whose period covers today; falls back to the latest row.
+        """
+        # ── Step 1: always clear old exemption-driven lines on partner change ──
+        to_remove = self.tax_line_ids.filtered(lambda t: t.x_exemption_id)
+        self.tax_line_ids -= to_remove
+
+        if not self.partner_id:
+            return
+
+        # ── Step 2: find active exemption for new partner ──
+        today = fields.Date.today()
+        exemption = self.env['x.partner.wht.exemption'].search([
+            ('partner_id', '=', self.partner_id.id),
+            '|', ('period_from', '=', False), ('period_from', '<=', today),
+            '|', ('period_to', '=', False), ('period_to', '>=', today),
+        ], order='period_to desc, id desc', limit=1)
+        if not exemption:
+            # Fallback: latest record regardless of period
+            exemption = self.env['x.partner.wht.exemption'].search([
+                ('partner_id', '=', self.partner_id.id),
+            ], order='period_to desc, id desc', limit=1)
+        if not exemption:
+            return
+
+        # ── Step 3: add new WHT line from the exemption ──
+        self.tax_line_ids = [(0, 0, {
+            'tax_type': 'wht',
+            'effect': 'deduct',
+            'name': exemption.description or ('WHT %.2f%%' % exemption.rate),
+            'x_exemption_id': exemption.id,
+            'x_exemption_rate': exemption.rate,
+            'sequence': 10,
+        })]
+
     @api.onchange('tax_line_ids')
     def _onchange_tax_lines_autofill_fbr(self):
-        """When a WHT line is added, pre-fill FBR partner only.
-        WHT Payable Account is intentionally left for manual selection."""
+        """When a WHT line is added, pre-fill FBR partner and tax source project."""
         has_wht = any(
             t.tax_type == 'wht' and t.effect == 'deduct'
             for t in self.tax_line_ids
@@ -560,22 +644,44 @@ class BatchPaymentLine(models.Model):
                 self.x_fbr_partner_id = fbr
                 if not self.x_fbr_account_title:
                     self.x_fbr_account_title = fbr.name
+        # Auto-fill tax source project from the vendor payment project
+        if not self.x_fbr_destination_project_id and self.x_destination_project_id:
+            self.x_fbr_destination_project_id = self.x_destination_project_id
 
-    def action_assign_fbr_cheque(self):
-        """Auto-assign next cheque number from the active series for the FBR bank."""
+    @api.onchange('x_destination_project_id')
+    def _onchange_vendor_project_sync_fbr(self):
+        """Keep tax source project in sync with vendor project unless already overridden."""
+        if self.x_has_wht and not self.x_fbr_destination_project_id:
+            self.x_fbr_destination_project_id = self.x_destination_project_id
+
+    @api.onchange('x_fbr_cheque_leaf_id')
+    def _onchange_fbr_cheque_leaf_id(self):
+        if self.x_fbr_cheque_leaf_id:
+            self.x_fbr_cheque_number = self.x_fbr_cheque_leaf_id.cheque_number
+        else:
+            self.x_fbr_cheque_number = False
+
+    @api.onchange('x_fbr_journal_id')
+    def _onchange_fbr_journal_clear_leaf(self):
+        if self.x_fbr_cheque_leaf_id and (
+                self.x_fbr_cheque_leaf_id.bank_journal_id != self.x_fbr_journal_id):
+            old_leaf = self.x_fbr_cheque_leaf_id
+            self.x_fbr_cheque_leaf_id = False
+            self.x_fbr_cheque_number = False
+            if old_leaf:
+                old_leaf.sudo().write({'state': 'available'})
+
+    def action_discard_fbr_leaf(self):
+        """Discard the assigned FBR cheque (spoiled/faulty)."""
         self.ensure_one()
-        if not self.x_fbr_journal_id:
-            raise UserError(_('Select a Bank / Journal for the FBR payment first.'))
-        series = self.env['x.cheque.series'].search([
-            ('bank_journal_id', '=', self.x_fbr_journal_id.id),
-            ('state', '=', 'active'),
-        ], limit=1)
-        if not series:
-            raise UserError(_(
-                'No active cheque series found for bank "%s". '
-                'Set one up under Accounting → Configuration → Cheque Series.'
-            ) % self.x_fbr_journal_id.name)
-        self.x_fbr_cheque_number = series.get_next_cheque_number()
+        if not self.x_fbr_cheque_leaf_id:
+            raise UserError(_('No FBR cheque assigned — nothing to discard.'))
+        leaf = self.x_fbr_cheque_leaf_id
+        self.write({'x_fbr_cheque_leaf_id': False, 'x_fbr_cheque_number': False})
+        leaf.sudo().write({
+            'state': 'discarded',
+            'discarded_date': fields.Date.today(),
+        })
         return False
 
     def action_view_fbr_payment(self):
@@ -757,6 +863,7 @@ class BatchPaymentLine(models.Model):
                 'payment_id': payment.id,
                 'journal_id': bl.journal_id.id,
                 'allocation_amount': bl.allocation_amount,
+                'x_cheque_leaf_id': bl.x_cheque_leaf_id.id or False,
                 'x_cheque_number': bl.x_cheque_number or False,
                 'x_account_title': bl.x_account_title or False,
                 'available_balance': bl.available_balance,
@@ -776,6 +883,10 @@ class BatchPaymentLine(models.Model):
                 # Stamp the computed amount as a fixed amount so it does not
                 # re-derive from the payment base after we set x_gross_approved_amount.
                 'x_fixed_amount': tl.amount,
+                # Carry exemption tracking fields onto the payment tax line
+                # so the BPV report can print exemption certificate details.
+                'x_exemption_id': tl.x_exemption_id.id if tl.x_exemption_id else False,
+                'x_exemption_rate': tl.x_exemption_rate or 0.0,
             })
 
         # ── Post the payment (all Matracon hooks fire here) ──────────────────
@@ -804,6 +915,10 @@ class BatchPaymentLine(models.Model):
                 companion_vals['x_expense_account_id'] = self.x_fbr_expense_account_id.id
             if self.x_fbr_account_title:
                 companion_vals['x_account_title'] = self.x_fbr_account_title
+            # Use the FBR-specific project if set; otherwise fall back to vendor project
+            fbr_project = self.x_fbr_destination_project_id or self.x_destination_project_id
+            if fbr_project:
+                companion_vals['x_destination_project_id'] = fbr_project.id
             wht_companion.write(companion_vals)
 
             # Create one bank allocation line carrying the cheque details for BPV
@@ -811,12 +926,18 @@ class BatchPaymentLine(models.Model):
                 'payment_id': wht_companion.id,
                 'journal_id': self.x_fbr_journal_id.id,
                 'allocation_amount': wht_companion.amount,
+                'x_cheque_leaf_id': self.x_fbr_cheque_leaf_id.id or False,
                 'x_cheque_number': self.x_fbr_cheque_number or False,
                 'x_account_title': (
                     self.x_fbr_account_title
                     or (self.x_fbr_partner_id.name if self.x_fbr_partner_id else 'FBR')
                 ),
             })
+            # Mark FBR leaf's payment for audit trail
+            if self.x_fbr_cheque_leaf_id:
+                self.x_fbr_cheque_leaf_id.sudo().write({
+                    'payment_id': wht_companion.id,
+                })
 
             # Post the WHT companion — BPV ref is auto-assigned inside action_post.
             # The companion has x_origin_payment_id set (auto-approved) and no tax
@@ -883,7 +1004,13 @@ class BatchPaymentLineBank(models.Model):
         string='Amount', currency_field='currency_id',
     )
 
-    x_cheque_number = fields.Char(string='Cheque No.')
+    x_cheque_leaf_id = fields.Many2one(
+        'x.cheque.leaf', string='Cheque No.',
+        domain="[('bank_journal_id', '=', journal_id), ('state', '=', 'available')]",
+        ondelete='set null',
+    )
+    # Char kept for BPV / legacy; auto-filled from leaf
+    x_cheque_number = fields.Char(string='Cheque No. (ref)')
     x_account_title = fields.Char(string='Account Title')
 
     currency_id = fields.Many2one(
@@ -898,6 +1025,20 @@ class BatchPaymentLineBank(models.Model):
     @api.onchange('journal_id')
     def _onchange_journal_id(self):
         self.available_balance = self._get_journal_balance(self.journal_id)
+        if self.x_cheque_leaf_id and (
+                self.x_cheque_leaf_id.bank_journal_id != self.journal_id):
+            old_leaf = self.x_cheque_leaf_id
+            self.x_cheque_leaf_id = False
+            self.x_cheque_number = False
+            if old_leaf:
+                old_leaf.sudo().write({'state': 'available'})
+
+    @api.onchange('x_cheque_leaf_id')
+    def _onchange_cheque_leaf_id(self):
+        if self.x_cheque_leaf_id:
+            self.x_cheque_number = self.x_cheque_leaf_id.cheque_number
+        else:
+            self.x_cheque_number = False
 
     @api.model
     def _get_journal_balance(self, journal):
@@ -912,21 +1053,48 @@ class BatchPaymentLineBank(models.Model):
         ])
         return sum(lines.mapped('balance'))
 
-    def action_assign_cheque_number(self):
-        """Auto-assign the next cheque number from the active series for this bank."""
+    @api.model_create_multi
+    def create(self, vals_list):
+        records = super().create(vals_list)
+        for rec in records:
+            if rec.x_cheque_leaf_id:
+                rec.x_cheque_leaf_id.sudo().write({'state': 'used'})
+                if not rec.x_cheque_number:
+                    rec.x_cheque_number = rec.x_cheque_leaf_id.cheque_number
+        return records
+
+    def write(self, vals):
+        if 'x_cheque_leaf_id' in vals:
+            old_leaves = {rec.id: rec.x_cheque_leaf_id for rec in self}
+        res = super().write(vals)
+        if 'x_cheque_leaf_id' in vals:
+            for rec in self:
+                old_leaf = old_leaves.get(rec.id)
+                if old_leaf and old_leaf != rec.x_cheque_leaf_id:
+                    old_leaf.sudo().write({'state': 'available'})
+                if rec.x_cheque_leaf_id:
+                    rec.x_cheque_leaf_id.sudo().write({'state': 'used'})
+                    if not rec.x_cheque_number:
+                        rec.x_cheque_number = rec.x_cheque_leaf_id.cheque_number
+        return res
+
+    def unlink(self):
+        for rec in self:
+            if rec.x_cheque_leaf_id and not rec.x_cheque_leaf_id.payment_id:
+                rec.x_cheque_leaf_id.sudo().write({'state': 'available'})
+        return super().unlink()
+
+    def action_discard_leaf(self):
+        """Discard the assigned cheque (spoiled/faulty) and clear the field."""
         self.ensure_one()
-        if not self.journal_id:
-            raise UserError(_('Select a bank / journal first.'))
-        series = self.env['x.cheque.series'].search([
-            ('bank_journal_id', '=', self.journal_id.id),
-            ('state', '=', 'active'),
-        ], limit=1)
-        if not series:
-            raise UserError(_(
-                'No active cheque series found for bank "%s". '
-                'Set one up under Accounting → Configuration → Cheque Series.'
-            ) % self.journal_id.name)
-        self.x_cheque_number = series.get_next_cheque_number()
+        if not self.x_cheque_leaf_id:
+            raise UserError(_('No cheque assigned — nothing to discard.'))
+        leaf = self.x_cheque_leaf_id
+        self.write({'x_cheque_leaf_id': False, 'x_cheque_number': False})
+        leaf.sudo().write({
+            'state': 'discarded',
+            'discarded_date': fields.Date.today(),
+        })
         return False
 
 
@@ -967,6 +1135,17 @@ class BatchPaymentLineTax(models.Model):
         string='Fixed Amount', currency_field='currency_id',
         help='When set, overrides the tax-rate computation.',
     )
+    x_exemption_id = fields.Many2one(
+        'x.partner.wht.exemption', string='WHT Exemption',
+        ondelete='set null',
+        help='Exemption certificate that drove this WHT rate.',
+    )
+    x_exemption_rate = fields.Float(
+        string='Exemption Rate %',
+        digits=(5, 2),
+        help='WHT rate from the exemption certificate. '
+             'When set, overrides tax_id rate computation. Editable.',
+    )
     amount = fields.Monetary(
         string='Amount',
         compute='_compute_amount', store=True,
@@ -977,13 +1156,16 @@ class BatchPaymentLineTax(models.Model):
     )
 
     @api.depends(
-        'tax_id', 'x_fixed_amount',
+        'tax_id', 'x_fixed_amount', 'x_exemption_rate',
         'batch_line_id.gross_amount', 'effect',
     )
     def _compute_amount(self):
         for line in self:
             if line.x_fixed_amount:
                 line.amount = line.x_fixed_amount
+            elif line.x_exemption_rate:
+                base = line.batch_line_id.gross_amount or 0.0
+                line.amount = base * line.x_exemption_rate / 100.0
             elif line.tax_id and line.batch_line_id.gross_amount:
                 line.amount = line.batch_line_id._matracon_tax_amount(
                     line.tax_id, line.batch_line_id.gross_amount,

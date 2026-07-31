@@ -54,6 +54,45 @@ def schedule_activity(record, users, summary, note=None):
         )
 
 
+def close_activities(record, summary_contains=None, user_ids=None):
+    """Mark pending Todo activities on ``record`` as done.
+
+    Call this at the start of each workflow action so that the activity
+    clock icon is cleared from the record's chatter once the step is
+    completed.
+
+    Parameters
+    ----------
+    record : mail.activity.mixin subclass (single record)
+    summary_contains : str | None
+        When provided, only activities whose summary *contains* this
+        text (case-insensitive) are closed.  Pass ``None`` to close
+        every pending Todo activity on the record.
+    user_ids : list[int] | None
+        When provided, further restrict to activities assigned to these
+        user IDs.
+    """
+    record.ensure_one()
+    try:
+        activities = record.sudo().activity_ids.filtered(
+            lambda a: a.activity_type_id.xml_id == 'mail.mail_activity_data_todo'
+        )
+    except Exception:
+        return
+    if summary_contains:
+        lc = summary_contains.lower()
+        activities = activities.filtered(
+            lambda a: lc in (a.summary or '').lower()
+        )
+    if user_ids:
+        activities = activities.filtered(lambda a: a.user_id.id in user_ids)
+    for activity in activities:
+        try:
+            activity.sudo().action_feedback(feedback=_('Completed automatically.'))
+        except Exception:
+            pass
+
+
 def site_accountants_for_analytic(env, analytic_account):
     if not analytic_account:
         return env['res.users']

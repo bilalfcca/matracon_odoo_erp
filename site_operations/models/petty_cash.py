@@ -388,6 +388,8 @@ class PettyCashRequest(models.Model):
         """Core approval logic — called by both single and bulk approve."""
         self.ensure_one()
         self.state = 'ceo_approved'
+        # Close the CEO activity scheduled on submission
+        matracon_notify.close_activities(self, summary_contains='Approve petty cash')
         self.message_post(
             body=Markup(_(
                 'CEO approved petty cash: <b>%s %.2f</b>'
@@ -548,6 +550,7 @@ class PettyCashRequest(models.Model):
                 },
                 subtype_xmlid='mail.mt_log_note',
             )
+            matracon_notify.close_activities(req)
 
     def action_release(self):
         """Finance HO releases petty cash via payment workflow.
@@ -631,6 +634,8 @@ class PettyCashRequest(models.Model):
         for req in self:
             req.released_amount = amount or req.requested_amount
             req.state = 'released'
+            # Close Finance HO activity scheduled on CEO approval and on submission
+            matracon_notify.close_activities(req, summary_contains='Release petty cash')
             req.message_post(
                 body=Markup(_('Petty cash <b>%s</b> released by Finance HO.'))
                 % f'{req.released_amount:,.2f}')
