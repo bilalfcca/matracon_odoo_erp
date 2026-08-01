@@ -471,9 +471,12 @@ class BatchPaymentLine(models.Model):
     )
     # Exemption certificate linked to the first WHT deduction line (if any).
     # Computed so the view can display exemption details as a styled card.
+    # NOTE: stored=True so Odoo 19 can track reverse dependencies for the
+    # x_exc_* related fields below. Uses its own compute method (separate from
+    # x_has_wht) to satisfy Odoo 19's consistent-store requirement.
     x_active_exemption_id = fields.Many2one(
         'x.partner.wht.exemption', string='WHT Exemption',
-        compute='_compute_has_wht', store=False,
+        compute='_compute_active_exemption_id', store=True,
         help='Auto-filled from the WHT tax line when vendor has an exemption certificate.',
     )
     x_exc_tax_year = fields.Char(related='x_active_exemption_id.tax_year', string='Tax Year', store=False)
@@ -558,15 +561,23 @@ class BatchPaymentLine(models.Model):
 
     # ── Compute ───────────────────────────────────────────────────────────────
 
-    @api.depends('tax_line_ids.tax_type', 'tax_line_ids.effect', 'tax_line_ids.x_exemption_id')
+    @api.depends('tax_line_ids.tax_type', 'tax_line_ids.effect')
     def _compute_has_wht(self):
+        """Stored Boolean — True when at least one WHT deduction tax line exists."""
+        for line in self:
+            line.x_has_wht = any(
+                t.tax_type == 'wht' and t.effect == 'deduct'
+                for t in line.tax_line_ids
+            )
+
+    @api.depends('tax_line_ids.tax_type', 'tax_line_ids.effect', 'tax_line_ids.x_exemption_id')
+    def _compute_active_exemption_id(self):
+        """Non-stored Many2one — picks the first WHT deduction line with an exemption cert."""
         for line in self:
             wht_lines = [
                 t for t in line.tax_line_ids
                 if t.tax_type == 'wht' and t.effect == 'deduct'
             ]
-            line.x_has_wht = bool(wht_lines)
-            # Pick the first WHT line that carries an exemption certificate
             exc_line = next((t for t in wht_lines if t.x_exemption_id), None)
             line.x_active_exemption_id = exc_line.x_exemption_id.id if exc_line else False
 
