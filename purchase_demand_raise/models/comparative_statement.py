@@ -440,6 +440,18 @@ class CSVendor(models.Model):
     _description = 'CS Vendor Comparison'
     _order = 'sequence, id'
 
+    # ── Display name (used when this record is shown as a Many2one) ───────────
+    name = fields.Char(
+        string='Vendor Name',
+        compute='_compute_name',
+        store=False,
+    )
+
+    @api.depends('x_partner_id')
+    def _compute_name(self):
+        for record in self:
+            record.name = record.x_partner_id.name or _('Unknown Vendor')
+
     x_cs_id = fields.Many2one(
         'x.comparative.statement', string='CS', ondelete='cascade', index=True,
     )

@@ -219,30 +219,28 @@
                                         </div>
                                     </div>
 
-                                    <!-- ── Price Quotation ── -->
+                                    <!-- ── Price Quotation (read-only display) ── -->
                                     <separator string="Price Quotation"/>
-                                    <field name="x_line_ids" widget="one2many"
-                                           readonly="parent.x_state == 'confirmed'">
-                                        <!-- create/delete disabled: products are fixed from the PR -->
-                                        <list editable="bottom"
-                                              create="0"
+                                    <div class="alert alert-info small mb-2" role="alert"
+                                         invisible="parent.x_state == 'confirmed'">
+                                        <i class="fa fa-pencil me-1"/>
+                                        Prices are entered in the <strong>Price Entry</strong>
+                                        tab on the main CS form. Save this dialog first, then
+                                        switch to that tab to fill in unit prices and GST.
+                                    </div>
+                                    <field name="x_line_ids" widget="one2many" readonly="1">
+                                        <list create="0"
                                               delete="0"
                                               decoration-muted="x_unit_price == 0">
-                                            <!-- x_pr_line_id kept invisible so the Owl client
-                                                 tracks it in the create payload — used to recover
-                                                 x_product_id when readonly fields are stripped -->
-                                            <field name="x_pr_line_id" column_invisible="1"/>
-                                            <field name="x_product_id" string="Product" readonly="1"/>
-                                            <field name="x_uom_id" string="UoM" readonly="1"/>
-                                            <field name="x_qty" string="Qty" readonly="1"/>
-                                            <field name="x_currency_id" string="Currency"
-                                                   optional="show"
-                                                   options="{'no_create': True, 'no_open': True}"/>
+                                            <field name="x_product_id" string="Product"/>
+                                            <field name="x_uom_id" string="UoM"/>
+                                            <field name="x_qty" string="Qty"/>
+                                            <field name="x_currency_id" string="Currency" optional="show"/>
                                             <field name="x_unit_price" string="Unit Price"/>
-                                            <field name="x_total_price" string="Total" readonly="1"/>
+                                            <field name="x_total_price" string="Total"/>
                                             <field name="x_gst_rate" string="GST %"/>
-                                            <field name="x_gst_amount" string="GST Amt" readonly="1"/>
-                                            <field name="x_net_price" string="Net Price" readonly="1"/>
+                                            <field name="x_gst_amount" string="GST Amt"/>
+                                            <field name="x_net_price" string="Net Price"/>
                                             <field name="x_remarks" string="Remarks" optional="show"/>
                                         </list>
                                     </field>
@@ -298,11 +296,10 @@
                                                    string="Payment Terms"
                                                    options="{'no_create': False, 'no_open': True}"
                                                    placeholder="Select standard payment terms…"/>
-                                            <!-- Custom note — shown only when "Other / Custom Terms" selected -->
+                                            <!-- Custom manual note — always visible like other ↳ Custom fields -->
                                             <field name="x_custom_payment_note"
-                                                   string="Custom Note"
-                                                   placeholder="Specify custom arrangement…"
-                                                   invisible="not x_payment_term_id or x_payment_term_id.name != 'Other / Custom Terms'"/>
+                                                   string="↳ Custom"
+                                                   placeholder="or type manually…"/>
 
                                             <!-- 2. Taxes &amp; Duties -->
                                             <field name="x_tax_opt_id"
@@ -335,7 +332,45 @@
                             </field>
                         </page>
 
-                        <!-- Comparison Matrix and Notes tabs removed per user request -->
+                        <!-- ══════════════════════════════════════════════════
+                             TAB 2 — PRICE ENTRY
+                             Flat editable list of ALL vendor × product lines.
+                             This is a direct one2many on the CS (2-level nesting)
+                             so prices persist reliably — no dialog nesting issues.
+                             ══════════════════════════════════════════════════ -->
+                        <page string="Price Entry" name="price_entry"
+                              invisible="not x_vendor_line_ids">
+                            <div class="alert alert-info mb-2" role="alert"
+                                 invisible="x_state == 'confirmed'">
+                                <i class="fa fa-pencil me-2"/>
+                                Enter unit prices and GST% for each vendor here.
+                                Use the <strong>Vendor Quotes</strong> tab to manage
+                                commercial terms, T&amp;C and attachments.
+                            </div>
+                            <field name="x_all_line_ids"
+                                   widget="one2many"
+                                   readonly="x_state == 'confirmed'">
+                                <!-- create/delete disabled: lines are auto-created
+                                     when vendors are added in the Vendor Quotes tab -->
+                                <list editable="bottom"
+                                      create="0"
+                                      delete="0"
+                                      decoration-muted="x_unit_price == 0">
+                                    <field name="x_cs_vendor_id" string="Vendor" readonly="1"/>
+                                    <field name="x_product_id" string="Product" readonly="1"/>
+                                    <field name="x_uom_id" string="UoM" readonly="1"/>
+                                    <field name="x_qty" string="Qty" readonly="1"/>
+                                    <field name="x_currency_id" string="Currency"
+                                           options="{'no_create': True, 'no_open': True}"/>
+                                    <field name="x_unit_price" string="Unit Price"/>
+                                    <field name="x_total_price" string="Total" readonly="1"/>
+                                    <field name="x_gst_rate" string="GST %"/>
+                                    <field name="x_gst_amount" string="GST Amt" readonly="1"/>
+                                    <field name="x_net_price" string="Net Price" readonly="1"/>
+                                    <field name="x_remarks" string="Remarks" optional="show"/>
+                                </list>
+                            </field>
+                        </page>
 
                     </notebook>
                 </sheet>
