@@ -228,6 +228,10 @@
                                               create="0"
                                               delete="0"
                                               decoration-muted="x_unit_price == 0">
+                                            <!-- x_pr_line_id kept invisible so the Owl client
+                                                 tracks it in the create payload — used to recover
+                                                 x_product_id when readonly fields are stripped -->
+                                            <field name="x_pr_line_id" column_invisible="1"/>
                                             <field name="x_product_id" string="Product" readonly="1"/>
                                             <field name="x_uom_id" string="UoM" readonly="1"/>
                                             <field name="x_qty" string="Qty" readonly="1"/>
