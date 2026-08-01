@@ -21,62 +21,57 @@
     ═══════════════════════════════════════════════════════════════════════ -->
     <template id="matracon_po_layout">
 
-        <!-- ── HEADER (repeats every page via wkhtmltopdf header-html) ── -->
-        <div class="header" style="
-                font-family: Arial, sans-serif;
-                width: 100%;
-                padding: 4px 10mm 4px 10mm;
-                box-sizing: border-box;
-                background: #ffffff;">
-
-            <!-- Logo (left) + Company Name (right) — display:table so both cells
-                 sit on one line and are vertically centered. white-space:nowrap
-                 prevents the company name from wrapping to a second line. -->
-            <div style="display:table; width:100%; border-collapse:collapse; border:none;">
-                <div style="display:table-cell; vertical-align:middle; width:130px; padding-right:12px; border:none;">
-                    <t t-if="env.company.logo">
-                        <img t-att-src="image_data_uri(env.company.logo)"
-                             style="height:120px; width:auto; display:block;"/>
-                    </t>
-                </div>
-                <div style="display:table-cell; vertical-align:middle; border:none;">
-                    <span style="font-family:'CG Omega', Arial, sans-serif;
-                                 font-size:30px; font-weight:bold; font-style:normal;
-                                 color:#4a1a6e; white-space:nowrap; display:block;">
-                        MATRACON PAKISTAN (PVT) LIMITED
-                    </span>
-                </div>
-            </div>
-
-            <!-- Thin navy divider below brand row -->
-            <div style="border-top:2.5px solid #1a3a5c; margin-top:4px; margin-bottom:2px;"></div>
-
-            <!-- PO / RFQ reference number (left) + date (right)
-                 Set by calling template:
-                   <t t-set="po_ref_number" t-value="o.name"/>
-                   <t t-set="po_ref_date"   t-value="...strftime(...)"/> -->
-            <t t-if="po_ref_number or po_ref_date">
-                <div style="overflow:hidden; padding:3px 0 2px 0; font-size:12px; font-weight:bold; color:#222;">
-                    <span style="float:right;"><t t-esc="po_ref_date or ''"/></span>
-                    <span><t t-esc="po_ref_number or ''"/></span>
-                </div>
-            </t>
-        </div>
-
-        <!-- ── ARTICLE (main body, content injected via t-out="0")
-             margin_top in the paper format reserves 50mm for the header on EVERY page.
-             padding-top: 4mm here clears the wkhtmltopdf article invisible zone (~2-4mm).
-             text-align: justify — default for all paragraph/div text in the body.
-             Explicit inline text-align on table cells overrides this. -->
+        <!-- ── ARTICLE (margin_top=0 so the article starts at the very top of the page)
+             The logo / company name / ref-bar live here so they appear right at y=0
+             on page 1.  They do NOT repeat on page 2+ (which is fine for PO/RFQ).
+             The footer div below still repeats on every page via wkhtmltopdf. -->
         <div class="article" style="
                 font-family: Arial, sans-serif;
                 font-size: 13px;
                 color: #222;
                 text-align: justify;
-                padding: 4mm 12mm 4mm 12mm;">
+                padding: 0 12mm 4mm 12mm;">
 
-            <!-- CSS for product tables — lives here so it is part of the
-                 minimal_layout body that wkhtmltopdf actually renders. -->
+            <!-- ── Embedded letterhead (logo + company name + divider + ref bar) ── -->
+            <div style="
+                    font-family: Arial, sans-serif;
+                    width: 100%;
+                    padding: 4px 0 0 0;
+                    box-sizing: border-box;
+                    background: #ffffff;
+                    margin-bottom: 4px;">
+
+                <!-- Logo (left) + Company Name (right) -->
+                <div style="display:table; width:100%; border-collapse:collapse; border:none;">
+                    <div style="display:table-cell; vertical-align:top; width:130px; padding-right:12px; border:none;">
+                        <t t-if="env.company.logo">
+                            <img t-att-src="image_data_uri(env.company.logo)"
+                                 style="height:120px; width:auto; display:block;"/>
+                        </t>
+                    </div>
+                    <div style="display:table-cell; vertical-align:middle; border:none;">
+                        <span style="font-family:'CG Omega', Arial, sans-serif;
+                                     font-size:30px; font-weight:bold; font-style:normal;
+                                     color:#4a1a6e; white-space:nowrap; display:block;">
+                            MATRACON PAKISTAN (PVT) LIMITED
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Thin navy divider -->
+                <div style="border-top:2.5px solid #1a3a5c; margin-top:4px; margin-bottom:2px;"></div>
+
+                <!-- PO / RFQ reference (left) + date (right) -->
+                <t t-if="po_ref_number or po_ref_date">
+                    <div style="overflow:hidden; padding:3px 0 4px 0; font-size:12px; font-weight:bold; color:#222;">
+                        <span style="float:right;"><t t-esc="po_ref_date or ''"/></span>
+                        <span><t t-esc="po_ref_number or ''"/></span>
+                    </div>
+                </t>
+            </div>
+
+            <!-- CSS for product tables and body text -->
+            <!-- (margin_top=0 in paper format; letterhead is embedded above) -->
             <style type="text/css">
                 body, div, p, span, li, td, th {
                     font-family: Arial, sans-serif;
@@ -174,10 +169,6 @@
             <div>
                 <strong>Head Office</strong>&#160;:&#160;17, Street No. 89, G-6/3, Islamabad,
                 UAN: 0092-51-111-025-025&#160;&#160;Fax: +92-51-2101183&#160;&#160;E-mail: matracon@gmail.com
-            </div>
-            <div>
-                <strong>Regional Office</strong>&#160;:&#160;2nd Floor, Plot No. 26-C, Lane-3,
-                Main Rahat Commercial, Phase-6 DHA, Karachi&#160;&#160;021-35853154
             </div>
         </div>
     </template>
