@@ -728,6 +728,30 @@ class CSVendor(models.Model):
             rfq_vendor_partner_id=self.x_partner_id.id
         ).report_action(po)
 
+    def action_enter_prices(self):
+        """Open a dedicated price-entry form for this vendor (standalone dialog).
+
+        Opens x.cs.vendor as a form view in target='new'.  x_line_ids is at
+        2-level nesting (standalone form → one2many) — Odoo 19 saves this
+        reliably.  No 3-level nesting issue that plagued the embedded dialog.
+        """
+        self.ensure_one()
+        if not isinstance(self.id, int) or not self.id:
+            raise UserError(_(
+                'Please save the Comparative Statement first, '
+                'then click "📋 Prices" to enter prices for this vendor.'
+            ))
+        view = self.env.ref('purchase_demand_raise.view_cs_vendor_price_form')
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Prices — %s') % (self.x_partner_id.name or _('Vendor')),
+            'res_model': 'x.cs.vendor',
+            'res_id': self.id,
+            'view_mode': 'form',
+            'views': [(view.id, 'form')],
+            'target': 'new',
+        }
+
     def action_send_rfq(self):
         """Open mail compose dialog to send RFQ to THIS specific vendor."""
         self.ensure_one()

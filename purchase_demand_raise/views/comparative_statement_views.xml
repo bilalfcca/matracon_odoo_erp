@@ -147,6 +147,12 @@
                                            options="{'no_create': True, 'no_open': True}"/>
                                     <field name="x_is_lowest" column_invisible="1"/>
                                     <field name="x_is_recommended" column_invisible="1"/>
+                                    <!-- Prices button — opens standalone price dialog (2-level nesting, reliable save) -->
+                                    <button name="action_enter_prices"
+                                            string="📋 Prices"
+                                            type="object"
+                                            class="btn-sm btn-outline-primary"
+                                            title="Open price entry for this vendor"/>
                                     <!-- Choose / Winner buttons -->
                                     <!-- Best-value vendor: star + green outline -->
                                     <button name="action_choose_vendor"
@@ -223,10 +229,9 @@
                                     <separator string="Price Quotation"/>
                                     <div class="alert alert-info small mb-2" role="alert"
                                          invisible="parent.x_state == 'confirmed'">
-                                        <i class="fa fa-pencil me-1"/>
-                                        Prices are entered in the <strong>Price Entry</strong>
-                                        tab on the main CS form. Save this dialog first, then
-                                        switch to that tab to fill in unit prices and GST.
+                                        Close this dialog, then click the
+                                        <strong>📋 Prices</strong> button on this vendor's row
+                                        to enter unit prices and GST%.
                                     </div>
                                     <field name="x_line_ids" widget="one2many" readonly="1">
                                         <list create="0"
@@ -332,49 +337,65 @@
                             </field>
                         </page>
 
-                        <!-- ══════════════════════════════════════════════════
-                             TAB 2 — PRICE ENTRY
-                             Flat editable list of ALL vendor × product lines.
-                             This is a direct one2many on the CS (2-level nesting)
-                             so prices persist reliably — no dialog nesting issues.
-                             ══════════════════════════════════════════════════ -->
-                        <page string="Price Entry" name="price_entry"
-                              invisible="not x_vendor_line_ids">
-                            <div class="alert alert-info mb-2" role="alert"
-                                 invisible="x_state == 'confirmed'">
-                                <i class="fa fa-pencil me-2"/>
-                                Enter unit prices and GST% for each vendor here.
-                                Use the <strong>Vendor Quotes</strong> tab to manage
-                                commercial terms, T&amp;C and attachments.
-                            </div>
-                            <field name="x_all_line_ids"
-                                   widget="one2many"
-                                   readonly="x_state == 'confirmed'">
-                                <!-- create/delete disabled: lines are auto-created
-                                     when vendors are added in the Vendor Quotes tab -->
-                                <list editable="bottom"
-                                      create="0"
-                                      delete="0"
-                                      decoration-muted="x_unit_price == 0">
-                                    <field name="x_cs_vendor_id" string="Vendor" readonly="1"/>
-                                    <field name="x_product_id" string="Product" readonly="1"/>
-                                    <field name="x_uom_id" string="UoM" readonly="1"/>
-                                    <field name="x_qty" string="Qty" readonly="1"/>
-                                    <field name="x_currency_id" string="Currency"
-                                           options="{'no_create': True, 'no_open': True}"/>
-                                    <field name="x_unit_price" string="Unit Price"/>
-                                    <field name="x_total_price" string="Total" readonly="1"/>
-                                    <field name="x_gst_rate" string="GST %"/>
-                                    <field name="x_gst_amount" string="GST Amt" readonly="1"/>
-                                    <field name="x_net_price" string="Net Price" readonly="1"/>
-                                    <field name="x_remarks" string="Remarks" optional="show"/>
-                                </list>
-                            </field>
-                        </page>
-
                     </notebook>
                 </sheet>
                 <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- ════════════════════════════════════════════════════════════════
+         VENDOR PRICE ENTRY — Standalone form (target='new' dialog)
+         Opened via the "📋 Prices" button on each vendor row.
+         x_line_ids here is at 2-level nesting (form → one2many) so prices
+         persist reliably — no 3-level nesting issue from the embedded dialog.
+         ════════════════════════════════════════════════════════════════ -->
+    <record id="view_cs_vendor_price_form" model="ir.ui.view">
+        <field name="name">x.cs.vendor.price.entry.form</field>
+        <field name="model">x.cs.vendor</field>
+        <field name="priority">20</field>
+        <field name="arch" type="xml">
+            <form string="Price Entry">
+                <sheet>
+                    <!-- Vendor header -->
+                    <div class="d-flex align-items-center gap-2 mb-3"
+                         style="border-bottom:2px solid #1a3a5c;padding-bottom:8px;">
+                        <i class="fa fa-tag fa-lg" style="color:#1a3a5c;" title="Vendor"/>
+                        <h4 class="mb-0" style="color:#1a3a5c;">
+                            <field name="x_partner_id" readonly="1" nolabel="1"/>
+                        </h4>
+                    </div>
+
+                    <!-- Price table -->
+                    <field name="x_line_ids" widget="one2many">
+                        <list editable="bottom"
+                              create="0"
+                              delete="0"
+                              decoration-muted="x_unit_price == 0">
+                            <field name="x_product_id" string="Product" readonly="1"/>
+                            <field name="x_uom_id" string="UoM" readonly="1"/>
+                            <field name="x_qty" string="Qty" readonly="1"/>
+                            <field name="x_currency_id" string="Currency"
+                                   options="{'no_create': True, 'no_open': True}"/>
+                            <field name="x_unit_price" string="Unit Price"/>
+                            <field name="x_total_price" string="Total" readonly="1"/>
+                            <field name="x_gst_rate" string="GST %"/>
+                            <field name="x_gst_amount" string="GST Amt" readonly="1"/>
+                            <field name="x_net_price" string="Net Price" readonly="1"/>
+                            <field name="x_remarks" string="Remarks" optional="show"/>
+                        </list>
+                    </field>
+
+                    <!-- Totals -->
+                    <group>
+                        <group/>
+                        <group>
+                            <field name="x_total_price" string="Sub-Total (Excl. GST)" readonly="1"/>
+                            <field name="x_gst_amount" string="Total GST" readonly="1"/>
+                            <field name="x_net_total" string="Grand Total (Incl. GST)" readonly="1"/>
+                        </group>
+                    </group>
+                </sheet>
             </form>
         </field>
     </record>
