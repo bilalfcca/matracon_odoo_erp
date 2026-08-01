@@ -44,11 +44,13 @@
     <template id="report_sig_col">
         <div t-attf-class="#{_sc_col_class or 'col-4'} text-center">
             <!-- Signature image area (height = space above line) -->
-            <div t-attf-style="height:#{_sc_height or '60'}px; display:flex; align-items:flex-end; justify-content:center; padding-bottom:2px;">
-                <t t-if="_sc_user and _sc_user.x_sign_signature">
-                    <img t-att-src="image_data_uri(_sc_user.x_sign_signature)"
-                         t-attf-style="max-height:#{(_sc_height or 60) - 8}px; max-width:150px; object-fit:contain; display:block;"/>
-                </t>
+            <div t-attf-style="display:table; width:100%; height:#{_sc_height or '60'}px;">
+                <div style="display:table-cell; vertical-align:bottom; text-align:center; padding-bottom:2px;">
+                    <t t-if="_sc_user and _sc_user.x_sign_signature">
+                        <img t-att-src="image_data_uri(_sc_user.x_sign_signature)"
+                             t-attf-style="max-height:#{(_sc_height or 60) - 8}px; max-width:150px; object-fit:contain;"/>
+                    </t>
+                </div>
             </div>
             <!-- Line + label + name -->
             <div style="border-top:2px solid #000; padding-top:8px;">
@@ -61,7 +63,6 @@
                 <t t-else="">
                     <div style="font-size:11px; color:#6c757d; margin-top:16px;">Name: _______________________</div>
                 </t>
-                <div style="font-size:11px; color:#6c757d; margin-top:4px;">Date: ________________________</div>
             </div>
         </div>
     </template>
