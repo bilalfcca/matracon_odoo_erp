@@ -6,4 +6,14 @@
         <field name="privilege_id" ref="purchase_demand_raise.res_groups_privilege_demand_raise"/>
         <field name="comment">Show Fleet app in the home menu.</field>
     </record>
+
+    <!-- Grant Head Office visibility of the Fleet app.
+         This must live here (not in site_operations) because matracon_fleet
+         loads AFTER site_operations; referencing this group from site_operations
+         would cause "External ID not found" at install time. -->
+    <record id="purchase_demand_raise.group_head_office" model="res.groups">
+        <field name="implied_ids" eval="[
+            Command.link(ref('matracon_fleet.group_mtr_app_fleet')),
+        ]"/>
+    </record>
 </odoo>

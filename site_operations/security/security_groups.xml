@@ -24,11 +24,14 @@
              full replace, so additions here would be overwritten anyway).
         ══════════════════════════════════════════════════════════════ -->
 
-        <!-- Head Office gets export + Fleet app visibility -->
+        <!-- Head Office gets export permission.
+             Fleet app visibility (group_mtr_app_fleet) is linked in
+             matracon_fleet/security/app_visibility_fleet.xml — that module
+             loads after site_operations so it is safe to ref group_head_office
+             from there, but NOT the reverse. -->
         <record id="purchase_demand_raise.group_head_office" model="res.groups">
             <field name="implied_ids" eval="[
                 Command.link(ref('base.group_allow_export')),
-                Command.link(ref('matracon_fleet.group_mtr_app_fleet')),
             ]"/>
         </record>
     </data>
