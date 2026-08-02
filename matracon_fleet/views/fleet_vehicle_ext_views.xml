@@ -44,6 +44,12 @@
                         class="oe_stat_button" icon="fa-wrench">
                     <field name="x_spare_part_count" widget="statinfo" string="Spare Parts"/>
                 </button>
+                <button name="action_open_vehicle_ledger" type="object"
+                        class="oe_stat_button" icon="fa-list-alt">
+                    <div class="o_field_widget o_stat_info">
+                        <span class="o_stat_text">Ledger</span>
+                    </div>
+                </button>
             </div>
 
             <!-- Spare Parts tab inside existing notebook -->
@@ -161,6 +167,11 @@
                     <group string="Description / Work Done">
                         <field name="description" nolabel="1"
                                placeholder="Mandatory: describe the repair or replacement performed…"/>
+                    </group>
+                    <group string="Accounting" invisible="state == 'draft'">
+                        <field name="x_account_move_id" string="Journal Entry" readonly="1"
+                               options="{'no_create': True}"/>
+                        <field name="x_gl_posted" string="GL Posted" readonly="1"/>
                     </group>
                 </sheet>
                 <div class="oe_chatter">

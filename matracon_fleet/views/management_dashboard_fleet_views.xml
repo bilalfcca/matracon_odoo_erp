@@ -23,7 +23,10 @@
                 <field name="kpi_fleet_total_cost" invisible="1"/>
                 <field name="kpi_fleet_fuel_cost" invisible="1"/>
                 <field name="kpi_fleet_spare_cost" invisible="1"/>
+                <field name="kpi_fleet_rental_cost" invisible="1"/>
                 <field name="kpi_fleet_other_cost" invisible="1"/>
+                <field name="kpi_fleet_owned_cost" invisible="1"/>
+                <field name="kpi_fleet_rented_cost" invisible="1"/>
             </field>
 
             <!-- Fleet tab content panel — after the bank_guarantee div -->
@@ -107,7 +110,7 @@
                                 <span class="text-muted fw-normal fs-6 ms-2">(period filtered)</span>
                             </h4>
                         </div>
-                        <div class="col-6 col-md-3">
+                        <div class="col-6 col-md-2">
                             <div class="card border-0 shadow-sm text-center h-100">
                                 <div class="card-body py-3">
                                     <div class="text-muted small mb-1">Total Fleet Cost</div>
@@ -117,7 +120,7 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="col-6 col-md-3">
+                        <div class="col-6 col-md-2">
                             <div class="card border-0 shadow-sm text-center h-100">
                                 <div class="card-body py-3">
                                     <div class="text-muted small mb-1">Fuel</div>
@@ -127,7 +130,7 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="col-6 col-md-3">
+                        <div class="col-6 col-md-2">
                             <div class="card border-0 shadow-sm text-center h-100">
                                 <div class="card-body py-3">
                                     <div class="text-muted small mb-1">Spare Parts</div>
@@ -137,11 +140,56 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="col-6 col-md-3">
+                        <div class="col-6 col-md-2">
                             <div class="card border-0 shadow-sm text-center h-100">
                                 <div class="card-body py-3">
                                     <div class="text-muted small mb-1">Oils &amp; Filters</div>
                                     <field name="kpi_fleet_other_cost" widget="monetary"
+                                           nolabel="1" readonly="1"
+                                           options="{'currency_field': 'currency_id'}"/>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-2">
+                            <div class="card border-0 shadow-sm text-center h-100">
+                                <div class="card-body py-3">
+                                    <div class="text-muted small mb-1">Rental (Bills)</div>
+                                    <field name="kpi_fleet_rental_cost" widget="monetary"
+                                           nolabel="1" readonly="1"
+                                           options="{'currency_field': 'currency_id'}"/>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- KPI Row 3: Owned vs Rented cost split -->
+                    <div class="row mt-3">
+                        <div class="col-12 mb-2">
+                            <h5 class="text-muted fw-semibold mb-0">Cost by Ownership</h5>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="card border-0 shadow-sm text-center h-100"
+                                 style="border-left: 4px solid #28a745 !important;">
+                                <div class="card-body py-3">
+                                    <div class="text-muted small mb-1">
+                                        <i class="fa fa-check-circle text-success me-1"/>
+                                        Owned Vehicles
+                                    </div>
+                                    <field name="kpi_fleet_owned_cost" widget="monetary"
+                                           nolabel="1" readonly="1"
+                                           options="{'currency_field': 'currency_id'}"/>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="card border-0 shadow-sm text-center h-100"
+                                 style="border-left: 4px solid #dc3545 !important;">
+                                <div class="card-body py-3">
+                                    <div class="text-muted small mb-1">
+                                        <i class="fa fa-key text-danger me-1"/>
+                                        Rented Vehicles (Ops)
+                                    </div>
+                                    <field name="kpi_fleet_rented_cost" widget="monetary"
                                            nolabel="1" readonly="1"
                                            options="{'currency_field': 'currency_id'}"/>
                                 </div>
@@ -163,6 +211,8 @@
                                            sum="Total Spares"/>
                                     <field name="other_cost" string="Oils &amp; Filters (PKR)"
                                            sum="Total Other"/>
+                                    <field name="rental_cost" string="Rental Bills (PKR)"
+                                           sum="Total Rental" optional="show"/>
                                     <field name="total_cost" string="Total Cost (PKR)"
                                            sum="Grand Total"/>
                                 </list>

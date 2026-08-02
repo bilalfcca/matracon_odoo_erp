@@ -70,9 +70,13 @@ class ManagementDashboardFleet(models.TransientModel):
     kpi_fleet_spare_cost = fields.Monetary(
         string='Spare Parts Cost', readonly=True, currency_field='currency_id')
     kpi_fleet_rental_cost = fields.Monetary(
-        string='Rental Cost', readonly=True, currency_field='currency_id')
+        string='Rental Cost (Bills)', readonly=True, currency_field='currency_id')
     kpi_fleet_other_cost = fields.Monetary(
         string='Other Cost', readonly=True, currency_field='currency_id')
+    kpi_fleet_owned_cost = fields.Monetary(
+        string='Owned Vehicle Cost', readonly=True, currency_field='currency_id')
+    kpi_fleet_rented_cost = fields.Monetary(
+        string='Rented Vehicle Op. Cost', readonly=True, currency_field='currency_id')
 
     fleet_site_line_ids = fields.One2many(
         'x.management.dashboard.fleet.site.line', 'dashboard_id',
@@ -109,6 +113,12 @@ class ManagementDashboardFleet(models.TransientModel):
         kpi_owned = len(vehicles.filtered(lambda v: v.x_ownership_type == 'owned'))
         kpi_rented = len(vehicles.filtered(lambda v: v.x_ownership_type == 'rented'))
 
+        # Ownership partition
+        owned_vehicles = vehicles.filtered(lambda v: v.x_ownership_type == 'owned')
+        rented_vehicles = vehicles.filtered(lambda v: v.x_ownership_type == 'rented')
+        owned_ids = set(owned_vehicles.ids)
+        rented_ids = set(rented_vehicles.ids)
+
         # Log entry costs (period-filtered)
         log_domain = [('vehicle_id', 'in', vehicles.ids)]
         if date_from:
@@ -133,7 +143,39 @@ class ManagementDashboardFleet(models.TransientModel):
             spare_domain.append(('date', '<=', date_to))
         spare_cost = sum(SparePart.search(spare_domain).mapped('x_total_cost'))
 
-        # Per-site breakdown
+        # ── Owned vs rented cost split ─────────────────────────────────────
+        owned_log_cost = sum(
+            log_entries.filtered(lambda l: l.vehicle_id.id in owned_ids).mapped('amount'))
+        rented_log_cost = sum(
+            log_entries.filtered(lambda l: l.vehicle_id.id in rented_ids).mapped('amount'))
+        owned_spare_cost = sum(
+            SparePart.search(spare_domain + [('vehicle_id', 'in', list(owned_ids))]).mapped(
+                'x_total_cost')) if owned_ids else 0.0
+        rented_spare_cost = sum(
+            SparePart.search(spare_domain + [('vehicle_id', 'in', list(rented_ids))]).mapped(
+                'x_total_cost')) if rented_ids else 0.0
+        kpi_fleet_owned_cost = owned_log_cost + owned_spare_cost
+        kpi_fleet_rented_cost = rented_log_cost + rented_spare_cost
+
+        # ── Rental cost from vendor bills ──────────────────────────────────
+        rental_vendor_ids = rented_vehicles.mapped('x_rental_vendor_id').filtered(
+            lambda p: p.id).ids
+        rental_cost = 0.0
+        if rental_vendor_ids and analytic_ids:
+            bill_domain = [
+                ('move_type', '=', 'in_invoice'),
+                ('state', '=', 'posted'),
+                ('partner_id', 'in', rental_vendor_ids),
+                ('x_project_analytic_account_id', 'in', analytic_ids),
+            ]
+            if date_from:
+                bill_domain.append(('invoice_date', '>=', date_from))
+            if date_to:
+                bill_domain.append(('invoice_date', '<=', date_to))
+            rental_bills = self.env['account.move'].search(bill_domain)
+            rental_cost = sum(rental_bills.mapped('amount_untaxed'))
+
+        # ── Per-site breakdown ─────────────────────────────────────────────
         site_lines = []
         sites = self.env['x.project.site.config'].search(
             [('analytic_account_id', 'in', analytic_ids)] if analytic_ids else [])
@@ -152,20 +194,42 @@ class ManagementDashboardFleet(models.TransientModel):
             s_other = sum(
                 site_logs.filtered(lambda l: l.x_log_category in other_cats).mapped('amount'))
             s_spare = sum(site_spares.mapped('x_total_cost'))
-            s_total = s_fuel + s_other + s_spare
+
+            # Rental bills scoped to this site
+            site_rented = site_vehicles.filtered(
+                lambda v: v.x_ownership_type == 'rented' and v.x_rental_vendor_id)
+            site_rental_vendor_ids = site_rented.mapped('x_rental_vendor_id').filtered(
+                lambda p: p.id).ids
+            s_rental = 0.0
+            if site_rental_vendor_ids:
+                site_analytic_id = site.analytic_account_id.id
+                site_bill_domain = [
+                    ('move_type', '=', 'in_invoice'),
+                    ('state', '=', 'posted'),
+                    ('partner_id', 'in', site_rental_vendor_ids),
+                    ('x_project_analytic_account_id', '=', site_analytic_id),
+                ]
+                if date_from:
+                    site_bill_domain.append(('invoice_date', '>=', date_from))
+                if date_to:
+                    site_bill_domain.append(('invoice_date', '<=', date_to))
+                site_rental_bills = self.env['account.move'].search(site_bill_domain)
+                s_rental = sum(site_rental_bills.mapped('amount_untaxed'))
+
+            s_total = s_fuel + s_other + s_spare + s_rental
             site_lines.append({
                 'analytic_account_id': site.analytic_account_id.id,
                 'site_name': site.name,
                 'vehicle_count': len(site_vehicles),
                 'fuel_cost': s_fuel,
                 'spare_cost': s_spare,
-                'rental_cost': 0.0,
+                'rental_cost': s_rental,
                 'other_cost': s_other,
                 'total_cost': s_total,
                 'currency_id': currency.id,
             })
 
-        # Per-vehicle top 20 by cost
+        # ── Per-vehicle top 20 by cost ─────────────────────────────────────
         vehicle_lines = []
         fleet_type_labels = dict(
             self.env['fleet.vehicle']._fields['x_fleet_type'].selection or [])
@@ -192,7 +256,7 @@ class ManagementDashboardFleet(models.TransientModel):
         vehicle_lines.sort(key=lambda x: x['total_cost'], reverse=True)
         vehicle_lines = vehicle_lines[:20]
 
-        total_cost = fuel_cost + other_cost + spare_cost
+        total_cost = fuel_cost + other_cost + spare_cost + rental_cost
 
         return {
             'kpi_fleet_total': kpi_total,
@@ -204,8 +268,10 @@ class ManagementDashboardFleet(models.TransientModel):
             'kpi_fleet_total_cost': total_cost,
             'kpi_fleet_fuel_cost': fuel_cost,
             'kpi_fleet_spare_cost': spare_cost,
-            'kpi_fleet_rental_cost': 0.0,
+            'kpi_fleet_rental_cost': rental_cost,
             'kpi_fleet_other_cost': other_cost,
+            'kpi_fleet_owned_cost': kpi_fleet_owned_cost,
+            'kpi_fleet_rented_cost': kpi_fleet_rented_cost,
             'fleet_site_line_ids': site_lines,
             'fleet_vehicle_line_ids': vehicle_lines,
         }

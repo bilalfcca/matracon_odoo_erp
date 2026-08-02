@@ -20,6 +20,8 @@
                 <field name="x_total_cost" string="Total (PKR)" sum="Total"/>
                 <field name="picking_id" optional="hide"/>
                 <field name="x_meter_at_service" optional="hide"/>
+                <field name="x_account_move_id" optional="hide" string="JE"/>
+                <field name="x_gl_posted" optional="show" string="GL"/>
                 <field name="state"/>
             </list>
         </field>

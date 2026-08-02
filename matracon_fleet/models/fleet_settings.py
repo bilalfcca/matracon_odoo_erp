@@ -59,6 +59,11 @@ class FleetSettings(models.Model):
     account_spare_parts_id = fields.Many2one(
         'account.account', string='Spare Parts & Maintenance',
         domain=[('account_type', 'like', 'expense'), ('deprecated', '=', False)])
+    account_spare_parts_credit_id = fields.Many2one(
+        'account.account', string='Spare Parts — Credit Account',
+        domain=[('deprecated', '=', False)],
+        help='Credit (contra) account for cash spare part purchases (no stock picking). '
+             'Typically an accounts payable or petty cash account.')
     account_rental_id = fields.Many2one(
         'account.account', string='Rental Charges',
         domain=[('account_type', 'like', 'expense'), ('deprecated', '=', False)])

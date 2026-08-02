@@ -27,6 +27,14 @@
               sequence="20"
               groups="fleet.fleet_group_user"/>
 
+    <!-- ── Fleet → Vehicles → Vehicle Ledger ────────────────────────────── -->
+    <menuitem id="menu_fleet_vehicle_ledger"
+              name="Vehicle Ledger"
+              parent="fleet.fleet_vehicles"
+              action="action_fleet_vehicle_ledger"
+              sequence="25"
+              groups="fleet.fleet_group_user"/>
+
     <!-- ── Fleet → Configuration → Fleet Settings ───────────────────────── -->
     <menuitem id="menu_fleet_settings"
               name="Fleet Settings"

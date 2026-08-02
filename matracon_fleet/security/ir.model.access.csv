@@ -10,3 +10,4 @@ access_fleet_spare_part_finance,x.fleet.spare.part finance,model_x_fleet_spare_p
 access_fleet_spare_part_admin,x.fleet.spare.part admin,model_x_fleet_spare_part,purchase_demand_raise.group_matracon_admin,1,1,1,1
 access_mgmt_dash_fleet_site_line,x.management.dashboard.fleet.site.line,model_x_management_dashboard_fleet_site_line,base.group_user,1,1,1,1
 access_mgmt_dash_fleet_vehicle_line,x.management.dashboard.fleet.vehicle.line,model_x_management_dashboard_fleet_vehicle_line,base.group_user,1,1,1,1
+access_fleet_vehicle_ledger_all,x.fleet.vehicle.ledger read all,model_x_fleet_vehicle_ledger,base.group_user,1,0,0,0

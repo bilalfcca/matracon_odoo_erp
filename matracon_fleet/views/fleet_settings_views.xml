@@ -44,6 +44,9 @@
                         </group>
                         <group>
                             <field name="account_spare_parts_id" options="{'no_create': True}"/>
+                            <field name="account_spare_parts_credit_id"
+                                   options="{'no_create': True}"
+                                   help="Credit account used when posting a cash spare part (no picking). Leave blank if all spare parts come from inventory."/>
                             <field name="account_rental_id" options="{'no_create': True}"/>
                             <field name="account_other_id" options="{'no_create': True}"/>
                         </group>

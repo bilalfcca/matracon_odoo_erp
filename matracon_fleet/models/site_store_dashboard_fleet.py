@@ -22,20 +22,28 @@ class SiteStoreDashboardFleet(models.TransientModel):
         'site_store_dash_fleet_rel', 'dash_id', 'vehicle_id',
         string='Site Vehicles', readonly=True)
 
+    # ── Fleet data computation ────────────────────────────────────────────────
+
     def _compute_fleet_data(self):
-        """Compute fleet KPIs for this site."""
+        """Compute fleet KPIs for this site and return as a plain dict.
+
+        Returns scalars and recordsets — same conventions as _compute_kpi_data()
+        so that _refresh_dashboard_data() can persist everything uniformly.
+        """
         self.ensure_one()
         today = date.today()
         month_start = today.replace(day=1)
 
         analytic = self.project_analytic_account_id
         if not analytic:
-            self.fleet_vehicle_count = 0
-            self.fleet_fuel_cost_mtd = 0
-            self.fleet_total_cost_mtd = 0
-            self.fleet_expiring_contracts = 0
-            self.fleet_vehicle_ids = [(5, 0, 0)]
-            return
+            return {
+                'fleet_vehicle_count': 0,
+                'fleet_fuel_cost_mtd': 0.0,
+                'fleet_total_cost_mtd': 0.0,
+                'fleet_expiring_contracts': 0,
+                'fleet_currency_id': self.env.company.currency_id,
+                'fleet_vehicle_ids': self.env['fleet.vehicle'],
+            }
 
         vehicles = self.env['fleet.vehicle'].search([
             ('x_analytic_account_id', '=', analytic.id),
@@ -65,8 +73,17 @@ class SiteStoreDashboardFleet(models.TransientModel):
             ]).mapped('x_total_cost')
         )
 
-        self.fleet_vehicle_count = len(vehicles)
-        self.fleet_fuel_cost_mtd = fuel_mtd
-        self.fleet_total_cost_mtd = fuel_mtd + spare_mtd
-        self.fleet_expiring_contracts = len(expiring)
-        self.fleet_vehicle_ids = [(6, 0, vehicles.ids)]
+        return {
+            'fleet_vehicle_count': len(vehicles),
+            'fleet_fuel_cost_mtd': fuel_mtd,
+            'fleet_total_cost_mtd': fuel_mtd + spare_mtd,
+            'fleet_expiring_contracts': len(expiring),
+            'fleet_currency_id': self.env.company.currency_id,
+            'fleet_vehicle_ids': vehicles,
+        }
+
+    def _compute_kpi_data(self):
+        """Extend the base KPI dict with fleet data so the pipeline persists it."""
+        data = super()._compute_kpi_data()
+        data.update(self._compute_fleet_data())
+        return data

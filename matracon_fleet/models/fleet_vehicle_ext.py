@@ -3,6 +3,14 @@
 from odoo import models, fields, api
 from odoo.exceptions import UserError, ValidationError
 
+# Maps x_meter_unit selection values → standard fleet odometer_unit values
+# (extended by selection_add below so 'hours' and 'units' are also valid)
+_METER_TO_ODOMETER = {
+    'km': 'kilometers',
+    'hours': 'hours',
+    'units': 'units',
+}
+
 
 class FleetVehicleExt(models.Model):
     _inherit = 'fleet.vehicle'
@@ -30,6 +38,16 @@ class FleetVehicleExt(models.Model):
         ('units', 'Units Produced'),
     ], string='Meter Unit', default='km', required=True,
         help='Measurement unit for odometer/hour-meter readings.')
+
+    # Extend the standard odometer_unit to include 'hours' and 'units' so that
+    # Odoo's built-in meter log views display the correct unit label.
+    odometer_unit = fields.Selection(
+        selection_add=[
+            ('hours', 'Hours (hr)'),
+            ('units', 'Units Produced'),
+        ],
+        ondelete={'hours': 'set default', 'units': 'set default'},
+    )
 
     # ── Site Assignment ───────────────────────────────────────────────────────
     x_site_config_id = fields.Many2one(
@@ -100,6 +118,27 @@ class FleetVehicleExt(models.Model):
             rec.x_total_spare_cost = spare_total
             rec.x_total_fleet_cost = log_total + spare_total
 
+    # ── create/write: keep odometer_unit in sync with x_meter_unit ──────────
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        for vals in vals_list:
+            if 'x_meter_unit' in vals:
+                vals['odometer_unit'] = _METER_TO_ODOMETER.get(
+                    vals['x_meter_unit'], 'kilometers')
+        return super().create(vals_list)
+
+    def write(self, vals):
+        if 'x_meter_unit' in vals:
+            vals['odometer_unit'] = _METER_TO_ODOMETER.get(
+                vals['x_meter_unit'], 'kilometers')
+        return super().write(vals)
+
+    @api.onchange('x_meter_unit')
+    def _onchange_x_meter_unit_sync_odometer(self):
+        """Keep standard odometer_unit in sync so Odoo's meter log shows the right unit."""
+        self.odometer_unit = _METER_TO_ODOMETER.get(self.x_meter_unit, 'kilometers')
+
     @api.onchange('x_mppl_prefix_id')
     def _onchange_mppl_prefix(self):
         """Auto-generate MPPL code when prefix is selected."""
@@ -141,4 +180,18 @@ class FleetVehicleExt(models.Model):
             'view_mode': 'list,form',
             'domain': [('vehicle_id', '=', self.id)],
             'context': {'default_vehicle_id': self.id},
+        }
+
+    def action_open_vehicle_ledger(self):
+        """Open the unified fleet ledger (log entries + spare parts) for this vehicle."""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': f'Ledger — {self.x_mppl_code or self.name}',
+            'res_model': 'x.fleet.vehicle.ledger',
+            'view_mode': 'list',
+            'domain': [('vehicle_id', '=', self.id)],
+            'context': {
+                'search_default_group_by_type': 1,
+            },
         }
