@@ -1,6 +1,8 @@
 """Fleet KPI extensions to x.management.dashboard."""
 
 import logging
+from datetime import date as date_cls
+from dateutil.relativedelta import relativedelta
 from odoo import models, fields, api
 
 _logger = logging.getLogger(__name__)
@@ -42,6 +44,24 @@ class ManagementDashboardFleetVehicleLine(models.TransientModel):
     spare_cost = fields.Monetary(readonly=True, currency_field='currency_id')
     total_cost = fields.Monetary(readonly=True, currency_field='currency_id')
     currency_id = fields.Many2one('res.currency', readonly=True)
+    last_meter = fields.Float(readonly=True, digits=(16, 2))
+    meter_unit = fields.Char(readonly=True)
+
+
+class ManagementDashboardFleetMonthlyLine(models.TransientModel):
+    _name = 'x.management.dashboard.fleet.monthly.line'
+    _description = 'Fleet Dashboard — Monthly Cost Trend'
+    _order = 'period_date asc'
+
+    dashboard_id = fields.Many2one(
+        'x.management.dashboard', ondelete='cascade', required=True)
+    month_label = fields.Char(readonly=True)
+    period_date = fields.Date(readonly=True)
+    fuel_cost = fields.Monetary(readonly=True, currency_field='currency_id')
+    spare_cost = fields.Monetary(readonly=True, currency_field='currency_id')
+    other_cost = fields.Monetary(readonly=True, currency_field='currency_id')
+    total_cost = fields.Monetary(readonly=True, currency_field='currency_id')
+    currency_id = fields.Many2one('res.currency', readonly=True)
 
 
 # ── Management Dashboard extension ──────────────────────────────────────────
@@ -49,7 +69,15 @@ class ManagementDashboardFleetVehicleLine(models.TransientModel):
 _FLEET_LINE_FIELDS = frozenset({
     'fleet_site_line_ids',
     'fleet_vehicle_line_ids',
+    'fleet_monthly_line_ids',
 })
+
+_UNIT_LABEL = {
+    'kilometers': 'km',
+    'miles': 'mi',
+    'hours': 'hr',
+    'units': 'units',
+}
 
 
 class ManagementDashboardFleet(models.TransientModel):
@@ -78,12 +106,22 @@ class ManagementDashboardFleet(models.TransientModel):
     kpi_fleet_rented_cost = fields.Monetary(
         string='Rented Vehicle Op. Cost', readonly=True, currency_field='currency_id')
 
+    kpi_fleet_ltv_cost = fields.Monetary(
+        string='LTV Cost', readonly=True, currency_field='currency_id')
+    kpi_fleet_htv_cost = fields.Monetary(
+        string='HTV Cost', readonly=True, currency_field='currency_id')
+    kpi_fleet_plant_cost = fields.Monetary(
+        string='Plant &amp; Equipment Cost', readonly=True, currency_field='currency_id')
+
     fleet_site_line_ids = fields.One2many(
         'x.management.dashboard.fleet.site.line', 'dashboard_id',
         string='Fleet Cost by Site', readonly=True)
     fleet_vehicle_line_ids = fields.One2many(
         'x.management.dashboard.fleet.vehicle.line', 'dashboard_id',
         string='Top Vehicles by Cost', readonly=True)
+    fleet_monthly_line_ids = fields.One2many(
+        'x.management.dashboard.fleet.monthly.line', 'dashboard_id',
+        string='Monthly Cost Trend', readonly=True)
 
     # ── Fleet KPI computation ─────────────────────────────────────────────────
 
@@ -252,11 +290,69 @@ class ManagementDashboardFleet(models.TransientModel):
                 'spare_cost': v_spare_cost,
                 'total_cost': v_total,
                 'currency_id': currency.id,
+                'last_meter': v.odometer or 0.0,
+                'meter_unit': _UNIT_LABEL.get(v.odometer_unit, 'km'),
             })
         vehicle_lines.sort(key=lambda x: x['total_cost'], reverse=True)
         vehicle_lines = vehicle_lines[:20]
 
         total_cost = fuel_cost + other_cost + spare_cost + rental_cost
+
+        # ── LTV / HTV / Plant cost split ───────────────────────────────────
+        ltv_ids = set(vehicles.filtered(lambda v: v.x_fleet_type == 'ltv').ids)
+        htv_ids = set(vehicles.filtered(lambda v: v.x_fleet_type == 'htv').ids)
+        plant_ids = set(vehicles.filtered(lambda v: v.x_fleet_type == 'plant').ids)
+
+        def _type_cost(type_ids):
+            if not type_ids:
+                return 0.0
+            l_c = sum(
+                log_entries.filtered(
+                    lambda l, ids=type_ids: l.vehicle_id.id in ids
+                ).mapped('amount'))
+            s_c = sum(
+                SparePart.search(spare_domain + [('vehicle_id', 'in', list(type_ids))]
+                                 ).mapped('x_total_cost'))
+            return l_c + s_c
+
+        kpi_ltv_cost = _type_cost(ltv_ids)
+        kpi_htv_cost = _type_cost(htv_ids)
+        kpi_plant_cost = _type_cost(plant_ids)
+
+        # ── Monthly cost trend — last 12 calendar months ───────────────────
+        monthly_lines = []
+        today_date = date_cls.today()
+        for i in range(11, -1, -1):  # oldest → newest
+            month_start = today_date.replace(day=1) - relativedelta(months=i)
+            month_end = month_start + relativedelta(months=1) - relativedelta(days=1)
+            m_logs = LogEntry.search([
+                ('vehicle_id', 'in', vehicles.ids),
+                ('date', '>=', month_start),
+                ('date', '<=', month_end),
+            ])
+            m_spares = SparePart.search([
+                ('vehicle_id', 'in', vehicles.ids),
+                ('state', '=', 'posted'),
+                ('date', '>=', month_start),
+                ('date', '<=', month_end),
+            ])
+            m_fuel = sum(
+                m_logs.filtered(
+                    lambda l: l.x_log_category in fuel_cats).mapped('amount'))
+            m_other = sum(
+                m_logs.filtered(
+                    lambda l: l.x_log_category in other_cats).mapped('amount'))
+            m_spare = sum(m_spares.mapped('x_total_cost'))
+            m_total = m_fuel + m_other + m_spare
+            monthly_lines.append({
+                'month_label': month_start.strftime('%b %Y'),
+                'period_date': month_start,
+                'fuel_cost': m_fuel,
+                'spare_cost': m_spare,
+                'other_cost': m_other,
+                'total_cost': m_total,
+                'currency_id': currency.id,
+            })
 
         return {
             'kpi_fleet_total': kpi_total,
@@ -272,8 +368,12 @@ class ManagementDashboardFleet(models.TransientModel):
             'kpi_fleet_other_cost': other_cost,
             'kpi_fleet_owned_cost': kpi_fleet_owned_cost,
             'kpi_fleet_rented_cost': kpi_fleet_rented_cost,
+            'kpi_fleet_ltv_cost': kpi_ltv_cost,
+            'kpi_fleet_htv_cost': kpi_htv_cost,
+            'kpi_fleet_plant_cost': kpi_plant_cost,
             'fleet_site_line_ids': site_lines,
             'fleet_vehicle_line_ids': vehicle_lines,
+            'fleet_monthly_line_ids': monthly_lines,
         }
 
     # ── Hook into parent KPI pipeline ────────────────────────────────────────
@@ -295,7 +395,7 @@ class ManagementDashboardFleet(models.TransientModel):
             'bank_line_ids', 'bg_facility_line_ids', 'bg_project_line_ids',
             'attendance_line_ids', 'ipc_line_ids', 'inventory_line_ids',
             # fleet
-            'fleet_site_line_ids', 'fleet_vehicle_line_ids',
+            'fleet_site_line_ids', 'fleet_vehicle_line_ids', 'fleet_monthly_line_ids',
         }
         write_vals = {}
         for fname, val in data.items():
@@ -323,7 +423,7 @@ class ManagementDashboardFleet(models.TransientModel):
             'bank_line_ids', 'bg_facility_line_ids', 'bg_project_line_ids',
             'attendance_line_ids', 'ipc_line_ids', 'inventory_line_ids',
             # fleet
-            'fleet_site_line_ids', 'fleet_vehicle_line_ids',
+            'fleet_site_line_ids', 'fleet_vehicle_line_ids', 'fleet_monthly_line_ids',
         }
         for fname, val in data.items():
             if fname in line_fields:

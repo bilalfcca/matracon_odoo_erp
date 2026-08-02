@@ -23,6 +23,7 @@
         'views/fleet_log_entry_ext_views.xml',
         'views/fleet_spare_part_views.xml',
         'views/fleet_vehicle_ledger_views.xml',
+        'views/fleet_vehicle_trip_views.xml',
         'views/management_dashboard_fleet_views.xml',
         'views/site_store_dashboard_fleet_views.xml',
         'views/menus.xml',

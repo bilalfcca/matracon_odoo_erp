@@ -2,7 +2,7 @@
 
 import logging
 from odoo import models, fields, api
-from odoo.exceptions import UserError
+from odoo.exceptions import UserError, ValidationError
 
 _logger = logging.getLogger(__name__)
 
@@ -109,6 +109,13 @@ class FleetLogEntryExt(models.Model):
             self.x_payment_source = (
                 'petty_cash' if settings.fuel_payment_source == 'petty_cash' else 'vendor_bill'
             )
+
+    @api.constrains('x_log_category', 'notes')
+    def _check_other_notes_required(self):
+        for rec in self:
+            if rec.x_log_category == 'other' and not (rec.notes or '').strip():
+                raise ValidationError(
+                    'Description / Notes is required for "Other Consumable" log entries.')
 
     def action_post_gl(self):
         """Create and post GL journal entry for this log entry."""

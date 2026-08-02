@@ -31,6 +31,12 @@
                 <field name="x_driver_employee_id" string="Driver (Employee)"/>
             </field>
 
+            <!-- Notes: required when category is "Other Consumable" -->
+            <field name="notes" position="attributes">
+                <attribute name="required">x_log_category == 'other'</attribute>
+                <attribute name="placeholder">Required for Other Consumable — describe what was done</attribute>
+            </field>
+
             <!-- Payment source + GL link before notes -->
             <field name="notes" position="before">
                 <field name="x_analytic_account_id" string="Project Site" readonly="1"/>

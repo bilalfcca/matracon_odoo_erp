@@ -35,6 +35,14 @@
               sequence="25"
               groups="fleet.fleet_group_user"/>
 
+    <!-- ── Fleet → Vehicles → Trip Records ──────────────────────────────── -->
+    <menuitem id="menu_fleet_trip_records"
+              name="Trip Records"
+              parent="fleet.fleet_vehicles"
+              action="action_fleet_vehicle_trip_all"
+              sequence="30"
+              groups="fleet.fleet_group_user"/>
+
     <!-- ── Fleet → Configuration → Fleet Settings ───────────────────────── -->
     <menuitem id="menu_fleet_settings"
               name="Fleet Settings"

@@ -36,6 +36,23 @@
                     <field name="x_rental_date_end" string="Contract End"/>
                     <field name="x_rental_expiry_alert" string="Expiry Alert (30d)" readonly="1"/>
                 </group>
+                <!-- Service Interval Alert -->
+                <group string="Service Interval">
+                    <field name="x_service_interval"
+                           string="Alert Every (km / hr / units)"
+                           help="Set to 0 to disable. System alerts when meter approaches this interval since last service."/>
+                    <field name="x_last_service_meter" readonly="1"
+                           string="Last Service Meter"
+                           invisible="x_service_interval == 0"/>
+                    <field name="x_next_service_due" readonly="1"
+                           string="Next Service Due At"
+                           invisible="x_service_interval == 0"/>
+                </group>
+                <div class="alert alert-warning" role="alert"
+                     invisible="not x_service_alert">
+                    <i class="fa fa-wrench me-1"/>
+                    Service due — current meter has reached the service interval threshold.
+                </div>
             </field>
 
             <!-- Cost summary stat buttons -->
@@ -43,6 +60,10 @@
                 <button name="action_view_spare_parts" type="object"
                         class="oe_stat_button" icon="fa-wrench">
                     <field name="x_spare_part_count" widget="statinfo" string="Spare Parts"/>
+                </button>
+                <button name="action_view_trips" type="object"
+                        class="oe_stat_button" icon="fa-road">
+                    <field name="x_trip_count" widget="statinfo" string="Trips"/>
                 </button>
                 <button name="action_open_vehicle_ledger" type="object"
                         class="oe_stat_button" icon="fa-list-alt">
@@ -122,8 +143,8 @@
                             <field name="product_id"/>
                             <field name="x_spare_category"/>
                             <field name="description"/>
-                            <field name="quantity"/>
-                            <field name="x_unit_cost"/>
+                            <field name="quantity" readonly="picking_id"/>
+                            <field name="x_unit_cost" readonly="picking_id"/>
                             <field name="x_total_cost" string="Total (PKR)"/>
                             <field name="picking_id" optional="show"/>
                             <field name="x_meter_at_service" optional="hide"/>
@@ -136,6 +157,29 @@
                         <field name="x_total_spare_cost"
                                string="Total Spare Parts Cost" readonly="1"/>
                     </group>
+                </page>
+
+                <!-- Tab 4: Trip Records -->
+                <page string="Trip Records" name="trip_records_tab">
+                    <field name="x_trip_ids" nolabel="1">
+                        <list decoration-success="state == 'returned'"
+                              decoration-info="state == 'on_trip'"
+                              decoration-muted="state == 'pending'">
+                            <field name="date" string="Departure"/>
+                            <field name="date_return" string="Return" optional="show"/>
+                            <field name="driver_id" string="Driver"/>
+                            <field name="destination"/>
+                            <field name="purpose" optional="show"/>
+                            <field name="start_meter" string="Start Meter" optional="show"/>
+                            <field name="end_meter" string="End Meter" optional="show"/>
+                            <field name="x_distance" string="Usage" optional="show"/>
+                            <field name="x_meter_unit" string="Unit" optional="show"/>
+                            <field name="state" widget="badge"
+                                   decoration-success="state == 'returned'"
+                                   decoration-info="state == 'on_trip'"
+                                   decoration-muted="state == 'pending'"/>
+                        </list>
+                    </field>
                 </page>
 
             </xpath>
@@ -220,8 +264,8 @@
                         <field name="product_id" options="{'no_create': True}"/>
                         <field name="picking_id" options="{'no_create': True}"
                                domain="[('state', '=', 'done')]"/>
-                        <field name="quantity"/>
-                        <field name="x_unit_cost"/>
+                        <field name="quantity" readonly="picking_id"/>
+                        <field name="x_unit_cost" readonly="picking_id"/>
                         <field name="x_total_cost" readonly="1"/>
                     </group>
                     <group string="Description / Work Done">

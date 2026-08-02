@@ -89,6 +89,30 @@ class FleetVehicleExt(models.Model):
     x_spare_part_count = fields.Integer(
         string='Spare Parts', compute='_compute_spare_part_count')
 
+    # ── Trip Records ──────────────────────────────────────────────────────────
+    x_trip_ids = fields.One2many(
+        'x.fleet.vehicle.trip', 'vehicle_id', string='Trip Records')
+    x_trip_count = fields.Integer(
+        string='Trips', compute='_compute_trip_count')
+
+    # ── Service Interval Alerts ───────────────────────────────────────────────
+    x_service_interval = fields.Float(
+        string='Service Interval',
+        help='Alert when meter exceeds last service reading by this amount (km / hours / units).'
+             ' Set to 0 to disable.')
+    x_last_service_meter = fields.Float(
+        string='Last Service Meter',
+        compute='_compute_service_alert_fields', store=True,
+        help='Meter reading at the last posted spare part service.')
+    x_next_service_due = fields.Float(
+        string='Next Service Due At',
+        compute='_compute_service_alert_fields', store=True,
+        help='x_last_service_meter + x_service_interval.')
+    x_service_alert = fields.Boolean(
+        string='Service Alert',
+        compute='_compute_service_alert_fields', store=True,
+        help='True when current odometer is within 10% of the next service interval threshold.')
+
     # ── Computed / Totals ─────────────────────────────────────────────────────
     x_total_log_cost = fields.Monetary(
         string='Total Log Cost', compute='_compute_x_total_costs',
@@ -99,6 +123,29 @@ class FleetVehicleExt(models.Model):
     x_total_fleet_cost = fields.Monetary(
         string='Total Fleet Cost', compute='_compute_x_total_costs',
         currency_field='currency_id', store=False)
+
+    def _compute_trip_count(self):
+        for rec in self:
+            rec.x_trip_count = len(rec.x_trip_ids)
+
+    @api.depends('x_spare_part_ids', 'x_spare_part_ids.x_meter_at_service',
+                 'x_spare_part_ids.state', 'x_service_interval', 'odometer')
+    def _compute_service_alert_fields(self):
+        for rec in self:
+            if not rec.x_service_interval:
+                rec.x_last_service_meter = 0.0
+                rec.x_next_service_due = 0.0
+                rec.x_service_alert = False
+                continue
+            posted = rec.x_spare_part_ids.filtered(
+                lambda s: s.state == 'posted' and s.x_meter_at_service)
+            last = max(posted.mapped('x_meter_at_service'), default=0.0)
+            rec.x_last_service_meter = last
+            due = last + rec.x_service_interval
+            rec.x_next_service_due = due
+            buffer = rec.x_service_interval * 0.10
+            rec.x_service_alert = bool(
+                rec.x_service_interval and rec.odometer >= (due - buffer))
 
     @api.depends('x_rental_date_end', 'x_ownership_type')
     def _compute_rental_expiry_alert(self):
@@ -181,6 +228,17 @@ class FleetVehicleExt(models.Model):
             'type': 'ir.actions.act_window',
             'name': 'Spare Parts Log',
             'res_model': 'x.fleet.spare.part',
+            'view_mode': 'list,form',
+            'domain': [('vehicle_id', '=', self.id)],
+            'context': {'default_vehicle_id': self.id},
+        }
+
+    def action_view_trips(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': f'Trip Records — {self.x_mppl_code or self.name}',
+            'res_model': 'x.fleet.vehicle.trip',
             'view_mode': 'list,form',
             'domain': [('vehicle_id', '=', self.id)],
             'context': {'default_vehicle_id': self.id},
