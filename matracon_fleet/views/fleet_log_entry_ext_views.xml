@@ -51,7 +51,7 @@
     <record id="view_fleet_log_services_list_matracon" model="ir.ui.view">
         <field name="name">fleet.vehicle.log.services.list.matracon</field>
         <field name="model">fleet.vehicle.log.services</field>
-        <field name="inherit_id" ref="fleet.fleet_vehicle_log_services_view_list"/>
+        <field name="inherit_id" ref="fleet.fleet_vehicle_log_services_view_tree"/>
         <field name="arch" type="xml">
             <field name="amount" position="before">
                 <field name="x_log_category" string="Category" optional="show"/>

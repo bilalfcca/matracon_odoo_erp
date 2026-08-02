@@ -14,9 +14,10 @@ class FleetMpplPrefix(models.Model):
     next_sequence = fields.Integer(string='Next Sequence', default=1, required=True)
     active = fields.Boolean(default=True)
 
-    _sql_constraints = [
-        ('prefix_code_unique', 'unique(prefix_code)', 'Prefix code must be unique.'),
-    ]
+    _prefix_code_unique = models.Constraint(
+        'UNIQUE(prefix_code)',
+        'Prefix code must be unique.',
+    )
 
     def generate_mppl_code(self):
         """Generate the next MPPL code and increment the sequence."""

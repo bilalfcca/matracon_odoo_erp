@@ -135,8 +135,8 @@ class ManagementDashboardFleet(models.TransientModel):
 
         # Per-site breakdown
         site_lines = []
-        sites = self.env['project.site.config'].search(
-            [('x_analytic_account_id', 'in', analytic_ids)] if analytic_ids else [])
+        sites = self.env['x.project.site.config'].search(
+            [('analytic_account_id', 'in', analytic_ids)] if analytic_ids else [])
         for site in sites:
             site_vehicles = vehicles.filtered(
                 lambda v, s=site: v.x_site_config_id.id == s.id)
@@ -154,7 +154,7 @@ class ManagementDashboardFleet(models.TransientModel):
             s_spare = sum(site_spares.mapped('x_total_cost'))
             s_total = s_fuel + s_other + s_spare
             site_lines.append({
-                'analytic_account_id': site.x_analytic_account_id.id,
+                'analytic_account_id': site.analytic_account_id.id,
                 'site_name': site.name,
                 'vehicle_count': len(site_vehicles),
                 'fuel_cost': s_fuel,

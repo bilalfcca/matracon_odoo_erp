@@ -81,7 +81,7 @@
     <record id="view_fleet_vehicle_list_matracon" model="ir.ui.view">
         <field name="name">fleet.vehicle.list.matracon</field>
         <field name="model">fleet.vehicle</field>
-        <field name="inherit_id" ref="fleet.fleet_vehicle_view_list"/>
+        <field name="inherit_id" ref="fleet.fleet_vehicle_view_tree"/>
         <field name="arch" type="xml">
             <field name="license_plate" position="before">
                 <field name="x_mppl_code" string="MPPL Code" optional="show"/>
@@ -101,19 +101,23 @@
         <field name="model">fleet.vehicle</field>
         <field name="inherit_id" ref="fleet.fleet_vehicle_view_kanban"/>
         <field name="arch" type="xml">
-            <xpath expr="//div[hasclass('oe_kanban_details')]" position="inside">
-                <div t-if="record.x_mppl_code.value" class="mt-1">
+            <!-- Inject fleet fields into the kanban template after location -->
+            <xpath expr="//t[@t-name='card']//field[@name='vehicle_properties']" position="before">
+                <field name="x_mppl_code" invisible="1"/>
+                <field name="x_site_config_id" invisible="1"/>
+                <field name="x_ownership_type" invisible="1"/>
+                <div t-if="record.x_mppl_code.raw_value" class="mt-1">
                     <span class="badge text-bg-primary"
-                          t-esc="record.x_mppl_code.value"/>
+                          t-esc="record.x_mppl_code.raw_value"/>
                 </div>
-                <div t-if="record.x_site_config_id.value" class="text-muted small mt-1">
+                <small t-if="record.x_site_config_id.raw_value" class="text-muted mt-1">
                     <i class="fa fa-map-marker me-1"/>
                     <t t-esc="record.x_site_config_id.value"/>
-                </div>
-                <div t-if="record.x_ownership_type.raw_value == 'rented'"
-                     class="text-warning small mt-1">
+                </small>
+                <small t-if="record.x_ownership_type.raw_value == 'rented'"
+                       class="text-warning mt-1 d-block">
                     <i class="fa fa-key me-1"/> Rented
-                </div>
+                </small>
             </xpath>
         </field>
     </record>

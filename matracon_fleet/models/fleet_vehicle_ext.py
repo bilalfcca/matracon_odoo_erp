@@ -33,12 +33,12 @@ class FleetVehicleExt(models.Model):
 
     # ── Site Assignment ───────────────────────────────────────────────────────
     x_site_config_id = fields.Many2one(
-        'project.site.config', string='Project Site',
+        'x.project.site.config', string='Project Site',
         tracking=True,
         help='Project site this vehicle is deployed at.')
     x_analytic_account_id = fields.Many2one(
         'account.analytic.account', string='Analytic Account',
-        related='x_site_config_id.x_analytic_account_id',
+        related='x_site_config_id.analytic_account_id',
         store=True, readonly=True)
 
     # ── Ownership ─────────────────────────────────────────────────────────────

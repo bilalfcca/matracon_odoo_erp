@@ -30,24 +30,18 @@
         <field name="name">x.fleet.spare.part.search</field>
         <field name="model">x.fleet.spare.part</field>
         <field name="arch" type="xml">
-            <search>
+            <search string="Spare Parts">
                 <field name="vehicle_id"/>
-                <field name="x_mppl_code"/>
                 <field name="product_id"/>
-                <field name="x_spare_category"/>
-                <field name="x_site_config_id"/>
                 <filter string="Posted" name="posted" domain="[('state','=','posted')]"/>
                 <filter string="Draft" name="draft" domain="[('state','=','draft')]"/>
-                <group expand="0" string="Group By">
-                    <filter string="Vehicle" name="group_vehicle"
-                            context="{'group_by': 'vehicle_id'}"/>
-                    <filter string="Category" name="group_category"
-                            context="{'group_by': 'x_spare_category'}"/>
-                    <filter string="Site" name="group_site"
-                            context="{'group_by': 'x_site_config_id'}"/>
-                    <filter string="Month" name="group_month"
-                            context="{'group_by': 'date:month'}"/>
-                </group>
+                <separator/>
+                <filter string="By Vehicle" name="group_vehicle"
+                        context="{'group_by': 'vehicle_id'}"/>
+                <filter string="By Month" name="group_month"
+                        context="{'group_by': 'date:month'}"/>
+                <filter string="By Category" name="group_category"
+                        context="{'group_by': 'x_spare_category'}"/>
             </search>
         </field>
     </record>

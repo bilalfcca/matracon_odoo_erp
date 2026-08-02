@@ -29,7 +29,7 @@ class FleetSparePart(models.Model):
         'account.analytic.account', string='Project Site',
         related='vehicle_id.x_analytic_account_id', store=True, readonly=True)
     x_site_config_id = fields.Many2one(
-        'project.site.config', string='Site',
+        'x.project.site.config', string='Site',
         related='vehicle_id.x_site_config_id', store=True, readonly=True)
 
     date = fields.Date(

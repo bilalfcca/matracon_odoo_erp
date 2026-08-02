@@ -2,44 +2,43 @@
 <odoo>
     <!--
         Gate the Fleet app root menu behind group_mtr_app_fleet.
-        Only Matracon roles that have this group in their implied_ids will see it.
+        Only Matracon roles with this group in implied_ids will see the Fleet app.
+        Fleet root menu ID in Odoo 19 is fleet.menu_root.
     -->
-    <record id="fleet.fleet_menu_root" model="ir.ui.menu">
-        <field name="groups_id" eval="[
+    <record id="fleet.menu_root" model="ir.ui.menu">
+        <field name="group_ids" eval="[
             (4, ref('matracon_fleet.group_mtr_app_fleet')),
         ]"/>
     </record>
 
-    <!-- ── Fleet → Log Entries ─────────────────────────────────────────── -->
+    <!-- ── Fleet → Vehicles → Log Entries ───────────────────────────────── -->
     <menuitem id="menu_fleet_log_entries"
               name="Log Entries"
-              parent="fleet.fleet_management"
+              parent="fleet.fleet_vehicles"
               action="action_fleet_log_entries"
-              sequence="15"/>
+              sequence="15"
+              groups="fleet.fleet_group_user"/>
 
-    <!-- ── Fleet → Spare Parts Log ─────────────────────────────────────── -->
+    <!-- ── Fleet → Vehicles → Spare Parts Log ───────────────────────────── -->
     <menuitem id="menu_fleet_spare_parts"
               name="Spare Parts Log"
-              parent="fleet.fleet_management"
+              parent="fleet.fleet_vehicles"
               action="action_fleet_spare_part_all"
-              sequence="20"/>
+              sequence="20"
+              groups="fleet.fleet_group_user"/>
 
-    <!-- ── Fleet → Configuration ───────────────────────────────────────── -->
-    <menuitem id="menu_fleet_config_root"
-              name="Configuration"
-              parent="fleet.fleet_management"
-              sequence="100"/>
-
+    <!-- ── Fleet → Configuration → Fleet Settings ───────────────────────── -->
     <menuitem id="menu_fleet_settings"
               name="Fleet Settings"
-              parent="menu_fleet_config_root"
+              parent="fleet.fleet_configuration"
               action="action_fleet_settings"
               sequence="5"
               groups="purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
+    <!-- ── Fleet → Configuration → MPPL Prefix Codes ────────────────────── -->
     <menuitem id="menu_fleet_mppl_prefix"
               name="MPPL Prefix Codes"
-              parent="menu_fleet_config_root"
+              parent="fleet.fleet_configuration"
               action="action_fleet_mppl_prefix"
               sequence="10"
               groups="purchase_demand_raise.group_matracon_admin,base.group_system"/>

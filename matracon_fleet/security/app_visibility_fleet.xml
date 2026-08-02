@@ -2,7 +2,8 @@
 <odoo>
     <!-- App visibility group for Fleet app — mirrors pattern in site_operations/security/app_visibility_groups.xml -->
     <record id="group_mtr_app_fleet" model="res.groups">
-        <field name="name">Matracon App: Fleet</field>
-        <field name="category_id" ref="base.module_category_hidden"/>
+        <field name="name">App: Fleet</field>
+        <field name="privilege_id" ref="purchase_demand_raise.res_groups_privilege_demand_raise"/>
+        <field name="comment">Show Fleet app in the home menu.</field>
     </record>
 </odoo>
