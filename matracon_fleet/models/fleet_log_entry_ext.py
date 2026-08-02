@@ -54,7 +54,12 @@ class FleetLogEntryExt(models.Model):
     x_payment_source = fields.Selection([
         ('petty_cash', 'Petty Cash'),
         ('vendor_bill', 'Vendor Credit / Bill'),
-    ], string='Payment Source')
+        ('direct', 'Direct Cash (no system record)'),
+    ], string='Payment Source',
+        help='How this expense was paid.\n'
+             '• Petty Cash — link the petty cash expense below; GL is auto-linked.\n'
+             '• Vendor Bill — link the vendor bill below; GL is auto-linked.\n'
+             '• Direct Cash — a standalone journal entry is created when you click Post GL.')
     x_petty_cash_expense_id = fields.Many2one(
         'x.petty.cash.expense', string='Petty Cash Expense',
         domain=[('state', '=', 'posted')])
@@ -78,6 +83,8 @@ class FleetLogEntryExt(models.Model):
     def _compute_meter_delta(self):
         for rec in self:
             rec.x_meter_delta = max(0.0, (rec.x_curr_meter or 0.0) - (rec.x_prev_meter or 0.0))
+
+    # ── Onchange helpers ──────────────────────────────────────────────────────
 
     @api.onchange('vehicle_id')
     def _onchange_vehicle_fill_prev_meter(self):
@@ -110,6 +117,41 @@ class FleetLogEntryExt(models.Model):
                 'petty_cash' if settings.fuel_payment_source == 'petty_cash' else 'vendor_bill'
             )
 
+    @api.onchange('x_petty_cash_expense_id', 'x_vendor_bill_id')
+    def _onchange_payment_source_auto_link_gl(self):
+        """Immediately reflect the GL link in the form UI when a source is selected."""
+        if self.x_account_move_id:
+            return  # Already linked — don't overwrite
+        if self.x_petty_cash_expense_id:
+            pc = self.x_petty_cash_expense_id
+            if pc.x_account_move_id and pc.x_account_move_id.state == 'posted':
+                self.x_account_move_id = pc.x_account_move_id
+        elif self.x_vendor_bill_id and self.x_vendor_bill_id.state == 'posted':
+            self.x_account_move_id = self.x_vendor_bill_id
+
+    # ── write() override: persist auto-link when payment source is saved ─────
+
+    def write(self, vals):
+        result = super().write(vals)
+        # Auto-link GL whenever a payment source field changes and GL is not yet linked
+        if 'x_petty_cash_expense_id' in vals or 'x_vendor_bill_id' in vals:
+            for rec in self:
+                if rec.x_account_move_id:
+                    continue  # Already linked — skip
+                move_id = None
+                if rec.x_petty_cash_expense_id:
+                    pc = rec.x_petty_cash_expense_id
+                    if pc.x_account_move_id and pc.x_account_move_id.state == 'posted':
+                        move_id = pc.x_account_move_id.id
+                elif rec.x_vendor_bill_id and rec.x_vendor_bill_id.state == 'posted':
+                    move_id = rec.x_vendor_bill_id.id
+                if move_id:
+                    # Use super() directly to avoid recursion
+                    super(FleetLogEntryExt, rec).write({'x_account_move_id': move_id})
+        return result
+
+    # ── Constraints ───────────────────────────────────────────────────────────
+
     @api.constrains('x_log_category', 'notes')
     def _check_other_notes_required(self):
         for rec in self:
@@ -117,54 +159,97 @@ class FleetLogEntryExt(models.Model):
                 raise ValidationError(
                     'Description / Notes is required for "Other Consumable" log entries.')
 
+    # ── GL Posting — 3-path logic ─────────────────────────────────────────────
+
     def action_post_gl(self):
-        """Create and post GL journal entry for this log entry."""
+        """
+        Link or create a GL journal entry for this log entry.
+
+        Path 1 — Petty Cash: link to the posted JE on the linked petty cash expense
+                 (no new entry — the petty cash JE already debited the expense account).
+        Path 2 — Vendor Bill: link directly to the posted vendor bill move
+                 (no new entry — the bill already debited the expense account).
+        Path 3 — Direct Cash: create a standalone JE using the category expense account
+                 (Dr) and the fleet settings default credit account (Cr).
+        """
         for rec in self:
             if rec.x_account_move_id:
-                raise UserError('A journal entry has already been created for this log entry.')
+                continue  # Already linked — skip silently
+
             if not rec.amount:
-                raise UserError('Cannot post a log entry with zero cost.')
+                raise UserError(
+                    f'Log entry for {rec.vehicle_id.x_mppl_code or rec.vehicle_id.name} '
+                    f'has zero cost. Please enter the amount first.')
 
             settings = self.env['x.fleet.settings']._get_singleton()
+
+            # ── Path 1: Petty Cash ────────────────────────────────────────────
+            if rec.x_payment_source == 'petty_cash' and rec.x_petty_cash_expense_id:
+                pc = rec.x_petty_cash_expense_id
+                if not pc.x_account_move_id:
+                    raise UserError(
+                        f'Petty cash expense "{getattr(pc, "name", pc.id)}" has no journal '
+                        'entry yet. Post the petty cash expense first, then return here.')
+                if pc.x_account_move_id.state != 'posted':
+                    raise UserError(
+                        f'Petty cash expense journal entry is not in Posted state. '
+                        'Confirm the petty cash entry first.')
+                rec.x_account_move_id = pc.x_account_move_id
+                continue
+
+            # ── Path 2: Vendor Bill ───────────────────────────────────────────
+            if rec.x_payment_source == 'vendor_bill' and rec.x_vendor_bill_id:
+                bill = rec.x_vendor_bill_id
+                if bill.state != 'posted':
+                    raise UserError(
+                        f'Vendor bill "{bill.name}" is not in Posted state. '
+                        'Confirm the vendor bill first.')
+                rec.x_account_move_id = bill
+                continue
+
+            # ── Path 3: Direct Cash — create standalone JE ───────────────────
             expense_account = settings.get_account_for_category(rec.x_log_category)
             if not expense_account:
                 raise UserError(
-                    f'No GL account configured for category '
+                    f'No GL expense account configured for category '
                     f'"{dict(LOG_CATEGORIES).get(rec.x_log_category)}". '
-                    'Please go to Fleet → Configuration → Fleet Settings and set the account.')
+                    'Go to Fleet → Configuration → Fleet Settings and map the account.')
 
-            # Determine credit account
-            credit_account = None
-            if rec.x_payment_source == 'petty_cash' and rec.x_petty_cash_expense_id:
-                credit_account = rec.x_petty_cash_expense_id.x_petty_cash_account_id
-            elif rec.x_payment_source == 'vendor_bill' and rec.x_vendor_bill_id:
-                credit_account = (
-                    rec.vendor_id.property_account_payable_id if rec.vendor_id else None
-                )
-
+            credit_account = settings.account_log_credit_id
             if not credit_account:
                 raise UserError(
-                    'Cannot post GL entry: no credit account found. '
-                    'Link a petty cash expense or vendor bill first.')
+                    'No default credit account configured for direct-cash log entry GL.\n\n'
+                    'Options:\n'
+                    '1. Go to Fleet → Configuration → Fleet Settings → set '
+                    '"Log Entry — Default Credit Account".\n'
+                    '2. Or link a Petty Cash Expense or Vendor Bill above — '
+                    'the GL will be auto-linked without needing this account.')
 
             analytic_id = rec.x_analytic_account_id
             analytic_distribution = {str(analytic_id.id): 100} if analytic_id else {}
 
+            journal = self.env['account.journal'].search(
+                [('type', '=', 'general'), ('company_id', '=', self.env.company.id)], limit=1)
+            if not journal:
+                raise UserError(
+                    'No Miscellaneous journal found. '
+                    'Create a General-type journal in Accounting → Configuration → Journals.')
+
+            cat_label = dict(LOG_CATEGORIES).get(rec.x_log_category, rec.x_log_category)
+            ref = (
+                f"Fleet Log — "
+                f"{rec.vehicle_id.x_mppl_code or rec.vehicle_id.name} / {cat_label}"
+            )
+            line_name = f"{rec.vehicle_id.name} — {cat_label}"
+
             move_vals = {
                 'move_type': 'entry',
                 'date': rec.date or fields.Date.context_today(rec),
-                'ref': (
-                    f"Fleet Log — {rec.vehicle_id.x_mppl_code or rec.vehicle_id.name} / "
-                    f"{dict(LOG_CATEGORIES).get(rec.x_log_category, '')}"
-                ),
-                'journal_id': self.env['account.journal'].search(
-                    [('type', '=', 'general')], limit=1).id,
+                'ref': ref,
+                'journal_id': journal.id,
                 'line_ids': [
                     (0, 0, {
-                        'name': (
-                            f"{rec.vehicle_id.name} — "
-                            f"{dict(LOG_CATEGORIES).get(rec.x_log_category, '')}"
-                        ),
+                        'name': line_name,
                         'account_id': expense_account.id,
                         'debit': rec.amount,
                         'credit': 0.0,
@@ -172,14 +257,10 @@ class FleetLogEntryExt(models.Model):
                         'partner_id': rec.purchaser_id.id if rec.purchaser_id else False,
                     }),
                     (0, 0, {
-                        'name': (
-                            f"{rec.vehicle_id.name} — "
-                            f"{dict(LOG_CATEGORIES).get(rec.x_log_category, '')}"
-                        ),
+                        'name': line_name,
                         'account_id': credit_account.id,
                         'debit': 0.0,
                         'credit': rec.amount,
-                        'analytic_distribution': analytic_distribution,
                         'partner_id': rec.purchaser_id.id if rec.purchaser_id else False,
                     }),
                 ],
@@ -187,12 +268,13 @@ class FleetLogEntryExt(models.Model):
             move = self.env['account.move'].create(move_vals)
             move.action_post()
             rec.x_account_move_id = move
+
         return True
 
     def action_view_journal_entry(self):
         self.ensure_one()
         if not self.x_account_move_id:
-            raise UserError('No journal entry linked to this log entry.')
+            raise UserError('No journal entry linked to this log entry yet.')
         return {
             'type': 'ir.actions.act_window',
             'name': 'Journal Entry',
@@ -200,3 +282,12 @@ class FleetLogEntryExt(models.Model):
             'res_id': self.x_account_move_id.id,
             'view_mode': 'form',
         }
+
+    def action_unlink_gl(self):
+        """Detach the GL link so it can be corrected (does NOT reverse the JE itself)."""
+        for rec in self:
+            if rec.x_account_move_id and rec.x_account_move_id.state == 'posted':
+                raise UserError(
+                    f'Cannot unlink posted journal entry {rec.x_account_move_id.name}. '
+                    'Reset it to Draft in Accounting → Journal Entries first, then unlink here.')
+            rec.x_account_move_id = False

@@ -7,6 +7,28 @@
         <field name="inherit_id" ref="fleet.fleet_vehicle_log_services_view_form"/>
         <field name="arch" type="xml">
 
+            <!-- GL action buttons in the header -->
+            <xpath expr="//header" position="inside">
+                <button name="action_post_gl" type="object"
+                        string="Post GL"
+                        class="btn-primary"
+                        invisible="x_gl_posted or not amount"
+                        help="Link or create the accounting journal entry for this log entry."/>
+                <button name="action_view_journal_entry" type="object"
+                        string="View Journal Entry"
+                        class="btn-secondary"
+                        invisible="not x_gl_posted"/>
+                <button name="action_unlink_gl" type="object"
+                        string="Unlink GL"
+                        class="btn-danger"
+                        invisible="not x_account_move_id"
+                        groups="purchase_demand_raise.group_matracon_admin,base.group_system"
+                        confirm="This will detach the GL journal entry link (the JE itself is NOT reversed). Continue?"/>
+                <!-- Invisible helper fields for button visibility -->
+                <field name="x_gl_posted" invisible="1"/>
+                <field name="x_account_move_id" invisible="1"/>
+            </xpath>
+
             <!-- Log category before service type -->
             <field name="service_type_id" position="before">
                 <field name="x_log_category" string="Log Category" required="1"/>
@@ -40,6 +62,7 @@
             <!-- Payment source + GL link before notes -->
             <field name="notes" position="before">
                 <field name="x_analytic_account_id" string="Project Site" readonly="1"/>
+                <separator string="Payment &amp; GL"/>
                 <field name="x_payment_source" string="Payment Source"/>
                 <field name="x_petty_cash_expense_id" string="Petty Cash Expense"
                        invisible="x_payment_source != 'petty_cash'"
@@ -48,6 +71,7 @@
                        invisible="x_payment_source != 'vendor_bill'"
                        options="{'no_create': True}"/>
                 <field name="x_account_move_id" string="Journal Entry" readonly="1"/>
+                <field name="x_gl_posted" string="GL Posted" readonly="1"/>
             </field>
 
         </field>

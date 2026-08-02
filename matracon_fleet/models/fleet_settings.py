@@ -70,6 +70,12 @@ class FleetSettings(models.Model):
     account_other_id = fields.Many2one(
         'account.account', string='Other Consumables',
         domain=[('account_type', 'like', 'expense'), ('deprecated', '=', False)])
+    account_log_credit_id = fields.Many2one(
+        'account.account', string='Log Entry — Default Credit Account',
+        domain=[('deprecated', '=', False)],
+        help='Credit (contra) account used when posting a log entry that has NO linked '
+             'petty cash expense or vendor bill. Typically a petty cash or cash-in-hand '
+             'account. Required only for direct-cash log entries.')
 
     # ── Operational Settings ──────────────────────────────────────────────────
     fuel_payment_source = fields.Selection([
