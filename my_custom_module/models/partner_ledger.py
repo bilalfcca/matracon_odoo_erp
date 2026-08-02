@@ -215,7 +215,7 @@ class PartnerLedgerReportHandler(models.AbstractModel):
         if not all_account_ids:
             return
         self.env.cr.execute(
-            "SELECT id, account_type, code, name FROM account_account WHERE id = ANY(%s)",
+            "SELECT id, account_type FROM account_account WHERE id = ANY(%s)",
             (list(all_account_ids),)
         )
         acc_info = {r['id']: r for r in self.env.cr.dictfetchall()}
