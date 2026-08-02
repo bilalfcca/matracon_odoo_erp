@@ -9,6 +9,8 @@
         ──────────────────────────────────────────────────────────────────────── -->
 
         <!-- Site Store: Purchase + Inventory + Fleet -->
+        <!-- NOTE: group_mtr_app_fleet is added by matracon_fleet/security/app_visibility_fleet.xml
+             via Command.link — it cannot be referenced here because matracon_fleet loads after site_operations. -->
         <record id="purchase_demand_raise.group_site_store" model="res.groups">
             <field name="implied_ids" eval="[
                 (6, 0, [
@@ -18,7 +20,6 @@
                     ref('base.group_allow_export'),
                     ref('group_mtr_app_purchase'),
                     ref('group_mtr_app_inventory'),
-                    ref('matracon_fleet.group_mtr_app_fleet'),
                 ])
             ]"/>
         </record>
@@ -41,6 +42,7 @@
         </record>
 
         <!-- CEO: Purchase + Accounting + Compliance + Fleet -->
+        <!-- NOTE: group_mtr_app_fleet added by matracon_fleet/security/app_visibility_fleet.xml -->
         <record id="purchase_demand_raise.group_ceo_approval" model="res.groups">
             <field name="implied_ids" eval="[
                 (6, 0, [
@@ -51,7 +53,6 @@
                     ref('group_mtr_app_purchase'),
                     ref('group_mtr_app_accounting'),
                     ref('group_mtr_app_compliance'),
-                    ref('matracon_fleet.group_mtr_app_fleet'),
                 ])
             ]"/>
         </record>
@@ -67,6 +68,7 @@
              Bookkeeper (group_account_user) implies Read-only + Invoicing & Banks,
              which in turn implies Invoicing — so all billing + reporting access is covered.
              ir.rule record rules still scope the actual data to this site's analytic account. -->
+        <!-- NOTE: group_mtr_app_fleet added by matracon_fleet/security/app_visibility_fleet.xml -->
         <record id="group_site_accountant" model="res.groups">
             <field name="implied_ids" eval="[
                 (6, 0, [
@@ -75,12 +77,12 @@
                     ref('base.group_allow_export'),
                     ref('group_mtr_app_accounting'),
                     ref('group_mtr_app_attendance'),
-                    ref('matracon_fleet.group_mtr_app_fleet'),
                 ])
             ]"/>
         </record>
 
         <!-- Finance HO: Accounting + Employees + Payroll + Attendance + Compliance + Contacts + Fleet -->
+        <!-- NOTE: group_mtr_app_fleet added by matracon_fleet/security/app_visibility_fleet.xml -->
         <record id="group_finance_ho" model="res.groups">
             <field name="implied_ids" eval="[
                 (6, 0, [
@@ -95,7 +97,6 @@
                     ref('group_mtr_app_payroll'),
                     ref('group_mtr_app_compliance'),
                     ref('group_mtr_app_contacts'),
-                    ref('matracon_fleet.group_mtr_app_fleet'),
                 ])
             ]"/>
         </record>
@@ -106,6 +107,7 @@
                - ACL rows that only grant base.group_system access are covered
                - Settings → Technical menus are accessible
                - Odoo treats this role as a true superadmin across every installed app -->
+        <!-- NOTE: group_mtr_app_fleet added by matracon_fleet/security/app_visibility_fleet.xml -->
         <record id="purchase_demand_raise.group_matracon_admin" model="res.groups">
             <field name="implied_ids" eval="[
                 (6, 0, [
@@ -131,7 +133,6 @@
                     ref('group_mtr_app_settings'),
                     ref('group_mtr_app_contacts'),
                     ref('group_mtr_app_compliance'),
-                    ref('matracon_fleet.group_mtr_app_fleet'),
                 ])
             ]"/>
         </record>

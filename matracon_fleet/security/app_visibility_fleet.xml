@@ -7,13 +7,34 @@
         <field name="comment">Show Fleet app in the home menu.</field>
     </record>
 
-    <!-- Grant Head Office visibility of the Fleet app.
-         This must live here (not in site_operations) because matracon_fleet
-         loads AFTER site_operations; referencing this group from site_operations
-         would cause "External ID not found" at install time. -->
+    <!-- Grant Fleet app visibility to all roles.
+         These records live here (not in site_operations/role_app_groups.xml) because
+         matracon_fleet loads AFTER site_operations; a ref() from site_operations would
+         raise "External ID not found" at install time.
+         Command.link(id) adds without removing other implied groups, so these run safely
+         after site_operations' (6, 0, [...]) REPLACE records. -->
+
     <record id="purchase_demand_raise.group_head_office" model="res.groups">
-        <field name="implied_ids" eval="[
-            Command.link(ref('matracon_fleet.group_mtr_app_fleet')),
-        ]"/>
+        <field name="implied_ids" eval="[Command.link(ref('matracon_fleet.group_mtr_app_fleet'))]"/>
+    </record>
+
+    <record id="purchase_demand_raise.group_site_store" model="res.groups">
+        <field name="implied_ids" eval="[Command.link(ref('matracon_fleet.group_mtr_app_fleet'))]"/>
+    </record>
+
+    <record id="purchase_demand_raise.group_ceo_approval" model="res.groups">
+        <field name="implied_ids" eval="[Command.link(ref('matracon_fleet.group_mtr_app_fleet'))]"/>
+    </record>
+
+    <record id="site_operations.group_site_accountant" model="res.groups">
+        <field name="implied_ids" eval="[Command.link(ref('matracon_fleet.group_mtr_app_fleet'))]"/>
+    </record>
+
+    <record id="site_operations.group_finance_ho" model="res.groups">
+        <field name="implied_ids" eval="[Command.link(ref('matracon_fleet.group_mtr_app_fleet'))]"/>
+    </record>
+
+    <record id="purchase_demand_raise.group_matracon_admin" model="res.groups">
+        <field name="implied_ids" eval="[Command.link(ref('matracon_fleet.group_mtr_app_fleet'))]"/>
     </record>
 </odoo>
