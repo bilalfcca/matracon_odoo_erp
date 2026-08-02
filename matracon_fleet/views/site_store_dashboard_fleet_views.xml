@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ── Fleet widget on Site Store Dashboard ───────────────────────────── -->
+    <record id="view_site_store_dashboard_fleet_inherit" model="ir.ui.view">
+        <field name="name">site.store.dashboard.fleet.inherit</field>
+        <field name="model">x.site.store.dashboard</field>
+        <field name="inherit_id" ref="site_operations.view_site_store_dashboard_form"/>
+        <field name="arch" type="xml">
+
+            <!-- Append fleet section at the bottom of the sheet -->
+            <xpath expr="//sheet" position="inside">
+                <separator string="Fleet at This Site"/>
+
+                <div class="row">
+                    <div class="col-6 col-md-3">
+                        <div class="card text-center border-0 shadow-sm h-100">
+                            <div class="card-body py-3">
+                                <div class="fs-2 fw-bold text-primary">
+                                    <field name="fleet_vehicle_count" readonly="1" nolabel="1"/>
+                                </div>
+                                <div class="text-muted small">Vehicles at Site</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="card text-center border-0 shadow-sm h-100">
+                            <div class="card-body py-3">
+                                <div class="text-muted small mb-1">Fuel Cost (MTD)</div>
+                                <field name="fleet_fuel_cost_mtd" widget="monetary" nolabel="1"
+                                       readonly="1"
+                                       options="{'currency_field': 'fleet_currency_id'}"/>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="card text-center border-0 shadow-sm h-100">
+                            <div class="card-body py-3">
+                                <div class="text-muted small mb-1">Total Fleet Cost (MTD)</div>
+                                <field name="fleet_total_cost_mtd" widget="monetary" nolabel="1"
+                                       readonly="1"
+                                       options="{'currency_field': 'fleet_currency_id'}"/>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="card text-center border-0 shadow-sm h-100">
+                            <div class="card-body py-3">
+                                <div class="fs-2 fw-bold text-danger">
+                                    <field name="fleet_expiring_contracts" readonly="1" nolabel="1"/>
+                                </div>
+                                <div class="text-muted small">Expiring Contracts (30d)</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Mini vehicle list — only shown when there are vehicles -->
+                <div class="mt-3" invisible="fleet_vehicle_count == 0">
+                    <h5 class="text-muted fw-semibold mb-2">Vehicles at This Site</h5>
+                    <field name="fleet_vehicle_ids" nolabel="1" readonly="1">
+                        <list>
+                            <field name="x_mppl_code" string="MPPL Code"/>
+                            <field name="name" string="Vehicle"/>
+                            <field name="x_fleet_type" string="Type"/>
+                            <field name="x_ownership_type" string="Ownership"/>
+                            <field name="license_plate" string="Reg. No."/>
+                            <field name="driver_id" string="Driver"/>
+                        </list>
+                    </field>
+                </div>
+
+                <!-- Hidden currency helper -->
+                <field name="fleet_currency_id" invisible="1"/>
+
+            </xpath>
+
+        </field>
+    </record>
+</odoo>

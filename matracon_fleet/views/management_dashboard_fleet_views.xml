@@ -1,0 +1,199 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ── Add 'fleet' tab to management dashboard ────────────────────────── -->
+    <record id="view_mgmt_dashboard_fleet_tab_inherit" model="ir.ui.view">
+        <field name="name">management.dashboard.fleet.tab.inherit</field>
+        <field name="model">x.management.dashboard</field>
+        <field name="inherit_id" ref="site_operations.view_management_dashboard_form"/>
+        <field name="arch" type="xml">
+
+            <!-- Extend the tab selection with fleet option -->
+            <field name="filter_dashboard_tab" position="attributes">
+                <attribute name="selection_add">[('fleet', 'Fleet')]</attribute>
+            </field>
+
+            <!-- Fleet fields (invisible on other tabs — must be declared for write) -->
+            <field name="available_project_ids" position="after">
+                <field name="kpi_fleet_total" invisible="1"/>
+                <field name="kpi_fleet_ltv" invisible="1"/>
+                <field name="kpi_fleet_htv" invisible="1"/>
+                <field name="kpi_fleet_plant" invisible="1"/>
+                <field name="kpi_fleet_owned" invisible="1"/>
+                <field name="kpi_fleet_rented" invisible="1"/>
+                <field name="kpi_fleet_total_cost" invisible="1"/>
+                <field name="kpi_fleet_fuel_cost" invisible="1"/>
+                <field name="kpi_fleet_spare_cost" invisible="1"/>
+                <field name="kpi_fleet_other_cost" invisible="1"/>
+            </field>
+
+            <!-- Fleet tab content panel — after the bank_guarantee div -->
+            <xpath expr="//div[@invisible[contains(.,'bank_guarantee')]]" position="after">
+                <div invisible="filter_dashboard_tab != 'fleet'">
+
+                    <!-- KPI Row 1: Vehicle counts -->
+                    <div class="row mt-4">
+                        <div class="col-12 mb-3">
+                            <h4 class="text-muted fw-semibold mb-0">
+                                <i class="fa fa-truck me-2"/>Fleet Overview
+                            </h4>
+                        </div>
+                        <div class="col-6 col-md-2">
+                            <div class="card text-center border-0 shadow-sm h-100">
+                                <div class="card-body py-3">
+                                    <div class="fs-2 fw-bold text-primary">
+                                        <field name="kpi_fleet_total" readonly="1" nolabel="1"/>
+                                    </div>
+                                    <div class="text-muted small">Total Vehicles</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-2">
+                            <div class="card text-center border-0 shadow-sm h-100">
+                                <div class="card-body py-3">
+                                    <div class="fs-2 fw-bold text-info">
+                                        <field name="kpi_fleet_ltv" readonly="1" nolabel="1"/>
+                                    </div>
+                                    <div class="text-muted small">LTV</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-2">
+                            <div class="card text-center border-0 shadow-sm h-100">
+                                <div class="card-body py-3">
+                                    <div class="fs-2 fw-bold text-warning">
+                                        <field name="kpi_fleet_htv" readonly="1" nolabel="1"/>
+                                    </div>
+                                    <div class="text-muted small">HTV</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-2">
+                            <div class="card text-center border-0 shadow-sm h-100">
+                                <div class="card-body py-3">
+                                    <div class="fs-2 fw-bold text-secondary">
+                                        <field name="kpi_fleet_plant" readonly="1" nolabel="1"/>
+                                    </div>
+                                    <div class="text-muted small">Plant &amp; Equipment</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-2">
+                            <div class="card text-center border-0 shadow-sm h-100">
+                                <div class="card-body py-3">
+                                    <div class="fs-2 fw-bold text-success">
+                                        <field name="kpi_fleet_owned" readonly="1" nolabel="1"/>
+                                    </div>
+                                    <div class="text-muted small">Owned</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-2">
+                            <div class="card text-center border-0 shadow-sm h-100">
+                                <div class="card-body py-3">
+                                    <div class="fs-2 fw-bold text-danger">
+                                        <field name="kpi_fleet_rented" readonly="1" nolabel="1"/>
+                                    </div>
+                                    <div class="text-muted small">Rented</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- KPI Row 2: Cost breakdown -->
+                    <div class="row mt-3">
+                        <div class="col-12 mb-3">
+                            <h4 class="text-muted fw-semibold mb-0">
+                                <i class="fa fa-money me-2"/>Fleet Costs
+                                <span class="text-muted fw-normal fs-6 ms-2">(period filtered)</span>
+                            </h4>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="card border-0 shadow-sm text-center h-100">
+                                <div class="card-body py-3">
+                                    <div class="text-muted small mb-1">Total Fleet Cost</div>
+                                    <field name="kpi_fleet_total_cost" widget="monetary"
+                                           nolabel="1" readonly="1"
+                                           options="{'currency_field': 'currency_id'}"/>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="card border-0 shadow-sm text-center h-100">
+                                <div class="card-body py-3">
+                                    <div class="text-muted small mb-1">Fuel</div>
+                                    <field name="kpi_fleet_fuel_cost" widget="monetary"
+                                           nolabel="1" readonly="1"
+                                           options="{'currency_field': 'currency_id'}"/>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="card border-0 shadow-sm text-center h-100">
+                                <div class="card-body py-3">
+                                    <div class="text-muted small mb-1">Spare Parts</div>
+                                    <field name="kpi_fleet_spare_cost" widget="monetary"
+                                           nolabel="1" readonly="1"
+                                           options="{'currency_field': 'currency_id'}"/>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="card border-0 shadow-sm text-center h-100">
+                                <div class="card-body py-3">
+                                    <div class="text-muted small mb-1">Oils &amp; Filters</div>
+                                    <field name="kpi_fleet_other_cost" widget="monetary"
+                                           nolabel="1" readonly="1"
+                                           options="{'currency_field': 'currency_id'}"/>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Cost by Project Site table -->
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <h5 class="text-muted fw-semibold mb-2">Cost by Project Site</h5>
+                            <field name="fleet_site_line_ids" nolabel="1" readonly="1">
+                                <list>
+                                    <field name="site_name" string="Project Site"/>
+                                    <field name="vehicle_count" string="Vehicles"/>
+                                    <field name="fuel_cost" string="Fuel (PKR)"
+                                           sum="Total Fuel"/>
+                                    <field name="spare_cost" string="Spare Parts (PKR)"
+                                           sum="Total Spares"/>
+                                    <field name="other_cost" string="Oils &amp; Filters (PKR)"
+                                           sum="Total Other"/>
+                                    <field name="total_cost" string="Total Cost (PKR)"
+                                           sum="Grand Total"/>
+                                </list>
+                            </field>
+                        </div>
+                    </div>
+
+                    <!-- Top Vehicles by Cost table -->
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <h5 class="text-muted fw-semibold mb-2">
+                                Top Vehicles by Cost (max 20)
+                            </h5>
+                            <field name="fleet_vehicle_line_ids" nolabel="1" readonly="1">
+                                <list>
+                                    <field name="mppl_code" string="MPPL Code"/>
+                                    <field name="vehicle_name" string="Vehicle"/>
+                                    <field name="fleet_type" string="Type"/>
+                                    <field name="site_name" string="Site"/>
+                                    <field name="log_cost" string="Log Entries (PKR)"/>
+                                    <field name="spare_cost" string="Spare Parts (PKR)"/>
+                                    <field name="total_cost" string="Total Cost (PKR)"
+                                           sum="Total"/>
+                                </list>
+                            </field>
+                        </div>
+                    </div>
+
+                </div>
+            </xpath>
+
+        </field>
+    </record>
+</odoo>

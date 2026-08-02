@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ── Vehicle form — Matracon extensions ────────────────────────────── -->
+    <record id="view_fleet_vehicle_form_matracon" model="ir.ui.view">
+        <field name="name">fleet.vehicle.form.matracon</field>
+        <field name="model">fleet.vehicle</field>
+        <field name="inherit_id" ref="fleet.fleet_vehicle_view_form"/>
+        <field name="arch" type="xml">
+
+            <!-- MPPL Code + Fleet Type + Meter Unit after license_plate -->
+            <field name="license_plate" position="after">
+                <field name="x_mppl_prefix_id" string="Vehicle / Equipment Type"
+                       options="{'no_create': True}"/>
+                <field name="x_mppl_code" string="MPPL Code"
+                       placeholder="Auto-generated on type selection"/>
+                <field name="x_fleet_type" string="Fleet Category"/>
+                <field name="x_meter_unit" string="Meter Unit"/>
+            </field>
+
+            <!-- Site assignment after location -->
+            <field name="location" position="after">
+                <field name="x_site_config_id" string="Project Site"
+                       options="{'no_create': True}"/>
+                <field name="x_analytic_account_id" string="Analytic Account" readonly="1"/>
+            </field>
+
+            <!-- Ownership block after state_id -->
+            <field name="state_id" position="after">
+                <field name="x_ownership_type" widget="radio" string="Ownership"/>
+                <group invisible="x_ownership_type == 'owned'">
+                    <field name="x_rental_vendor_id" string="Rental Vendor"
+                           options="{'no_create': True}"/>
+                    <field name="x_rental_rate" string="Rental Rate"/>
+                    <field name="x_rental_rate_unit" string="Rate Unit"/>
+                    <field name="x_rental_date_start" string="Contract Start"/>
+                    <field name="x_rental_date_end" string="Contract End"/>
+                    <field name="x_rental_expiry_alert" string="Expiry Alert (30d)" readonly="1"/>
+                </group>
+            </field>
+
+            <!-- Cost summary stat buttons -->
+            <div name="button_box" position="inside">
+                <button name="action_view_spare_parts" type="object"
+                        class="oe_stat_button" icon="fa-wrench">
+                    <field name="x_spare_part_count" widget="statinfo" string="Spare Parts"/>
+                </button>
+            </div>
+
+            <!-- Spare Parts tab inside existing notebook -->
+            <xpath expr="//notebook" position="inside">
+                <page string="Spare Parts" name="spare_parts_tab">
+                    <field name="x_spare_part_ids" nolabel="1">
+                        <list editable="bottom"
+                              decoration-success="state == 'posted'"
+                              decoration-muted="state == 'draft'">
+                            <field name="date"/>
+                            <field name="product_id"/>
+                            <field name="x_spare_category"/>
+                            <field name="description"/>
+                            <field name="quantity"/>
+                            <field name="x_unit_cost"/>
+                            <field name="x_total_cost" string="Total (PKR)"/>
+                            <field name="picking_id" optional="show"/>
+                            <field name="x_meter_at_service" optional="hide"/>
+                            <field name="state" optional="show"/>
+                            <button name="action_post" type="object" string="Post"
+                                    invisible="state == 'posted'" class="btn-sm btn-primary"/>
+                        </list>
+                    </field>
+                    <group>
+                        <field name="x_total_spare_cost"
+                               string="Total Spare Parts Cost" readonly="1"/>
+                    </group>
+                </page>
+            </xpath>
+
+        </field>
+    </record>
+
+    <!-- ── Vehicle list — add MPPL and site columns ───────────────────────── -->
+    <record id="view_fleet_vehicle_list_matracon" model="ir.ui.view">
+        <field name="name">fleet.vehicle.list.matracon</field>
+        <field name="model">fleet.vehicle</field>
+        <field name="inherit_id" ref="fleet.fleet_vehicle_view_list"/>
+        <field name="arch" type="xml">
+            <field name="license_plate" position="before">
+                <field name="x_mppl_code" string="MPPL Code" optional="show"/>
+            </field>
+            <field name="license_plate" position="after">
+                <field name="x_fleet_type" string="Type" optional="show"/>
+                <field name="x_site_config_id" string="Site" optional="show"/>
+                <field name="x_ownership_type" string="Ownership" optional="show"/>
+                <field name="x_total_fleet_cost" string="Total Cost" optional="show"/>
+            </field>
+        </field>
+    </record>
+
+    <!-- ── Vehicle kanban — MPPL code badge + site tag ───────────────────── -->
+    <record id="view_fleet_vehicle_kanban_matracon" model="ir.ui.view">
+        <field name="name">fleet.vehicle.kanban.matracon</field>
+        <field name="model">fleet.vehicle</field>
+        <field name="inherit_id" ref="fleet.fleet_vehicle_view_kanban"/>
+        <field name="arch" type="xml">
+            <xpath expr="//div[hasclass('oe_kanban_details')]" position="inside">
+                <div t-if="record.x_mppl_code.value" class="mt-1">
+                    <span class="badge text-bg-primary"
+                          t-esc="record.x_mppl_code.value"/>
+                </div>
+                <div t-if="record.x_site_config_id.value" class="text-muted small mt-1">
+                    <i class="fa fa-map-marker me-1"/>
+                    <t t-esc="record.x_site_config_id.value"/>
+                </div>
+                <div t-if="record.x_ownership_type.raw_value == 'rented'"
+                     class="text-warning small mt-1">
+                    <i class="fa fa-key me-1"/> Rented
+                </div>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ── Spare part standalone form ────────────────────────────────────── -->
+    <record id="view_fleet_spare_part_standalone_form" model="ir.ui.view">
+        <field name="name">x.fleet.spare.part.form.standalone</field>
+        <field name="model">x.fleet.spare.part</field>
+        <field name="arch" type="xml">
+            <form string="Spare Part Log">
+                <header>
+                    <button name="action_post" type="object" string="Post"
+                            class="btn-primary" invisible="state == 'posted'"/>
+                    <button name="action_reset_draft" type="object" string="Reset to Draft"
+                            invisible="state == 'draft'"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,posted"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="vehicle_id" options="{'no_create': True}"/>
+                            <field name="x_mppl_code" readonly="1"/>
+                            <field name="date"/>
+                            <field name="x_spare_category"/>
+                        </group>
+                        <group>
+                            <field name="x_site_config_id" readonly="1"/>
+                            <field name="x_analytic_account_id" readonly="1"/>
+                            <field name="x_meter_at_service"/>
+                            <field name="x_meter_unit" readonly="1"/>
+                        </group>
+                    </group>
+                    <group>
+                        <field name="product_id" options="{'no_create': True}"/>
+                        <field name="picking_id" options="{'no_create': True}"
+                               domain="[('state', '=', 'done')]"/>
+                        <field name="quantity"/>
+                        <field name="x_unit_cost"/>
+                        <field name="x_total_cost" readonly="1"/>
+                    </group>
+                    <group string="Description / Work Done">
+                        <field name="description" nolabel="1"
+                               placeholder="Mandatory: describe the repair or replacement performed…"/>
+                    </group>
+                </sheet>
+                <div class="oe_chatter">
+                    <field name="message_follower_ids"/>
+                    <field name="message_ids"/>
+                </div>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_fleet_spare_part_all" model="ir.actions.act_window">
+        <field name="name">Spare Parts Log</field>
+        <field name="res_model">x.fleet.spare.part</field>
+        <field name="view_mode">list,form</field>
+    </record>
+</odoo>

@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ── Spare Parts list view ─────────────────────────────────────────── -->
+    <record id="view_fleet_spare_part_list" model="ir.ui.view">
+        <field name="name">x.fleet.spare.part.list</field>
+        <field name="model">x.fleet.spare.part</field>
+        <field name="arch" type="xml">
+            <list string="Spare Parts Log"
+                  decoration-success="state == 'posted'"
+                  decoration-muted="state == 'draft'">
+                <field name="date"/>
+                <field name="x_mppl_code" string="MPPL Code"/>
+                <field name="vehicle_id" string="Vehicle"/>
+                <field name="x_site_config_id" string="Site" optional="show"/>
+                <field name="product_id" string="Spare Part"/>
+                <field name="x_spare_category" string="Category"/>
+                <field name="description" optional="show"/>
+                <field name="quantity"/>
+                <field name="x_unit_cost"/>
+                <field name="x_total_cost" string="Total (PKR)" sum="Total"/>
+                <field name="picking_id" optional="hide"/>
+                <field name="x_meter_at_service" optional="hide"/>
+                <field name="state"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ── Search view ───────────────────────────────────────────────────── -->
+    <record id="view_fleet_spare_part_search" model="ir.ui.view">
+        <field name="name">x.fleet.spare.part.search</field>
+        <field name="model">x.fleet.spare.part</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="vehicle_id"/>
+                <field name="x_mppl_code"/>
+                <field name="product_id"/>
+                <field name="x_spare_category"/>
+                <field name="x_site_config_id"/>
+                <filter string="Posted" name="posted" domain="[('state','=','posted')]"/>
+                <filter string="Draft" name="draft" domain="[('state','=','draft')]"/>
+                <group expand="0" string="Group By">
+                    <filter string="Vehicle" name="group_vehicle"
+                            context="{'group_by': 'vehicle_id'}"/>
+                    <filter string="Category" name="group_category"
+                            context="{'group_by': 'x_spare_category'}"/>
+                    <filter string="Site" name="group_site"
+                            context="{'group_by': 'x_site_config_id'}"/>
+                    <filter string="Month" name="group_month"
+                            context="{'group_by': 'date:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+</odoo>

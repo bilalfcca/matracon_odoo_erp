@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        Gate the Fleet app root menu behind group_mtr_app_fleet.
+        Only Matracon roles that have this group in their implied_ids will see it.
+    -->
+    <record id="fleet.fleet_menu_root" model="ir.ui.menu">
+        <field name="groups_id" eval="[
+            (4, ref('matracon_fleet.group_mtr_app_fleet')),
+        ]"/>
+    </record>
+
+    <!-- ── Fleet → Log Entries ─────────────────────────────────────────── -->
+    <menuitem id="menu_fleet_log_entries"
+              name="Log Entries"
+              parent="fleet.fleet_management"
+              action="action_fleet_log_entries"
+              sequence="15"/>
+
+    <!-- ── Fleet → Spare Parts Log ─────────────────────────────────────── -->
+    <menuitem id="menu_fleet_spare_parts"
+              name="Spare Parts Log"
+              parent="fleet.fleet_management"
+              action="action_fleet_spare_part_all"
+              sequence="20"/>
+
+    <!-- ── Fleet → Configuration ───────────────────────────────────────── -->
+    <menuitem id="menu_fleet_config_root"
+              name="Configuration"
+              parent="fleet.fleet_management"
+              sequence="100"/>
+
+    <menuitem id="menu_fleet_settings"
+              name="Fleet Settings"
+              parent="menu_fleet_config_root"
+              action="action_fleet_settings"
+              sequence="5"
+              groups="purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
+    <menuitem id="menu_fleet_mppl_prefix"
+              name="MPPL Prefix Codes"
+              parent="menu_fleet_config_root"
+              action="action_fleet_mppl_prefix"
+              sequence="10"
+              groups="purchase_demand_raise.group_matracon_admin,base.group_system"/>
+</odoo>

@@ -24,9 +24,12 @@
              full replace, so additions here would be overwritten anyway).
         ══════════════════════════════════════════════════════════════ -->
 
-        <!-- Head Office gets export -->
+        <!-- Head Office gets export + Fleet app visibility -->
         <record id="purchase_demand_raise.group_head_office" model="res.groups">
-            <field name="implied_ids" eval="[Command.link(ref('base.group_allow_export'))]"/>
+            <field name="implied_ids" eval="[
+                Command.link(ref('base.group_allow_export')),
+                Command.link(ref('matracon_fleet.group_mtr_app_fleet')),
+            ]"/>
         </record>
     </data>
 </odoo>

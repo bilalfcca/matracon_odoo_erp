@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- App visibility group for Fleet app — mirrors pattern in site_operations/security/app_visibility_groups.xml -->
+    <record id="group_mtr_app_fleet" model="res.groups">
+        <field name="name">Matracon App: Fleet</field>
+        <field name="category_id" ref="base.module_category_hidden"/>
+    </record>
+</odoo>

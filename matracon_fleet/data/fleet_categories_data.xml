@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <!-- Fleet vehicle model categories (used by standard fleet module) -->
+    <record id="fleet_category_ltv" model="fleet.vehicle.model.category">
+        <field name="name">LTV — Light Transport Vehicle</field>
+    </record>
+    <record id="fleet_category_htv" model="fleet.vehicle.model.category">
+        <field name="name">HTV — Heavy Transport Vehicle</field>
+    </record>
+    <record id="fleet_category_plant" model="fleet.vehicle.model.category">
+        <field name="name">Plant &amp; Equipment</field>
+    </record>
+
+    <!-- Default MPPL prefix codes (noupdate=1: admin can modify freely) -->
+    <record id="mppl_prefix_generator" model="x.fleet.mppl.prefix">
+        <field name="name">Generator</field>
+        <field name="prefix_code">MPPL-G</field>
+        <field name="next_sequence">1</field>
+    </record>
+    <record id="mppl_prefix_cement_machine" model="x.fleet.mppl.prefix">
+        <field name="name">Cement Machine</field>
+        <field name="prefix_code">MPPL-CM</field>
+        <field name="next_sequence">1</field>
+    </record>
+    <record id="mppl_prefix_ltv" model="x.fleet.mppl.prefix">
+        <field name="name">Light Vehicle (LTV)</field>
+        <field name="prefix_code">MPPL-L</field>
+        <field name="next_sequence">1</field>
+    </record>
+    <record id="mppl_prefix_htv" model="x.fleet.mppl.prefix">
+        <field name="name">Heavy Vehicle (HTV)</field>
+        <field name="prefix_code">MPPL-H</field>
+        <field name="next_sequence">1</field>
+    </record>
+    <record id="mppl_prefix_compressor" model="x.fleet.mppl.prefix">
+        <field name="name">Compressor</field>
+        <field name="prefix_code">MPPL-CMP</field>
+        <field name="next_sequence">1</field>
+    </record>
+    <record id="mppl_prefix_water_tanker" model="x.fleet.mppl.prefix">
+        <field name="name">Water Tanker</field>
+        <field name="prefix_code">MPPL-WT</field>
+        <field name="next_sequence">1</field>
+    </record>
+    <record id="mppl_prefix_excavator" model="x.fleet.mppl.prefix">
+        <field name="name">Excavator / JCB</field>
+        <field name="prefix_code">MPPL-EX</field>
+        <field name="next_sequence">1</field>
+    </record>
+    <record id="mppl_prefix_concrete_mixer" model="x.fleet.mppl.prefix">
+        <field name="name">Concrete Mixer</field>
+        <field name="prefix_code">MPPL-MX</field>
+        <field name="next_sequence">1</field>
+    </record>
+    <record id="mppl_prefix_dumper" model="x.fleet.mppl.prefix">
+        <field name="name">Dumper / Tipper</field>
+        <field name="prefix_code">MPPL-DT</field>
+        <field name="next_sequence">1</field>
+    </record>
+    <record id="mppl_prefix_crane" model="x.fleet.mppl.prefix">
+        <field name="name">Crane</field>
+        <field name="prefix_code">MPPL-CR</field>
+        <field name="next_sequence">1</field>
+    </record>
+</odoo>
