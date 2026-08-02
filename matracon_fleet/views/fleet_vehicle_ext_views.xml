@@ -52,8 +52,67 @@
                 </button>
             </div>
 
-            <!-- Spare Parts tab inside existing notebook -->
+            <!-- Hide irrelevant standard tabs for Matracon users -->
+            <page name="page_tax_info" position="attributes">
+                <attribute name="groups">base.group_no_one</attribute>
+            </page>
+            <page name="page_model" position="attributes">
+                <attribute name="groups">base.group_no_one</attribute>
+            </page>
+            <!-- Rename "Note" tab to "Documents & Notes" -->
+            <page name="note" position="attributes">
+                <attribute name="string">Documents &amp; Notes</attribute>
+            </page>
+
+            <!-- FSD tabs: Meter Readings | Log Entries | Spare Parts (+ Documents via "note") -->
             <xpath expr="//notebook" position="inside">
+
+                <!-- Tab 1: Meter Readings — full history of odometer / hour-meter updates -->
+                <page string="Meter Readings" name="meter_readings_tab">
+                    <field name="x_odometer_ids" nolabel="1">
+                        <list editable="top"
+                              decoration-muted="value == 0">
+                            <field name="date"/>
+                            <field name="value" string="Reading"/>
+                            <field name="unit" string="Unit" readonly="1"/>
+                            <field name="driver_id" string="Driver (Partner)" optional="show"/>
+                            <field name="name" string="Note" optional="show"/>
+                        </list>
+                    </field>
+                </page>
+
+                <!-- Tab 2: Log Entries — fuel, oil, filter, consumable log -->
+                <page string="Log Entries" name="log_entries_tab">
+                    <field name="log_services" nolabel="1">
+                        <list>
+                            <field name="date"/>
+                            <field name="x_log_category" string="Category"/>
+                            <field name="service_type_id" string="Service Type"
+                                   optional="hide"/>
+                            <field name="x_prev_meter" string="Prev. Meter"
+                                   optional="show"/>
+                            <field name="x_curr_meter" string="Curr. Meter"
+                                   optional="show"/>
+                            <field name="x_meter_delta" string="Consumption"
+                                   optional="show"/>
+                            <field name="x_meter_unit" string="Unit"
+                                   optional="show"/>
+                            <field name="x_quantity" string="Qty" optional="show"/>
+                            <field name="amount" string="Total Cost (PKR)"
+                                   sum="Total Cost"/>
+                            <field name="x_driver_employee_id" string="Driver"
+                                   optional="show"/>
+                            <field name="notes" string="Notes" optional="hide"/>
+                            <field name="x_gl_posted" string="GL" optional="show"/>
+                        </list>
+                    </field>
+                    <group>
+                        <field name="x_total_log_cost"
+                               string="Total Log Entry Cost" readonly="1"/>
+                    </group>
+                </page>
+
+                <!-- Tab 3: Spare Parts — issued from inventory -->
                 <page string="Spare Parts" name="spare_parts_tab">
                     <field name="x_spare_part_ids" nolabel="1">
                         <list editable="bottom"
@@ -78,6 +137,7 @@
                                string="Total Spare Parts Cost" readonly="1"/>
                     </group>
                 </page>
+
             </xpath>
 
         </field>

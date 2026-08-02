@@ -79,6 +79,10 @@ class FleetVehicleExt(models.Model):
     x_rental_expiry_alert = fields.Boolean(
         string='Expiry Alert', compute='_compute_rental_expiry_alert', store=True)
 
+    # ── Meter Readings (odometer log — One2many for notebook tab) ────────────
+    x_odometer_ids = fields.One2many(
+        'fleet.vehicle.odometer', 'vehicle_id', string='Meter Readings')
+
     # ── Spare Parts (summary) ─────────────────────────────────────────────────
     x_spare_part_ids = fields.One2many(
         'x.fleet.spare.part', 'vehicle_id', string='Spare Parts Log')
