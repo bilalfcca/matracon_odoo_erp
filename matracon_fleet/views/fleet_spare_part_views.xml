@@ -47,4 +47,37 @@
             </search>
         </field>
     </record>
+
+    <!-- ── Graph: Spare Parts Cost by Category (pie) ─────────────────────── -->
+    <record id="view_fleet_spare_part_graph_category" model="ir.ui.view">
+        <field name="name">x.fleet.spare.part.graph.category</field>
+        <field name="model">x.fleet.spare.part</field>
+        <field name="arch" type="xml">
+            <graph string="Spare Parts Cost by Category" type="pie" sample="1">
+                <field name="x_spare_category" type="row"/>
+                <field name="x_total_cost" type="measure"/>
+            </graph>
+        </field>
+    </record>
+
+    <!-- ── Graph: Spare Parts Cost Trend by Month (bar) ─────────────────── -->
+    <record id="view_fleet_spare_part_graph_monthly" model="ir.ui.view">
+        <field name="name">x.fleet.spare.part.graph.monthly</field>
+        <field name="model">x.fleet.spare.part</field>
+        <field name="arch" type="xml">
+            <graph string="Spare Parts Cost Trend" type="bar" sample="1">
+                <field name="date" interval="month" type="row"/>
+                <field name="x_total_cost" type="measure"/>
+            </graph>
+        </field>
+    </record>
+
+    <!-- ── Spare Parts Analysis action (graph first, then list) ─────────── -->
+    <record id="action_fleet_spare_part_analysis" model="ir.actions.act_window">
+        <field name="name">Spare Parts Analysis</field>
+        <field name="res_model">x.fleet.spare.part</field>
+        <field name="view_mode">graph,list</field>
+        <field name="domain">[('state', '=', 'posted')]</field>
+        <field name="context">{'search_default_group_category': 1}</field>
+    </record>
 </odoo>

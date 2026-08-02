@@ -1,6 +1,7 @@
 """x.fleet.vehicle.trip — Vehicle trip / issuance log (driver + destination + purpose)."""
 
 from odoo import models, fields, api
+from odoo.exceptions import UserError
 
 
 class FleetVehicleTrip(models.Model):
@@ -47,21 +48,55 @@ class FleetVehicleTrip(models.Model):
         string='Distance / Usage', compute='_compute_distance', store=True, digits=(16, 2),
         help='end_meter − start_meter. Unit follows vehicle meter type.')
 
+    # ── Workflow: Pending → Submitted → Approved → On Trip → Returned ─────────
     state = fields.Selection([
         ('pending', 'Pending'),
+        ('submitted', 'Submitted for Approval'),
+        ('approved', 'Approved'),
         ('on_trip', 'On Trip'),
         ('returned', 'Returned'),
     ], string='Status', default='pending', tracking=True)
+
+    rejected_reason = fields.Text(string='Rejection Reason', readonly=True, copy=False)
 
     @api.depends('start_meter', 'end_meter')
     def _compute_distance(self):
         for rec in self:
             rec.x_distance = max(0.0, (rec.end_meter or 0.0) - (rec.start_meter or 0.0))
 
+    # ── Site Store: submit for approval ───────────────────────────────────────
+    def action_submit(self):
+        for rec in self:
+            if rec.state != 'pending':
+                raise UserError('Only Pending trips can be submitted for approval.')
+            rec.state = 'submitted'
+
+    # ── Fleet Manager: approve ────────────────────────────────────────────────
+    def action_approve(self):
+        for rec in self:
+            if rec.state != 'submitted':
+                raise UserError('Only submitted trips can be approved.')
+            rec.state = 'approved'
+
+    # ── Fleet Manager: reject back to pending ─────────────────────────────────
+    def action_reject(self):
+        for rec in self:
+            rec.state = 'pending'
+            rec.rejected_reason = ''
+
+    # ── Driver / Site Store: start the trip ───────────────────────────────────
     def action_start_trip(self):
         for rec in self:
+            if rec.state not in ('approved', 'pending'):
+                # Allow pending→on_trip for admin convenience (bypass approval)
+                raise UserError('Trip must be approved before it can be started.')
             rec.state = 'on_trip'
 
+    # ── Driver: mark returned ─────────────────────────────────────────────────
     def action_return(self):
         for rec in self:
+            if rec.state != 'on_trip':
+                raise UserError('Only trips that are On Trip can be marked as Returned.')
+            if not rec.end_meter and rec.start_meter:
+                raise UserError('Please enter the End Meter Reading before marking as returned.')
             rec.state = 'returned'

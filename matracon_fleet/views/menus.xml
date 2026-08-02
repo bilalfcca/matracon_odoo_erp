@@ -43,6 +43,30 @@
               sequence="30"
               groups="fleet.fleet_group_user"/>
 
+    <!-- ── Make standard Fleet Reporting menu visible to all fleet users ─── -->
+    <record id="fleet.menu_fleet_reporting" model="ir.ui.menu">
+        <field name="group_ids" eval="[
+            (4, ref('fleet.fleet_group_user')),
+            (4, ref('matracon_fleet.group_mtr_app_fleet')),
+        ]"/>
+    </record>
+
+    <!-- ── Fleet → Reporting → Fleet Cost Analysis (bar + pie charts) ───── -->
+    <menuitem id="menu_fleet_cost_analysis"
+              name="Fleet Cost Analysis"
+              parent="fleet.menu_fleet_reporting"
+              action="action_fleet_cost_analysis"
+              sequence="5"
+              groups="fleet.fleet_group_user"/>
+
+    <!-- ── Fleet → Reporting → Spare Parts Analysis (pie chart) ─────────── -->
+    <menuitem id="menu_fleet_spare_analysis"
+              name="Spare Parts Analysis"
+              parent="fleet.menu_fleet_reporting"
+              action="action_fleet_spare_part_analysis"
+              sequence="10"
+              groups="fleet.fleet_group_user"/>
+
     <!-- ── Fleet → Configuration → Fleet Settings ───────────────────────── -->
     <menuitem id="menu_fleet_settings"
               name="Fleet Settings"

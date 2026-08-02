@@ -8,6 +8,8 @@
             <list string="Trip Records"
                   decoration-success="state == 'returned'"
                   decoration-info="state == 'on_trip'"
+                  decoration-warning="state == 'submitted'"
+                  decoration-primary="state == 'approved'"
                   decoration-muted="state == 'pending'">
                 <field name="date" string="Departure"/>
                 <field name="x_mppl_code" string="MPPL Code" optional="show"/>
@@ -24,6 +26,8 @@
                 <field name="state" widget="badge"
                        decoration-success="state == 'returned'"
                        decoration-info="state == 'on_trip'"
+                       decoration-warning="state == 'submitted'"
+                       decoration-primary="state == 'approved'"
                        decoration-muted="state == 'pending'"/>
             </list>
         </field>
@@ -36,12 +40,25 @@
         <field name="arch" type="xml">
             <form string="Trip Record">
                 <header>
-                    <button name="action_start_trip" type="object" string="Start Trip"
+                    <!-- Site Store: submit for manager approval -->
+                    <button name="action_submit" type="object" string="Submit for Approval"
                             class="btn-primary" invisible="state != 'pending'"/>
+                    <!-- Fleet Manager / Admin: approve or reject -->
+                    <button name="action_approve" type="object" string="Approve"
+                            class="btn-success"
+                            invisible="state != 'submitted'"
+                            groups="purchase_demand_raise.group_matracon_admin,fleet.fleet_group_manager"/>
+                    <button name="action_reject" type="object" string="Reject"
+                            class="btn-danger"
+                            invisible="state != 'submitted'"
+                            groups="purchase_demand_raise.group_matracon_admin,fleet.fleet_group_manager"/>
+                    <!-- Dispatcher / Site Store: start approved trip -->
+                    <button name="action_start_trip" type="object" string="Start Trip"
+                            class="btn-primary" invisible="state != 'approved'"/>
                     <button name="action_return" type="object" string="Mark Returned"
                             class="btn-success" invisible="state != 'on_trip'"/>
                     <field name="state" widget="statusbar"
-                           statusbar_visible="pending,on_trip,returned"/>
+                           statusbar_visible="pending,submitted,approved,on_trip,returned"/>
                 </header>
                 <sheet>
                     <group>
@@ -70,6 +87,10 @@
                                    placeholder="Describe the purpose of this trip…"/>
                         </group>
                     </group>
+                    <group invisible="not rejected_reason">
+                        <field name="rejected_reason" string="Rejection Reason" readonly="1"
+                               nolabel="1" widget="text"/>
+                    </group>
                 </sheet>
                 <div class="oe_chatter">
                     <field name="message_follower_ids"/>
@@ -93,6 +114,10 @@
                 <separator/>
                 <filter string="Pending" name="filter_pending"
                         domain="[('state', '=', 'pending')]"/>
+                <filter string="Awaiting Approval" name="filter_submitted"
+                        domain="[('state', '=', 'submitted')]"/>
+                <filter string="Approved" name="filter_approved"
+                        domain="[('state', '=', 'approved')]"/>
                 <filter string="On Trip" name="filter_on_trip"
                         domain="[('state', '=', 'on_trip')]"/>
                 <filter string="Returned" name="filter_returned"
