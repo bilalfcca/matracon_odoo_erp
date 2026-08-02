@@ -30,6 +30,9 @@
                 <field name="kpi_fleet_ltv_cost" invisible="1"/>
                 <field name="kpi_fleet_htv_cost" invisible="1"/>
                 <field name="kpi_fleet_plant_cost" invisible="1"/>
+                <field name="kpi_fleet_total_usage" invisible="1"/>
+                <field name="kpi_fleet_active_vehicles" invisible="1"/>
+                <field name="kpi_fleet_graph_data" invisible="1"/>
             </field>
 
             <!-- Fleet tab content panel — after the bank_guarantee div -->
@@ -297,13 +300,41 @@
                         </div>
                     </div>
 
-                    <!-- Monthly Cost Trend — last 12 months -->
+                    <!-- Monthly Cost Trend — embedded bar chart -->
                     <div class="row mt-3">
                         <div class="col-12">
-                            <h5 class="text-muted fw-semibold mb-2">
-                                <i class="fa fa-bar-chart me-1"/>
-                                Monthly Cost Trend (Last 12 Months)
-                            </h5>
+                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                <h5 class="text-muted fw-semibold mb-0">
+                                    <i class="fa fa-bar-chart me-1"/>
+                                    Monthly Cost Trend (Last 12 Months)
+                                </h5>
+                                <div>
+                                    <button name="%(matracon_fleet.action_fleet_cost_analysis)d"
+                                            type="action"
+                                            class="btn btn-sm btn-outline-primary me-1">
+                                        <i class="fa fa-line-chart me-1"/>Log Entry Analysis
+                                    </button>
+                                    <button name="%(matracon_fleet.action_fleet_spare_part_analysis)d"
+                                            type="action"
+                                            class="btn btn-sm btn-outline-secondary">
+                                        <i class="fa fa-pie-chart me-1"/>Spare Parts Analysis
+                                    </button>
+                                </div>
+                            </div>
+                            <!-- Embedded Chart.js bar chart via dashboard_graph widget -->
+                            <div style="height: 180px; position: relative;">
+                                <field name="kpi_fleet_graph_data"
+                                       widget="dashboard_graph"
+                                       graph_type="bar"
+                                       nolabel="1"
+                                       readonly="1"/>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Monthly Detail Table (collapsed summary below chart) -->
+                    <div class="row mt-2">
+                        <div class="col-12">
                             <field name="fleet_monthly_line_ids" nolabel="1" readonly="1">
                                 <list>
                                     <field name="month_label" string="Month"/>
@@ -317,6 +348,45 @@
                                            sum="Grand Total"/>
                                 </list>
                             </field>
+                        </div>
+                    </div>
+
+                    <!-- Fleet Utilization Row -->
+                    <div class="row mt-3">
+                        <div class="col-12 mb-2">
+                            <h5 class="text-muted fw-semibold mb-0">
+                                <i class="fa fa-tachometer me-1"/>Fleet Utilization
+                                <span class="text-muted fw-normal fs-6 ms-2">(period filtered)</span>
+                            </h5>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="card border-0 shadow-sm text-center h-100">
+                                <div class="card-body py-3">
+                                    <div class="text-muted small mb-1">
+                                        Active Vehicles
+                                        <span class="text-muted">/ Total</span>
+                                    </div>
+                                    <div class="fs-4 fw-bold text-success">
+                                        <field name="kpi_fleet_active_vehicles" nolabel="1" readonly="1"/>
+                                        <span class="text-muted fs-6">
+                                            / <field name="kpi_fleet_total" nolabel="1" readonly="1"/>
+                                        </span>
+                                    </div>
+                                    <div class="text-muted small">vehicles with log entries</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="card border-0 shadow-sm text-center h-100">
+                                <div class="card-body py-3">
+                                    <div class="text-muted small mb-1">Total Distance / Hours</div>
+                                    <div class="fs-4 fw-bold text-info">
+                                        <field name="kpi_fleet_total_usage" nolabel="1" readonly="1"
+                                               widget="float" digits="[16,0]"/>
+                                    </div>
+                                    <div class="text-muted small">km / hr / units (sum of meter readings)</div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 

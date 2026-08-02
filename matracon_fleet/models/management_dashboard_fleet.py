@@ -1,5 +1,6 @@
 """Fleet KPI extensions to x.management.dashboard."""
 
+import json
 import logging
 from datetime import date as date_cls
 from dateutil.relativedelta import relativedelta
@@ -112,6 +113,19 @@ class ManagementDashboardFleet(models.TransientModel):
         string='HTV Cost', readonly=True, currency_field='currency_id')
     kpi_fleet_plant_cost = fields.Monetary(
         string='Plant &amp; Equipment Cost', readonly=True, currency_field='currency_id')
+
+    # ── Utilization metrics ───────────────────────────────────────────────────
+    kpi_fleet_total_usage = fields.Float(
+        string='Total Distance / Hours', readonly=True, digits=(16, 1),
+        help='Sum of all meter deltas (odometer/hour-meter) from log entries in the period.')
+    kpi_fleet_active_vehicles = fields.Integer(
+        string='Active Vehicles', readonly=True,
+        help='Number of vehicles with at least one log entry in the selected period.')
+
+    # ── Visual chart data (JSON for dashboard_graph widget) ───────────────────
+    kpi_fleet_graph_data = fields.Text(
+        string='Monthly Cost Chart Data', readonly=True,
+        help='JSON data for the embedded bar chart (monthly cost trend).')
 
     fleet_site_line_ids = fields.One2many(
         'x.management.dashboard.fleet.site.line', 'dashboard_id',
@@ -354,6 +368,25 @@ class ManagementDashboardFleet(models.TransientModel):
                 'currency_id': currency.id,
             })
 
+        # ── Utilization: total meter delta + active vehicle count ─────────────
+        kpi_total_usage = sum(log_entries.mapped('x_meter_delta'))
+        kpi_active_vehicles = len(set(log_entries.mapped('vehicle_id').ids))
+
+        # ── Graph data: bar chart for dashboard_graph widget ──────────────────
+        # Bar format: [{"values": [{"label": "Jan", "value": 50000, "type": "past"}], "key": "..."}]
+        graph_values = [
+            {
+                'label': m['month_label'],
+                'value': m['total_cost'],
+                'type': 'past',
+            }
+            for m in monthly_lines
+        ]
+        kpi_graph_data = json.dumps([{
+            'values': graph_values,
+            'key': 'Total Fleet Cost (PKR)',
+        }])
+
         return {
             'kpi_fleet_total': kpi_total,
             'kpi_fleet_ltv': kpi_ltv,
@@ -371,6 +404,9 @@ class ManagementDashboardFleet(models.TransientModel):
             'kpi_fleet_ltv_cost': kpi_ltv_cost,
             'kpi_fleet_htv_cost': kpi_htv_cost,
             'kpi_fleet_plant_cost': kpi_plant_cost,
+            'kpi_fleet_total_usage': kpi_total_usage,
+            'kpi_fleet_active_vehicles': kpi_active_vehicles,
+            'kpi_fleet_graph_data': kpi_graph_data,
             'fleet_site_line_ids': site_lines,
             'fleet_vehicle_line_ids': vehicle_lines,
             'fleet_monthly_line_ids': monthly_lines,
