@@ -162,15 +162,29 @@
             </xpath>
 
             <!-- Cheque series + manual + Account Title per line in Journal Items tab.
-                 Series dropdown: HO / Finance HO / Admin only.
-                 Manual char: all users.
-                 Both optional so they can be hidden via the column chooser. -->
+                 Series dropdown + Discard: Finance HO / Admin only (not Site Accountant).
+                 Manual char + Account Title: all users.
+                 All optional so they can be hidden via the column chooser.
+                 Domain: shows available leaves matching either the explicit bank journal
+                 set in the form header (x_bank_journal_id) OR the entry's journal when
+                 that journal is a bank journal (e.g. BankIslami). -->
             <xpath expr="//page[@id='aml_tab']//field[@name='name']" position="after">
                 <field name="x_cheque_leaf_id"
                        string="Cheque No. (Series)"
                        optional="show"
                        options="{'no_create': True, 'no_open': True}"
-                       groups="purchase_demand_raise.group_head_office,site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"/>
+                       domain="[('state', '=', 'available'), '|', ('bank_journal_id', '=', parent.x_bank_journal_id), ('bank_journal_id', '=', parent.journal_id)]"
+                       groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"/>
+                <button name="action_discard_je_line_cheque_leaf"
+                        type="object"
+                        icon="fa-ban"
+                        string=""
+                        title="Discard this cheque leaf (spoiled/faulty) — cannot be reused"
+                        invisible="not x_cheque_leaf_id"
+                        confirm="Mark this cheque as discarded? It cannot be reassigned."
+                        class="btn btn-warning btn-sm"
+                        optional="show"
+                        groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"/>
                 <field name="x_cheque_number"
                        string="Cheque No. (Manual)"
                        optional="show"/>

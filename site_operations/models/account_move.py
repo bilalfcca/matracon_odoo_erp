@@ -1030,7 +1030,13 @@ class AccountMoveLineSiteOps(models.Model):
     x_cheque_leaf_id = fields.Many2one(
         'x.cheque.leaf',
         string='Cheque No. (Series)',
-        domain="[('bank_journal_id', '=', parent.x_bank_journal_id), ('state', '=', 'available')]",
+        # Domain kept broad at model level; view narrows it by bank journal.
+        # '|' lets the dropdown show leaves from either the explicit header bank
+        # (x_bank_journal_id) or the entry's own journal (when the journal IS a
+        # bank journal, e.g. BankIslami).  Both are tested against the leaf's
+        # stored bank_journal_id.  If neither is a bank journal the filter still
+        # returns nothing — which is correct (no cheques for MISC entries).
+        domain="[('state', '=', 'available'), '|', ('bank_journal_id', '=', parent.x_bank_journal_id), ('bank_journal_id', '=', parent.journal_id)]",
         ondelete='set null',
         store=True,
         copy=False,
@@ -1041,6 +1047,27 @@ class AccountMoveLineSiteOps(models.Model):
     def _onchange_line_cheque_leaf(self):
         if self.x_cheque_leaf_id:
             self.x_cheque_number = self.x_cheque_leaf_id.cheque_number
+
+    def action_discard_je_line_cheque_leaf(self):
+        """Discard the cheque leaf assigned to this journal entry line.
+
+        Marks the leaf as discarded (spoiled/faulty), clears the reference
+        on the line, and returns the leaf to the series as unusable.
+        Mirrors the same action on x.payment.bank.allocation.
+        """
+        self.ensure_one()
+        if not self.x_cheque_leaf_id:
+            raise UserError(_('No cheque assigned to this line — nothing to discard.'))
+        leaf = self.x_cheque_leaf_id
+        self.write({
+            'x_cheque_leaf_id': False,
+            'x_cheque_number': False,
+        })
+        leaf.sudo().write({
+            'state': 'discarded',
+            'discarded_date': fields.Date.today(),
+        })
+        return False
 
     @api.model_create_multi
     def create(self, vals_list):
