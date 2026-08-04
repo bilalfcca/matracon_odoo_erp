@@ -214,10 +214,18 @@
                                     <t t-esc="o.memo"/>
                                 </div>
                             </t>
-                            <div style="font-size:8pt; color:#444; margin-top:2px;">
-                                <b>Account Title:</b>&#160;<t t-esc="alloc.x_account_title or o.partner_id.name or ''"/>
-                                &#160;&#160;&#160;<b>Cheque No:</b>&#160;<t t-esc="alloc.x_cheque_number or ''"/>
-                            </div>
+                            <table style="margin-top:3px; font-size:8pt; border-collapse:collapse; width:auto;">
+                                <tr>
+                                    <td style="border:1px solid #aaa; padding:2px 5px; background:#f8f8f8; font-weight:600;">Account Title</td>
+                                    <td style="border:1px solid #aaa; padding:2px 7px; min-width:110px;">
+                                        <t t-esc="alloc.x_account_title or o.partner_id.name or ''"/>
+                                    </td>
+                                    <td style="border:1px solid #aaa; padding:2px 5px; background:#f8f8f8; font-weight:600;">Cheque No</td>
+                                    <td style="border:1px solid #aaa; padding:2px 7px; min-width:90px;">
+                                        <t t-esc="alloc.x_cheque_number or ''"/>
+                                    </td>
+                                </tr>
+                            </table>
                         </td>
                         <td style="padding:2px 4px; border:1px solid #ccc; text-align:right; color:#aaa; vertical-align:top;">—</td>
                         <td style="padding:2px 4px; border:1px solid #ccc; text-align:right; font-weight:600; vertical-align:top;">
@@ -240,11 +248,22 @@
                                 <t t-esc="o.memo"/>
                             </div>
                         </t>
-                        <div style="font-size:8pt; color:#444; margin-top:2px;">
-                            <b>Account Title:</b>&#160;<t t-esc="o.x_account_title or o.partner_id.name or ''"/>
-                            &#160;&#160;&#160;<b>Cheque No:</b>&#160;<t t-esc="o.x_cheque_number or ''"/>
-                            &#160;&#160;&#160;<b>Date:</b>&#160;<t t-esc="o.date.strftime('%d/%m/%Y') if o.date else ''"/>
-                        </div>
+                        <table style="margin-top:3px; font-size:8pt; border-collapse:collapse; width:auto;">
+                            <tr>
+                                <td style="border:1px solid #aaa; padding:2px 5px; background:#f8f8f8; font-weight:600;">Account Title</td>
+                                <td style="border:1px solid #aaa; padding:2px 7px; min-width:110px;">
+                                    <t t-esc="o.x_account_title or o.partner_id.name or ''"/>
+                                </td>
+                                <td style="border:1px solid #aaa; padding:2px 5px; background:#f8f8f8; font-weight:600;">Cheque No</td>
+                                <td style="border:1px solid #aaa; padding:2px 7px; min-width:90px;">
+                                    <t t-esc="o.x_cheque_number or ''"/>
+                                </td>
+                                <td style="border:1px solid #aaa; padding:2px 5px; background:#f8f8f8; font-weight:600;">Date</td>
+                                <td style="border:1px solid #aaa; padding:2px 7px; min-width:75px;">
+                                    <t t-esc="o.date.strftime('%d/%m/%Y') if o.date else ''"/>
+                                </td>
+                            </tr>
+                        </table>
                     </td>
                     <td style="padding:2px 4px; border:1px solid #ccc; text-align:right; color:#aaa; vertical-align:top;">—</td>
                     <td style="padding:2px 4px; border:1px solid #ccc; text-align:right; font-weight:600; vertical-align:top;">
