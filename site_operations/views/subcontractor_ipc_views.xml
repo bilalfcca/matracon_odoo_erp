@@ -302,11 +302,6 @@
                                    required="state == 'draft'"
                                    options="{'no_create': True}"
                                    help="Account credited — this is what appears in the Partner Ledger and Liability Sheet."/>
-                            <field name="x_journal_id"
-                                   string="Journal"
-                                   readonly="state != 'draft'"
-                                   options="{'no_create': True}"
-                                   help="Journal for the IPC entry. Auto-selects the first General journal if left blank."/>
                         </group>
                         <group string="Posted Entry">
                             <field name="x_account_move_id"
@@ -317,13 +312,8 @@
                                 <i>Entry will be posted on submission.</i>
                             </div>
                             <div class="text-muted" invisible="state != 'draft'">
-                                <i>
-                                    On submission: <b>Dr</b> Work Expense Account = Net Payable
-                                    / <b>Cr</b> Subcontractor Payable = Net Payable
-                                    (partner = subcontractor, analytic = project).
-                                    This credit is what populates the Partner Ledger
-                                    and Liability Sheet.
-                                </i>
+                                <i>A journal entry will be created automatically on submission
+                                   and will appear in the Partner Ledger and Liability Sheet.</i>
                             </div>
                         </group>
                     </group>
