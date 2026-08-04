@@ -418,6 +418,14 @@
               sequence="60"
               groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_head_office,purchase_demand_raise.group_procurement_ho,base.group_system"/>
 
+    <!-- Inventory Dashboard — product-wise on-hand qty and PO-based worth -->
+    <menuitem id="menu_matracon_mgmt_inventory"
+              name="Inventory Dashboard"
+              parent="site_operations.menu_matracon_mgmt_root"
+              action="site_operations.action_management_dashboard_inventory_tab"
+              sequence="65"
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_head_office,base.group_system"/>
+
     <!-- Hide the old Accounting → Management Dashboard entry -->
     <record id="menu_management_dashboard" model="ir.ui.menu">
         <field name="active" eval="False"/>

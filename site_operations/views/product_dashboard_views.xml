@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        Inventory Dashboard flags on Product and Category forms.
+        Both fields (x_add_to_dashboard) control what appears on the
+        HO Inventory Dashboard tab in the Management Dashboard.
+    -->
+
+    <!-- ── product.template: add checkbox in General Information tab ── -->
+    <record id="view_product_template_dashboard_flag" model="ir.ui.view">
+        <field name="name">product.template.inventory.dashboard.flag</field>
+        <field name="model">product.template</field>
+        <field name="inherit_id" ref="product.product_template_only_form_view"/>
+        <field name="arch" type="xml">
+            <!-- Inject after "Can be Sold" checkbox in the top flags row -->
+            <xpath expr="//field[@name='sale_ok']" position="after">
+                <field name="x_add_to_dashboard"
+                       groups="purchase_demand_raise.group_head_office,
+                               site_operations.group_finance_ho,
+                               purchase_demand_raise.group_matracon_admin"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ── product.category: add checkbox at top of form ── -->
+    <record id="view_product_category_dashboard_flag" model="ir.ui.view">
+        <field name="name">product.category.inventory.dashboard.flag</field>
+        <field name="model">product.category</field>
+        <field name="inherit_id" ref="product.product_category_form_view"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='name']" position="after">
+                <field name="x_add_to_dashboard"
+                       groups="purchase_demand_raise.group_head_office,
+                               site_operations.group_finance_ho,
+                               purchase_demand_raise.group_matracon_admin"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

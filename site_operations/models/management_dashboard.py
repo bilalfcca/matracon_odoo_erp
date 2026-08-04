@@ -25,6 +25,7 @@ class ManagementDashboard(models.TransientModel):
         ('vendors', 'Vendors'),
         ('subcontractors', 'Subcontractors'),
         ('bank_guarantee', 'Bank Guarantees'),
+        ('inventory', 'Inventory Dashboard'),
     ], string='Dashboard View', default='overview', required=True)
 
     filter_scope = fields.Selection([
@@ -131,6 +132,18 @@ class ManagementDashboard(models.TransientModel):
     inventory_line_ids = fields.One2many(
         'x.management.dashboard.inventory.line', 'dashboard_id',
         string='Inventory by Project', readonly=True)
+
+    # ── Inventory Dashboard product lines ────────────────────────────────────
+    kpi_inv_total_worth = fields.Monetary(
+        string='Total Inventory Worth (PO-based)', readonly=True,
+        currency_field='currency_id',
+        help='Sum of (on-hand qty × last PO price) for all dashboard-flagged products.')
+    kpi_inv_total_products = fields.Integer(
+        string='Dashboard Products', readonly=True,
+        help='Number of products currently showing on the Inventory Dashboard.')
+    inv_product_line_ids = fields.One2many(
+        'x.management.dashboard.inv.product.line', 'dashboard_id',
+        string='Inventory Products', readonly=True)
 
     _FILTER_FIELDS = frozenset({
         'filter_dashboard_tab', 'filter_scope', 'filter_project_id',
@@ -725,6 +738,162 @@ class ManagementDashboard(models.TransientModel):
             'inventory_line_ids': list(by_project.values()),
         }
 
+    def _inventory_product_kpis(self, analytics):
+        """Compute per-product on-hand qty and PO-based worth for the Inventory Dashboard tab.
+
+        Only products (or products in categories) where ``x_add_to_dashboard = True``
+        are included.  On-hand quantity comes from ``stock.quant`` at the internal
+        locations of site warehouses linked to ``analytics``.  Unit price comes from
+        the most recent confirmed/done Purchase Order for that product in the same
+        analytic scope (falls back to any project if none found in scope).
+
+        Returns a dict with:
+          ``kpi_inv_total_worth``    – total worth across all flagged products
+          ``kpi_inv_total_products`` – count of flagged products
+          ``inv_product_line_ids``   – list of dicts ready for O2M write
+        """
+        empty = {'kpi_inv_total_worth': 0.0, 'kpi_inv_total_products': 0, 'inv_product_line_ids': []}
+        if not analytics:
+            return empty
+
+        currency = self.env.company.currency_id
+
+        # ── 1. Collect product templates flagged for dashboard ─────────────────
+        Product = self.env['product.template'].sudo()
+        Category = self.env['product.category'].sudo()
+
+        direct_tmpl = Product.search([('x_add_to_dashboard', '=', True), ('active', '=', True)])
+        flagged_cats = Category.search([('x_add_to_dashboard', '=', True)])
+        cat_tmpl = (
+            Product.search([('categ_id', 'in', flagged_cats.ids), ('active', '=', True)])
+            if flagged_cats else Product.browse()
+        )
+        all_tmpl = direct_tmpl | cat_tmpl
+        if not all_tmpl:
+            return empty
+
+        # ── 2. Map template → product.product variants (storable only) ─────────
+        product_variants = self.env['product.product'].sudo().search([
+            ('product_tmpl_id', 'in', all_tmpl.ids),
+            ('active', '=', True),
+        ])
+        tmpl_to_variants = {}
+        for v in product_variants:
+            tmpl_to_variants.setdefault(v.product_tmpl_id.id, []).append(v.id)
+        variant_ids = product_variants.ids
+        if not variant_ids:
+            return empty
+
+        # ── 3. Internal locations for site warehouses ──────────────────────────
+        site_configs = self.env['x.project.site.config'].sudo().search([
+            ('analytic_account_id', 'in', analytics.ids)
+        ])
+        warehouses = site_configs.mapped('warehouse_id')
+        Location = self.env['stock.location'].sudo()
+        internal_loc_ids = []
+        for wh in warehouses:
+            if wh.lot_stock_id:
+                locs = Location.search([
+                    ('id', 'child_of', wh.lot_stock_id.id),
+                    ('usage', '=', 'internal'),
+                ])
+                internal_loc_ids.extend(locs.ids)
+
+        # ── 4. On-hand qty per variant from stock.quant ────────────────────────
+        cr = self.env.cr
+        qty_by_variant = {}
+        if internal_loc_ids:
+            cr.execute("""
+                SELECT sq.product_id, COALESCE(SUM(sq.quantity), 0)
+                  FROM stock_quant sq
+                 WHERE sq.product_id = ANY(%s)
+                   AND sq.location_id = ANY(%s)
+                 GROUP BY sq.product_id
+            """, [variant_ids, internal_loc_ids])
+            qty_by_variant = dict(cr.fetchall())
+
+        # Aggregate to template level
+        qty_by_tmpl = {}
+        for tmpl_id, var_ids in tmpl_to_variants.items():
+            qty_by_tmpl[tmpl_id] = sum(qty_by_variant.get(v, 0.0) for v in var_ids)
+
+        # ── 5. Last confirmed PO unit price per variant ────────────────────────
+        analytic_ids = analytics.ids
+
+        # Primary: last PO in the selected project scope
+        cr.execute("""
+            SELECT DISTINCT ON (pol.product_id)
+                pol.product_id,
+                pol.price_unit
+              FROM purchase_order_line pol
+              JOIN purchase_order po ON po.id = pol.order_id
+             WHERE po.state IN ('purchase', 'done')
+               AND pol.product_id = ANY(%s)
+               AND po.x_project_analytic_account_id = ANY(%s)
+             ORDER BY pol.product_id, po.date_approve DESC NULLS LAST,
+                      po.id DESC
+        """, [variant_ids, analytic_ids])
+        price_by_variant = dict(cr.fetchall())
+
+        # Fallback: any project, for variants that had no PO in the scope
+        missing = [v for v in variant_ids if v not in price_by_variant]
+        if missing:
+            cr.execute("""
+                SELECT DISTINCT ON (pol.product_id)
+                    pol.product_id,
+                    pol.price_unit
+                  FROM purchase_order_line pol
+                  JOIN purchase_order po ON po.id = pol.order_id
+                 WHERE po.state IN ('purchase', 'done')
+                   AND pol.product_id = ANY(%s)
+                 ORDER BY pol.product_id, po.date_approve DESC NULLS LAST,
+                          po.id DESC
+            """, [missing])
+            for vid, price in cr.fetchall():
+                price_by_variant[vid] = price
+
+        # Aggregate to template: weighted average across variants using qty
+        price_by_tmpl = {}
+        for tmpl_id, var_ids in tmpl_to_variants.items():
+            priced = [(qty_by_variant.get(v, 0.0), price_by_variant.get(v, 0.0))
+                      for v in var_ids if v in price_by_variant]
+            if not priced:
+                price_by_tmpl[tmpl_id] = 0.0
+            else:
+                total_qty = sum(q for q, _ in priced)
+                if total_qty > 0:
+                    # Weighted average by qty (most representative)
+                    price_by_tmpl[tmpl_id] = sum(q * p for q, p in priced) / total_qty
+                else:
+                    # No qty yet — take simple average of all variant prices
+                    price_by_tmpl[tmpl_id] = sum(p for _, p in priced) / len(priced)
+
+        # ── 6. Build lines ─────────────────────────────────────────────────────
+        lines = []
+        for tmpl in all_tmpl:
+            qty = qty_by_tmpl.get(tmpl.id, 0.0)
+            price = price_by_tmpl.get(tmpl.id, 0.0)
+            worth = qty * price
+            lines.append({
+                'product_id': tmpl.id,
+                'product_name': tmpl.name or '',
+                'category_name': tmpl.categ_id.complete_name or tmpl.categ_id.name or '',
+                'uom_name': tmpl.uom_id.name or '',
+                'qty_on_hand': qty,
+                'last_po_price': price,
+                'total_worth': worth,
+                'currency_id': currency.id,
+            })
+
+        lines.sort(key=lambda l: l['total_worth'], reverse=True)
+        total_worth = sum(l['total_worth'] for l in lines)
+
+        return {
+            'kpi_inv_total_worth': total_worth,
+            'kpi_inv_total_products': len(lines),
+            'inv_product_line_ids': lines,
+        }
+
     def _compute_kpi_data(self):
         self.ensure_one()
         user = self.env.user
@@ -745,6 +914,8 @@ class ManagementDashboard(models.TransientModel):
 
         # Pre-compute inventory values for all analytics at once (single query)
         inventory_data = self._inventory_kpis(analytics, date_from, date_to)
+        # Pre-compute product-level inventory for the Inventory Dashboard tab
+        inv_product_data = self._inventory_product_kpis(analytics)
         inv_by_project = {
             line['analytic_account_id']: line['inventory_value']
             for line in inventory_data['inventory_line_ids']
@@ -974,6 +1145,9 @@ class ManagementDashboard(models.TransientModel):
             'ipc_line_ids': ipc_lines,
             'kpi_inventory_value': inventory_data['kpi_inventory_value'],
             'inventory_line_ids': inventory_data['inventory_line_ids'],
+            'kpi_inv_total_worth': inv_product_data['kpi_inv_total_worth'],
+            'kpi_inv_total_products': inv_product_data['kpi_inv_total_products'],
+            'inv_product_line_ids': inv_product_data['inv_product_line_ids'],
         }
 
     @api.model
@@ -983,6 +1157,7 @@ class ManagementDashboard(models.TransientModel):
             'project_line_ids', 'vendor_liability_line_ids', 'sub_liability_line_ids',
             'bank_line_ids', 'bg_facility_line_ids', 'bg_project_line_ids',
             'attendance_line_ids', 'ipc_line_ids', 'inventory_line_ids',
+            'inv_product_line_ids',
         }
         write_vals = {}
         for fname, val in data.items():
@@ -1017,6 +1192,7 @@ class ManagementDashboard(models.TransientModel):
             'project_line_ids', 'vendor_liability_line_ids', 'sub_liability_line_ids',
             'bank_line_ids', 'bg_facility_line_ids', 'bg_project_line_ids',
             'attendance_line_ids', 'ipc_line_ids', 'inventory_line_ids',
+            'inv_product_line_ids',
         }
         for fname, val in data.items():
             if fname in line_fields:
@@ -1376,6 +1552,10 @@ class ManagementDashboard(models.TransientModel):
         }
 
     @api.model
+    def action_open_inventory_dashboard(self):
+        return self.action_open_dashboard_tab('inventory')
+
+    @api.model
     def action_open_project_dashboard(self):
         return self.action_open_dashboard_tab('project')
 
@@ -1451,6 +1631,23 @@ class ManagementDashboard(models.TransientModel):
             'res_model': 'x.subcontractor.ipc',
             'view_mode': 'list,form',
             'domain': domain,
+        }
+
+    def action_open_dashboard_products(self):
+        """Open products flagged for the Inventory Dashboard (direct + via category)."""
+        Category = self.env['product.category'].sudo()
+        flagged_cats = Category.search([('x_add_to_dashboard', '=', True)])
+        domain = ['|',
+            ('x_add_to_dashboard', '=', True),
+            ('categ_id', 'in', flagged_cats.ids),
+        ]
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Inventory Dashboard Products'),
+            'res_model': 'product.template',
+            'view_mode': 'list,form',
+            'domain': domain,
+            'context': {'search_default_group_by_categ_id': 1},
         }
 
     def action_open_sub_payments(self):

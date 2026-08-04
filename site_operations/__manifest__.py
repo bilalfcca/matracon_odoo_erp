@@ -52,6 +52,7 @@
         'views/bg_facility_amendment_import_views.xml',
         'views/tax_notice_views.xml',
         'views/management_dashboard_views.xml',
+        'views/product_dashboard_views.xml',
         'views/site_accountant_dashboard_views.xml',
         'views/project_project_views.xml',
         'views/material_issuance_form_views.xml',

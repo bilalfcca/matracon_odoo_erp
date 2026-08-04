@@ -159,3 +159,33 @@ class ManagementDashboardInventoryLine(models.TransientModel):
         help='Sum of posted vendor bills from purchase orders (GRN receipts) at cost, excluding tax.')
     bill_count = fields.Integer(string='No. of Bills', readonly=True)
     currency_id = fields.Many2one('res.currency', readonly=True)
+
+
+class ManagementDashboardInvProductLine(models.TransientModel):
+    """Per-product inventory line for the HO Inventory Dashboard tab.
+
+    Shows on-hand quantity (from stock.quant at site warehouse locations) and
+    total worth computed as qty × last confirmed PO unit price for the product.
+    Only products or categories flagged with x_add_to_dashboard=True appear here.
+    """
+    _name = 'x.management.dashboard.inv.product.line'
+    _description = 'Management Dashboard — Inventory Product Line'
+    _order = 'total_worth desc, product_name'
+
+    dashboard_id = fields.Many2one(
+        'x.management.dashboard', ondelete='cascade', required=True)
+    product_id = fields.Many2one('product.template', readonly=True)
+    product_name = fields.Char(string='Product', readonly=True)
+    category_name = fields.Char(string='Category', readonly=True)
+    uom_name = fields.Char(string='Unit', readonly=True)
+    qty_on_hand = fields.Float(
+        string='On Hand', readonly=True, digits=(16, 3),
+        help='Total quantity on hand across all site warehouses in the current scope.')
+    last_po_price = fields.Monetary(
+        string='Last PO Price', readonly=True, currency_field='currency_id',
+        help='Unit price from the most recent confirmed/done Purchase Order for this product '
+             'in the selected project scope.')
+    total_worth = fields.Monetary(
+        string='Total Worth', readonly=True, currency_field='currency_id',
+        help='On-hand quantity × Last PO unit price.')
+    currency_id = fields.Many2one('res.currency', readonly=True)
