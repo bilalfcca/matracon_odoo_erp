@@ -158,13 +158,14 @@
         <!-- ── FOOTER (repeats every page via wkhtmltopdf footer-html) ── -->
         <div class="footer" style="
                 font-family: Arial, sans-serif;
-                font-size: 14px;
+                font-size: 11px;
                 color: #444;
                 text-align: center;
                 padding: 2mm 12mm 3mm 12mm;
                 width: 100%;
                 box-sizing: border-box;
-                background: #ffffff;">
+                background: #ffffff;
+                white-space: nowrap;">
             <div style="border-top:1px solid #aaa; margin-bottom:4px;"></div>
             <div>
                 <strong>Head Office</strong>&#160;:&#160;17, Street No. 89, G-6/3, Islamabad,
@@ -213,6 +214,12 @@
                             </div>
                         </t>
                     </div>
+
+                    <!-- PURCHASE ORDER heading -->
+                    <p style="text-align:center; font-size:18px; font-weight:bold; margin:0 0 12px 0;
+                               text-transform:uppercase; letter-spacing:1px; color:#1a3a5c;">
+                        Purchase Order
+                    </p>
 
                     <!-- PROJECT (bold, uppercase, underlined) -->
                     <t t-if="o.x_project_analytic_account_id">

@@ -82,32 +82,12 @@
                         </t>
                     </div>
 
-                    <!-- Formal letter body -->
-                    <p style="font-size:13px; line-height:1.65; margin:0 0 6px 0;">Dear Sir/Madam,</p>
-                    <p style="font-size:13px; line-height:1.65; margin:0 0 6px 0;">
-                        We are pleased to invite your quotation for the supply of
-                        materials/services as per the following requirements.
-                    </p>
-                    <p style="font-size:13px; line-height:1.65; margin:0 0 6px 0;">
-                        Please find attached the RFQ document
-                        (<t t-esc="o.name"/>) for your reference.
-                    </p>
-                    <p style="font-size:13px; line-height:1.65; margin:0 0 4px 0;">Kindly provide the following in your quotation:</p>
-                    <ul style="font-size:13px; margin:0 0 6px 22px; padding:0;">
-                        <li style="margin-bottom:2px;">Technical compliance with specifications</li>
-                        <li style="margin-bottom:2px;">Unit rates and total quoted price</li>
-                        <li style="margin-bottom:2px;">Delivery period</li>
-                        <li style="margin-bottom:2px;">Warranty details</li>
-                        <li style="margin-bottom:2px;">Validity of the offer</li>
-                        <li style="margin-bottom:2px;">Installation / testing charges (if applicable)</li>
-                    </ul>
-                    <p style="font-size:13px; line-height:1.65; margin:0 0 6px 0;">
-                        We look forward to receiving your competitive quotation at the earliest.
-                    </p>
-                    <p style="font-size:13px; line-height:1.65; margin:0 0 14px 0;">
-                        Best regards,<br/>
-                        <strong>Procurement Department</strong><br/>
-                        Matracon Pakistan (Pvt.) Limited
+                    <!-- Formal letter body — 2 lines like PO -->
+                    <p style="margin:0 0 7px 0; font-size:13px; line-height:1.7; text-align:justify;">Dear Sir/Madam,</p>
+                    <p style="margin:0 0 14px 0; font-size:13px; line-height:1.7; text-align:justify; text-indent:28px;">
+                        We are pleased to invite your quotation for the supply of the below mentioned
+                        materials/services for our subject project, as per the required standards and
+                        specifications.
                     </p>
 
                     <!-- Line items — Price / Tax / Total BLANK for vendor to fill -->
@@ -160,6 +140,21 @@
                             </t>
                         </tbody>
                     </table>
+
+                    <!-- Terms &amp; Conditions -->
+                    <t t-if="o.notes">
+                        <div style="margin-top:18px;">
+                            <p style="font-size:13px; font-weight:bold; color:#1a3a5c;
+                                       margin:0 0 4px 0; text-transform:uppercase;
+                                       letter-spacing:0.5px;">
+                                Terms &amp; Conditions
+                            </p>
+                            <div style="font-size:12px; line-height:1.6; color:#222;
+                                        border-top:1px solid #ccc; padding-top:6px;">
+                                <t t-out="o.notes"/>
+                            </div>
+                        </div>
+                    </t>
 
                 </t>
             </t>
