@@ -455,19 +455,52 @@ class AccountMoveSiteOps(models.Model):
             projects._compute_financial_completion_pct()
 
     def action_post(self):
-        # ── Auto-fill invoice_date_due so payment-term lines always carry a date ──
-        # Due dates are hidden in the UI for both site accountants (vendor bills)
-        # and all users (customer invoices).  Ensure the field is always populated
-        # before posting so Odoo's posting flow can set date_maturity on the
-        # payment_term line correctly.
-        for move in self.filtered(lambda m: m.is_invoice() and not m.invoice_date_due):
+        # ── 1. Identify pre-balanced invoices BEFORE any writes ──────────────────
+        # When a site accountant manually enters ALL lines on a vendor bill or
+        # customer invoice — including one or more payable/receivable accounts
+        # on both sides (e.g. backcharge pattern: Dr Expense / Cr Payable NAEEM,
+        # Dr Payable SHAHZAD / Cr Expense) — the entry is already balanced.
+        #
+        # Odoo's payment_term sync (_sync_dynamic_lines) fires during write() and
+        # tries to delete/recreate the auto-managed payable line.  This causes:
+        #   • "You cannot delete a payable/receivable line" — if it tries to remove
+        #     the existing payment_term line while recreating it
+        #   • "The entry is not balanced" — if it adds an EXTRA payable line on
+        #     top of the manually-added ones, doubling the credit
+        #
+        # The fix: for pre-balanced invoices that have manually-added payable/
+        # receivable lines (display_type != 'payment_term'), post using
+        # _post(soft=False) with skip_invoice_sync=True.  This bypasses the
+        # payment_term sync entirely, preserving the manually-balanced lines.
+        def _has_manual_payable(move):
+            return any(
+                l.account_id.account_type in ('liability_payable', 'asset_receivable')
+                and l.display_type != 'payment_term'
+                for l in move.line_ids
+            )
+
+        pre_balanced = self.env['account.move']
+        for move in self.filtered(
+            lambda m: m.is_invoice(include_receipts=True) and m.state != 'posted'
+        ):
+            dr = sum(move.line_ids.mapped('debit'))
+            cr = sum(move.line_ids.mapped('credit'))
+            if abs(dr - cr) < 0.01 and dr > 0.01 and _has_manual_payable(move):
+                pre_balanced |= move
+
+        normal_moves = self - pre_balanced
+
+        # ── 2. invoice_date_due pre-fill (normal moves only) ─────────────────────
+        # Due dates are hidden in the UI.  Ensure the field is populated before
+        # posting so Odoo can set date_maturity on the payment_term line correctly.
+        # Skip pre_balanced moves — their payment_term line is NOT touched by the
+        # sync, so stamping invoice_date_due would needlessly trigger the sync.
+        for move in normal_moves.filtered(lambda m: m.is_invoice() and not m.invoice_date_due):
             move.invoice_date_due = move.invoice_date or fields.Date.context_today(self)
 
-        # ── For customer invoices: also stamp date_maturity on any existing
-        #    payment_term lines that still have no due date (draft state can
-        #    create these when invoice_payment_term_id is cleared) so the
-        #    Odoo posting flow does not encounter a NULL date_maturity. ──────
-        for move in self.filtered(lambda m: m.move_type == 'out_invoice'):
+        # For customer invoices: also stamp date_maturity on any existing
+        # payment_term lines that still have no due date.
+        for move in normal_moves.filtered(lambda m: m.move_type == 'out_invoice'):
             due = (
                 move.invoice_date_due
                 or move.invoice_date
@@ -479,37 +512,27 @@ class AccountMoveSiteOps(models.Model):
             if pt_lines:
                 pt_lines.write({'date_maturity': due})
 
-        # ── Bill Copy mandatory for vendor bills (not system-generated backcharges) ──
-        # Skip during module installation / demo-data loading so that Odoo's own
-        # demo fixtures (account_demo.py) are not blocked by this custom check.
-        # registry._init covers the install phase; install_mode=True in context
-        # covers _post_load_demo_data which is called after _init is cleared.
+        # ── 3. Bill Copy mandatory for vendor bills ───────────────────────────────
+        # Skip during module installation / demo-data loading.
         if not self.env.registry._init and not self.env.context.get('install_mode'):
             missing_attachment = self.filtered(
                 lambda m: (
                     m.move_type == 'in_invoice'
                     and m.state != 'posted'
-                    and not m.x_source_picking_id   # skip auto-generated backcharge bills
+                    and not m.x_source_picking_id
                     and not m.x_bill_copy
                 )
             )
         else:
-            missing_attachment = self.browse()  # empty recordset — no check during init
+            missing_attachment = self.browse()
         if missing_attachment:
-            names = ', '.join(
-                m.name or _('New') for m in missing_attachment
-            )
+            names = ', '.join(m.name or _('New') for m in missing_attachment)
             raise UserError(_(
                 'Bill Copy attachment is mandatory before posting a Vendor Bill.\n\n'
                 'Please upload the physical bill document for: %s'
             ) % names)
 
-        # ── HO/Finance JE validation: payable lines must carry an analytic ──────
-        # Without analytic_distribution on the payable line, a Head Office or
-        # Finance journal entry cannot be attributed to any project, so it would
-        # be invisible in dashboards and IPC calculations.
-        # SA JEs are auto-filled by _onchange_line_ids_fill_analytic_for_entry;
-        # this check is a safety net specifically for HO/Finance users.
+        # ── 4. HO/Finance JE validation: payable lines must carry an analytic ────
         ho_or_finance = (
             self.env.user.has_group('purchase_demand_raise.group_head_office')
             or self.env.user.has_group('site_operations.group_finance_ho')
@@ -536,31 +559,34 @@ class AccountMoveSiteOps(models.Model):
                         'Missing analytic on lines for: %s'
                     ) % partner_names)
 
-        # Site accountants have group_account_readonly (for Partner Ledger /
-        # reporting menus) but Odoo's action_post() hard-checks group_account_invoice.
-        # These are mutually exclusive Odoo 19 privilege levels; we cannot grant both.
-        # Run the parent call via sudo() for site accountants — our bill copy check
-        # above already validated business rules; sudo() only bypasses the group gate.
-        if self.env.user.has_group('site_operations.group_site_accountant'):
-            res = super(AccountMoveSiteOps, self.sudo()).action_post()
-        else:
-            res = super().action_post()
+        # ── 5. Post pre-balanced invoices bypassing invoice sync ─────────────────
+        # skip_invoice_sync=True causes _sync_dynamic_lines to yield immediately
+        # (disabled=True via _disable_recursion), so the payment_term sync never
+        # runs and the manually-balanced lines are preserved as-is.
+        is_sa = self.env.user.has_group('site_operations.group_site_accountant')
+        if pre_balanced:
+            target = pre_balanced.sudo() if is_sa else pre_balanced
+            target.with_context(skip_invoice_sync=True)._post(soft=False)
+
+        # ── 6. Post normal moves through the standard Odoo flow ──────────────────
+        # Site accountants need sudo() because group_account_readonly ≠
+        # group_account_invoice (mutually exclusive Odoo 19 privilege levels).
+        if normal_moves:
+            if is_sa:
+                super(AccountMoveSiteOps, normal_moves.sudo()).action_post()
+            else:
+                super(AccountMoveSiteOps, normal_moves).action_post()
+
+        # ── 7. Post-processing for ALL posted moves (pre_balanced + normal) ──────
         for move in self.filtered(
             lambda m: m.move_type == 'in_invoice' and m.state == 'posted'
         ):
-            # Close the "Review vendor bill" activity scheduled for site accountants
-            # when the bill was auto-created from a stock receipt validation.
+            # Close "Review vendor bill" activity (auto-created on stock receipt).
             matracon_notify.close_activities(move, summary_contains='Review vendor bill')
-            # Apply project analytic AFTER posting so Odoo's own line recompute
-            # (tax lines, payment-term lines) cannot overwrite the distribution.
-            # Backcharge-generated bills are excluded — their picking sets analytics.
+            # Apply project analytic AFTER posting so Odoo's line recompute
+            # (tax lines, payment_term lines) cannot overwrite the distribution.
             if not move.x_source_picking_id:
-                # Last-chance analytic auto-fill: if the bill was created or
-                # imported without a project analytic (e.g. Excel import, or
-                # created by a user with no default), stamp it from the current
-                # (posting) user's default BEFORE applying analytics to lines.
-                # We use direct SQL here because the move is already 'posted'
-                # and Odoo's write lock would otherwise block a normal ORM write.
+                # Last-chance analytic auto-fill (Excel import / no-default-user).
                 if not move.x_project_analytic_account_id:
                     user_analytic = self.env.user.x_default_analytic_account_id
                     if user_analytic:
@@ -576,12 +602,11 @@ class AccountMoveSiteOps(models.Model):
                 move._update_project_balance_from_bill()
             if move.x_wht_tax_id:
                 move._create_fbr_wht_payment_draft()
-        # Recompute project billed amount for any customer invoices just posted
+
+        # Recompute project billed amount for any customer invoices just posted.
         self._matracon_update_project_billed_amount()
 
-        # Auto-sync liability sheets for direct journal entries (MISC etc.) that
-        # carry payable lines with analytic distribution.  Vendor bills are already
-        # handled above; backcharge-generated entries are excluded via x_source_picking_id.
+        # Auto-sync liability sheets for journal entries with payable lines.
         for move in self.filtered(
             lambda m: m.move_type == 'entry'
             and m.state == 'posted'
@@ -589,7 +614,7 @@ class AccountMoveSiteOps(models.Model):
         ):
             move._ensure_liability_from_journal_entry()
 
-        # Mark cheque leaves as used for posted journal entries
+        # Mark cheque leaves as used for posted journal entries.
         for move in self.filtered(
             lambda m: m.move_type == 'entry'
             and m.state == 'posted'
@@ -598,7 +623,7 @@ class AccountMoveSiteOps(models.Model):
         ):
             move.x_cheque_leaf_id.sudo().write({'state': 'used'})
 
-        return res
+        return False
 
     def button_draft(self):
         # Capture customer-invoice analytics BEFORE state changes to draft so
