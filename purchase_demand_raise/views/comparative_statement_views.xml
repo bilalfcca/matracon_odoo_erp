@@ -345,10 +345,11 @@
     </record>
 
     <!-- ════════════════════════════════════════════════════════════════
-         VENDOR PRICE ENTRY — Standalone form (target='new' dialog)
+         VENDOR PRICE ENTRY — Full-page form (target='current')
          Opened via the "📋 Prices" button on each vendor row.
-         x_line_ids here is at 2-level nesting (form → one2many) so prices
-         persist reliably — no 3-level nesting issue from the embedded dialog.
+         Opens as a full-page view so all columns (incl. Remarks) are
+         fully visible.  x_line_ids is at 1-level nesting (standalone
+         form → one2many) — saves reliably in Odoo 19.
          ════════════════════════════════════════════════════════════════ -->
     <record id="view_cs_vendor_price_form" model="ir.ui.view">
         <field name="name">x.cs.vendor.price.entry.form</field>
@@ -356,6 +357,13 @@
         <field name="priority">20</field>
         <field name="arch" type="xml">
             <form string="Price Entry">
+                <header>
+                    <!-- Back to CS shortcut -->
+                    <button name="action_back_to_cs"
+                            string="← Back to Comparative Statement"
+                            type="object"
+                            class="btn-secondary"/>
+                </header>
                 <sheet>
                     <!-- Vendor header -->
                     <div class="d-flex align-items-center gap-2 mb-3"
@@ -364,6 +372,10 @@
                         <h4 class="mb-0" style="color:#1a3a5c;">
                             <field name="x_partner_id" readonly="1" nolabel="1"/>
                         </h4>
+                        <span class="text-muted ms-2 small">
+                            — Enter unit prices and remarks for each product below,
+                            then click <strong>Save</strong> and use the button above to return.
+                        </span>
                     </div>
 
                     <!-- Price table -->
@@ -382,7 +394,9 @@
                             <field name="x_gst_rate" string="GST %"/>
                             <field name="x_gst_amount" string="GST Amt" readonly="1"/>
                             <field name="x_net_price" string="Net Price" readonly="1"/>
-                            <field name="x_remarks" string="Remarks" optional="show"/>
+                            <!-- Remarks always visible (not optional) — the main reason
+                                 this form opens full-screen is so this column is readable -->
+                            <field name="x_remarks" string="Remarks"/>
                         </list>
                     </field>
 

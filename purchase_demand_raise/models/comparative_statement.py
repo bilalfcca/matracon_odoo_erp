@@ -729,11 +729,12 @@ class CSVendor(models.Model):
         ).report_action(po)
 
     def action_enter_prices(self):
-        """Open a dedicated price-entry form for this vendor (standalone dialog).
+        """Open the price-entry form for this vendor as a full-page view.
 
-        Opens x.cs.vendor as a form view in target='new'.  x_line_ids is at
-        2-level nesting (standalone form → one2many) — Odoo 19 saves this
-        reliably.  No 3-level nesting issue that plagued the embedded dialog.
+        Uses target='current' so all table columns (including Remarks) are
+        fully visible without the width constraint of a modal dialog.
+        x_line_ids is at 1-level nesting in the standalone form, so Odoo 19
+        saves it reliably — no 3-level nesting issue.
         """
         self.ensure_one()
         if not isinstance(self.id, int) or not self.id:
@@ -749,7 +750,22 @@ class CSVendor(models.Model):
             'res_id': self.id,
             'view_mode': 'form',
             'views': [(view.id, 'form')],
-            'target': 'new',
+            'target': 'current',
+        }
+
+    def action_back_to_cs(self):
+        """Navigate back to the parent Comparative Statement form."""
+        self.ensure_one()
+        cs = self.x_cs_id
+        if not cs:
+            return {'type': 'ir.actions.act_window_close'}
+        return {
+            'type': 'ir.actions.act_window',
+            'name': cs.name,
+            'res_model': 'x.comparative.statement',
+            'res_id': cs.id,
+            'view_mode': 'form',
+            'target': 'current',
         }
 
     def action_send_rfq(self):
