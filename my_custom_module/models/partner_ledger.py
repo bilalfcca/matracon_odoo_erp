@@ -1,10 +1,5 @@
-from copy import deepcopy
-from datetime import timedelta
-
-from odoo import models, fields as ofields, _
+from odoo import models, _
 from odoo.exceptions import UserError
-from odoo.tools import SQL
-from collections import defaultdict
 
 # ── Account type display labels ─────────────────────────────────────────────
 _ACCOUNT_TYPE_LABELS = {
@@ -314,63 +309,6 @@ class PartnerLedgerReportHandler(models.AbstractModel):
                     type_cgk[cgk][key] += vals.get(key, 0.0)
         return type_cgk
 
-    # ── Initial balance for a specific partner + account ─────────────────────
-
-    def _get_initial_balance_for_account(self, partner_id, account_id, options):
-        """Like _get_initial_balance_values but filtered to one account_id.
-
-        Returns {cgk: {'debit': 0, 'credit': 0, 'balance': float, 'amount': float}}
-        """
-        report = self.env['account.report'].browse(options['report_id'])
-        if not report.filter_date_range:
-            return {cgk: defaultdict(float) for cgk in options['column_groups']}
-
-        result = {cgk: defaultdict(float) for cgk in options['column_groups']}
-        queries = []
-        for column_group_key, column_group_options in report._split_options_per_column_group(options).items():
-            new_options = deepcopy(column_group_options)
-            new_date_to = ofields.Date.from_string(new_options['date']['date_from']) - timedelta(days=1)
-            new_options['date']['date_from'] = False
-            new_options['date']['date_to'] = ofields.Date.to_string(new_date_to)
-            for cg in new_options['column_groups'].values():
-                cg['forced_options']['date'] = new_options['date']
-
-            domain = [('account_id', '=', account_id)]
-            if partner_id is not None:
-                domain.append(('partner_id', '=', partner_id))
-            else:
-                domain.append(('partner_id', '=', False))
-
-            query = report._get_report_query(new_options, 'from_beginning', domain=domain)
-            queries.append(SQL(
-                """
-                SELECT
-                    %(column_group_key)s    AS column_group_key,
-                    0                       AS debit,
-                    0                       AS credit,
-                    SUM(%(balance_select)s) AS amount,
-                    SUM(%(balance_select)s) AS balance
-                FROM %(table_references)s
-                %(currency_table_join)s
-                WHERE %(search_condition)s
-                """,
-                column_group_key=column_group_key,
-                balance_select=report._currency_table_apply_rate(SQL("account_move_line.balance")),
-                table_references=query.from_clause,
-                currency_table_join=report._currency_table_aml_join(new_options),
-                search_condition=query.where_clause,
-            ))
-
-        if queries:
-            self.env.cr.execute(SQL(" UNION ALL ").join(queries))
-            for row in self.env.cr.dictfetchall():
-                result[row['column_group_key']]['debit']   = row['debit']
-                result[row['column_group_key']]['credit']  = row['credit']
-                result[row['column_group_key']]['balance'] = row['balance']
-                result[row['column_group_key']]['amount']  = row['amount']
-
-        return result
-
     # ── LEVEL 1 expand: Partner → Account Type rows ───────────────────────────
 
     def _report_expand_unfoldable_line_partner_ledger(self, line_dict_id, groupby, options, progress, offset, unfold_all_batch_data=None):
@@ -516,19 +454,6 @@ class PartnerLedgerReportHandler(models.AbstractModel):
         level_shift = prefix_groups_count * 2 + 1  # +1 because we are one level deeper than partner
 
         lines = []
-
-        # ── Initial Balance ──────────────────────────────────────────────────
-        if offset == 0 and not options.get('hide_initial_balance'):
-            init_balance_by_col_group = self._get_initial_balance_for_account(partner_id, account_id, options)
-            initial_balance_line = report._get_partner_and_general_ledger_initial_balance_line(
-                options, line_dict_id, init_balance_by_col_group, level_shift=level_shift
-            )
-            if initial_balance_line:
-                for column in initial_balance_line['columns']:
-                    if column.get('expression_label') in ('debit', 'credit'):
-                        column['blank_if_zero'] = True
-                lines.append(initial_balance_line)
-                progress = self._init_load_more_progress(options, initial_balance_line)
 
         # ── AML rows — get all for partner then filter by account_id in Python ─
         if unfold_all_batch_data:
