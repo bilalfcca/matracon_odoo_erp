@@ -211,7 +211,7 @@
                     <!-- ── SA view: ALL lines + selection checkbox (draft state) ── -->
                     <!-- SA sees all lines at all times; non-SA see only selected lines -->
                     <field name="line_ids" widget="one2many"
-                           domain="[('partner_id', '=', x_filter_partner_id)] if x_filter_partner_id else []"
+                           domain="x_filter_partner_id and [('partner_id', '=', x_filter_partner_id)] or []"
                            readonly="state == 'paid'"
                            invisible="not x_is_site_accountant">
                         <list string="Liability Lines" editable="bottom">
@@ -241,7 +241,7 @@
                     <!-- ── CEO / Finance HO view: SELECTED lines only ── -->
                     <!-- Only submitted/approved/paid lines that SA selected for this cycle -->
                     <field name="selected_line_ids" widget="one2many"
-                           domain="[('partner_id', '=', x_filter_partner_id)] if x_filter_partner_id else []"
+                           domain="x_filter_partner_id and [('partner_id', '=', x_filter_partner_id)] or []"
                            readonly="state in ('approved', 'paid')"
                            invisible="x_is_site_accountant">
                         <list string="Submitted Lines" editable="bottom">

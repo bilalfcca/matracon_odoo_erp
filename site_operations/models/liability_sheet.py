@@ -113,8 +113,11 @@ class LiabilitySheet(models.Model):
 
     # ── Partner filter (used in form to live-filter one2many lines by partner) ──
     # store=False / no compute → pure transient widget that never touches the DB.
-    # The view passes it as a domain to the one2many renderer for display-only
-    # filtering; it resets every time the form is reloaded.
+    # Requires @api.onchange so that a change fires a server round-trip: the
+    # onchange response carries the new value back to the client, which triggers
+    # a full form re-render and re-evaluation of the line_ids/selected_line_ids
+    # domain.  Without the onchange, OWL sees x_filter_partner_id = False (the
+    # server-side default) and never applies the filter.
     x_filter_partner_id = fields.Many2one(
         'res.partner', string='Filter by Partner', store=False)
 
@@ -125,6 +128,21 @@ class LiabilitySheet(models.Model):
         is_sa = self.env.user.has_group('site_operations.group_site_accountant')
         for sheet in self:
             sheet.x_is_site_accountant = is_sa
+
+    @api.onchange('x_filter_partner_id')
+    def _onchange_x_filter_partner_id(self):
+        """Trigger a server round-trip so the client receives the updated filter
+        value and re-evaluates the line_ids/selected_line_ids domain.
+
+        Without this, x_filter_partner_id (store=False, no compute) is invisible
+        to Odoo 19's domain evaluator — it stays False even after the user selects
+        a partner.  Writing the field back explicitly ensures it appears in the
+        onchange RPC response, which causes the OWL form to re-render with the
+        correct domain, filtering the one2many to the chosen partner.
+        """
+        # Explicit self-assign → field appears in onchange response → client
+        # re-renders form → domain re-evaluated with real partner ID.
+        self.x_filter_partner_id = self.x_filter_partner_id
 
     @api.depends('project_analytic_account_id', 'x_sequence_no')
     def _compute_name(self):
