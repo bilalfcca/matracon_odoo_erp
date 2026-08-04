@@ -111,6 +111,13 @@ class LiabilitySheet(models.Model):
     # COMPUTE
     # ─────────────────────────────────────────────────────────────────────────
 
+    # ── Partner filter (used in form to live-filter one2many lines by partner) ──
+    # store=False / no compute → pure transient widget that never touches the DB.
+    # The view passes it as a domain to the one2many renderer for display-only
+    # filtering; it resets every time the form is reloaded.
+    x_filter_partner_id = fields.Many2one(
+        'res.partner', string='Filter by Partner', store=False)
+
     # ── Role flag (used in form to toggle group label visibility) ─────────────
     x_is_site_accountant = fields.Boolean(compute='_compute_role_flag_sheet', store=False)
 

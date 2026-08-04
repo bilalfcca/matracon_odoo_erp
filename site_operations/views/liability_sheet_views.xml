@@ -183,22 +183,35 @@
                         </div>
                     </div>
 
-                    <!-- ── Select All / Deselect All (SA, draft only) ── -->
-                    <div class="d-flex gap-2 mb-2"
-                         invisible="not x_is_site_accountant or state != 'draft'">
+                    <!-- ── Select All / Deselect All + Partner search ── -->
+                    <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                        <!-- Select / Deselect — SA + draft only -->
                         <button name="action_select_all_lines"
                                 type="object"
                                 string="✓ Select All"
-                                class="btn btn-sm btn-outline-primary"/>
+                                class="btn btn-sm btn-outline-primary"
+                                invisible="not x_is_site_accountant or state != 'draft'"/>
                         <button name="action_deselect_all_lines"
                                 type="object"
                                 string="✗ Deselect All"
-                                class="btn btn-sm btn-outline-secondary"/>
+                                class="btn btn-sm btn-outline-secondary"
+                                invisible="not x_is_site_accountant or state != 'draft'"/>
+                        <!-- Partner search — visible to all users -->
+                        <div class="ms-auto d-flex align-items-center gap-1"
+                             style="min-width:220px; max-width:300px;">
+                            <i class="fa fa-search text-muted" style="font-size:0.9rem;"/>
+                            <field name="x_filter_partner_id"
+                                   nolabel="1"
+                                   options="{'no_create': True, 'no_open': True}"
+                                   placeholder="Search by partner…"
+                                   style="flex:1;"/>
+                        </div>
                     </div>
 
                     <!-- ── SA view: ALL lines + selection checkbox (draft state) ── -->
                     <!-- SA sees all lines at all times; non-SA see only selected lines -->
                     <field name="line_ids" widget="one2many"
+                           domain="[('partner_id', '=', x_filter_partner_id)] if x_filter_partner_id else []"
                            readonly="state == 'paid'"
                            invisible="not x_is_site_accountant">
                         <list string="Liability Lines" editable="bottom">
@@ -228,6 +241,7 @@
                     <!-- ── CEO / Finance HO view: SELECTED lines only ── -->
                     <!-- Only submitted/approved/paid lines that SA selected for this cycle -->
                     <field name="selected_line_ids" widget="one2many"
+                           domain="[('partner_id', '=', x_filter_partner_id)] if x_filter_partner_id else []"
                            readonly="state in ('approved', 'paid')"
                            invisible="x_is_site_accountant">
                         <list string="Submitted Lines" editable="bottom">
