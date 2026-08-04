@@ -341,6 +341,15 @@ class ComparativeStatement(models.Model):
 
     # ── Actions ───────────────────────────────────────────────────────────────
 
+    def copy(self, default=None):
+        """Duplicate a CS: reset state, clear winner, give a distinct name."""
+        self.ensure_one()
+        default = dict(default or {})
+        default.setdefault('name', _('%s (copy)') % self.name)
+        default['x_state'] = 'draft'
+        default['x_recommended_vendor_line_id'] = False
+        return super().copy(default)
+
     def action_confirm(self):
         """Lock CS and route PR to CEO via the HO-approval path."""
         for cs in self:
@@ -918,6 +927,12 @@ class CSVendor(models.Model):
         return res
 
     # ── Auto-create product lines from PR on vendor addition ──────────────────
+
+    def copy(self, default=None):
+        """Duplicate a vendor row: clear winner flag so copied row is not marked as winner."""
+        default = dict(default or {})
+        default['x_is_recommended'] = False
+        return super().copy(default)
 
     @api.model_create_multi
     def create(self, vals_list):

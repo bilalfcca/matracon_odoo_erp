@@ -61,6 +61,14 @@
               sequence="5"
               groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin"/>
 
+    <!-- Purchase → Comparative Statements (Procurement HO + CEO + Admin only, NOT site store/accountant) -->
+    <menuitem id="menu_comparative_statements_ho"
+              name="Comparative Statements"
+              parent="purchase.menu_purchase_root"
+              action="purchase_demand_raise.action_comparative_statement"
+              sequence="6"
+              groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin"/>
+
     <!-- Purchase → Configuration → T&C Templates (Procurement HO + Head Office + Admin) -->
     <menuitem id="menu_po_terms_templates"
               name="T&amp;C Templates"

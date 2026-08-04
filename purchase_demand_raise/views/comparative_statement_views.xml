@@ -425,13 +425,46 @@
                   decoration-success="x_state == 'confirmed'"
                   decoration-muted="x_state == 'draft'">
                 <field name="name"/>
-                <field name="x_purchase_order_id"/>
-                <field name="x_recommended_vendor_id"/>
+                <field name="x_purchase_order_id" string="Purchase Requisition"/>
+                <field name="x_recommended_vendor_id" string="Selected Vendor"/>
                 <field name="x_vendor_count" string="Vendors"/>
                 <field name="x_state" widget="badge"
                        decoration-warning="x_state == 'draft'"
                        decoration-success="x_state == 'confirmed'"/>
             </list>
+        </field>
+    </record>
+
+    <!-- ════════════════════════════════════════════════════════════════
+         COMPARATIVE STATEMENT — Search View (with Group By PR)
+         ════════════════════════════════════════════════════════════════ -->
+    <record id="view_cs_search" model="ir.ui.view">
+        <field name="name">x.comparative.statement.search</field>
+        <field name="model">x.comparative.statement</field>
+        <field name="arch" type="xml">
+            <search string="Comparative Statements">
+                <field name="name" string="CS Reference"/>
+                <field name="x_purchase_order_id" string="Purchase Requisition"/>
+                <field name="x_recommended_vendor_id" string="Selected Vendor"/>
+                <!-- Quick filters -->
+                <filter name="filter_draft"
+                        string="Draft"
+                        domain="[('x_state','=','draft')]"/>
+                <filter name="filter_confirmed"
+                        string="Confirmed"
+                        domain="[('x_state','=','confirmed')]"/>
+                <!-- Group By (no <group> wrapper in Odoo 19 — use <separator> + filters) -->
+                <separator/>
+                <filter name="group_by_pr"
+                        string="Group by Purchase Requisition"
+                        context="{'group_by': 'x_purchase_order_id'}"/>
+                <filter name="group_by_state"
+                        string="Group by Status"
+                        context="{'group_by': 'x_state'}"/>
+                <filter name="group_by_vendor"
+                        string="Group by Selected Vendor"
+                        context="{'group_by': 'x_recommended_vendor_id'}"/>
+            </search>
         </field>
     </record>
 
@@ -442,6 +475,8 @@
         <field name="name">Comparative Statements</field>
         <field name="res_model">x.comparative.statement</field>
         <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_cs_search"/>
+        <field name="context">{'search_default_group_by_pr': 1}</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 No Comparative Statements yet
