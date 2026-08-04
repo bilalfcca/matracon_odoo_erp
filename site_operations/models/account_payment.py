@@ -1445,6 +1445,20 @@ class AccountPaymentSiteOps(models.Model):
                 payment._create_wht_payment_if_needed()
             # Close any pending Todo activities (CEO approval / FO process) on this payment
             matracon_notify.close_activities(payment)
+            # ── Auto-advance x_payment_status → 'paid' on post ───────────────
+            # _matracon_update_liability_on_post() already sets 'paid' for
+            # liability-sheet payments (x_liability_sheet_line_id present).
+            # This block handles all remaining outbound payments:
+            #   • Direct CEO vendor payments (no liability sheet)
+            #   • Batch payments not originating from a liability sheet
+            #   • WHT companion payments to FBR (x_origin_payment_id set)
+            # Petty cash and salary payments are deliberately excluded — they
+            # have their own approval/release flows and must not skip them.
+            if (payment.payment_type == 'outbound'
+                    and payment.x_payment_status == 'draft'
+                    and not payment.x_petty_cash_request_id
+                    and not payment.x_salary_sheet_id):
+                payment.x_payment_status = 'paid'
         return res
 
     def _matracon_tag_payment_move_analytic(self):

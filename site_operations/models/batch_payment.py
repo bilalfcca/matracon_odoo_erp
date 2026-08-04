@@ -1457,14 +1457,24 @@ class BatchPaymentLineBank(models.Model):
 
     @api.model
     def _get_journal_balance(self, journal):
+        """Return the current posted balance of the bank GL account for this journal.
+
+        Queries journal.default_account_id (e.g. account 112606 BankIslami) directly
+        so the balance matches exactly what the Chart of Accounts shows.
+
+        The previous approach (sum all non-AP/non-payable journal lines) incorrectly
+        included outstanding-payment transit account lines, which are also booked in
+        the bank journal and carry large negative balances for unreconciled payments —
+        producing a wildly different figure from the real bank balance.
+        """
         if not journal or journal.type not in ('bank', 'cash'):
             return 0.0
+        account = journal.default_account_id
+        if not account:
+            return 0.0
         lines = self.env['account.move.line'].sudo().search([
-            ('journal_id', '=', journal.id),
+            ('account_id', '=', account.id),
             ('parent_state', '=', 'posted'),
-            ('account_id.account_type', 'not in', [
-                'asset_receivable', 'liability_payable', 'off_balance',
-            ]),
         ])
         return sum(lines.mapped('balance'))
 
