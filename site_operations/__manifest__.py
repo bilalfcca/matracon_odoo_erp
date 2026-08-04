@@ -40,6 +40,7 @@
         'data/currency_precision.xml',
         'data/bg_nature_data.xml',
         'data/presence_cron.xml',
+        'data/accounting_report_defaults.xml',
         'views/hr_employee_views.xml',
         'views/attendance_views.xml',
         'views/salary_views.xml',

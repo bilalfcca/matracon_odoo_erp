@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        Matracon accounting-report defaults
+        ─────────────────────────────────────────────────────────────────────
+        1.  All relevant reports default to "This Year" (= Pakistan fiscal
+            year July 1 – June 30) instead of "This Month".
+        2.  General Ledger gains a Partner filter button so users can narrow
+            the ledger to one or more partners without leaving the report.
+
+        These records override the base enterprise definitions from
+        account_reports, which load before site_operations in the dependency
+        graph.  Each <record> targets the existing enterprise XML ID via its
+        external reference.
+    -->
+
+    <!-- ── General Ledger ─────────────────────────────────────────────── -->
+    <record id="account_reports.general_ledger_report" model="account.report">
+        <!-- Partner filter: adds a "Partner" dropdown to the report toolbar -->
+        <field name="filter_partner" eval="True"/>
+        <!-- Default date: show the full Pakistan fiscal year (Jul 1 – Jun 30)
+             instead of only the current month.
+             'this_year' in Odoo uses compute_fiscalyear_dates(), which
+             respects the company's fiscalyear_last_day / fiscalyear_last_month. -->
+        <field name="default_opening_date_filter">this_year</field>
+    </record>
+
+    <!-- ── Trial Balance ──────────────────────────────────────────────── -->
+    <record id="account_reports.trial_balance_report" model="account.report">
+        <field name="default_opening_date_filter">this_year</field>
+    </record>
+
+</odoo>
