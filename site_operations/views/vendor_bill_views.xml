@@ -159,6 +159,23 @@
                        readonly="state == 'posted'"
                        string="Account Title"
                        placeholder="Beneficiary name / bank account title"/>
+                <!-- Source / Destination project — Finance HO only.
+                     Credit lines (bank going down) → source project analytic.
+                     Debit  lines (payable settled) → destination project analytic.
+                     Setting both fields auto-fills analytic_distribution on all lines. -->
+                <div invisible="move_type != 'entry'"
+                     groups="site_operations.group_finance_ho">
+                    <field name="x_ho_source_project_id"
+                           string="Source Project (Credit Side)"
+                           readonly="state == 'posted'"
+                           options="{'no_create': True, 'no_open': True}"
+                           placeholder="Project whose funds are going out (bank / cash line)…"/>
+                    <field name="x_ho_dest_project_id"
+                           string="Destination Project (Debit Side)"
+                           readonly="state == 'posted'"
+                           options="{'no_create': True, 'no_open': True}"
+                           placeholder="Site project whose payable is being settled…"/>
+                </div>
             </xpath>
 
             <!-- Cheque series + manual + Account Title per line in Journal Items tab.

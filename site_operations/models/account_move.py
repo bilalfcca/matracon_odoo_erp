@@ -27,7 +27,9 @@ class AccountMoveSiteOps(models.Model):
                 ADD COLUMN IF NOT EXISTS x_source_picking_id             INTEGER,
                 ADD COLUMN IF NOT EXISTS x_bill_copy_filename            VARCHAR,
                 ADD COLUMN IF NOT EXISTS x_cheque_number                 VARCHAR,
-                ADD COLUMN IF NOT EXISTS x_account_title                 VARCHAR
+                ADD COLUMN IF NOT EXISTS x_account_title                 VARCHAR,
+                ADD COLUMN IF NOT EXISTS x_ho_source_project_id         INTEGER,
+                ADD COLUMN IF NOT EXISTS x_ho_dest_project_id           INTEGER
         """)
         return super()._register_hook()
 
@@ -129,6 +131,75 @@ class AccountMoveSiteOps(models.Model):
         string='Account Title',
         help='Bank account title / beneficiary name for this journal entry payment.',
     )
+
+    # ── Finance HO journal entry: Source / Destination project ──────────────
+    # When Finance HO posts a payment via a manual journal entry (instead of
+    # the Vendor Payment wizard), these two fields capture which project's
+    # funds are going out (source / credit side) and which site project's
+    # payable is being settled (destination / debit side).
+    #
+    # Auto-fill logic:
+    #   credit lines (bank going down)   → source project analytic
+    #   debit lines  (payable settled)   → destination project analytic
+    #
+    # x_project_analytic_account_id is also set = destination project so that
+    # existing GL / dashboard queries that filter on the move header field
+    # continue to work without modification.
+    x_ho_source_project_id = fields.Many2one(
+        'account.analytic.account',
+        string='Source Project',
+        tracking=True,
+        help='HO payment (JE): project whose funds cover this payment — '
+             'credit-side lines (bank going down) receive this analytic. '
+             'Finance HO only, journal entries only.',
+    )
+    x_ho_dest_project_id = fields.Many2one(
+        'account.analytic.account',
+        string='Destination Project',
+        tracking=True,
+        help='HO payment (JE): site project whose vendor payable is being settled — '
+             'debit-side lines (payable going down) receive this analytic. '
+             'Also synced to x_project_analytic_account_id for dashboard queries. '
+             'Finance HO only, journal entries only.',
+    )
+
+    @api.onchange('x_ho_source_project_id', 'x_ho_dest_project_id')
+    def _onchange_ho_payment_projects_fill_lines(self):
+        """Finance HO journal entry payment: fill analytic on ALL existing lines.
+
+        Rule:
+          credit lines (bank / fund going down)     → source project analytic
+          debit  lines (payable / expense settled)  → destination project analytic
+
+        Lines with no debit or credit amount yet are left alone — they will be
+        filled by _onchange_line_ids_fill_analytic_for_entry when amounts are set.
+
+        Also mirrors the destination to x_project_analytic_account_id so that
+        existing GL / dashboard queries (which read the move-header field) pick
+        up this JE for the destination site project automatically.
+        """
+        if self.move_type != 'entry':
+            return
+        if not self.env.user.has_group('site_operations.group_finance_ho'):
+            return
+
+        source = self.x_ho_source_project_id
+        dest = self.x_ho_dest_project_id
+
+        # Keep move-header analytic in sync with destination for existing queries.
+        if dest:
+            self.x_project_analytic_account_id = dest
+        elif source:
+            self.x_project_analytic_account_id = source
+
+        source_dist = {str(source.id): 100.0} if source else {}
+        dest_dist = {str(dest.id): 100.0} if dest else {}
+
+        for line in self.line_ids:
+            if line.credit > 0 and source_dist:
+                line.analytic_distribution = source_dist
+            elif line.debit > 0 and dest_dist:
+                line.analytic_distribution = dest_dist
 
     @api.onchange('x_bank_journal_id')
     def _onchange_je_bank_journal(self):
@@ -312,23 +383,49 @@ class AccountMoveSiteOps(models.Model):
 
     @api.onchange('line_ids')
     def _onchange_line_ids_fill_analytic_for_entry(self):
-        """For site-accountant journal entries (move_type='entry'): fill
-        analytic_distribution on every new line immediately so the read-only
-        Analytic column shows the project without requiring a manual save.
+        """For journal entries (move_type='entry'): auto-fill analytic on new lines.
+
+        Site Accountant path:
+          All lines get the same single project analytic from
+          x_project_analytic_account_id (the user's site default).
+
+        Finance HO path:
+          Credit lines (bank going down) → x_ho_source_project_id analytic.
+          Debit  lines (payable settled) → x_ho_dest_project_id analytic.
+          Lines with zero debit and credit are skipped until an amount is entered.
 
         invoice_line_ids does not apply to MISC entries — we use line_ids
         directly here.  The DB-level create() hook below handles the same
         for server-side and programmatic record creation."""
-        if (
-            self.move_type != 'entry'
-            or not self.x_project_analytic_account_id
-            or not self.env.user.has_group('site_operations.group_site_accountant')
-        ):
+        if self.move_type != 'entry':
             return
-        dist = {str(self.x_project_analytic_account_id.id): 100.0}
-        for line in self.line_ids:
-            if not line.analytic_distribution:
-                line.analytic_distribution = dist
+
+        is_sa = self.env.user.has_group('site_operations.group_site_accountant')
+        is_fo = self.env.user.has_group('site_operations.group_finance_ho')
+
+        if is_sa:
+            if not self.x_project_analytic_account_id:
+                return
+            dist = {str(self.x_project_analytic_account_id.id): 100.0}
+            for line in self.line_ids:
+                if not line.analytic_distribution:
+                    line.analytic_distribution = dist
+
+        elif is_fo:
+            source = self.x_ho_source_project_id
+            dest = self.x_ho_dest_project_id
+            if not source and not dest:
+                return
+            source_dist = {str(source.id): 100.0} if source else {}
+            dest_dist = {str(dest.id): 100.0} if dest else {}
+            for line in self.line_ids:
+                if line.analytic_distribution:
+                    continue  # already tagged — don't overwrite
+                if line.credit > 0 and source_dist:
+                    line.analytic_distribution = source_dist
+                elif line.debit > 0 and dest_dist:
+                    line.analytic_distribution = dest_dist
+                # zero-amount lines left alone; they'll be filled on next change
 
     def _matracon_update_project_billed_amount(self, extra_analytic_ids=()):
         """Recompute x_billed_to_client on every project linked to a customer
