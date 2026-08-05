@@ -23,11 +23,13 @@
                    position="after">
                 <field name="x_add_to_dashboard"
                        groups="purchase_demand_raise.group_head_office,
+                               purchase_demand_raise.group_procurement_ho,
                                site_operations.group_finance_ho,
                                purchase_demand_raise.group_matracon_admin"/>
                 <field name="x_show_zero_qty"
                        invisible="not x_add_to_dashboard"
                        groups="purchase_demand_raise.group_head_office,
+                               purchase_demand_raise.group_procurement_ho,
                                site_operations.group_finance_ho,
                                purchase_demand_raise.group_matracon_admin"/>
             </xpath>
@@ -43,6 +45,7 @@
             <xpath expr="//field[@name='name']" position="after">
                 <field name="x_add_to_dashboard"
                        groups="purchase_demand_raise.group_head_office,
+                               purchase_demand_raise.group_procurement_ho,
                                site_operations.group_finance_ho,
                                purchase_demand_raise.group_matracon_admin"/>
             </xpath>

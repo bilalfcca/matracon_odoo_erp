@@ -178,36 +178,74 @@
                 </div>
             </xpath>
 
-            <!-- Cheque series + manual + Account Title per line in Journal Items tab.
-                 Series dropdown + Discard: Finance HO / Admin only (not Site Accountant).
-                 Manual char + Account Title: all users.
-                 All optional so they can be hidden via the column chooser.
-                 Domain: shows available leaves matching either the explicit bank journal
-                 set in the form header (x_bank_journal_id) OR the entry's journal when
-                 that journal is a bank journal (e.g. BankIslami). -->
-            <xpath expr="//page[@id='aml_tab']//field[@name='name']" position="after">
-                <field name="x_cheque_leaf_id"
-                       string="Cheque No. (Series)"
-                       optional="show"
-                       options="{'no_create': True, 'no_open': True}"
-                       domain="[('state', '=', 'available'), '|', ('bank_journal_id', '=', parent.x_bank_journal_id), ('bank_journal_id', '=', parent.journal_id)]"
-                       groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"/>
-                <button name="action_discard_je_line_cheque_leaf"
-                        type="object"
-                        icon="fa-ban"
-                        string=""
-                        title="Discard this cheque leaf (spoiled/faulty) — cannot be reused"
-                        invisible="not x_cheque_leaf_id"
-                        confirm="Mark this cheque as discarded? It cannot be reassigned."
-                        class="btn btn-warning btn-sm"
-                        optional="show"
-                        groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"/>
-                <field name="x_cheque_number"
-                       string="Cheque No. (Manual)"
-                       optional="show"/>
-                <field name="x_account_title"
-                       string="Account Title"
-                       optional="show"/>
+            <!-- ── Tab order: Journal Items first, Invoice Lines second ──────────
+                 Default Odoo order is Invoice Lines → Journal Items.
+                 We move aml_tab (Journal Items) to appear before invoice_tab. -->
+            <xpath expr="//page[@id='invoice_tab']" position="before">
+                <xpath expr="//page[@id='aml_tab']" position="move"/>
+            </xpath>
+
+            <!-- ── Journal Items: replace line_ids with x_journal_item_ids ───────
+                 x_journal_item_ids is defined in Python with
+                 domain=[('display_type', '!=', 'payment_term')] so Odoo's
+                 auto-generated AP/AR counterpart lines are excluded at the ORM
+                 level.  All columns (cheque, debit, credit) are consolidated
+                 here; debit/credit have no readonly restriction so they are
+                 editable in draft. -->
+            <xpath expr="//page[@id='aml_tab']//field[@name='line_ids']" position="replace">
+                <field name="x_journal_item_ids"
+                       readonly="state != 'draft'">
+                    <list string="Journal Items"
+                          editable="bottom"
+                          decoration-muted="display_type in ('line_section', 'line_note')"
+                          default_order="sequence, id">
+                        <control>
+                            <create string="Add a line"/>
+                        </control>
+                        <field name="account_id"
+                               required="display_type not in ('line_section', 'line_note')"
+                               domain="[('company_ids', 'parent_of', parent.company_id)]"
+                               options="{'no_create': True}"/>
+                        <field name="partner_id"
+                               optional="show"
+                               domain="['|', ('parent_id', '=', False), ('is_company', '=', True)]"/>
+                        <field name="name" widget="section_and_note_text" optional="show"/>
+                        <field name="x_cheque_leaf_id"
+                               string="Cheque No. (Series)"
+                               optional="show"
+                               options="{'no_create': True, 'no_open': True}"
+                               domain="[('state', '=', 'available'), '|', ('bank_journal_id', '=', parent.x_bank_journal_id), ('bank_journal_id', '=', parent.journal_id)]"
+                               groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"/>
+                        <button name="action_discard_je_line_cheque_leaf"
+                                type="object"
+                                icon="fa-ban"
+                                string=""
+                                title="Discard this cheque leaf (spoiled/faulty) — cannot be reused"
+                                invisible="not x_cheque_leaf_id"
+                                confirm="Mark this cheque as discarded? It cannot be reassigned."
+                                class="btn btn-warning btn-sm"
+                                optional="show"
+                                groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"/>
+                        <field name="x_cheque_number"
+                               string="Cheque No. (Manual)"
+                               optional="show"/>
+                        <field name="x_account_title"
+                               string="Account Title"
+                               optional="show"/>
+                        <field name="analytic_distribution"
+                               widget="analytic_distribution"
+                               groups="analytic.group_analytic_accounting"
+                               optional="show"
+                               options="{'account_field': 'account_id'}"/>
+                        <field name="debit"
+                               sum="Total Debit"
+                               invisible="display_type in ('line_section', 'line_subsection', 'line_note')"/>
+                        <field name="credit"
+                               sum="Total Credit"
+                               invisible="display_type in ('line_section', 'line_subsection', 'line_note')"/>
+                        <field name="display_type" column_invisible="1"/>
+                    </list>
+                </field>
             </xpath>
 
             <!-- Liability-registered info banner (kept before narration) -->
@@ -229,10 +267,9 @@
          SITE ACCOUNTANT — simplified vendor bill view
          •  Hides header fields irrelevant to receipt verification
             (Due Date, Payment Terms, Payment Reference).
-         •  Hides the product-based "Invoice Lines" tab and the standard
-            "Journal Items" tab; instead shows a site-accountant-only
-            "Invoice Lines" tab that presents the same accounting entries
-            (line_ids) in a clean, read-only list.
+         •  Uses the standard "Journal Items" tab (aml_tab) with debit/credit
+            editable — see tab reorder + readonly overrides in
+            view_vendor_bill_site_ops_form above.
     ═══════════════════════════════════════════════════════════════════ -->
     <record id="view_vendor_bill_site_accountant_simplify" model="ir.ui.view">
         <field name="name">account.move.vendor.bill.site.accountant.simplify</field>
@@ -255,62 +292,11 @@
                 <attribute name="groups">!site_operations.group_site_accountant</attribute>
             </xpath>
 
-            <!-- 4. Standard "Invoice Lines" (product lines) tab — visible to everyone
-                 including site accountants. We keep the purpose-built journal-items
-                 tab (sa_invoice_lines, injected below) as the first tab so it
-                 appears at the front of the tab bar for site accountants.
-                 Restrict the account_id picker in that tab to site-allowed CoA
-                 accounts when the user is a site accountant. -->
+            <!-- 4. Restrict the account_id picker in Invoice Lines tab to
+                 site-allowed CoA accounts when the user is a site accountant. -->
             <xpath expr="//page[@id='invoice_tab']//field[@name='account_id']" position="attributes">
                 <attribute name="domain">[('x_ho_only', '=', False), '|', ('x_site_ids', '=', False), ('x_site_ids', 'in', [parent.x_user_analytic_id])] if parent.x_user_analytic_id else []</attribute>
                 <attribute name="options">{'no_create': True, 'no_create_edit': True}</attribute>
-            </xpath>
-
-            <!-- 5. Hide the standard "Journal Items" tab from site accountant so they
-                 only see the purpose-built "Invoice Lines" tab injected below. -->
-            <xpath expr="//page[@id='aml_tab']" position="attributes">
-                <attribute name="groups">!site_operations.group_site_accountant</attribute>
-            </xpath>
-
-            <!-- 6. Site-accountant-only "Journal Entries" tab — EDITABLE in draft.
-                 Site accountants can view the computed accounting result for
-                 verification AND manually add/edit double-entry lines (debit/credit
-                 with Chart-of-Accounts selection) as requested by the client.
-                 The tab becomes read-only once the bill is posted (state != 'draft'). -->
-            <xpath expr="//page[@id='invoice_tab']" position="before">
-                <page string="Journal Entries"
-                      name="sa_invoice_lines"
-                      groups="site_operations.group_site_accountant">
-                    <field name="line_ids" readonly="state != 'draft'">
-                        <list string="Journal Entries"
-                              editable="bottom"
-                              decoration-muted="display_type in ('line_section', 'line_note')"
-                              default_order="sequence, id">
-                            <control>
-                                <create string="Add a line"/>
-                            </control>
-                            <field name="account_id"
-                                   required="display_type not in ('line_section', 'line_note')"
-                                   domain="[('x_ho_only', '=', False), ('company_ids', 'parent_of', parent.company_id), '|', ('x_site_ids', '=', False), ('x_site_ids', 'in', [parent.x_user_analytic_id])] if parent.x_user_analytic_id else [('company_ids', 'parent_of', parent.company_id)]"
-                                   options="{'no_create': True, 'no_create_edit': True}"/>
-                            <field name="partner_id"
-                                   optional="show"
-                                   domain="['|', ('parent_id', '=', False), ('is_company', '=', True)]"/>
-                            <field name="name" optional="show"/>
-                            <field name="analytic_distribution"
-                                   widget="analytic_distribution"
-                                   groups="analytic.group_analytic_accounting"
-                                   optional="show"
-                                   readonly="parent.move_type in ('out_invoice', 'entry')"
-                                   options="{'account_field': 'account_id'}"/>
-                            <field name="debit" sum="Total Debit"
-                                   invisible="display_type in ('line_section', 'line_subsection', 'line_note')"/>
-                            <field name="credit" sum="Total Credit"
-                                   invisible="display_type in ('line_section', 'line_subsection', 'line_note')"/>
-                            <field name="display_type" column_invisible="1"/>
-                        </list>
-                    </field>
-                </page>
             </xpath>
 
         </field>
@@ -319,9 +305,8 @@
     <!-- ═══════════════════════════════════════════════════════════════════
          CUSTOMER INVOICE — Finance HO form adjustments
          •  Hides Due Date / Payment Terms (not used in our workflow)
-         •  Journal Entries tab first, Invoice Lines tab second
-         •  Account picker: all CoA (sales + purchase) for HO users;
-            site-restricted for site accountants
+         •  Tab order: Journal Items first, then Invoice Lines (handled by
+            the move in view_vendor_bill_site_ops_form which applies globally)
     ═══════════════════════════════════════════════════════════════════ -->
     <record id="view_customer_invoice_site_ops_form" model="ir.ui.view">
         <field name="name">account.move.customer.invoice.site.ops.form</field>
@@ -338,52 +323,6 @@
             <!-- 2. Hide Due Date / Payment Terms value div for customer invoices + journal entries -->
             <xpath expr="//div[@name='due_date']" position="attributes">
                 <attribute name="invisible">move_type in ('out_invoice', 'entry')</attribute>
-            </xpath>
-
-            <!-- 3. Hide standard Journal Items tab for customer invoices —
-                     our custom Journal Entries tab (below) replaces it as tab 1 -->
-            <xpath expr="//page[@id='aml_tab']" position="attributes">
-                <attribute name="invisible">move_type == 'out_invoice'</attribute>
-            </xpath>
-
-            <!-- 4. Journal Entries tab — first tab on customer invoices for ALL users
-                     (site accountants use the sa_invoice_lines tab from the view above).
-                     EDITABLE in draft so users can add/edit double-entry lines manually.
-                     Becomes read-only once the invoice is posted (state != 'draft').
-                     Shows ALL journal lines including the auto-managed Account Receivable
-                     so the running balance is always visible. -->
-            <xpath expr="//page[@id='invoice_tab']" position="before">
-                <page string="Journal Entries"
-                      name="customer_journal_entries"
-                      invisible="move_type != 'out_invoice'"
-                      groups="!site_operations.group_site_accountant">
-                    <field name="line_ids" readonly="state != 'draft'">
-                        <list string="Journal Entries"
-                              editable="bottom"
-                              decoration-muted="display_type in ('line_section', 'line_note')"
-                              default_order="sequence, id">
-                            <control>
-                                <create string="Add a line"/>
-                            </control>
-                            <field name="account_id"
-                                   required="display_type not in ('line_section', 'line_note')"
-                                   domain="[('company_ids', 'parent_of', parent.company_id)]"
-                                   options="{'no_create': True}"/>
-                            <field name="name" optional="show"/>
-                            <field name="partner_id" optional="hide"/>
-                            <field name="analytic_distribution"
-                                   widget="analytic_distribution"
-                                   groups="analytic.group_analytic_accounting"
-                                   optional="show"
-                                   options="{'account_field': 'account_id'}"/>
-                            <field name="debit" sum="Total Debit"
-                                   invisible="display_type in ('line_section', 'line_subsection', 'line_note')"/>
-                            <field name="credit" sum="Total Credit"
-                                   invisible="display_type in ('line_section', 'line_subsection', 'line_note')"/>
-                            <field name="display_type" column_invisible="1"/>
-                        </list>
-                    </field>
-                </page>
             </xpath>
 
         </field>

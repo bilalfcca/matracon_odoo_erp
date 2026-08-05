@@ -181,7 +181,14 @@
         <record id="rule_account_move_site_accountant" model="ir.rule">
             <field name="name">Account Move: Site Accountant own project only</field>
             <field name="model_id" ref="account.model_account_move"/>
-            <field name="domain_force">[('x_project_analytic_account_id', '=', user.x_default_analytic_account_id.id)]</field>
+            <!-- Vendor bills / customer invoices: scoped to own project analytic.
+                 Journal entries (move_type='entry'): ONLY records created by this user.
+                 We combine both conditions in one rule so they are ANDed correctly.
+                 Two rules for the same group would be ORed, which would be too permissive. -->
+            <field name="domain_force">['|',
+                '&amp;', ('move_type', '!=', 'entry'), ('x_project_analytic_account_id', '=', user.x_default_analytic_account_id.id),
+                '&amp;', ('move_type', '=', 'entry'), ('create_uid', '=', user.id)
+            ]</field>
             <field name="groups" eval="[(4, ref('site_operations.group_site_accountant'))]"/>
             <field name="perm_read" eval="True"/>
             <field name="perm_write" eval="True"/>
@@ -199,7 +206,12 @@
         <record id="rule_account_move_line_site_accountant" model="ir.rule">
             <field name="name">Account Move Line: Site Accountant own project only</field>
             <field name="model_id" ref="account.model_account_move_line"/>
-            <field name="domain_force">[('move_id.x_project_analytic_account_id', '=', user.x_default_analytic_account_id.id)]</field>
+            <!-- Mirrors rule_account_move_site_accountant: bill/invoice lines scoped by
+                 project analytic; journal entry lines scoped by creator (move creator). -->
+            <field name="domain_force">['|',
+                '&amp;', ('move_id.move_type', '!=', 'entry'), ('move_id.x_project_analytic_account_id', '=', user.x_default_analytic_account_id.id),
+                '&amp;', ('move_id.move_type', '=', 'entry'), ('move_id.create_uid', '=', user.id)
+            ]</field>
             <field name="groups" eval="[(4, ref('site_operations.group_site_accountant'))]"/>
             <field name="perm_read" eval="True"/>
             <field name="perm_write" eval="True"/>
@@ -606,11 +618,17 @@
         ════════════════════════════════════════════════════════════════════ -->
 
         <!-- Account Move (vendor bills / customer invoices / journal entries):
-             HO/CEO see posted or cancelled only — draft = site work-in-progress -->
+             HO/CEO see posted or cancelled only — draft = site work-in-progress.
+             Journal entries (move_type='entry'): additionally restricted to records
+             created by the current user.  Bills/invoices retain full cross-site
+             visibility so HO can review all site financials. -->
         <record id="rule_account_move_no_draft_ho" model="ir.rule">
-            <field name="name">Account Move: HO/CEO see posted/cancelled only</field>
+            <field name="name">Account Move: HO/CEO see posted/cancelled only; JE own only</field>
             <field name="model_id" ref="account.model_account_move"/>
-            <field name="domain_force">[('state', '!=', 'draft')]</field>
+            <field name="domain_force">['&amp;',
+                ('state', '!=', 'draft'),
+                '|', ('move_type', '!=', 'entry'), ('create_uid', '=', user.id)
+            ]</field>
             <field name="groups" eval="[
                 (4, ref('purchase_demand_raise.group_ceo_approval')),
                 (4, ref('purchase_demand_raise.group_head_office')),
@@ -620,11 +638,15 @@
         </record>
 
         <!-- Account Move Line: Partner Ledger / Aged Payables query this directly;
-             restrict draft lines so HO reports only show confirmed data -->
+             restrict draft lines so HO reports only show confirmed data.
+             Journal entry lines additionally restricted to moves created by the user. -->
         <record id="rule_account_move_line_no_draft_ho" model="ir.rule">
-            <field name="name">Account Move Line: HO/CEO see posted/cancelled only</field>
+            <field name="name">Account Move Line: HO/CEO see posted/cancelled only; JE own only</field>
             <field name="model_id" ref="account.model_account_move_line"/>
-            <field name="domain_force">[('move_id.state', '!=', 'draft')]</field>
+            <field name="domain_force">['&amp;',
+                ('move_id.state', '!=', 'draft'),
+                '|', ('move_id.move_type', '!=', 'entry'), ('move_id.create_uid', '=', user.id)
+            ]</field>
             <field name="groups" eval="[
                 (4, ref('purchase_demand_raise.group_ceo_approval')),
                 (4, ref('purchase_demand_raise.group_head_office')),

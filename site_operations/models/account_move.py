@@ -74,6 +74,17 @@ class AccountMoveSiteOps(models.Model):
         for move in self:
             move.x_user_is_ho = is_ho
 
+    # Filtered One2many used in the Journal Items tab on vendor bills /
+    # customer invoices.  Excludes 'payment_term' display_type lines —
+    # those are the AP/AR counterpart lines Odoo auto-generates to balance
+    # the entry.  Users cannot delete them (ValidationError) and should not
+    # see them; only the lines they explicitly added should appear.
+    x_journal_item_ids = fields.One2many(
+        'account.move.line', 'move_id',
+        string='Journal Items',
+        domain=[('display_type', '!=', 'payment_term')],
+    )
+
     x_purchase_order_id = fields.Many2one(
         'purchase.order', string='Purchase Order', tracking=True, copy=False,
         domain=[('state', 'in', ('purchase', 'done'))],
@@ -1191,19 +1202,41 @@ class AccountMoveLineSiteOps(models.Model):
         })
         return False
 
+    def _fix_direct_debit_credit(self, vals):
+        """If the caller supplied debit/credit directly (without price_unit) on
+        an invoice line that has no product, back-fill price_unit so that
+        Odoo's _compute_totals → _sync_dynamic_lines chain produces the correct
+        price_subtotal and therefore the correct AP/AR counterpart balance.
+
+        Without this, price_unit stays 0 → price_subtotal = 0 → needed_terms = 0
+        → the AP line carries 0 → the entry stores balance = 0 for the user line.
+        """
+        debit = vals.get('debit') or 0
+        credit = vals.get('credit') or 0
+        if (debit or credit) and not vals.get('product_id') and 'price_unit' not in vals:
+            vals['price_unit'] = debit - credit        # sign preserved
+            vals.setdefault('quantity', 1.0)
+
     @api.model_create_multi
     def create(self, vals_list):
         # Cache move objects to avoid repeated browses for the same move.
         move_cache = {}
         for vals in vals_list:
+            # ── Fix 1: back-fill price_unit from debit/credit so invoice line
+            #    amounts are not zeroed by _compute_totals.
+            move_id = vals.get('move_id')
+            if move_id:
+                if move_id not in move_cache:
+                    move_cache[move_id] = self.env['account.move'].browse(move_id)
+                if move_cache[move_id].is_invoice(include_receipts=True):
+                    self._fix_direct_debit_credit(vals)
+
+            # ── Fix 2: auto-fill analytic_distribution on draft invoice / entry lines.
             if vals.get('analytic_distribution'):
                 continue  # already set — respect explicit caller value
-            move_id = vals.get('move_id')
             if not move_id:
                 continue
-            if move_id not in move_cache:
-                move_cache[move_id] = self.env['account.move'].browse(move_id)
-            move = move_cache[move_id]
+            move = move_cache.setdefault(move_id, self.env['account.move'].browse(move_id))
             is_sa_entry = (
                 move.move_type == 'entry'
                 and self.env.user.has_group('site_operations.group_site_accountant')
@@ -1217,3 +1250,27 @@ class AccountMoveLineSiteOps(models.Model):
                     str(move.x_project_analytic_account_id.id): 100.0
                 }
         return super().create(vals_list)
+
+    def write(self, vals):
+        """When the user edits debit/credit directly on an existing invoice line
+        (through the Journal Items tab), keep price_unit in sync so
+        _compute_totals → needed_terms produces the right AP/AR balance.
+        """
+        if ('debit' in vals or 'credit' in vals) and 'price_unit' not in vals:
+            # Identify lines that have no product and are on invoices
+            invoice_lines = self.filtered(
+                lambda l: not l.product_id and l.move_id.is_invoice(include_receipts=True)
+            )
+            if invoice_lines:
+                debit = vals.get('debit') or 0
+                credit = vals.get('credit') or 0
+                balance = debit - credit
+                # Write with price_unit for the no-product invoice lines
+                super(AccountMoveLineSiteOps, invoice_lines).write(
+                    dict(vals, price_unit=balance, quantity=vals.get('quantity') or 1.0)
+                )
+                other_lines = self - invoice_lines
+                if other_lines:
+                    return super(AccountMoveLineSiteOps, other_lines).write(vals)
+                return True
+        return super().write(vals)
