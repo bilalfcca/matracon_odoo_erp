@@ -305,7 +305,7 @@
                                             <t t-esc="line.product_uom_id.name"/>
                                         </td>
                                         <td style="text-align:center; font-weight:bold;">
-                                            <t t-esc="'%.4g' % po_qty"/>
+                                            <t t-esc="('{:,.0f}' if po_qty == int(po_qty) else '{:,.3f}').format(po_qty)"/>
                                         </td>
                                         <t t-if="_po_has_multi_currency">
                                             <td style="text-align:center; font-size:11px; color:#555;">
