@@ -872,6 +872,9 @@ class ManagementDashboard(models.TransientModel):
         lines = []
         for tmpl in all_tmpl:
             qty = qty_by_tmpl.get(tmpl.id, 0.0)
+            # Skip products with 0 on-hand unless explicitly flagged to show at 0
+            if qty == 0.0 and not tmpl.x_show_zero_qty:
+                continue
             price = price_by_tmpl.get(tmpl.id, 0.0)
             worth = qty * price
             lines.append({

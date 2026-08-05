@@ -24,6 +24,12 @@ class ProductTemplateSiteOps(models.Model):
         help='When enabled, this product will appear on the HO Inventory Dashboard '
              'with on-hand quantity and PO-based valuation.',
     )
+    x_show_zero_qty = fields.Boolean(
+        string='Show even if quantity is 0',
+        default=False,
+        help='When enabled, this product will appear on the Inventory Dashboard '
+             'even when its on-hand quantity is zero.',
+    )
 
     @api.model
     def default_get(self, fields_list):
