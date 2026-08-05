@@ -430,6 +430,7 @@ class ManagementDashboardFleet(models.TransientModel):
             'project_line_ids', 'vendor_liability_line_ids', 'sub_liability_line_ids',
             'bank_line_ids', 'bg_facility_line_ids', 'bg_project_line_ids',
             'attendance_line_ids', 'ipc_line_ids', 'inventory_line_ids',
+            'inv_product_line_ids',
             # fleet
             'fleet_site_line_ids', 'fleet_vehicle_line_ids', 'fleet_monthly_line_ids',
         }
@@ -458,6 +459,7 @@ class ManagementDashboardFleet(models.TransientModel):
             'project_line_ids', 'vendor_liability_line_ids', 'sub_liability_line_ids',
             'bank_line_ids', 'bg_facility_line_ids', 'bg_project_line_ids',
             'attendance_line_ids', 'ipc_line_ids', 'inventory_line_ids',
+            'inv_product_line_ids',
             # fleet
             'fleet_site_line_ids', 'fleet_vehicle_line_ids', 'fleet_monthly_line_ids',
         }
