@@ -25,12 +25,18 @@
         </record>
 
         <!-- Procurement Officer: Purchase + Inventory (admin) + Contacts -->
+        <!-- Full admin on all 3 apps: read/write/edit/delete any record.
+             stock.group_stock_multi_locations + stock.group_stock_multi_warehouses
+             allow seeing all site warehouses and locations in the Inventory app. -->
         <record id="purchase_demand_raise.group_procurement_ho" model="res.groups">
             <field name="implied_ids" eval="[
                 (6, 0, [
                     ref('purchase.group_purchase_user'),
                     ref('purchase.group_purchase_manager'),
+                    ref('stock.group_stock_user'),
                     ref('stock.group_stock_manager'),
+                    ref('stock.group_stock_multi_locations'),
+                    ref('stock.group_stock_multi_warehouses'),
                     ref('uom.group_uom'),
                     ref('base.group_partner_manager'),
                     ref('base.group_allow_export'),

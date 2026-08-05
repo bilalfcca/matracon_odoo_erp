@@ -634,7 +634,9 @@
         </record>
 
         <!-- Stock Picking (material issuances, receipts, site-to-site transfers):
-             HO/CEO see only confirmed / ready / done transfers — not draft -->
+             HO/CEO see only confirmed / ready / done transfers — not draft.
+             Procurement HO is intentionally excluded — they need full inventory
+             admin access including draft receipts/transfers. -->
         <record id="rule_stock_picking_no_draft_ho" model="ir.rule">
             <field name="name">Stock Picking: HO/CEO see confirmed/in-progress/done only</field>
             <field name="model_id" ref="stock.model_stock_picking"/>
@@ -643,8 +645,55 @@
                 (4, ref('purchase_demand_raise.group_ceo_approval')),
                 (4, ref('purchase_demand_raise.group_head_office')),
                 (4, ref('site_operations.group_finance_ho')),
-                (4, ref('purchase_demand_raise.group_procurement_ho')),
             ]"/>
+        </record>
+
+        <!-- Stock Picking: Procurement HO sees ALL (including draft) — admin level -->
+        <record id="rule_stock_picking_procurement_ho" model="ir.rule">
+            <field name="name">Stock Picking: Procurement HO sees all</field>
+            <field name="model_id" ref="stock.model_stock_picking"/>
+            <field name="groups" eval="[(4, ref('purchase_demand_raise.group_procurement_ho'))]"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+        </record>
+
+        <!-- Stock Quant: Procurement HO sees all warehouses -->
+        <record id="rule_stock_quant_procurement_ho" model="ir.rule">
+            <field name="name">Stock Quant: Procurement HO sees all</field>
+            <field name="model_id" ref="stock.model_stock_quant"/>
+            <field name="groups" eval="[(4, ref('purchase_demand_raise.group_procurement_ho'))]"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+        </record>
+
+        <!-- Stock Move: Procurement HO sees all -->
+        <record id="rule_stock_move_procurement_ho" model="ir.rule">
+            <field name="name">Stock Move: Procurement HO sees all</field>
+            <field name="model_id" ref="stock.model_stock_move"/>
+            <field name="groups" eval="[(4, ref('purchase_demand_raise.group_procurement_ho'))]"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+        </record>
+
+        <!-- Stock Move Line: Procurement HO sees all -->
+        <record id="rule_stock_move_line_procurement_ho" model="ir.rule">
+            <field name="name">Stock Move Line: Procurement HO sees all</field>
+            <field name="model_id" ref="stock.model_stock_move_line"/>
+            <field name="groups" eval="[(4, ref('purchase_demand_raise.group_procurement_ho'))]"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+        </record>
+
+        <!-- Stock Warehouse: Procurement HO sees all warehouses -->
+        <record id="rule_stock_warehouse_procurement_ho" model="ir.rule">
+            <field name="name">Stock Warehouse: Procurement HO sees all</field>
+            <field name="model_id" ref="stock.model_stock_warehouse"/>
+            <field name="groups" eval="[(4, ref('purchase_demand_raise.group_procurement_ho'))]"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+        </record>
+
+        <!-- Stock Location: Procurement HO sees all locations -->
+        <record id="rule_stock_location_procurement_ho" model="ir.rule">
+            <field name="name">Stock Location: Procurement HO sees all</field>
+            <field name="model_id" ref="stock.model_stock_location"/>
+            <field name="groups" eval="[(4, ref('purchase_demand_raise.group_procurement_ho'))]"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
         </record>
 
         <!-- Salary Sheet: HO/CEO see submitted/approved/paid only -->
