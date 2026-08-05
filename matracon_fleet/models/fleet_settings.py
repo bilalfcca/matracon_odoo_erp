@@ -44,35 +44,35 @@ class FleetSettings(models.Model):
     # ── GL Account Mapping ────────────────────────────────────────────────────
     account_fuel_diesel_id = fields.Many2one(
         'account.account', string='Fuel — Diesel',
-        domain=[('account_type', 'like', 'expense'), ('deprecated', '=', False)],
+        domain=[('account_type', 'like', 'expense'), ('active', '=', True)],
         help='GL expense account for diesel fuel log entries.')
     account_fuel_petrol_id = fields.Many2one(
         'account.account', string='Fuel — Petrol',
-        domain=[('account_type', 'like', 'expense'), ('deprecated', '=', False)],
+        domain=[('account_type', 'like', 'expense'), ('active', '=', True)],
         help='GL expense account for petrol fuel log entries.')
     account_oil_id = fields.Many2one(
         'account.account', string='Oil Change',
-        domain=[('account_type', 'like', 'expense'), ('deprecated', '=', False)])
+        domain=[('account_type', 'like', 'expense'), ('active', '=', True)])
     account_filter_id = fields.Many2one(
         'account.account', string='Filters (Air / Oil / AC)',
-        domain=[('account_type', 'like', 'expense'), ('deprecated', '=', False)])
+        domain=[('account_type', 'like', 'expense'), ('active', '=', True)])
     account_spare_parts_id = fields.Many2one(
         'account.account', string='Spare Parts & Maintenance',
-        domain=[('account_type', 'like', 'expense'), ('deprecated', '=', False)])
+        domain=[('account_type', 'like', 'expense'), ('active', '=', True)])
     account_spare_parts_credit_id = fields.Many2one(
         'account.account', string='Spare Parts — Credit Account',
-        domain=[('deprecated', '=', False)],
+        domain=[('active', '=', True)],
         help='Credit (contra) account for cash spare part purchases (no stock picking). '
              'Typically an accounts payable or petty cash account.')
     account_rental_id = fields.Many2one(
         'account.account', string='Rental Charges',
-        domain=[('account_type', 'like', 'expense'), ('deprecated', '=', False)])
+        domain=[('account_type', 'like', 'expense'), ('active', '=', True)])
     account_other_id = fields.Many2one(
         'account.account', string='Other Consumables',
-        domain=[('account_type', 'like', 'expense'), ('deprecated', '=', False)])
+        domain=[('account_type', 'like', 'expense'), ('active', '=', True)])
     account_log_credit_id = fields.Many2one(
         'account.account', string='Log Entry — Default Credit Account',
-        domain=[('deprecated', '=', False)],
+        domain=[('active', '=', True)],
         help='Credit (contra) account used when posting a log entry that has NO linked '
              'petty cash expense or vendor bill. Typically a petty cash or cash-in-hand '
              'account. Required only for direct-cash log entries.')
