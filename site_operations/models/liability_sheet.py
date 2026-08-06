@@ -131,18 +131,23 @@ class LiabilitySheet(models.Model):
 
     @api.onchange('x_filter_partner_id')
     def _onchange_x_filter_partner_id(self):
-        """Trigger a server round-trip so the client receives the updated filter
-        value and re-evaluates the line_ids/selected_line_ids domain.
+        """Return an updated domain for both One2many line fields.
 
-        Without this, x_filter_partner_id (store=False, no compute) is invisible
-        to Odoo 19's domain evaluator — it stays False even after the user selects
-        a partner.  Writing the field back explicitly ensures it appears in the
-        onchange RPC response, which causes the OWL form to re-render with the
-        correct domain, filtering the one2many to the chosen partner.
+        Returning {'domain': {'field': [...]}} from an onchange is the standard
+        Odoo mechanism that instructs the client to apply a new domain to a field —
+        it works reliably in Odoo 19 OWL, whereas a static XML domain on a
+        store=False field is not always re-evaluated reactively.
         """
-        # Explicit self-assign → field appears in onchange response → client
-        # re-renders form → domain re-evaluated with real partner ID.
-        self.x_filter_partner_id = self.x_filter_partner_id
+        if self.x_filter_partner_id:
+            domain = [('partner_id', '=', self.x_filter_partner_id.id)]
+        else:
+            domain = []
+        return {
+            'domain': {
+                'line_ids': domain,
+                'selected_line_ids': domain,
+            }
+        }
 
     @api.depends('project_analytic_account_id', 'x_sequence_no')
     def _compute_name(self):

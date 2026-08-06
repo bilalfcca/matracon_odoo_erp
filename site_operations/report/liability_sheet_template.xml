@@ -46,6 +46,11 @@
                             </div>
                         </div>
 
+                        <!-- ── Selected lines only (is_selected = True) ── -->
+                        <t t-set="selected_lines" t-value="sheet.line_ids.filtered(lambda l: l.is_selected)"/>
+                        <t t-set="sel_total_liability"    t-value="sum(l.liability_amount    for l in selected_lines)"/>
+                        <t t-set="sel_total_recommended"  t-value="sum(l.recommended_amount  for l in selected_lines)"/>
+
                         <!-- ── Summary Boxes — Total Liability + Recommended only ── -->
                         <div class="row mb-1">
                             <div class="col-12">
@@ -59,7 +64,7 @@
                                 <div style="border:1px solid #dee2e6; border-radius:4px; padding:8px; background:#f8f9fa;">
                                     <div style="font-size:11px; color:#6c757d; text-transform:uppercase; font-weight:600;">Total Liability</div>
                                     <div style="font-size:16px; font-weight:700;">
-                                        <t t-esc="'{:,.0f}'.format(sheet.total_liability)"/>
+                                        <t t-esc="'{:,.0f}'.format(sel_total_liability)"/>
                                     </div>
                                 </div>
                             </div>
@@ -67,13 +72,13 @@
                                 <div style="border:1px solid #dee2e6; border-radius:4px; padding:8px; background:#fff3cd;">
                                     <div style="font-size:11px; color:#6c757d; text-transform:uppercase; font-weight:600;">Recommended</div>
                                     <div style="font-size:16px; font-weight:700;">
-                                        <t t-esc="'{:,.0f}'.format(sheet.total_recommended)"/>
+                                        <t t-esc="'{:,.0f}'.format(sel_total_recommended)"/>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- ── Liability Lines Table — no Approved / Paid columns ── -->
+                        <!-- ── Liability Lines Table — selected lines only ── -->
                         <table class="table table-sm table-bordered" style="font-size:12px;">
                             <thead>
                                 <tr style="background:#c0392b; color:#fff;">
@@ -87,7 +92,7 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                <t t-foreach="sheet.line_ids" t-as="line">
+                                <t t-foreach="selected_lines" t-as="line">
                                     <tr t-attf-style="background:#{line_index % 2 == 0 and '#f8f9fa' or '#fff'}">
                                         <td class="text-center">
                                             <t t-esc="line_index + 1"/>
@@ -115,8 +120,8 @@
                                 <!-- Totals row -->
                                 <tr style="background:#e9ecef; font-weight:700; border-top:2px solid #adb5bd;">
                                     <td colspan="5" class="text-right" style="font-size:12px;">TOTALS</td>
-                                    <td class="text-right"><t t-esc="'{:,.0f}'.format(sheet.total_liability)"/></td>
-                                    <td class="text-right"><t t-esc="'{:,.0f}'.format(sheet.total_recommended)"/></td>
+                                    <td class="text-right"><t t-esc="'{:,.0f}'.format(sel_total_liability)"/></td>
+                                    <td class="text-right"><t t-esc="'{:,.0f}'.format(sel_total_recommended)"/></td>
                                 </tr>
                             </tbody>
                         </table>
