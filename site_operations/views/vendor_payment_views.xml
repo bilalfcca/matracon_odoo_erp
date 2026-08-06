@@ -18,9 +18,11 @@
                 <attribute name="readonly">1</attribute>
             </xpath>
 
-            <!-- Hide Odoo default payment state bar when using Matracon liability workflow -->
+            <!-- Hide Odoo default payment state bar when using Matracon liability workflow
+                 Also hide it on reversed payments (any type) so the custom x_payment_status
+                 statusbar shows the Reversed step instead of dropping back to "Draft". -->
             <xpath expr="//field[@name='state'][@widget='statusbar']" position="attributes">
-                <attribute name="invisible">payment_type == 'outbound' and (x_liability_sheet_id or x_ceo_direct_payment)</attribute>
+                <attribute name="invisible">payment_type == 'outbound' and (x_liability_sheet_id or x_ceo_direct_payment or x_payment_status == 'reversed')</attribute>
             </xpath>
 
             <!-- Hide standard Confirm button for:
@@ -158,11 +160,12 @@
                        decoration-success="x_ceo_approval_state == 'approved'"
                        decoration-muted="x_ceo_approval_state == 'not_required'"/>
 
-                <!-- CEO Direct Payment: statusbar + Submit button -->
+                <!-- Custom payment statusbar: shown for liability-sheet, CEO direct,
+                     and any reversed payment so "Reversed" is visible regardless of type. -->
                 <field name="x_payment_status"
                        widget="statusbar"
                        statusbar_visible="draft,in_process,paid,reversed"
-                       invisible="payment_type != 'outbound' or (not x_liability_sheet_id and not x_ceo_direct_payment)"/>
+                       invisible="payment_type != 'outbound' or (not x_liability_sheet_id and not x_ceo_direct_payment and x_payment_status != 'reversed')"/>
 
                 <!-- CEO submits their direct payment to FO -->
                 <button name="action_ceo_submit_to_fo"
