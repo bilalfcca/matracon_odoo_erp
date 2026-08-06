@@ -192,6 +192,18 @@
                         class="btn-success"
                         groups="site_operations.group_finance_ho,purchase_demand_raise.group_head_office"
                         invisible="x_payment_status != 'in_process' or payment_type != 'outbound'"/>
+
+                <!-- Finance HO: Reverse a posted payment.
+                     Unwinds the main JE, WHT deduction entry, WHT companion,
+                     interproject entries, bank allocations, and restores the
+                     liability sheet paid_amount.  Payment returns to Draft. -->
+                <button name="action_matracon_reverse_payment"
+                        type="object"
+                        string="↩ Reverse Payment"
+                        class="btn-danger"
+                        groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"
+                        invisible="state not in ('in_process', 'paid', 'partial')"
+                        confirm="Reverse this payment? ALL accounting entries (JE, WHT deduction, bank splits, analytic tags) will be cancelled and the payment reset to Draft. This cannot be undone automatically — continue?"/>
             </xpath>
 
             <xpath expr="//field[@name='amount']" position="before">

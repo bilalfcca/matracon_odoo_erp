@@ -298,11 +298,51 @@ class BatchPayment(models.Model):
             if batch.state == 'posted':
                 raise UserError(_(
                     'A posted batch cannot be cancelled here. '
-                    'Cancel the individual payments directly if needed.'
+                    'Use "Reverse Batch" to unwind all accounting entries.'
                 ))
             batch.state = 'cancelled'
             matracon_notify.close_activities(batch)
             batch.message_post(body=_('Batch cancelled.'))
+
+    def action_matracon_reverse_batch(self):
+        """Finance HO: fully reverse a posted batch payment.
+
+        Reverses every individual payment in the batch (including WHT
+        companions, tax deduction JEs, auto-clear JEs, and bank entries),
+        then cancels the batch.  Each payment returns to Draft state so
+        Finance HO can edit and re-post individually if needed.
+        """
+        _POSTED = frozenset(('in_process', 'paid', 'partial', 'posted'))
+        for batch in self:
+            user = self.env.user
+            if not (user.has_group('site_operations.group_finance_ho')
+                    or user._matracon_is_admin()):
+                raise UserError(_(
+                    'Only Finance HO or Administrator can reverse batches.'
+                ))
+            if batch.state != 'posted':
+                raise UserError(_('Only posted batches can be reversed.'))
+
+            posted_lines = batch.line_ids.filtered(
+                lambda l: l.payment_id and l.payment_id.state in _POSTED
+            )
+            if not posted_lines:
+                raise UserError(_(
+                    'No posted payments found in this batch to reverse.'
+                ))
+
+            reversed_count = 0
+            for line in posted_lines:
+                line.payment_id.action_matracon_reverse_payment()
+                reversed_count += 1
+
+            batch.state = 'cancelled'
+            matracon_notify.close_activities(batch)
+            batch.message_post(body=_(
+                'Batch reversed by <b>%(user)s</b>. '
+                '<b>%(count)d</b> payment(s) reversed and reset to Draft. '
+                'All journal entries, WHT deductions, and bank entries cancelled.'
+            ) % {'user': self.env.user.name, 'count': reversed_count})
 
     def action_reset_to_draft(self):
         for batch in self:

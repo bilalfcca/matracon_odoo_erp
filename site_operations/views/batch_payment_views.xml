@@ -426,6 +426,18 @@
                             type="object"
                             string="Reset to Draft"
                             invisible="state != 'cancelled'"/>
+
+                    <!-- Finance HO: Reverse all payments in a posted batch.
+                         Cancels every JE (main, WHT, tax deduction, auto-clear),
+                         returns cheque leaves to available, restores liability
+                         sheet amounts, then sets the batch to Cancelled. -->
+                    <button name="action_matracon_reverse_batch"
+                            type="object"
+                            string="↩ Reverse Batch"
+                            class="btn-danger"
+                            groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"
+                            invisible="state != 'posted'"
+                            confirm="Reverse ALL payments in this batch? Every journal entry (main JE, WHT deductions, bank splits, analytic entries) will be cancelled and each payment reset to Draft. The batch will be cancelled. Continue?"/>
                     <button name="action_view_payments"
                             type="object"
                             string="View Payments"

@@ -1801,3 +1801,222 @@ class AccountPaymentSiteOps(models.Model):
         if 'x_salary_sheet_id' in vals or 'x_ceo_approval_state' in vals:
             self._matracon_fix_salary_ceo_state()
         return res
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # PAYMENT REVERSAL
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def _cancel_auto_clear_jes(self):
+        """Find and cancel any Tier-2 auto-clear JEs attached to this payment.
+
+        Batch posting creates synthetic clearing entries to advance payments
+        from 'in_process' → 'paid' without bank-statement reconciliation.
+        These entries reconcile the payment's outstanding-transit credit line
+        against a clearing debit.  We locate them via the partial-reconcile
+        records, cancel them, and remove their reconciliation — BEFORE calling
+        action_draft() so the reconcile records are still live in the DB.
+
+        Also handles the WHT companion's own clearing JEs (same pattern, same
+        ref prefix 'Auto-clear').
+        """
+        if not self.move_id:
+            return
+        clearing_moves = self.env['account.move']
+        for line in self.move_id.line_ids:
+            # Debit lines reconciled against a credit in another move
+            for pr in line.matched_credit_ids:
+                partner_move = pr.credit_move_id.move_id
+                if (partner_move != self.move_id
+                        and partner_move.state == 'posted'
+                        and partner_move.move_type == 'entry'
+                        and 'Auto-clear' in (partner_move.ref or '')):
+                    clearing_moves |= partner_move
+            # Credit lines reconciled against a debit in another move
+            for pr in line.matched_debit_ids:
+                partner_move = pr.debit_move_id.move_id
+                if (partner_move != self.move_id
+                        and partner_move.state == 'posted'
+                        and partner_move.move_type == 'entry'
+                        and 'Auto-clear' in (partner_move.ref or '')):
+                    clearing_moves |= partner_move
+        for move in clearing_moves:
+            reconciled = move.line_ids.filtered(lambda l: l.reconciled)
+            if reconciled:
+                reconciled.remove_move_reconcile()
+            if move.state == 'posted':
+                move.button_draft()
+            move.button_cancel()
+
+    def action_matracon_reverse_payment(self):
+        """Finance HO: fully reverse a posted vendor payment.
+
+        Unwinds ALL accounting impact in a safe, ordered sequence:
+
+          1. WHT companion payment to FBR  (reset to draft; auto-clear JE cancelled)
+          2. Tax deduction JE              (WHT / Retention; unreconciled + cancelled)
+          3. Interproject GL entries       (unreconciled + cancelled)
+          4. Auto-clear JEs               (Tier-2 transit entries from batch posting)
+          5. Main payment JE              (action_draft → move cancelled + lines unreconciled)
+          6. BPV reference cleared        (new ref assigned on potential re-post)
+          7. Cheque leaf(ves) returned    (state → 'available')
+          8. Liability sheet paid_amount  (recalculated; sheet reopened if was 'paid')
+          9. Salary sheet                 (reopened if payment was a salary payment)
+         10. Petty Cash Request           (reset to approved if was a PCR payment)
+
+        The payment returns to Draft state. Finance HO can then edit and
+        re-post it or delete it as required.
+        """
+        self.ensure_one()
+        user = self.env.user
+        if not (user.has_group('site_operations.group_finance_ho')
+                or user._matracon_is_admin()):
+            raise UserError(_(
+                'Only Finance HO or Administrator can reverse payments.'
+            ))
+
+        if self.state not in _POSTED_STATES:
+            raise UserError(_(
+                'Only posted payments can be reversed.\n'
+                'Current state: %s.'
+            ) % self.state)
+
+        log_lines = []
+        payment_name = self.name or _('Payment')
+
+        # ── 1. WHT companion payment to FBR ──────────────────────────────────
+        # Cancel BEFORE the tax deduction JE so the companion's reconcile with
+        # the deduction JE's credit line is removed cleanly.
+        wht_companion = self.x_wht_payment_id
+        if wht_companion:
+            companion_name = wht_companion.name or _('WHT Payment')
+            if wht_companion.state in _POSTED_STATES:
+                wht_companion._cancel_auto_clear_jes()
+                wht_companion.action_draft()
+                # Clear companion BPV ref — new one on re-post
+                wht_companion.x_bpv_ref = False
+            # Unlink bidirectional references
+            self.x_wht_payment_id = False
+            wht_companion.x_origin_payment_id = False
+            log_lines.append(_('WHT companion payment <b>%s</b> reset to draft.') % companion_name)
+
+        # ── 2. Tax deduction JE (WHT / Retention) ────────────────────────────
+        if self.x_tax_deduction_move_id:
+            tdm = self.x_tax_deduction_move_id
+            tdm_name = tdm.name or _('Tax Deduction Entry')
+            if tdm.state == 'posted':
+                reconciled = tdm.line_ids.filtered(lambda l: l.reconciled)
+                if reconciled:
+                    reconciled.remove_move_reconcile()
+                tdm.button_draft()
+                tdm.button_cancel()
+            self.x_tax_deduction_move_id = False
+            log_lines.append(_('Tax deduction entry <b>%s</b> cancelled.') % tdm_name)
+
+        # ── 3. Interproject GL entries ────────────────────────────────────────
+        if self.x_interproject_move_ids:
+            for move in self.x_interproject_move_ids:
+                move_name = move.name or _('Interproject Entry')
+                if move.state == 'posted':
+                    reconciled = move.line_ids.filtered(lambda l: l.reconciled)
+                    if reconciled:
+                        reconciled.remove_move_reconcile()
+                    move.button_draft()
+                    move.button_cancel()
+                log_lines.append(
+                    _('Interproject entry <b>%s</b> cancelled.') % move_name
+                )
+            self.x_interproject_move_ids = [(5, 0, 0)]
+
+        # ── 4. Auto-clear JEs (Tier-2 transit clearing from batch posting) ───
+        # Must run BEFORE action_draft() so partial-reconcile records are live.
+        self._cancel_auto_clear_jes()
+
+        # ── 5. Main payment — reset to draft ──────────────────────────────────
+        # action_draft() unreconciles remaining AP/bank lines and resets state.
+        # Our override also resets x_payment_status → 'draft'.
+        self.action_draft()
+        log_lines.append(
+            _('Payment <b>%s</b> reset to draft — journal entry cancelled.') % payment_name
+        )
+
+        # ── 6. Clear BPV reference ────────────────────────────────────────────
+        # If re-posted later, a fresh sequential BPV ref will be assigned.
+        if self.x_bpv_ref:
+            old_bpv = self.x_bpv_ref
+            self.x_bpv_ref = False
+            log_lines.append(_('BPV reference <b>%s</b> cleared.') % old_bpv)
+
+        # ── 7. Return cheque leaf(ves) to available ────────────────────────────
+        cheque_leaves = self.env['x.cheque.leaf']
+        if self.x_cheque_leaf_id:
+            cheque_leaves |= self.x_cheque_leaf_id
+        for alloc in self.x_bank_allocation_ids:
+            if alloc.x_cheque_leaf_id:
+                cheque_leaves |= alloc.x_cheque_leaf_id
+        for leaf in cheque_leaves.filtered(lambda l: l.state == 'used'):
+            leaf.sudo().write({'state': 'available', 'payment_id': False})
+            log_lines.append(
+                _('Cheque <b>%s</b> returned to available.') % leaf.cheque_number
+            )
+
+        # ── 8. Restore liability sheet paid_amount ────────────────────────────
+        if self.x_liability_sheet_line_id:
+            sheet_line = self.x_liability_sheet_line_id
+            sheet = self.x_liability_sheet_id
+            remaining = sheet.payment_ids.filtered(
+                lambda p: p.id != self.id
+                and p.state in _POSTED_STATES
+                and p.x_liability_sheet_line_id == sheet_line
+                and not p.x_origin_payment_id
+            )
+            old_paid = sheet_line.paid_amount
+            sheet_line.paid_amount = sum(
+                p.x_gross_approved_amount or p.amount for p in remaining
+            )
+            log_lines.append(_(
+                'Liability sheet paid amount: <b>%(old).2f</b> → <b>%(new).2f</b>.'
+            ) % {'old': old_paid, 'new': sheet_line.paid_amount})
+            # Reopen sheet if it was marked fully paid
+            if sheet and sheet.state == 'paid':
+                sheet.state = 'approved'
+                sheet.message_post(
+                    body=_('Liability sheet reopened — payment <b>%s</b> reversed.') % payment_name
+                )
+                log_lines.append(_('Liability sheet reopened (was Paid).'))
+
+        # ── 9. Salary sheet — reopen if this was a salary payment ─────────────
+        if self.x_salary_sheet_id:
+            sheet = self.x_salary_sheet_id
+            if sheet.state == 'paid':
+                sheet.state = 'approved'
+                sheet.message_post(
+                    body=_('Salary sheet reopened — payment <b>%s</b> reversed. '
+                           'Employee advance balances restored.') % payment_name
+                )
+                # Restore employee advance balances
+                for line in sheet.line_ids:
+                    if line.detail_advance > 0 and line.employee_id:
+                        emp = line.employee_id.sudo()
+                        emp.write({
+                            'x_advance_balance': (emp.x_advance_balance or 0.0) + line.detail_advance
+                        })
+                log_lines.append(_('Salary sheet <b>%s</b> reopened.') % sheet.name)
+
+        # ── 10. Petty Cash Request — reset to approved ────────────────────────
+        if self.x_petty_cash_request_id:
+            pcr = self.x_petty_cash_request_id
+            if pcr.state in ('released', 'confirmed'):
+                pcr.state = 'approved'
+                pcr.payment_id = False
+                pcr.message_post(
+                    body=_('PCR reset to Approved — payment <b>%s</b> reversed.') % payment_name
+                )
+                log_lines.append(_('Petty Cash Request <b>%s</b> reset to Approved.') % pcr.name)
+
+        # ── Chatter ───────────────────────────────────────────────────────────
+        self.message_post(body=_(
+            'Payment reversed by <b>%(user)s</b>.<br/>%(details)s'
+        ) % {
+            'user': self.env.user.name,
+            'details': '<br/>'.join(log_lines) or _('No sub-entries to reverse.'),
+        })
