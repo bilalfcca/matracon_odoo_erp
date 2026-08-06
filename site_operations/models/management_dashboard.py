@@ -1064,13 +1064,13 @@ class ManagementDashboard(models.TransientModel):
         _tab = self.filter_dashboard_tab
         if _tab == 'vendors':
             total_liabilities = vendor_liability
-            _vendor_paid, _ = self._period_payable_debits_by_type(
+            _vendor_paid, _unused = self._period_payable_debits_by_type(
                 analytics, date_from, date_to)
             payments_made = _vendor_paid
             kpi_net_balance = payments_received - payments_made
         elif _tab == 'subcontractors':
             total_liabilities = sub_liability
-            _, _sub_paid = self._period_payable_debits_by_type(
+            _unused, _sub_paid = self._period_payable_debits_by_type(
                 analytics, date_from, date_to)
             payments_made = _sub_paid
             kpi_net_balance = payments_received - payments_made
