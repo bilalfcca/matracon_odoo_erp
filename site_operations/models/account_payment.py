@@ -1474,12 +1474,24 @@ class AccountPaymentSiteOps(models.Model):
             self.move_id.sudo().write(
                 {'x_project_analytic_account_id': analytic.id}
             )
+        # Collect HO source-bank account IDs.  These belong to Head Office and
+        # must NOT carry the site's analytic — otherwise the SA would see HO bank
+        # movements in their filtered General Ledger.
+        #
+        # Every OTHER line (AP/payable, petty-cash cash account, WHT payable,
+        # expense accounts, etc.) gets the site's analytic so the SA sees the
+        # full picture when they apply the analytic filter in their GL.
+        bank_acct_ids = set()
+        if self.outstanding_account_id:
+            bank_acct_ids.add(self.outstanding_account_id.id)
+        if self.journal_id and self.journal_id.default_account_id:
+            bank_acct_ids.add(self.journal_id.default_account_id.id)
+        for alloc in self.x_bank_allocation_ids:
+            if alloc.journal_id and alloc.journal_id.default_account_id:
+                bank_acct_ids.add(alloc.journal_id.default_account_id.id)
         dist = self._analytic_distribution_for_account(analytic)
         lines = self.move_id.line_ids.filtered(
-            lambda l: l.account_id.account_type in (
-                'liability_payable', 'expense', 'expense_direct_cost',
-                'asset_receivable',
-            )
+            lambda l: l.account_id.id not in bank_acct_ids
         )
         if lines:
             lines.write({'analytic_distribution': dist})
@@ -1621,13 +1633,20 @@ class AccountPaymentSiteOps(models.Model):
             analytic = self.x_destination_project_id or self.x_fund_project_id
         if not analytic:
             return line_vals_list
+        # Collect HO source-bank account IDs — same logic as
+        # _matracon_tag_payment_move_analytic.  We must not stamp the site
+        # analytic on HO bank/outstanding lines; every other line gets it.
+        bank_acct_ids = set()
+        if self.outstanding_account_id:
+            bank_acct_ids.add(self.outstanding_account_id.id)
+        if self.journal_id and self.journal_id.default_account_id:
+            bank_acct_ids.add(self.journal_id.default_account_id.id)
+        for alloc in self.x_bank_allocation_ids:
+            if alloc.journal_id and alloc.journal_id.default_account_id:
+                bank_acct_ids.add(alloc.journal_id.default_account_id.id)
         dist = self._analytic_distribution_for_account(analytic)
         for vals in line_vals_list:
-            account = self.env['account.account'].browse(vals.get('account_id'))
-            if account.account_type in (
-                'liability_payable', 'expense', 'expense_direct_cost',
-                'asset_receivable',
-            ):
+            if vals.get('account_id') not in bank_acct_ids:
                 vals['analytic_distribution'] = dist
         return line_vals_list
 

@@ -533,8 +533,11 @@
         <field name="name">x.petty.cash.admin.wizard.form</field>
         <field name="model">x.petty.cash.admin.wizard</field>
         <field name="arch" type="xml">
-            <form string="Petty Cash — Fix Accounts">
+            <form string="Admin Maintenance Tools">
                 <sheet>
+
+                    <!-- ── Tool 1: Fix Petty Cash Accounts ──────────────── -->
+                    <h4 style="margin-bottom:4px;">Fix Petty Cash Accounts</h4>
                     <div class="alert alert-info" role="alert">
                         <strong>What this tool does (safe to run multiple times):</strong>
                         <ul style="margin-top:8px; margin-bottom:4px;">
@@ -552,18 +555,51 @@
                         <small>Check <b>Server Logs</b> after running for a detailed line-by-line
                             report.</small>
                     </div>
-                    <div class="alert alert-warning" role="alert" style="margin-top:8px;">
+                    <div class="alert alert-warning" role="alert" style="margin-top:4px;">
                         <strong>Pre-requisite:</strong> Make sure each Site Configuration has its
                         <em>Petty Cash Account (Cash in Hand)</em> field set before running.
                         Go to <b>Purchase → Configuration → Site Project Configurations</b>.
                     </div>
+                    <div style="margin-bottom:20px;">
+                        <button name="action_run_fix"
+                                string="Run Petty Cash Fix"
+                                type="object"
+                                class="btn btn-primary"
+                                confirm="This will correct all petty cash GL accounts and journal entries. Continue?"/>
+                    </div>
+
+                    <hr style="border-top:1px solid #dee2e6; margin:12px 0;"/>
+
+                    <!-- ── Tool 2: Fix GL Analytic Distribution ──────────── -->
+                    <h4 style="margin-bottom:4px;">Fix GL Analytic Distribution on Payment Entries</h4>
+                    <div class="alert alert-info" role="alert">
+                        <strong>Problem this fixes:</strong> Site accountants filtering their
+                        General Ledger by analytic saw <b>zero in the Debit column</b> for site
+                        cash accounts (e.g. "Cash at RWASA", "Cash at N-55"). HO-created payment
+                        entries (petty cash releases, vendor payments) were visible to HO but
+                        <em>invisible</em> to site accountants because the cash/payable lines were
+                        missing <code>analytic_distribution</code>.
+                        <ul style="margin-top:8px; margin-bottom:4px;">
+                            <li>Finds all posted payments linked to any project.</li>
+                            <li>Stamps the correct site analytic on every JE line
+                                <em>except</em> the HO source-bank lines (those stay HO-only).</li>
+                            <li>Each site accountant sees only their own project's entries.</li>
+                            <li>Safe to run multiple times — only touches lines where analytic
+                                is blank.</li>
+                        </ul>
+                        <small>Check <b>Server Logs</b> after running for a payment-by-payment
+                            report.</small>
+                    </div>
+                    <div>
+                        <button name="action_fix_payment_analytic"
+                                string="Fix GL Analytic Distribution"
+                                type="object"
+                                class="btn btn-primary"
+                                confirm="This will stamp the correct analytic on all payment JE lines that are missing it. Each site accountant will then see HO payments in their filtered GL. Continue?"/>
+                    </div>
+
                 </sheet>
                 <footer>
-                    <button name="action_run_fix"
-                            string="Run Fix Now"
-                            type="object"
-                            class="btn-primary"
-                            confirm="This will correct all petty cash GL accounts and journal entries. Continue?"/>
                     <button string="Close" class="btn-secondary" special="cancel"/>
                 </footer>
             </form>

@@ -1,7 +1,11 @@
+import logging
+
 from markupsafe import Markup
 
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
+
+_logger = logging.getLogger(__name__)
 
 from . import matracon_notifications as matracon_notify
 
@@ -1567,6 +1571,105 @@ class XPettyCashAdminWizard(models.TransientModel):
                     'posted JEs with the wrong cash account have been corrected '
                     'in-place. Check the server log for a detailed report.'
                 ),
+                'type': 'success',
+                'sticky': True,
+            },
+        }
+
+    def action_fix_payment_analytic(self):
+        """Retroactively stamp analytic_distribution on all payment JE lines.
+
+        Problem fixed:
+          When Finance HO releases petty cash (or makes any payment tagged to a
+          project), the JE lines that hit site accounts (e.g. "112632 Cash at
+          RWASA") were missing analytic_distribution because the old code only
+          stamped it on liability_payable/expense/asset_receivable types.
+          Cash-type accounts (asset_cash) were skipped.
+
+          Result: site accountants applying the analytic filter in their GL
+          saw ZERO in the Debit column for their cash account — only the
+          credits (their own expense entries) showed, making the balance look
+          like a massive overdraft.
+
+        What this does:
+          For every posted account.payment linked to a project
+          (x_destination_project_id or x_fund_project_id):
+          1. Ensures x_project_analytic_account_id is set on the move header.
+          2. Identifies the HO source-bank lines (journal default_account_id /
+             outstanding_account_id / multi-bank allocation accounts) — these
+             must NOT get the site's analytic (they belong to HO).
+          3. Stamps analytic_distribution on every OTHER line that is missing it.
+
+        Safe to run multiple times — only touches lines where analytic is blank.
+        Each site's analytic is scoped correctly: each SA sees only their own.
+        """
+        if not (self.env.user.has_group('purchase_demand_raise.group_matracon_admin')
+                or self.env.user.has_group('base.group_system')):
+            raise UserError(_('Only Matracon Admin or System Administrator can run this action.'))
+
+        self.env.cr.execute("""
+            SELECT id FROM account_payment
+            WHERE (x_destination_project_id IS NOT NULL
+                   OR x_fund_project_id IS NOT NULL)
+              AND state NOT IN ('draft', 'cancel')
+              AND move_id IS NOT NULL
+        """)
+        payment_ids = [r[0] for r in self.env.cr.fetchall()]
+        payments = self.env['account.payment'].sudo().browse(payment_ids)
+
+        fixed_lines = 0
+        fixed_moves = 0
+
+        for payment in payments:
+            analytic = payment.x_destination_project_id or payment.x_fund_project_id
+            if not analytic or not payment.move_id:
+                continue
+
+            # Ensure move header is tagged (drives the security record rule)
+            if not payment.move_id.x_project_analytic_account_id:
+                payment.move_id.sudo().write(
+                    {'x_project_analytic_account_id': analytic.id}
+                )
+
+            # Collect HO source-bank account IDs to exclude
+            bank_acct_ids = set()
+            if payment.outstanding_account_id:
+                bank_acct_ids.add(payment.outstanding_account_id.id)
+            if payment.journal_id and payment.journal_id.default_account_id:
+                bank_acct_ids.add(payment.journal_id.default_account_id.id)
+            for alloc in payment.x_bank_allocation_ids:
+                if alloc.journal_id and alloc.journal_id.default_account_id:
+                    bank_acct_ids.add(alloc.journal_id.default_account_id.id)
+
+            dist = {str(analytic.id): 100.0}
+            lines_to_fix = payment.move_id.line_ids.filtered(
+                lambda l: l.account_id.id not in bank_acct_ids
+                    and not l.analytic_distribution
+            )
+            if lines_to_fix:
+                lines_to_fix.sudo().write({'analytic_distribution': dist})
+                fixed_lines += len(lines_to_fix)
+                fixed_moves += 1
+                _logger.info(
+                    'fix_payment_analytic: %s (%d) → analytic %s stamped on %d lines',
+                    payment.name, payment.id, analytic.name, len(lines_to_fix),
+                )
+
+        _logger.info(
+            'fix_payment_analytic: complete — %d lines fixed across %d payment JEs',
+            fixed_lines, fixed_moves,
+        )
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('GL Analytic Fix Complete'),
+                'message': _(
+                    'Stamped analytic distribution on %(lines)d journal entry lines '
+                    'across %(moves)d payment entries. Site accountants can now see '
+                    'all HO-created payment entries in their filtered General Ledger. '
+                    'Check the server log for a line-by-line report.'
+                ) % {'lines': fixed_lines, 'moves': fixed_moves},
                 'type': 'success',
                 'sticky': True,
             },
