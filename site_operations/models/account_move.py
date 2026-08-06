@@ -1249,7 +1249,41 @@ class AccountMoveLineSiteOps(models.Model):
                 vals['analytic_distribution'] = {
                     str(move.x_project_analytic_account_id.id): 100.0
                 }
-        return super().create(vals_list)
+
+        records = super().create(vals_list)
+
+        # ── Fix 3: site cash-account fallback for entry lines still missing analytic.
+        #
+        # Covers the case where an admin (not a site accountant) creates a journal
+        # entry — e.g. an Opening Balance entry — that includes a line on a site's
+        # petty cash account.  Fix 2 above skips that path (it requires is_sa_entry).
+        # Here we look up the site's analytic from the account itself so the OB
+        # and similar entries appear in the site-filtered General Ledger.
+        lines_no_analytic = records.filtered(
+            lambda l: l.move_id.move_type == 'entry' and not l.analytic_distribution
+        )
+        if lines_no_analytic:
+            site_configs = self.env['project.site.config'].sudo().search([
+                ('x_petty_cash_account_id', '!=', False),
+                ('analytic_account_id', '!=', False),
+            ])
+            cash_to_analytic = {
+                sc.x_petty_cash_account_id.id: sc.analytic_account_id
+                for sc in site_configs
+            }
+            for line in lines_no_analytic:
+                analytic = cash_to_analytic.get(line.account_id.id)
+                if analytic:
+                    line.sudo().write(
+                        {'analytic_distribution': {str(analytic.id): 100.0}}
+                    )
+                    # Also tag the move header so record rules let site SAs see it.
+                    if not line.move_id.x_project_analytic_account_id:
+                        line.move_id.sudo().write(
+                            {'x_project_analytic_account_id': analytic.id}
+                        )
+
+        return records
 
     def write(self, vals):
         """When the user edits debit/credit directly on an existing invoice line

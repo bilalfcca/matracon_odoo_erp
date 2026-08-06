@@ -1655,8 +1655,76 @@ class XPettyCashAdminWizard(models.TransientModel):
                     payment.name, payment.id, analytic.name, len(lines_to_fix),
                 )
 
+        # ── Pass 2: MISC journal entries with site cash-account lines ──────────────
+        # Covers Opening Balance entries and any other posted MISC entries (not
+        # linked to account.payment) that have lines on a site's petty cash account
+        # but are missing analytic_distribution.
+        #
+        # Mapping: project.site.config.x_petty_cash_account_id → analytic_account_id
+        site_configs = self.env['project.site.config'].sudo().search([
+            ('x_petty_cash_account_id', '!=', False),
+            ('analytic_account_id', '!=', False),
+        ])
+        cash_to_analytic = {
+            sc.x_petty_cash_account_id.id: sc.analytic_account_id
+            for sc in site_configs
+        }
+        if cash_to_analytic:
+            account_ids = list(cash_to_analytic.keys())
+            # Find posted MISC entries that:
+            #   - have a line on a site cash account with no analytic, AND
+            #   - are NOT the JE of an account.payment (those were fixed in Pass 1)
+            self.env.cr.execute("""
+                SELECT DISTINCT am.id, aml.account_id
+                FROM account_move am
+                JOIN account_move_line aml ON aml.move_id = am.id
+                WHERE am.move_type = 'entry'
+                  AND am.state = 'posted'
+                  AND aml.account_id = ANY(%s)
+                  AND (aml.analytic_distribution IS NULL
+                       OR aml.analytic_distribution::text = '{}')
+                  AND NOT EXISTS (
+                      SELECT 1 FROM account_payment ap WHERE ap.move_id = am.id
+                  )
+            """, (account_ids,))
+            rows = self.env.cr.fetchall()
+
+            # Build move_id → analytic mapping (first site cash account wins)
+            move_to_analytic = {}
+            for move_id, account_id in rows:
+                if move_id not in move_to_analytic:
+                    analytic = cash_to_analytic.get(account_id)
+                    if analytic:
+                        move_to_analytic[move_id] = analytic
+
+            entries = self.env['account.move'].sudo().browse(list(move_to_analytic.keys()))
+            for entry in entries:
+                analytic = move_to_analytic[entry.id]
+                dist = {str(analytic.id): 100.0}
+
+                # Stamp the move header if blank (drives site-SA record rules)
+                if not entry.x_project_analytic_account_id:
+                    entry.sudo().write(
+                        {'x_project_analytic_account_id': analytic.id}
+                    )
+
+                # Stamp every line that is missing analytic
+                lines_missing = entry.line_ids.filtered(
+                    lambda l: not l.analytic_distribution
+                )
+                if lines_missing:
+                    lines_missing.sudo().write({'analytic_distribution': dist})
+                    fixed_lines += len(lines_missing)
+                    fixed_moves += 1
+                    _logger.info(
+                        'fix_payment_analytic: MISC entry %s (%d) → analytic %s'
+                        ' stamped on %d lines',
+                        entry.name, entry.id, analytic.name, len(lines_missing),
+                    )
+
         _logger.info(
-            'fix_payment_analytic: complete — %d lines fixed across %d payment JEs',
+            'fix_payment_analytic: complete — %d lines fixed across %d entries'
+            ' (payments + MISC)',
             fixed_lines, fixed_moves,
         )
         return {
@@ -1666,9 +1734,9 @@ class XPettyCashAdminWizard(models.TransientModel):
                 'title': _('GL Analytic Fix Complete'),
                 'message': _(
                     'Stamped analytic distribution on %(lines)d journal entry lines '
-                    'across %(moves)d payment entries. Site accountants can now see '
-                    'all HO-created payment entries in their filtered General Ledger. '
-                    'Check the server log for a line-by-line report.'
+                    'across %(moves)d entries (payment JEs + Opening Balance / MISC). '
+                    'Site accountants can now see all HO-created entries in their '
+                    'filtered General Ledger. Check the server log for details.'
                 ) % {'lines': fixed_lines, 'moves': fixed_moves},
                 'type': 'success',
                 'sticky': True,
