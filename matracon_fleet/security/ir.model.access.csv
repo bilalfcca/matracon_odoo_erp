@@ -16,3 +16,6 @@ access_fleet_vehicle_trip_store,x.fleet.vehicle.trip site store,model_x_fleet_ve
 access_fleet_vehicle_trip_finance,x.fleet.vehicle.trip finance,model_x_fleet_vehicle_trip,site_operations.group_finance_ho,1,1,1,1
 access_fleet_vehicle_trip_admin,x.fleet.vehicle.trip admin,model_x_fleet_vehicle_trip,purchase_demand_raise.group_matracon_admin,1,1,1,1
 access_mgmt_dash_fleet_monthly_line,x.management.dashboard.fleet.monthly.line,model_x_management_dashboard_fleet_monthly_line,base.group_user,1,1,1,1
+access_fleet_vehicle_head_office,fleet.vehicle head office,fleet.model_fleet_vehicle,purchase_demand_raise.group_head_office,1,0,0,0
+access_fleet_log_services_head_office,fleet.vehicle.log.services head office,fleet.model_fleet_vehicle_log_services,purchase_demand_raise.group_head_office,1,0,0,0
+access_fleet_spare_part_head_office,x.fleet.spare.part head office,model_x_fleet_spare_part,purchase_demand_raise.group_head_office,1,0,0,0
