@@ -543,6 +543,43 @@ class AccountMoveSiteOps(models.Model):
                 'Please upload the physical bill document for: %s'
             ) % names)
 
+        # ── 3b. Validate payable-account type for vendor bills ───────────────────
+        # A vendor whose property_account_payable_id points to a non-payable-type
+        # account (e.g. an expense account that has reconcile=False) causes Odoo's
+        # _sync_dynamic_lines to create the payment_term line on that account.
+        # Because non-reconcilable accounts always have amount_residual=0, the move's
+        # amount_residual is 0 immediately on posting → payment_state='paid'
+        # instantly — even though no payment has been made.
+        # Catch the misconfiguration HERE so the user can correct it before posting.
+        if not self.env.registry._init and not self.env.context.get('install_mode'):
+            for move in self.filtered(
+                lambda m: m.move_type == 'in_invoice' and m.state != 'posted'
+            ):
+                if not move.partner_id:
+                    continue
+                payable_acc = (
+                    move.partner_id
+                    .with_company(move.company_id)
+                    .property_account_payable_id
+                )
+                if payable_acc and payable_acc.account_type not in ('liability_payable',):
+                    raise UserError(_(
+                        'Vendor "%s" has an incorrect Payable Account: '
+                        '"%s" (type: %s).\n\n'
+                        'The Payable Account must be of type "Payable" '
+                        '(liability_payable). Posting with a non-payable account '
+                        'causes the bill to immediately show as "Paid" because '
+                        'Odoo cannot track the outstanding amount on a '
+                        'non-reconcilable account.\n\n'
+                        'To fix: open the vendor\'s contact form → '
+                        'Accounting tab → set the correct Payable Account, '
+                        'then try posting again.'
+                    ) % (
+                        move.partner_id.display_name,
+                        payable_acc.name,
+                        payable_acc.account_type,
+                    ))
+
         # ── 4. HO/Finance JE validation: payable lines must carry an analytic ────
         ho_or_finance = (
             self.env.user.has_group('purchase_demand_raise.group_head_office')
@@ -613,6 +650,42 @@ class AccountMoveSiteOps(models.Model):
                 move._update_project_balance_from_bill()
             if move.x_wht_tax_id:
                 move._create_fbr_wht_payment_draft()
+
+            # ── Guard: detect wrong-payable-account "instant-paid" ───────────
+            # If the bill shows payment_state='paid' right after posting but
+            # has NO reconciled payments, the payment_term line landed on a
+            # non-reconcilable account (amount_residual=0 forever → Odoo marks
+            # the bill as paid even though no money was ever received).
+            # Post a visible chatter warning so the user knows what to fix.
+            if move.payment_state == 'paid' and not move.reconciled_payment_ids:
+                payable_acc = (
+                    move.partner_id
+                    .with_company(move.company_id)
+                    .property_account_payable_id
+                )
+                move.message_post(
+                    body=_(
+                        '<strong>⚠ Warning — Bill shows as "Paid" with no payment registered</strong><br/>'
+                        'This bill is marked <em>Paid</em> immediately after posting, '
+                        'but no payment has been registered.<br/><br/>'
+                        'Cause: the Payable Account for vendor <strong>%s</strong> '
+                        'is set to <em>%s</em>, which is not a Payable-type '
+                        '(reconcilable) account. Odoo cannot track the outstanding '
+                        'amount, so the bill appears fully paid.<br/><br/>'
+                        '<strong>How to fix:</strong><ol>'
+                        '<li>Open the vendor\'s contact form → <em>Accounting</em> tab → '
+                        'set a proper <em>Payable Account</em> '
+                        '(account type must be "Payable").</li>'
+                        '<li>Reset this bill to Draft.</li>'
+                        '<li>Re-post the bill.</li>'
+                        '</ol>'
+                    ) % (
+                        move.partner_id.display_name,
+                        payable_acc.name if payable_acc else 'unknown',
+                    ),
+                    message_type='comment',
+                    subtype_xmlid='mail.mt_note',
+                )
 
         # Recompute project billed amount for any customer invoices just posted.
         self._matracon_update_project_billed_amount()
@@ -1262,7 +1335,7 @@ class AccountMoveLineSiteOps(models.Model):
         lines_no_analytic = records.filtered(
             lambda l: l.move_id.move_type == 'entry' and not l.analytic_distribution
         )
-        if lines_no_analytic:
+        if lines_no_analytic and 'project.site.config' in self.env.registry:
             site_configs = self.env['project.site.config'].sudo().search([
                 ('x_petty_cash_account_id', '!=', False),
                 ('analytic_account_id', '!=', False),
