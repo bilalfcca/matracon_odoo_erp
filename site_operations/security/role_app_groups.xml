@@ -35,6 +35,7 @@
         <record id="purchase_demand_raise.group_procurement_ho" model="res.groups">
             <field name="implied_ids" eval="[
                 (6, 0, [
+                    ref('purchase_demand_raise.group_head_office'),
                     ref('purchase.group_purchase_user'),
                     ref('purchase.group_purchase_manager'),
                     ref('stock.group_stock_user'),
