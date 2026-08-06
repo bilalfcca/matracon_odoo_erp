@@ -239,73 +239,43 @@
     </div>
 
     <!-- ════════════════════════════════════════════════════════════
-         SIGNATURE BLOCK — 4 rows, one signatory per line
+         SIGNATURE BLOCK — 4 columns side by side
     ═══════════════════════════════════════════════════════════════ -->
-    <t t-set="jev_prepared" t-value="o.sudo().create_uid"/>
-    <t t-set="jev_approved" t-value="o.sudo().x_ceo_approved_by_id if hasattr(o, 'x_ceo_approved_by_id') else False"/>
-    <div style="margin-top:12px; page-break-inside:avoid;">
+    <div style="margin-top:18mm; page-break-inside:avoid;">
         <table style="width:100%; border-collapse:collapse; font-size:9pt;">
-
-            <!-- ROW 1 — Prepared By -->
             <tr>
-                <td style="width:22%; font-weight:700; padding:0 10px 4px 0; vertical-align:bottom;">Prepared By</td>
-                <td style="vertical-align:bottom; padding:0;">
-                    <t t-if="jev_prepared and jev_prepared.x_sign_signature">
-                        <img t-att-src="image_data_uri(jev_prepared.x_sign_signature)"
-                             style="max-height:42px; max-width:160px; object-fit:contain; display:block;"/>
-                    </t>
-                    <t t-else=""><div style="height:44px;"></div></t>
-                    <div style="border-top:1.5px solid #000; padding-top:3px; font-size:8.5pt; font-weight:600; color:#374151;">
-                        <t t-if="jev_prepared"><t t-esc="jev_prepared.name"/></t>
-                    </div>
-                </td>
-            </tr>
-            <tr><td colspan="2" style="height:14px;"></td></tr>
-
-            <!-- ROW 2 — Checked By -->
-            <tr>
-                <td style="font-weight:700; padding:0 10px 4px 0; vertical-align:bottom;">Checked By</td>
-                <td style="vertical-align:bottom; padding:0;">
+                <!-- Prepared By -->
+                <td style="width:25%; padding:0 10px 0 0; text-align:center; vertical-align:top;">
                     <div style="height:44px;"></div>
-                    <div style="border-top:1.5px solid #000; padding-top:3px; font-size:8.5pt; color:#6c757d;">
-                        Name: ___________________________________
+                    <div style="border-top:1.5px solid #000; padding-top:4px; font-weight:700;">
+                        Prepared By
                     </div>
                 </td>
-            </tr>
-            <tr><td colspan="2" style="height:14px;"></td></tr>
-
-            <!-- ROW 3 — Approved By -->
-            <tr>
-                <td style="font-weight:700; padding:0 10px 4px 0; vertical-align:bottom;">Approved By</td>
-                <td style="vertical-align:bottom; padding:0;">
-                    <t t-if="jev_approved and jev_approved.x_sign_signature">
-                        <img t-att-src="image_data_uri(jev_approved.x_sign_signature)"
-                             style="max-height:42px; max-width:160px; object-fit:contain; display:block;"/>
-                    </t>
-                    <t t-else=""><div style="height:44px;"></div></t>
-                    <div style="border-top:1.5px solid #000; padding-top:3px; font-size:8.5pt; font-weight:600; color:#374151;">
-                        <t t-if="jev_approved">
-                            <t t-esc="jev_approved.name"/>
-                        </t>
-                        <t t-else="">
-                            <span style="color:#6c757d; font-weight:400;">Name: ___________________________________</span>
-                        </t>
-                    </div>
-                </td>
-            </tr>
-            <tr><td colspan="2" style="height:14px;"></td></tr>
-
-            <!-- ROW 4 — Received By -->
-            <tr>
-                <td style="font-weight:700; padding:0 10px 4px 0; vertical-align:bottom;">Received By</td>
-                <td style="vertical-align:bottom; padding:0;">
+                <!-- Checked By -->
+                <td style="width:25%; padding:0 10px; text-align:center; vertical-align:top;">
                     <div style="height:44px;"></div>
-                    <div style="border-top:1.5px solid #000; padding-top:3px; font-size:8.5pt; color:#6c757d;">
-                        Name: ___________________________________
+                    <div style="border-top:1.5px solid #000; padding-top:4px; font-weight:700;">
+                        Checked By
+                    </div>
+                </td>
+                <!-- Approved By -->
+                <td style="width:25%; padding:0 10px; text-align:center; vertical-align:top;">
+                    <div style="height:44px;"></div>
+                    <div style="border-top:1.5px solid #000; padding-top:4px; font-weight:700;">
+                        Approved By
+                    </div>
+                </td>
+                <!-- Received By — only this one gets Name line -->
+                <td style="width:25%; padding:0 0 0 10px; text-align:center; vertical-align:top;">
+                    <div style="height:44px;"></div>
+                    <div style="border-top:1.5px solid #000; padding-top:4px; font-weight:700;">
+                        Received By
+                    </div>
+                    <div style="font-size:8.5pt; color:#6c757d; margin-top:4px; text-align:left; padding-left:4px;">
+                        Name: _______________________
                     </div>
                 </td>
             </tr>
-
         </table>
     </div>
 
