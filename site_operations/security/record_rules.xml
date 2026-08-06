@@ -181,12 +181,18 @@
         <record id="rule_account_move_site_accountant" model="ir.rule">
             <field name="name">Account Move: Site Accountant own project only</field>
             <field name="model_id" ref="account.model_account_move"/>
-            <!-- Vendor bills / customer invoices: scoped to own project analytic.
-                 Journal entries (move_type='entry'): ONLY records created by this user.
-                 We combine both conditions in one rule so they are ANDed correctly.
-                 Two rules for the same group would be ORed, which would be too permissive. -->
+            <!-- Show a move when EITHER:
+                 (a) x_project_analytic_account_id = this site's analytic — covers:
+                     • vendor bills / customer invoices created by SA
+                     • payment JEs from HO (e.g. PCR fund releases) that are stamped
+                       with the destination project at posting time — these have
+                       move_type='entry' and create_uid=HO FO, so a create_uid guard
+                       would incorrectly hide them from the site SA.
+                     • HO MISC journal entries tagged to this site's analytic
+                 (b) it is a journal entry the SA created themselves (no analytic
+                     tag needed for their own scratch entries). -->
             <field name="domain_force">['|',
-                '&amp;', ('move_type', '!=', 'entry'), ('x_project_analytic_account_id', '=', user.x_default_analytic_account_id.id),
+                ('x_project_analytic_account_id', '=', user.x_default_analytic_account_id.id),
                 '&amp;', ('move_type', '=', 'entry'), ('create_uid', '=', user.id)
             ]</field>
             <field name="groups" eval="[(4, ref('site_operations.group_site_accountant'))]"/>
@@ -200,16 +206,12 @@
              Site Accountant sees lines that belong ONLY to their project's moves.
              This is the critical rule for Partner Ledger, Aged Payables, and Aged
              Receivables — which query account.move.line directly.
-             Payment moves are stamped with x_project_analytic_account_id so
-             payments show up correctly in the partner ledger without leaking
-             other sites' or HO's data. -->
+             Mirrors rule_account_move_site_accountant exactly. -->
         <record id="rule_account_move_line_site_accountant" model="ir.rule">
             <field name="name">Account Move Line: Site Accountant own project only</field>
             <field name="model_id" ref="account.model_account_move_line"/>
-            <!-- Mirrors rule_account_move_site_accountant: bill/invoice lines scoped by
-                 project analytic; journal entry lines scoped by creator (move creator). -->
             <field name="domain_force">['|',
-                '&amp;', ('move_id.move_type', '!=', 'entry'), ('move_id.x_project_analytic_account_id', '=', user.x_default_analytic_account_id.id),
+                ('move_id.x_project_analytic_account_id', '=', user.x_default_analytic_account_id.id),
                 '&amp;', ('move_id.move_type', '=', 'entry'), ('move_id.create_uid', '=', user.id)
             ]</field>
             <field name="groups" eval="[(4, ref('site_operations.group_site_accountant'))]"/>
