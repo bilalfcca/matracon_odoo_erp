@@ -161,7 +161,7 @@
                 <!-- CEO Direct Payment: statusbar + Submit button -->
                 <field name="x_payment_status"
                        widget="statusbar"
-                       statusbar_visible="draft,in_process,paid"
+                       statusbar_visible="draft,in_process,paid,reversed"
                        invisible="payment_type != 'outbound' or (not x_liability_sheet_id and not x_ceo_direct_payment)"/>
 
                 <!-- CEO submits their direct payment to FO -->

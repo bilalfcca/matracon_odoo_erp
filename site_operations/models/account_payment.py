@@ -17,6 +17,7 @@ class AccountPaymentSiteOps(models.Model):
         ('draft', 'Draft'),
         ('in_process', 'In Process'),
         ('paid', 'Paid'),
+        ('reversed', 'Reversed'),
     ], string='Payment Status', default='draft', tracking=True)
 
     x_fund_project_id = fields.Many2one(
@@ -1897,7 +1898,7 @@ class AccountPaymentSiteOps(models.Model):
             # Unlink bidirectional references
             self.x_wht_payment_id = False
             wht_companion.x_origin_payment_id = False
-            log_lines.append(_('WHT companion payment <b>%s</b> reset to draft.') % companion_name)
+            log_lines.append(Markup('WHT companion payment <b>%s</b> reset to draft.') % companion_name)
 
         # ── 2. Tax deduction JE (WHT / Retention) ────────────────────────────
         if self.x_tax_deduction_move_id:
@@ -1910,7 +1911,7 @@ class AccountPaymentSiteOps(models.Model):
                 tdm.button_draft()
                 tdm.button_cancel()
             self.x_tax_deduction_move_id = False
-            log_lines.append(_('Tax deduction entry <b>%s</b> cancelled.') % tdm_name)
+            log_lines.append(Markup('Tax deduction entry <b>%s</b> cancelled.') % tdm_name)
 
         # ── 3. Interproject GL entries ────────────────────────────────────────
         if self.x_interproject_move_ids:
@@ -1923,7 +1924,7 @@ class AccountPaymentSiteOps(models.Model):
                     move.button_draft()
                     move.button_cancel()
                 log_lines.append(
-                    _('Interproject entry <b>%s</b> cancelled.') % move_name
+                    Markup('Interproject entry <b>%s</b> cancelled.') % move_name
                 )
             self.x_interproject_move_ids = [(5, 0, 0)]
 
@@ -1933,10 +1934,12 @@ class AccountPaymentSiteOps(models.Model):
 
         # ── 5. Main payment — reset to draft ──────────────────────────────────
         # action_draft() unreconciles remaining AP/bank lines and resets state.
-        # Our override also resets x_payment_status → 'draft'.
+        # Our override also resets x_payment_status → 'draft'; we immediately
+        # set it to 'reversed' below so the statusbar shows the Reversed step.
         self.action_draft()
+        self.x_payment_status = 'reversed'
         log_lines.append(
-            _('Payment <b>%s</b> reset to draft — journal entry cancelled.') % payment_name
+            Markup('Payment <b>%s</b> reversed — journal entry cancelled.') % payment_name
         )
 
         # ── 6. Clear BPV reference ────────────────────────────────────────────
@@ -1944,7 +1947,7 @@ class AccountPaymentSiteOps(models.Model):
         if self.x_bpv_ref:
             old_bpv = self.x_bpv_ref
             self.x_bpv_ref = False
-            log_lines.append(_('BPV reference <b>%s</b> cleared.') % old_bpv)
+            log_lines.append(Markup('BPV reference <b>%s</b> cleared.') % old_bpv)
 
         # ── 7. Return cheque leaf(ves) to available ────────────────────────────
         cheque_leaves = self.env['x.cheque.leaf']
@@ -1956,7 +1959,7 @@ class AccountPaymentSiteOps(models.Model):
         for leaf in cheque_leaves.filtered(lambda l: l.state == 'used'):
             leaf.sudo().write({'state': 'available', 'payment_id': False})
             log_lines.append(
-                _('Cheque <b>%s</b> returned to available.') % leaf.cheque_number
+                Markup('Cheque <b>%s</b> returned to available.') % leaf.cheque_number
             )
 
         # ── 8. Restore liability sheet paid_amount ────────────────────────────
@@ -1973,16 +1976,16 @@ class AccountPaymentSiteOps(models.Model):
             sheet_line.paid_amount = sum(
                 p.x_gross_approved_amount or p.amount for p in remaining
             )
-            log_lines.append(_(
+            log_lines.append(Markup(
                 'Liability sheet paid amount: <b>%(old).2f</b> → <b>%(new).2f</b>.'
             ) % {'old': old_paid, 'new': sheet_line.paid_amount})
             # Reopen sheet if it was marked fully paid
             if sheet and sheet.state == 'paid':
                 sheet.state = 'approved'
                 sheet.message_post(
-                    body=_('Liability sheet reopened — payment <b>%s</b> reversed.') % payment_name
+                    body=Markup('Liability sheet reopened — payment <b>%s</b> reversed.') % payment_name
                 )
-                log_lines.append(_('Liability sheet reopened (was Paid).'))
+                log_lines.append(Markup('Liability sheet reopened (was Paid).'))
 
         # ── 9. Salary sheet — reopen if this was a salary payment ─────────────
         if self.x_salary_sheet_id:
@@ -1990,8 +1993,10 @@ class AccountPaymentSiteOps(models.Model):
             if sheet.state == 'paid':
                 sheet.state = 'approved'
                 sheet.message_post(
-                    body=_('Salary sheet reopened — payment <b>%s</b> reversed. '
-                           'Employee advance balances restored.') % payment_name
+                    body=Markup(
+                        'Salary sheet reopened — payment <b>%s</b> reversed. '
+                        'Employee advance balances restored.'
+                    ) % payment_name
                 )
                 # Restore employee advance balances
                 for line in sheet.line_ids:
@@ -2000,7 +2005,7 @@ class AccountPaymentSiteOps(models.Model):
                         emp.write({
                             'x_advance_balance': (emp.x_advance_balance or 0.0) + line.detail_advance
                         })
-                log_lines.append(_('Salary sheet <b>%s</b> reopened.') % sheet.name)
+                log_lines.append(Markup('Salary sheet <b>%s</b> reopened.') % sheet.name)
 
         # ── 10. Petty Cash Request — reset to approved ────────────────────────
         if self.x_petty_cash_request_id:
@@ -2009,14 +2014,17 @@ class AccountPaymentSiteOps(models.Model):
                 pcr.state = 'approved'
                 pcr.payment_id = False
                 pcr.message_post(
-                    body=_('PCR reset to Approved — payment <b>%s</b> reversed.') % payment_name
+                    body=Markup('PCR reset to Approved — payment <b>%s</b> reversed.') % payment_name
                 )
-                log_lines.append(_('Petty Cash Request <b>%s</b> reset to Approved.') % pcr.name)
+                log_lines.append(Markup('Petty Cash Request <b>%s</b> reset to Approved.') % pcr.name)
 
         # ── Chatter ───────────────────────────────────────────────────────────
-        self.message_post(body=_(
+        # Use Markup so HTML tags (<b>, <br/>) render in the chatter instead of
+        # appearing as raw escaped text.
+        details = Markup('<br/>').join(log_lines) if log_lines else _('No sub-entries to reverse.')
+        self.message_post(body=Markup(
             'Payment reversed by <b>%(user)s</b>.<br/>%(details)s'
         ) % {
             'user': self.env.user.name,
-            'details': '<br/>'.join(log_lines) or _('No sub-entries to reverse.'),
+            'details': details,
         })
