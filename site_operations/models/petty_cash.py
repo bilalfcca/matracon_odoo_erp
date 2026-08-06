@@ -1096,7 +1096,14 @@ class PettyCashExpense(models.Model):
                     'Then try posting again.'
                 ) % (expense.project_analytic_account_id.name or _('your site')))
             balance_before = expense.fund_id.balance
-            if balance_before < expense.amount - 0.01:
+            # Site accountants are allowed to post even when the fund balance
+            # is zero or negative — the balance will go negative and Finance HO
+            # will top up with a fresh replenishment.  Only block if the user
+            # is NOT a site accountant (FO / admin / CEO still see the guard
+            # to prevent accidental overspend from the HO side).
+            user = self.env.user
+            is_site_accountant = user.has_group('site_operations.group_site_accountant')
+            if not is_site_accountant and balance_before < expense.amount - 0.01:
                 raise UserError(_(
                     'Insufficient petty cash balance (available: %s %.2f).'
                 ) % (expense.currency_id.symbol, balance_before))
