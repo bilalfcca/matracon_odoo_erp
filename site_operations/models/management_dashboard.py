@@ -1488,11 +1488,16 @@ class ManagementDashboard(models.TransientModel):
 
     def action_open_bank_balances(self):
         """Open per-bank balance breakdown computed from the GL."""
+        view = self.env.ref(
+            'site_operations.view_management_dashboard_bank_line_list',
+            raise_if_not_found=False,
+        )
         return {
             'type': 'ir.actions.act_window',
             'name': _('Bank Balances'),
             'res_model': 'x.management.dashboard.bank.line',
             'view_mode': 'list',
+            'views': [(view.id if view else False, 'list')],
             'domain': [('dashboard_id', '=', self.id)],
             'context': {'create': False, 'delete': False, 'edit': False},
         }

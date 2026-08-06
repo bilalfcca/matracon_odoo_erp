@@ -984,4 +984,17 @@
         <field name="code">action = model.action_open_inventory_dashboard()</field>
     </record>
 
+    <!-- ── Standalone list view for Bank Balance drilldown ────────────────── -->
+    <record id="view_management_dashboard_bank_line_list" model="ir.ui.view">
+        <field name="name">x.management.dashboard.bank.line.list</field>
+        <field name="model">x.management.dashboard.bank.line</field>
+        <field name="arch" type="xml">
+            <list create="false" edit="false" delete="false" string="Bank Balances">
+                <field name="bank_name" string="Bank / Account"/>
+                <field name="balance" widget="monetary" string="Balance" sum="Total"/>
+                <field name="currency_id" column_invisible="1"/>
+            </list>
+        </field>
+    </record>
+
 </odoo>
