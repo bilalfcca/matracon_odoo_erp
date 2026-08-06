@@ -384,7 +384,17 @@
               parent="site_operations.menu_matracon_mgmt_root"
               action="site_operations.action_management_dashboard_project_tab"
               sequence="20"
-              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_head_office,base.group_system"/>
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_head_office,purchase_demand_raise.group_procurement_ho,base.group_system"/>
+    <record id="menu_matracon_mgmt_project" model="ir.ui.menu">
+        <field name="group_ids" eval="[(6, 0, [
+            ref('site_operations.group_finance_ho'),
+            ref('purchase_demand_raise.group_ceo_approval'),
+            ref('purchase_demand_raise.group_matracon_admin'),
+            ref('purchase_demand_raise.group_head_office'),
+            ref('purchase_demand_raise.group_procurement_ho'),
+            ref('base.group_system'),
+        ])]"/>
+    </record>
 
     <!-- Vendors — outstanding balances, bills, and payment history -->
     <menuitem id="menu_matracon_mgmt_vendors"
