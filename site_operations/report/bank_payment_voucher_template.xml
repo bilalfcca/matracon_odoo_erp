@@ -372,13 +372,24 @@
                                 <t t-esc="wht_companion.journal_id.name or '—'"/>
                                 <span style="font-size:8pt; font-weight:400; color:#999; margin-left:6px;">(FBR WHT Cheque)</span>
                             </div>
-                            <div style="font-size:8pt; color:#7a4500; margin-top:2px;">
-                                <b>Account Title:</b>&#160;<t t-esc="(fbr_alloc.x_account_title if fbr_alloc else False) or wht_companion.x_account_title or (wht_companion.partner_id.name if wht_companion.partner_id else 'FBR')"/>
-                                &#160;&#160;&#160;<b>Cheque No:</b>&#160;<t t-esc="(fbr_alloc.x_cheque_number if fbr_alloc else False) or '—'"/>
-                                <t t-if="wht_companion.partner_id">
-                                    &#160;&#160;&#160;<b>Payee:</b>&#160;<t t-esc="wht_companion.partner_id.name"/>&#160;(Federal Board of Revenue)
-                                </t>
-                            </div>
+                            <table style="margin-top:3px; font-size:8pt; border-collapse:collapse; width:auto;">
+                                <tr>
+                                    <td style="border:1px solid #aaa; padding:2px 5px; background:#f8f8f8; font-weight:600; color:#7a4500;">Account Title</td>
+                                    <td style="border:1px solid #aaa; padding:2px 7px; min-width:110px; color:#7a4500;">
+                                        <t t-esc="(fbr_alloc.x_account_title if fbr_alloc else False) or wht_companion.x_account_title or (wht_companion.partner_id.name if wht_companion.partner_id else 'FBR')"/>
+                                    </td>
+                                    <td style="border:1px solid #aaa; padding:2px 5px; background:#f8f8f8; font-weight:600; color:#7a4500;">Cheque No</td>
+                                    <td style="border:1px solid #aaa; padding:2px 7px; min-width:90px; color:#7a4500;">
+                                        <t t-esc="(fbr_alloc.x_cheque_number if fbr_alloc else False) or '—'"/>
+                                    </td>
+                                    <t t-if="wht_companion.partner_id">
+                                        <td style="border:1px solid #aaa; padding:2px 5px; background:#f8f8f8; font-weight:600; color:#7a4500;">Payee</td>
+                                        <td style="border:1px solid #aaa; padding:2px 7px; min-width:90px; color:#7a4500;">
+                                            <t t-esc="wht_companion.partner_id.name"/>
+                                        </td>
+                                    </t>
+                                </tr>
+                            </table>
                         </td>
                         <td style="padding:2px 4px; border:1px solid #ccc; border-top:1px dashed #e0c070; text-align:right; color:#aaa; vertical-align:top;">—</td>
                         <td style="padding:2px 4px; border:1px solid #ccc; border-top:1px dashed #e0c070; text-align:right; font-weight:600; color:#7a4500; vertical-align:top;">
