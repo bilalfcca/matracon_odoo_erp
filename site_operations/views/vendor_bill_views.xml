@@ -185,14 +185,21 @@
                 <xpath expr="//page[@id='aml_tab']" position="move"/>
             </xpath>
 
-            <!-- ── Journal Items: replace line_ids with x_journal_item_ids ───────
-                 x_journal_item_ids is defined in Python with
-                 domain=[('display_type', '!=', 'payment_term')] so Odoo's
-                 auto-generated AP/AR counterpart lines are excluded at the ORM
-                 level.  All columns (cheque, debit, credit) are consolidated
-                 here; debit/credit have no readonly restriction so they are
-                 editable in draft. -->
-            <xpath expr="//page[@id='aml_tab']//field[@name='line_ids']" position="replace">
+            <!-- ── Journal Items: hide line_ids; show x_journal_item_ids instead ──
+                 We cannot use position="replace" because Odoo 19 (production
+                 patch) has account.view.move.form.inherited which targets
+                 //field[@name='line_ids']/list/field[@name='name'] — removing
+                 the element breaks that xpath and crashes module upgrade.
+                 Instead: make line_ids invisible (element stays in DOM so the
+                 standard view's xpath is satisfied) and inject x_journal_item_ids
+                 immediately after it.
+                 x_journal_item_ids filters out the AP/AR payment-term lines via
+                 domain=[('display_type', '!=', 'payment_term')] at ORM level.
+                 All columns (cheque, debit, credit) are editable in draft. -->
+            <xpath expr="//page[@id='aml_tab']//field[@name='line_ids']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+            <xpath expr="//page[@id='aml_tab']//field[@name='line_ids']" position="after">
                 <field name="x_journal_item_ids"
                        readonly="state != 'draft'">
                     <list string="Journal Items"
