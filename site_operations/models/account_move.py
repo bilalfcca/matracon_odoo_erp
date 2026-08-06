@@ -1335,8 +1335,8 @@ class AccountMoveLineSiteOps(models.Model):
         lines_no_analytic = records.filtered(
             lambda l: l.move_id.move_type == 'entry' and not l.analytic_distribution
         )
-        if lines_no_analytic and 'project.site.config' in self.env.registry:
-            site_configs = self.env['project.site.config'].sudo().search([
+        if lines_no_analytic and 'x.project.site.config' in self.env.registry:
+            site_configs = self.env['x.project.site.config'].sudo().search([
                 ('x_petty_cash_account_id', '!=', False),
                 ('analytic_account_id', '!=', False),
             ])

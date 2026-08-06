@@ -1661,7 +1661,7 @@ class XPettyCashAdminWizard(models.TransientModel):
         # but are missing analytic_distribution.
         #
         # Mapping: project.site.config.x_petty_cash_account_id → analytic_account_id
-        site_configs = self.env['project.site.config'].sudo().search([
+        site_configs = self.env['x.project.site.config'].sudo().search([
             ('x_petty_cash_account_id', '!=', False),
             ('analytic_account_id', '!=', False),
         ])
