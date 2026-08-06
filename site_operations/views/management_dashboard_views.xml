@@ -78,7 +78,12 @@
                         <div class="col-6 col-md-4 col-xl-2">
                             <div class="card matracon-mgmt-kpi h-100">
                                 <div class="card-body py-3">
-                                    <small class="matracon-mgmt-kpi__label">Total Liabilities</small>
+                                    <small class="matracon-mgmt-kpi__label"
+                                           invisible="filter_dashboard_tab in ('vendors', 'subcontractors')">Total Liabilities</small>
+                                    <small class="matracon-mgmt-kpi__label"
+                                           invisible="filter_dashboard_tab != 'vendors'">Vendor Liabilities</small>
+                                    <small class="matracon-mgmt-kpi__label"
+                                           invisible="filter_dashboard_tab != 'subcontractors'">Sub Liabilities</small>
                                     <div class="matracon-mgmt-kpi__value text-danger">
                                         <field name="kpi_total_liabilities" widget="kpi_amount" nolabel="1" readonly="1"/>
                                     </div>
@@ -91,7 +96,12 @@
                         <div class="col-6 col-md-4 col-xl-2">
                             <div class="card matracon-mgmt-kpi h-100">
                                 <div class="card-body py-3">
-                                    <small class="matracon-mgmt-kpi__label">Payments Made</small>
+                                    <small class="matracon-mgmt-kpi__label"
+                                           invisible="filter_dashboard_tab in ('vendors', 'subcontractors')">Payments Made</small>
+                                    <small class="matracon-mgmt-kpi__label"
+                                           invisible="filter_dashboard_tab != 'vendors'">Vendor Payments</small>
+                                    <small class="matracon-mgmt-kpi__label"
+                                           invisible="filter_dashboard_tab != 'subcontractors'">Sub Payments</small>
                                     <div class="matracon-mgmt-kpi__value">
                                         <field name="kpi_payments_made" widget="kpi_amount" nolabel="1" readonly="1"/>
                                     </div>

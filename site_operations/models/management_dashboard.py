@@ -518,6 +518,72 @@ class ManagementDashboard(models.TransientModel):
 
         return vendor_lines, sub_lines
 
+    def _period_payable_debits_by_type(self, analytics, date_from, date_to):
+        """Payable-account debits split by vendor vs subcontractor partner.
+
+        Queries ALL posted account_move_line records where
+        account_type = 'liability_payable' and debit > 0 (i.e., payments
+        against payables — via account.payment, manual JEs, petty cash, etc.),
+        filtered to the given analytics and optional date range.
+
+        Used to power tab-aware header KPIs on the Vendors / Subcontractors tabs.
+        Returns (vendor_paid, sub_paid).
+        """
+        if not analytics:
+            return 0.0, 0.0
+
+        cr = self.env.cr
+        analytic_ids = analytics.ids
+        str_ids = [str(aid) for aid in analytic_ids]
+
+        where_date = ''
+        params = [analytic_ids, str_ids]
+        if date_from:
+            where_date += ' AND am.date >= %s'
+            params.append(date_from)
+        if date_to:
+            where_date += ' AND am.date <= %s'
+            params.append(date_to)
+
+        cr.execute("""
+            SELECT aml.partner_id, COALESCE(SUM(aml.debit), 0)
+              FROM account_move_line aml
+              JOIN account_move am ON am.id = aml.move_id
+              JOIN account_account aa ON aa.id = aml.account_id
+             WHERE am.state = 'posted'
+               AND aa.account_type = 'liability_payable'
+               AND aml.debit > 0
+               AND aml.partner_id IS NOT NULL
+               AND (
+                   am.x_project_analytic_account_id = ANY(%s::int[])
+                   OR (aml.analytic_distribution IS NOT NULL
+                       AND aml.analytic_distribution ?| %s::text[])
+               )
+        """ + where_date + """
+             GROUP BY aml.partner_id
+        """, params)
+
+        rows = cr.fetchall()
+        if not rows:
+            return 0.0, 0.0
+
+        paid_map = {r[0]: float(r[1]) for r in rows}
+        partners = self.env['res.partner'].sudo().browse(list(paid_map.keys()))
+
+        vendor_paid = 0.0
+        sub_paid = 0.0
+        for p in partners:
+            is_sub = bool(p.category_id.filtered(
+                lambda c: 'subcontractor' in (c.name or '').lower()
+            ))
+            amount = paid_map.get(p.id, 0.0)
+            if is_sub:
+                sub_paid += amount
+            else:
+                vendor_paid += amount
+
+        return vendor_paid, sub_paid
+
     def _bg_status_for_project(self, project):
         BG = self.env['x.bank.guarantee'].sudo()
         active = BG.search([
@@ -991,6 +1057,23 @@ class ManagementDashboard(models.TransientModel):
         vendor_lines, sub_lines = self._liability_lines_for_analytics(analytics)
         vendor_lines = sorted(vendor_lines, key=lambda l: l['liability_amount'], reverse=True)
         sub_lines    = sorted(sub_lines,    key=lambda l: l['liability_amount'], reverse=True)
+
+        # ── Tab-aware header KPI override ─────────────────────────────────────
+        # On the Vendors tab show only vendor figures; on the Subcontractors tab
+        # show only sub figures.  All other tabs keep the combined totals.
+        _tab = self.filter_dashboard_tab
+        if _tab == 'vendors':
+            total_liabilities = vendor_liability
+            _vendor_paid, _ = self._period_payable_debits_by_type(
+                analytics, date_from, date_to)
+            payments_made = _vendor_paid
+            kpi_net_balance = payments_received - payments_made
+        elif _tab == 'subcontractors':
+            total_liabilities = sub_liability
+            _, _sub_paid = self._period_payable_debits_by_type(
+                analytics, date_from, date_to)
+            payments_made = _sub_paid
+            kpi_net_balance = payments_received - payments_made
 
         facilities = self.env['x.bank.guarantee.facility'].sudo().search([])
         bg_total_facility = sum(facilities.mapped('total_limit'))
