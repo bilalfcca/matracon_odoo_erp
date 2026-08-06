@@ -170,6 +170,7 @@ class ManagementDashboard(models.TransientModel):
             user._matracon_is_admin()
             or user.has_group('site_operations.group_finance_ho')
             or user.has_group('purchase_demand_raise.group_ceo_approval')
+            or user.has_group('purchase_demand_raise.group_procurement_ho')
             or user.has_group('purchase_demand_raise.group_site_store')
         )
 
@@ -1229,7 +1230,7 @@ class ManagementDashboard(models.TransientModel):
     def action_open_dashboard(self):
         if not self._can_open_dashboard():
             raise UserError(_(
-                'This dashboard is available to CEO, Finance Officer, and Site Accountant only.'
+                'This dashboard is available to CEO, Finance HO, Procurement HO, and Site Accountant only.'
             ))
         dashboard = self.create({})
         self._refresh_dashboard_data(dashboard)
@@ -1534,7 +1535,7 @@ class ManagementDashboard(models.TransientModel):
         """Open the dashboard pre-set to *tab*."""
         if not self._can_open_dashboard():
             raise UserError(_(
-                'This dashboard is available to Finance HO, CEO, and Admin roles only.'
+                'This dashboard is available to Finance HO, CEO, Procurement HO, and Admin roles only.'
             ))
         dashboard = self.create({'filter_dashboard_tab': tab})
         self._refresh_dashboard_data(dashboard)
