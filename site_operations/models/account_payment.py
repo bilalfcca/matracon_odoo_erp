@@ -17,6 +17,7 @@ class AccountPaymentSiteOps(models.Model):
         ('draft', 'Draft'),
         ('in_process', 'In Process'),
         ('paid', 'Paid'),
+        ('reversed', 'Reversed'),
     ], string='Payment Status', default='draft', tracking=True)
 
     x_fund_project_id = fields.Many2one(
@@ -56,6 +57,21 @@ class AccountPaymentSiteOps(models.Model):
         'x.liability.sheet.line', string='Liability Line',
         readonly=True, copy=False)
 
+    x_bpv_ref = fields.Char(
+        string='BPV Reference',
+        copy=False,
+        readonly=True,
+        index=True,
+        help='Auto-assigned on posting: BPV-YY-MM-XXXXX (sequential per month).',
+    )
+
+    x_account_title = fields.Char(
+        string='Account Title',
+        help='Bank account holder name for this payment. '
+             'Used on the Bank Payment Voucher when no per-bank allocation lines are set. '
+             'Falls back to the vendor name on the printed voucher if left blank.',
+    )
+
     x_payment_category = fields.Selection([
         ('vendor', 'Vendor / Liability'),
         ('salary', 'Salary'),
@@ -77,6 +93,11 @@ class AccountPaymentSiteOps(models.Model):
         ('submitted', 'Awaiting CEO'),   # FO notified CEO, waiting for approval
         ('approved', 'CEO Approved'),
     ], string='CEO Approval', default='not_required', tracking=True)
+
+    # ── CEO approval tracking for digital signatures on PDF ──────────────────
+    x_ceo_approved_by_id = fields.Many2one(
+        'res.users', string='CEO Approved By', readonly=True, copy=False, index=True,
+        help='User who CEO-approved this payment. Signature shown on printed BPV.')
 
     # ── CEO Direct Payment ────────────────────────────────────────────────────
     x_ceo_direct_payment = fields.Boolean(
@@ -125,6 +146,11 @@ class AccountPaymentSiteOps(models.Model):
              'this field does not affect whether the payment appears in an IPC.',
     )
 
+    x_cheque_leaf_id = fields.Many2one(
+        'x.cheque.leaf', string='Cheque No.',
+        domain="[('bank_journal_id', '=', journal_id), ('state', '=', 'available')]",
+        ondelete='set null', tracking=True,
+    )
     x_cheque_number = fields.Char(string='Cheque / Reference No.', tracking=True)
 
     x_is_cheque_payment = fields.Boolean(
@@ -256,11 +282,28 @@ class AccountPaymentSiteOps(models.Model):
             'domain': [('payment_id', '=', self.id)],
         }
 
+    @api.onchange('x_cheque_leaf_id')
+    def _onchange_cheque_leaf_id(self):
+        """Auto-fill x_cheque_number from the selected leaf."""
+        if self.x_cheque_leaf_id:
+            self.x_cheque_number = self.x_cheque_leaf_id.cheque_number
+        # Don't clear x_cheque_number when leaf is unset — user may have typed manually.
+
     def action_assign_cheque_number(self):
-        """Auto-assign next cheque number from the active series for this bank."""
+        """Kept for backward compat — picks next available leaf (or legacy counter)."""
         self.ensure_one()
         if not self.journal_id:
             raise UserError(_('Select a payment journal first.'))
+        # Prefer leaf-based assignment
+        leaf = self.env['x.cheque.leaf'].search([
+            ('bank_journal_id', '=', self.journal_id.id),
+            ('state', '=', 'available'),
+        ], order='number_int asc', limit=1)
+        if leaf:
+            self.x_cheque_leaf_id = leaf
+            self.x_cheque_number = leaf.cheque_number
+            return
+        # Legacy fallback
         series = self.env['x.cheque.series'].search([
             ('bank_journal_id', '=', self.journal_id.id),
             ('state', '=', 'active'),
@@ -335,6 +378,17 @@ class AccountPaymentSiteOps(models.Model):
         if is_ceo_only:
             vals['x_ceo_direct_payment'] = True
             vals['payment_type'] = 'outbound'
+
+        # If Odoo resolved a default journal and payment method at open time,
+        # switch the method to Checks when available (instead of Manual).
+        if (vals.get('payment_type') == 'outbound'
+                and vals.get('journal_id')
+                and 'payment_method_line_id' in fields_list):
+            journal = self.env['account.journal'].browse(vals['journal_id'])
+            checks_line = self._get_checks_method_line(journal)
+            if checks_line:
+                vals['payment_method_line_id'] = checks_line.id
+
         return vals
 
     def action_ceo_submit_to_fo(self):
@@ -381,6 +435,26 @@ class AccountPaymentSiteOps(models.Model):
                     )
 
             payment.x_ceo_submitted = True
+
+    # ── Payment method helpers ────────────────────────────────────────────────
+
+    def _get_checks_method_line(self, journal):
+        """Return the Checks (check_printing) outbound method line for *journal*.
+
+        Falls back to the first outbound method line whose name/code contains
+        'check' or 'cheque' (case-insensitive).  Returns an empty recordset if
+        no such line exists on the journal.
+        """
+        if not journal:
+            return self.env['account.payment.method.line']
+        return journal.outbound_payment_method_line_ids.filtered(
+            lambda l: (
+                'check' in (l.code or '').lower()
+                or 'cheque' in (l.code or '').lower()
+                or 'check' in (l.name or '').lower()
+                or 'cheque' in (l.name or '').lower()
+            )
+        )[:1]
 
     @api.depends('payment_method_line_id', 'payment_method_line_id.code', 'payment_method_line_id.name')
     def _compute_x_is_cheque_payment(self):
@@ -494,11 +568,26 @@ class AccountPaymentSiteOps(models.Model):
             first_journal = self.x_bank_allocation_ids[0].journal_id
             if first_journal and first_journal != self.journal_id:
                 self.journal_id = first_journal
-                self.payment_method_line_id = False  # let Odoo re-pick for new journal
+                # Prefer Checks over Manual; fall back to False so Odoo re-picks.
+                self.payment_method_line_id = (
+                    self._get_checks_method_line(first_journal) or False
+                )
         else:
             if self.journal_id:
                 self.journal_id = False
                 self.payment_method_line_id = False
+
+    @api.onchange('journal_id')
+    def _onchange_journal_prefer_checks_method(self):
+        """After Odoo selects the default payment method for the new journal
+        (usually Manual), switch to Checks if the journal has that method line.
+        The user can still manually switch back to Manual in the form.
+        """
+        if self.payment_type != 'outbound' or not self.journal_id:
+            return
+        checks_line = self._get_checks_method_line(self.journal_id)
+        if checks_line:
+            self.payment_method_line_id = checks_line
 
     @api.onchange('x_source_journal_ids')
     def _onchange_source_journals_sync_allocations(self):
@@ -601,6 +690,12 @@ class AccountPaymentSiteOps(models.Model):
         ])
         for payment in self.filtered(
             lambda p: p.x_ceo_approval_state == 'pending'
+            # Vendor payments always go through the Batch Payment system.
+            # CEO approval for vendor payments is requested at batch level
+            # (x.batch.payment.action_submit_to_ceo) — never on individual
+            # account.payment records.  Salary / petty-cash payments are
+            # created individually and still need individual CEO notification.
+            and p.x_payment_category != 'vendor'
         ):
             matracon_notify.notify_users(
                 payment,
@@ -636,6 +731,9 @@ class AccountPaymentSiteOps(models.Model):
             if payment.x_ceo_approval_state not in ('pending', 'submitted'):
                 raise UserError(_('This payment is not pending CEO approval.'))
             payment.x_ceo_approval_state = 'approved'
+            payment.x_ceo_approved_by_id = self.env.uid
+            # Close the CEO activity that was created when the payment was submitted
+            matracon_notify.close_activities(payment, summary_contains='Approve')
             vendor = payment.partner_id.name or '—'
             amount_str = '{:,.2f}'.format(payment.amount)
             currency_sym = payment.currency_id.symbol or ''
@@ -661,6 +759,57 @@ class AccountPaymentSiteOps(models.Model):
             matracon_notify.schedule_activity(
                 payment, fo_users,
                 _('Process payment — %s (%s %s)') % (vendor, currency_sym, amount_str)
+            )
+
+    def action_open_new_batch_payment(self):
+        """Open the Batch Payment form in create mode.
+
+        Called from the 'New' button in the Payments list view.
+        All vendor payments (including single-vendor ones) go through
+        a batch so the full accounting hook chain fires correctly.
+        """
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('New Batch Payment'),
+            'res_model': 'x.batch.payment',
+            'view_mode': 'form',
+            'target': 'current',
+            'context': {},
+        }
+
+    def action_ceo_reverse_approval(self):
+        """CEO reverses their own approval — sets state back to 'pending'.
+
+        Finance HO will need to re-submit to CEO for a fresh approval.
+        Use when the CEO approved in error or the payment details changed.
+        """
+        for payment in self:
+            if payment.x_ceo_approval_state != 'approved':
+                raise UserError(_(
+                    'Only "CEO Approved" payments can have the approval reversed.'
+                ))
+            if payment.state not in ('draft',):
+                raise UserError(_(
+                    'Cannot reverse approval on a payment that has already been posted. '
+                    'Cancel the payment first if needed.'
+                ))
+            payment.x_ceo_approval_state = 'pending'
+            # Close Finance HO 'Process payment' activity since approval was reversed
+            matracon_notify.close_activities(payment, summary_contains='Process payment')
+            payment.message_post(
+                body=_('CEO reversed approval — payment returned to Pending status. '
+                       'Finance HO must re-submit for a fresh approval.')
+            )
+            fo_users = self.env['res.users'].search([
+                ('group_ids', 'in', self.env.ref(
+                    'site_operations.group_finance_ho').id),
+            ])
+            matracon_notify.notify_users(
+                payment,
+                fo_users,
+                _('CEO reversed approval on payment to <b>%s</b> — '
+                  'requires resubmission.') % (payment.partner_id.name or '—'),
+                summary=_('Payment Approval Reversed'),
             )
 
     def action_notify_ceo_for_approval(self):
@@ -806,7 +955,12 @@ class AccountPaymentSiteOps(models.Model):
             if not payment.journal_id:
                 raise UserError(_('Source Bank / Payment Journal is required.'))
             if payment.x_is_cheque_payment and not payment.x_cheque_number:
-                raise UserError(_('Cheque / Reference Number is required for cheque payments.'))
+                # Per-bank allocation path: cheque numbers live on the lines.
+                # A manually-entered number on any line satisfies the requirement.
+                if not (payment.x_bank_allocation_ids and any(
+                    a.x_cheque_number for a in payment.x_bank_allocation_ids
+                )):
+                    raise UserError(_('Cheque / Reference Number is required for cheque payments.'))
             if payment.x_allocation_ids:
                 total_alloc = sum(payment.x_allocation_ids.mapped('allocation_amount'))
                 # Skip check when all allocations are zero — they will be auto-filled
@@ -881,10 +1035,20 @@ class AccountPaymentSiteOps(models.Model):
         if not deduction_lines:
             return
 
-        # Resolve accounts
-        wht_account = self._get_deduction_account('account_wht_payable')
+        # Resolve accounts.
+        # WHT: prefer the per-exemption account stored on each tax line so that
+        # the Credit here (liability created) and the Debit on the FBR companion
+        # payment both land on the SAME account (e.g. 420402 Income Tax 153(1)(A)).
+        # Falls back to the system-level default (xmlid / code 252100).
+        wht_account_default = self._get_deduction_account('account_wht_payable')
         retention_account = self._get_deduction_account('account_retention_payable')
-        if not wht_account and not retention_account:
+
+        has_wht = wht_account_default or any(
+            tl.x_exemption_id and tl.x_exemption_id.x_wht_payable_account_id
+            for tl in deduction_lines
+            if tl.tax_type == 'wht'
+        )
+        if not has_wht and not retention_account:
             return  # Nothing to post — accounts not set up
 
         # Vendor AP account — read from the existing payment JE
@@ -909,15 +1073,31 @@ class AccountPaymentSiteOps(models.Model):
             ('company_id', '=', self.company_id.id),
         ], limit=1) or self.journal_id
 
+        # Resolve FBR partner once — used on WHT credit line so the liability
+        # appears in FBR's partner ledger (Credit when liability is created,
+        # Debit when FBR payment is processed).
+        fbr_partner = self.env['res.partner'].search(
+            ['|', ('name', 'ilike', 'Federal Board of Revenue'),
+                  ('name', 'ilike', 'FBR')],
+            limit=1,
+        )
+
         line_vals = []
         descriptions = []
         for tl in deduction_lines:
             if tl.tax_type == 'wht':
-                credit_account = wht_account
+                # Use the exemption-specific account when available; else system default.
+                credit_account = (
+                    (tl.x_exemption_id.x_wht_payable_account_id
+                     if tl.x_exemption_id else False)
+                    or wht_account_default
+                )
                 if not credit_account:
                     continue
                 label = _('WHT — %s') % (tl.tax_id.name if tl.tax_id else 'WHT')
-                # Dr AP (vendor) — no credit-side partner; WHT is owed to FBR
+                # Dr AP (vendor) — reduces their payable balance
+                # Cr WHT Payable (FBR as partner) — creates the WHT liability in
+                #   FBR's partner ledger so both sides of the WHT account are visible
                 line_vals += [
                     {
                         'name': label,
@@ -934,7 +1114,9 @@ class AccountPaymentSiteOps(models.Model):
                     {
                         'name': label,
                         'account_id': credit_account.id,
-                        'partner_id': False,
+                        # Tag FBR as partner so this liability appears in their
+                        # partner ledger (Credit = liability to FBR created)
+                        'partner_id': fbr_partner.id if fbr_partner else False,
                         'debit': 0.0,
                         'credit': tl.amount,
                     },
@@ -1000,14 +1182,22 @@ class AccountPaymentSiteOps(models.Model):
         ) % (move.name, ', '.join(descriptions)))
 
     def _matracon_update_liability_on_post(self):
+        """Update paid_amount on the liability sheet line when a payment is posted.
+
+        WHT companion payments (x_origin_payment_id set) are explicitly EXCLUDED:
+        they are payments to FBR, not to the vendor, and the WHT is already
+        accounted for by using x_gross_approved_amount (the CEO-approved gross
+        that includes the WHT portion deducted from the net sent to the vendor).
+        Without this exclusion, paid_amount would show gross + WHT = double-counted.
+        """
         for payment in self.filtered(
             lambda p: p.state in _POSTED_STATES and p.x_liability_sheet_line_id
         ):
             line = payment.x_liability_sheet_line_id
-            gross_paid = payment.x_gross_approved_amount or payment.amount
             payments = payment.x_liability_sheet_id.payment_ids.filtered(
                 lambda p: p.state in _POSTED_STATES
                 and p.x_liability_sheet_line_id == line
+                and not p.x_origin_payment_id  # exclude WHT companion payments
             )
             line.paid_amount = sum(
                 p.x_gross_approved_amount or p.amount for p in payments
@@ -1130,12 +1320,48 @@ class AccountPaymentSiteOps(models.Model):
                 % self.name
             )
 
+    def _get_next_bpv_ref(self):
+        """Return the next BPV-YY-MM-XXXXXX reference.
+
+        Counter is YEARLY — it never resets mid-year.  If January closes at 50,
+        February starts at 51.  The 6-digit zero-padded sequence is shared
+        across all months within the same financial/calendar year.
+        Format: BPV-26-07-000001
+        """
+        today = fields.Date.context_today(self)
+        yy = today.year % 100
+        mm = today.month
+        # Search all months in the current year to find the global max sequence
+        year_pattern = 'BPV-%02d-' % yy
+        self.env.cr.execute(
+            """
+            SELECT COALESCE(
+                MAX(CAST(split_part(x_bpv_ref, '-', 4) AS INTEGER)),
+                0
+            )
+            FROM account_payment
+            WHERE x_bpv_ref ~ %s
+            """,
+            (r'^BPV-%02d-[0-9]{2}-[0-9]+$' % yy,),
+        )
+        row = self.env.cr.fetchone()
+        next_seq = (row[0] or 0) + 1
+        return 'BPV-%02d-%02d-%06d' % (yy, mm, next_seq)
+
     def action_post(self):
         """Auto-assign cheque number from series before posting if not already set."""
         for payment in self:
             if (payment.x_is_cheque_payment
                     and payment.journal_id
                     and not payment.x_cheque_number):
+                # When per-bank allocation lines are used, cheque numbers sit on
+                # those lines (not the payment header).  If any line already has
+                # a manually-entered cheque number, skip auto-assign entirely —
+                # no series is needed and no error should be raised.
+                if payment.x_bank_allocation_ids and any(
+                    a.x_cheque_number for a in payment.x_bank_allocation_ids
+                ):
+                    continue
                 series = self.env['x.cheque.series'].sudo().search([
                     ('bank_journal_id', '=', payment.journal_id.id),
                     ('state', '=', 'active'),
@@ -1147,6 +1373,12 @@ class AccountPaymentSiteOps(models.Model):
                         'No active cheque series found for bank "%s". '
                         'Please set one up in Configuration → Cheque Series.'
                     ) % payment.journal_id.name)
+        # Assign BPV-YY-MM-XXXXX reference for outbound payments being posted now.
+        for payment in self.filtered(
+            lambda p: p.payment_type == 'outbound' and not p.x_bpv_ref
+        ):
+            payment.x_bpv_ref = payment._get_next_bpv_ref()
+
         self._validate_ceo_payment_approval()
         for payment in self.filtered(lambda p: p.x_liability_sheet_line_id):
             payment.amount = payment.x_net_payable or payment.amount
@@ -1200,6 +1432,7 @@ class AccountPaymentSiteOps(models.Model):
         for payment in self.filtered(lambda p: p.state in _POSTED_STATES):
             payment._matracon_ensure_fund_allocations()
             payment._matracon_tag_payment_move_analytic()
+            payment._matracon_propagate_cheque_to_move()
             payment._matracon_create_interproject_entries()
             payment._matracon_update_liability_on_post()
             payment._matracon_update_petty_cash_on_post()
@@ -1211,6 +1444,22 @@ class AccountPaymentSiteOps(models.Model):
             # carries a WHT deduction line — vendor, salary, or any other category.
             if payment.payment_type == 'outbound':
                 payment._create_wht_payment_if_needed()
+            # Close any pending Todo activities (CEO approval / FO process) on this payment
+            matracon_notify.close_activities(payment)
+            # ── Auto-advance x_payment_status → 'paid' on post ───────────────
+            # _matracon_update_liability_on_post() already sets 'paid' for
+            # liability-sheet payments (x_liability_sheet_line_id present).
+            # This block handles all remaining outbound payments:
+            #   • Direct CEO vendor payments (no liability sheet)
+            #   • Batch payments not originating from a liability sheet
+            #   • WHT companion payments to FBR (x_origin_payment_id set)
+            # Petty cash and salary payments are deliberately excluded — they
+            # have their own approval/release flows and must not skip them.
+            if (payment.payment_type == 'outbound'
+                    and payment.x_payment_status == 'draft'
+                    and not payment.x_petty_cash_request_id
+                    and not payment.x_salary_sheet_id):
+                payment.x_payment_status = 'paid'
         return res
 
     def _matracon_tag_payment_move_analytic(self):
@@ -1225,15 +1474,47 @@ class AccountPaymentSiteOps(models.Model):
             self.move_id.sudo().write(
                 {'x_project_analytic_account_id': analytic.id}
             )
+        # Collect HO source-bank account IDs.  These belong to Head Office and
+        # must NOT carry the site's analytic — otherwise the SA would see HO bank
+        # movements in their filtered General Ledger.
+        #
+        # Every OTHER line (AP/payable, petty-cash cash account, WHT payable,
+        # expense accounts, etc.) gets the site's analytic so the SA sees the
+        # full picture when they apply the analytic filter in their GL.
+        bank_acct_ids = set()
+        if self.outstanding_account_id:
+            bank_acct_ids.add(self.outstanding_account_id.id)
+        if self.journal_id and self.journal_id.default_account_id:
+            bank_acct_ids.add(self.journal_id.default_account_id.id)
+        for alloc in self.x_bank_allocation_ids:
+            if alloc.journal_id and alloc.journal_id.default_account_id:
+                bank_acct_ids.add(alloc.journal_id.default_account_id.id)
         dist = self._analytic_distribution_for_account(analytic)
         lines = self.move_id.line_ids.filtered(
-            lambda l: l.account_id.account_type in (
-                'liability_payable', 'expense', 'expense_direct_cost',
-                'asset_receivable',
-            )
+            lambda l: l.account_id.id not in bank_acct_ids
         )
         if lines:
             lines.write({'analytic_distribution': dist})
+
+    def _matracon_propagate_cheque_to_move(self):
+        """Copy x_cheque_number / x_account_title from this payment to its JE.
+
+        Single-bank payments: payment.x_cheque_number is set; write it to
+        move.x_cheque_number and to all move lines that don't yet have their
+        own per-line value (AccountMoveSiteOps.write() handles the cascade).
+
+        Multi-bank allocation payments: payment.x_cheque_number is blank;
+        each split line already has its allocation's cheque stamped in
+        _prepare_move_line_default_vals — nothing to do at move level.
+        """
+        self.ensure_one()
+        if not self.move_id:
+            return
+        if self.x_cheque_number and not self.move_id.x_cheque_number:
+            # write() on move propagates to blank lines via our override
+            self.move_id.sudo().write({'x_cheque_number': self.x_cheque_number})
+        if self.x_account_title and not self.move_id.x_account_title:
+            self.move_id.sudo().write({'x_account_title': self.x_account_title})
 
     def _prepare_move_line_default_vals(self, write_off_line_vals=None, force_balance=None):
         line_vals_list = super()._prepare_move_line_default_vals(
@@ -1336,6 +1617,13 @@ class AccountPaymentSiteOps(models.Model):
                             if base_name
                             else alloc.journal_id.name
                         )
+                        # Stamp the allocation-level cheque number and account title
+                        # so each bank split line carries its own reference in the
+                        # Chart of Accounts journal items drill-down.
+                        if alloc.x_cheque_number:
+                            split['x_cheque_number'] = alloc.x_cheque_number
+                        if alloc.x_account_title:
+                            split['x_account_title'] = alloc.x_account_title
                         line_vals_list.append(split)
 
         analytic = None
@@ -1345,13 +1633,20 @@ class AccountPaymentSiteOps(models.Model):
             analytic = self.x_destination_project_id or self.x_fund_project_id
         if not analytic:
             return line_vals_list
+        # Collect HO source-bank account IDs — same logic as
+        # _matracon_tag_payment_move_analytic.  We must not stamp the site
+        # analytic on HO bank/outstanding lines; every other line gets it.
+        bank_acct_ids = set()
+        if self.outstanding_account_id:
+            bank_acct_ids.add(self.outstanding_account_id.id)
+        if self.journal_id and self.journal_id.default_account_id:
+            bank_acct_ids.add(self.journal_id.default_account_id.id)
+        for alloc in self.x_bank_allocation_ids:
+            if alloc.journal_id and alloc.journal_id.default_account_id:
+                bank_acct_ids.add(alloc.journal_id.default_account_id.id)
         dist = self._analytic_distribution_for_account(analytic)
         for vals in line_vals_list:
-            account = self.env['account.account'].browse(vals.get('account_id'))
-            if account.account_type in (
-                'liability_payable', 'expense', 'expense_direct_cost',
-                'asset_receivable',
-            ):
+            if vals.get('account_id') not in bank_acct_ids:
                 vals['analytic_distribution'] = dist
         return line_vals_list
 
@@ -1367,6 +1662,23 @@ class AccountPaymentSiteOps(models.Model):
             'url': f'/site_operations/print/account.payment/{self.id}',
             'target': 'new',
         }
+
+    def action_draft(self):
+        """Override: also reset our custom x_payment_status to 'draft'.
+
+        Odoo's native action_draft() cancels the journal entry and moves
+        the payment back to draft state, but it doesn't touch x_payment_status.
+        Without this override, x_payment_status stays at 'in_process', which
+        keeps the 'Set In Process' button hidden (it only shows when
+        x_payment_status == 'draft').  After this override, resetting to draft
+        restores the full workflow — the FO can re-submit and Finance HO can
+        re-process.
+        """
+        res = super().action_draft()
+        self.filtered(
+            lambda p: p.x_payment_status != 'draft'
+        ).write({'x_payment_status': 'draft'})
+        return res
 
     def action_set_in_process(self):
         # Post to accounting (creates journal entry, tags analytic, updates liability).
@@ -1406,12 +1718,18 @@ class AccountPaymentSiteOps(models.Model):
             src_ids = self.x_source_project_ids.ids
             origin_label = self.partner_id.name or ''
 
-        # Optionally pre-fill FBR as vendor if they exist — FO can select/change later.
+        # Pre-fill FBR as vendor if they exist — FO can select/change later.
         fbr_partner = self.env['res.partner'].search(
             ['|', ('name', 'ilike', 'Federal Board of Revenue'),
                   ('name', 'ilike', 'FBR')],
             limit=1,
         )
+
+        # Resolve the WHT payable account so the companion payment's JE
+        # correctly debits it when posted (Dr WHT Payable / Cr Bank).
+        # Without this, the companion would debit FBR's default AP account
+        # instead, leaving the WHT payable account unbalanced.
+        wht_account = self._get_deduction_account('account_wht_payable')
 
         memo = _('WHT — %s | %s') % (origin_label, self.name or '')
 
@@ -1428,6 +1746,11 @@ class AccountPaymentSiteOps(models.Model):
             'x_destination_project_id': self.x_destination_project_id.id or False,
             'x_source_project_ids': [(6, 0, src_ids)],
             'x_origin_payment_id': self.id,
+            # Set the expense account so the companion JE debits WHT Payable
+            # (not FBR's default AP) → WHT account shows both sides:
+            #   Credit when liability created (vendor payment)
+            #   Debit  when WHT paid to FBR  (this companion payment)
+            'x_expense_account_id': wht_account.id if wht_account else False,
         })
         self.x_wht_payment_id = wht_payment.id
         self.message_post(body=_(
@@ -1498,3 +1821,229 @@ class AccountPaymentSiteOps(models.Model):
         if 'x_salary_sheet_id' in vals or 'x_ceo_approval_state' in vals:
             self._matracon_fix_salary_ceo_state()
         return res
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # PAYMENT REVERSAL
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def _cancel_auto_clear_jes(self):
+        """Find and cancel any Tier-2 auto-clear JEs attached to this payment.
+
+        Batch posting creates synthetic clearing entries to advance payments
+        from 'in_process' → 'paid' without bank-statement reconciliation.
+        These entries reconcile the payment's outstanding-transit credit line
+        against a clearing debit.  We locate them via the partial-reconcile
+        records, cancel them, and remove their reconciliation — BEFORE calling
+        action_draft() so the reconcile records are still live in the DB.
+
+        Also handles the WHT companion's own clearing JEs (same pattern, same
+        ref prefix 'Auto-clear').
+        """
+        if not self.move_id:
+            return
+        clearing_moves = self.env['account.move']
+        for line in self.move_id.line_ids:
+            # Debit lines reconciled against a credit in another move
+            for pr in line.matched_credit_ids:
+                partner_move = pr.credit_move_id.move_id
+                if (partner_move != self.move_id
+                        and partner_move.state == 'posted'
+                        and partner_move.move_type == 'entry'
+                        and 'Auto-clear' in (partner_move.ref or '')):
+                    clearing_moves |= partner_move
+            # Credit lines reconciled against a debit in another move
+            for pr in line.matched_debit_ids:
+                partner_move = pr.debit_move_id.move_id
+                if (partner_move != self.move_id
+                        and partner_move.state == 'posted'
+                        and partner_move.move_type == 'entry'
+                        and 'Auto-clear' in (partner_move.ref or '')):
+                    clearing_moves |= partner_move
+        for move in clearing_moves:
+            reconciled = move.line_ids.filtered(lambda l: l.reconciled)
+            if reconciled:
+                reconciled.remove_move_reconcile()
+            if move.state == 'posted':
+                move.button_draft()
+            move.button_cancel()
+
+    def action_matracon_reverse_payment(self):
+        """Finance HO: fully reverse a posted vendor payment.
+
+        Unwinds ALL accounting impact in a safe, ordered sequence:
+
+          1. WHT companion payment to FBR  (reset to draft; auto-clear JE cancelled)
+          2. Tax deduction JE              (WHT / Retention; unreconciled + cancelled)
+          3. Interproject GL entries       (unreconciled + cancelled)
+          4. Auto-clear JEs               (Tier-2 transit entries from batch posting)
+          5. Main payment JE              (action_draft → move cancelled + lines unreconciled)
+          6. BPV reference cleared        (new ref assigned on potential re-post)
+          7. Cheque leaf(ves) returned    (state → 'available')
+          8. Liability sheet paid_amount  (recalculated; sheet reopened if was 'paid')
+          9. Salary sheet                 (reopened if payment was a salary payment)
+         10. Petty Cash Request           (reset to approved if was a PCR payment)
+
+        The payment returns to Draft state. Finance HO can then edit and
+        re-post it or delete it as required.
+        """
+        self.ensure_one()
+        user = self.env.user
+        if not (user.has_group('site_operations.group_finance_ho')
+                or user._matracon_is_admin()):
+            raise UserError(_(
+                'Only Finance HO or Administrator can reverse payments.'
+            ))
+
+        if self.state not in _POSTED_STATES:
+            raise UserError(_(
+                'Only posted payments can be reversed.\n'
+                'Current state: %s.'
+            ) % self.state)
+
+        log_lines = []
+        payment_name = self.name or _('Payment')
+
+        # ── 1. WHT companion payment to FBR ──────────────────────────────────
+        # Cancel BEFORE the tax deduction JE so the companion's reconcile with
+        # the deduction JE's credit line is removed cleanly.
+        wht_companion = self.x_wht_payment_id
+        if wht_companion:
+            companion_name = wht_companion.name or _('WHT Payment')
+            if wht_companion.state in _POSTED_STATES:
+                wht_companion._cancel_auto_clear_jes()
+                wht_companion.action_draft()
+                # Clear companion BPV ref — new one on re-post
+                wht_companion.x_bpv_ref = False
+            # Unlink bidirectional references
+            self.x_wht_payment_id = False
+            wht_companion.x_origin_payment_id = False
+            log_lines.append(Markup('WHT companion payment <b>%s</b> reset to draft.') % companion_name)
+
+        # ── 2. Tax deduction JE (WHT / Retention) ────────────────────────────
+        if self.x_tax_deduction_move_id:
+            tdm = self.x_tax_deduction_move_id
+            tdm_name = tdm.name or _('Tax Deduction Entry')
+            if tdm.state == 'posted':
+                reconciled = tdm.line_ids.filtered(lambda l: l.reconciled)
+                if reconciled:
+                    reconciled.remove_move_reconcile()
+                tdm.button_draft()
+                tdm.button_cancel()
+            self.x_tax_deduction_move_id = False
+            log_lines.append(Markup('Tax deduction entry <b>%s</b> cancelled.') % tdm_name)
+
+        # ── 3. Interproject GL entries ────────────────────────────────────────
+        if self.x_interproject_move_ids:
+            for move in self.x_interproject_move_ids:
+                move_name = move.name or _('Interproject Entry')
+                if move.state == 'posted':
+                    reconciled = move.line_ids.filtered(lambda l: l.reconciled)
+                    if reconciled:
+                        reconciled.remove_move_reconcile()
+                    move.button_draft()
+                    move.button_cancel()
+                log_lines.append(
+                    Markup('Interproject entry <b>%s</b> cancelled.') % move_name
+                )
+            self.x_interproject_move_ids = [(5, 0, 0)]
+
+        # ── 4. Auto-clear JEs (Tier-2 transit clearing from batch posting) ───
+        # Must run BEFORE action_draft() so partial-reconcile records are live.
+        self._cancel_auto_clear_jes()
+
+        # ── 5. Main payment — reset to draft ──────────────────────────────────
+        # action_draft() unreconciles remaining AP/bank lines and resets state.
+        # Our override also resets x_payment_status → 'draft'; we immediately
+        # set it to 'reversed' below so the statusbar shows the Reversed step.
+        self.action_draft()
+        self.x_payment_status = 'reversed'
+        log_lines.append(
+            Markup('Payment <b>%s</b> reversed — journal entry cancelled.') % payment_name
+        )
+
+        # ── 6. Clear BPV reference ────────────────────────────────────────────
+        # If re-posted later, a fresh sequential BPV ref will be assigned.
+        if self.x_bpv_ref:
+            old_bpv = self.x_bpv_ref
+            self.x_bpv_ref = False
+            log_lines.append(Markup('BPV reference <b>%s</b> cleared.') % old_bpv)
+
+        # ── 7. Return cheque leaf(ves) to available ────────────────────────────
+        cheque_leaves = self.env['x.cheque.leaf']
+        if self.x_cheque_leaf_id:
+            cheque_leaves |= self.x_cheque_leaf_id
+        for alloc in self.x_bank_allocation_ids:
+            if alloc.x_cheque_leaf_id:
+                cheque_leaves |= alloc.x_cheque_leaf_id
+        for leaf in cheque_leaves.filtered(lambda l: l.state == 'used'):
+            leaf.sudo().write({'state': 'available', 'payment_id': False})
+            log_lines.append(
+                Markup('Cheque <b>%s</b> returned to available.') % leaf.cheque_number
+            )
+
+        # ── 8. Restore liability sheet paid_amount ────────────────────────────
+        if self.x_liability_sheet_line_id:
+            sheet_line = self.x_liability_sheet_line_id
+            sheet = self.x_liability_sheet_id
+            remaining = sheet.payment_ids.filtered(
+                lambda p: p.id != self.id
+                and p.state in _POSTED_STATES
+                and p.x_liability_sheet_line_id == sheet_line
+                and not p.x_origin_payment_id
+            )
+            old_paid = sheet_line.paid_amount
+            sheet_line.paid_amount = sum(
+                p.x_gross_approved_amount or p.amount for p in remaining
+            )
+            log_lines.append(Markup(
+                'Liability sheet paid amount: <b>%(old).2f</b> → <b>%(new).2f</b>.'
+            ) % {'old': old_paid, 'new': sheet_line.paid_amount})
+            # Reopen sheet if it was marked fully paid
+            if sheet and sheet.state == 'paid':
+                sheet.state = 'approved'
+                sheet.message_post(
+                    body=Markup('Liability sheet reopened — payment <b>%s</b> reversed.') % payment_name
+                )
+                log_lines.append(Markup('Liability sheet reopened (was Paid).'))
+
+        # ── 9. Salary sheet — reopen if this was a salary payment ─────────────
+        if self.x_salary_sheet_id:
+            sheet = self.x_salary_sheet_id
+            if sheet.state == 'paid':
+                sheet.state = 'approved'
+                sheet.message_post(
+                    body=Markup(
+                        'Salary sheet reopened — payment <b>%s</b> reversed. '
+                        'Employee advance balances restored.'
+                    ) % payment_name
+                )
+                # Restore employee advance balances
+                for line in sheet.line_ids:
+                    if line.detail_advance > 0 and line.employee_id:
+                        emp = line.employee_id.sudo()
+                        emp.write({
+                            'x_advance_balance': (emp.x_advance_balance or 0.0) + line.detail_advance
+                        })
+                log_lines.append(Markup('Salary sheet <b>%s</b> reopened.') % sheet.name)
+
+        # ── 10. Petty Cash Request — reset to approved ────────────────────────
+        if self.x_petty_cash_request_id:
+            pcr = self.x_petty_cash_request_id
+            if pcr.state in ('released', 'confirmed'):
+                pcr.state = 'approved'
+                pcr.payment_id = False
+                pcr.message_post(
+                    body=Markup('PCR reset to Approved — payment <b>%s</b> reversed.') % payment_name
+                )
+                log_lines.append(Markup('Petty Cash Request <b>%s</b> reset to Approved.') % pcr.name)
+
+        # ── Chatter ───────────────────────────────────────────────────────────
+        # Use Markup so HTML tags (<b>, <br/>) render in the chatter instead of
+        # appearing as raw escaped text.
+        details = Markup('<br/>').join(log_lines) if log_lines else _('No sub-entries to reverse.')
+        self.message_post(body=Markup(
+            'Payment reversed by <b>%(user)s</b>.<br/>%(details)s'
+        ) % {
+            'user': self.env.user.name,
+            'details': details,
+        })

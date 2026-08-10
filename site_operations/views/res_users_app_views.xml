@@ -1,6 +1,34 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
+  <!-- ── Digital Signature + Backdate Default on Preferences dialog ── -->
+  <record id="view_users_preferences_matracon_backdate" model="ir.ui.view">
+    <field name="name">res.users.preferences.matracon.backdate</field>
+    <field name="model">res.users</field>
+    <field name="inherit_id" ref="base.view_users_form_simple_modif"/>
+    <field name="arch" type="xml">
+      <!-- Signature section — appears at the bottom of the Preferences dialog -->
+      <group name="other_preferences" position="before">
+        <group string="My Signature" name="matracon_signature">
+          <field name="x_sign_signature"
+                 widget="signature"
+                 string="Digital Signature"
+                 nolabel="1"
+                 options="{'full_name': 'name', 'size': [300, 100]}"
+                 help="Draw, type, or upload your signature. It will be automatically applied to all printed documents (BPV, Purchase Orders, Salary Sheets, Petty Cash, Liability Sheets, Material Issuances, etc.) where you are the signatory."/>
+          <p class="text-muted" colspan="2" style="font-size:12px; margin-top:-4px;">
+            Click the signature area to draw with mouse/touch, type your initials, or upload an image.
+          </p>
+        </group>
+      </group>
+      <group name="other_preferences" position="inside">
+        <field name="x_backdate_default"
+               string="Default Entry Date"
+               help="Set a date to use as the default for all new journal entries, invoices, and payments you create. Leave empty to use today's date. Clear when done with the backdated batch."/>
+      </group>
+    </field>
+  </record>
+
   <!-- ── Last Online on Users form (Preferences tab → Other Preferences) ── -->
   <record id="view_users_form_matracon_last_online" model="ir.ui.view">
     <field name="name">res.users.form.matracon.last.online</field>

@@ -8,6 +8,38 @@
         </record>
 
         <!-- ═══════════════════════════════════════════════════════════════════
+             NOTE: Odoo's built-in account.move 'see all' rules are restricted
+             to account.group_account_manager in Python, NOT here in XML.
+             These rules (account_move_see_all, account_move_rule_group_invoice,
+             account_move_rule_group_readonly) are shipped with noupdate=True so
+             XML overrides are silently ignored by Odoo 19.
+             The fix is applied via:
+               - hooks.fix_account_move_rules() — called from post_init_hook (install)
+               - migrations/19.0.1.8.8/post-migrate.py — called on upgrade
+        ════════════════════════════════════════════════════════════════════ -->
+
+        <!-- ═══════════════════════════════════════════════════════════════════
+             STOCK — Site Accountant (project-scoped, submitted issuances only)
+        ════════════════════════════════════════════════════════════════════ -->
+
+        <!-- SA can only see material issuances that have been submitted to them
+             for their own project.  Prevents browsing all stock.picking records. -->
+        <record id="rule_stock_picking_site_accountant" model="ir.rule">
+            <field name="name">stock.picking: SA sees submitted issuances for own project</field>
+            <field name="model_id" ref="stock.model_stock_picking"/>
+            <field name="domain_force">[
+                ('x_transfer_purpose', '=', 'material_issuance'),
+                ('x_submitted_to_sa', '=', True),
+                ('x_issuance_project_id', '=', user.x_default_analytic_account_id.id)
+            ]</field>
+            <field name="groups" eval="[(4, ref('site_operations.group_site_accountant'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <!-- ═══════════════════════════════════════════════════════════════════
              CUSTOM MODELS — Site Accountant (project-scoped)
         ════════════════════════════════════════════════════════════════════ -->
 
@@ -65,6 +97,20 @@
             <field name="model_id" ref="model_x_petty_cash_expense"/>
             <field name="domain_force">[('project_analytic_account_id', '=', user.x_default_analytic_account_id.id)]</field>
             <field name="groups" eval="[(4, ref('site_operations.group_site_accountant'))]"/>
+        </record>
+
+        <!-- HO / CEO / Finance HO / Procurement HO: cannot see Draft petty cash expenses.
+             Mirrors the same restriction already applied to petty cash requests (above). -->
+        <record id="rule_petty_cash_expense_no_draft_ho" model="ir.rule">
+            <field name="name">Petty Cash Expense: HO/CEO cannot see Draft</field>
+            <field name="model_id" ref="model_x_petty_cash_expense"/>
+            <field name="domain_force">[('state', '=', 'posted')]</field>
+            <field name="groups" eval="[
+                (4, ref('purchase_demand_raise.group_ceo_approval')),
+                (4, ref('purchase_demand_raise.group_head_office')),
+                (4, ref('site_operations.group_finance_ho')),
+                (4, ref('purchase_demand_raise.group_procurement_ho')),
+            ]"/>
         </record>
 
         <record id="rule_petty_cash_fund_site_accountant" model="ir.rule">
@@ -135,7 +181,20 @@
         <record id="rule_account_move_site_accountant" model="ir.rule">
             <field name="name">Account Move: Site Accountant own project only</field>
             <field name="model_id" ref="account.model_account_move"/>
-            <field name="domain_force">[('x_project_analytic_account_id', '=', user.x_default_analytic_account_id.id)]</field>
+            <!-- Show a move when EITHER:
+                 (a) x_project_analytic_account_id = this site's analytic — covers:
+                     • vendor bills / customer invoices created by SA
+                     • payment JEs from HO (e.g. PCR fund releases) that are stamped
+                       with the destination project at posting time — these have
+                       move_type='entry' and create_uid=HO FO, so a create_uid guard
+                       would incorrectly hide them from the site SA.
+                     • HO MISC journal entries tagged to this site's analytic
+                 (b) it is a journal entry the SA created themselves (no analytic
+                     tag needed for their own scratch entries). -->
+            <field name="domain_force">['|',
+                ('x_project_analytic_account_id', '=', user.x_default_analytic_account_id.id),
+                '&amp;', ('move_type', '=', 'entry'), ('create_uid', '=', user.id)
+            ]</field>
             <field name="groups" eval="[(4, ref('site_operations.group_site_accountant'))]"/>
             <field name="perm_read" eval="True"/>
             <field name="perm_write" eval="True"/>
@@ -147,13 +206,14 @@
              Site Accountant sees lines that belong ONLY to their project's moves.
              This is the critical rule for Partner Ledger, Aged Payables, and Aged
              Receivables — which query account.move.line directly.
-             Payment moves are stamped with x_project_analytic_account_id so
-             payments show up correctly in the partner ledger without leaking
-             other sites' or HO's data. -->
+             Mirrors rule_account_move_site_accountant exactly. -->
         <record id="rule_account_move_line_site_accountant" model="ir.rule">
             <field name="name">Account Move Line: Site Accountant own project only</field>
             <field name="model_id" ref="account.model_account_move_line"/>
-            <field name="domain_force">[('move_id.x_project_analytic_account_id', '=', user.x_default_analytic_account_id.id)]</field>
+            <field name="domain_force">['|',
+                ('move_id.x_project_analytic_account_id', '=', user.x_default_analytic_account_id.id),
+                '&amp;', ('move_id.move_type', '=', 'entry'), ('move_id.create_uid', '=', user.id)
+            ]</field>
             <field name="groups" eval="[(4, ref('site_operations.group_site_accountant'))]"/>
             <field name="perm_read" eval="True"/>
             <field name="perm_write" eval="True"/>
@@ -361,6 +421,45 @@
             <field name="groups" eval="[(4, ref('purchase_demand_raise.group_matracon_admin'))]"/>
             <field name="domain_force">[(1, '=', 1)]</field>
         </record>
+
+        <!-- CEO and Finance HO see only submitted/approved/paid sheets.
+             Draft sheets are for SA only — CEO/FO should not see them until submitted. -->
+        <record id="rule_liability_sheet_ceo" model="ir.rule">
+            <field name="name">Liability Sheet: CEO sees submitted+ only</field>
+            <field name="model_id" ref="model_x_liability_sheet"/>
+            <field name="groups" eval="[(4, ref('purchase_demand_raise.group_ceo_approval'))]"/>
+            <field name="domain_force">[('state', '!=', 'draft')]</field>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+        <record id="rule_liability_sheet_finance_ho" model="ir.rule">
+            <field name="name">Liability Sheet: Finance HO sees submitted+ only</field>
+            <field name="model_id" ref="model_x_liability_sheet"/>
+            <field name="groups" eval="[(4, ref('site_operations.group_finance_ho'))]"/>
+            <field name="domain_force">[('state', '!=', 'draft')]</field>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <!-- Liability Sheet: Head Office and Procurement HO see submitted+ only
+             (CEO and Finance HO already covered by their own rules above) -->
+        <record id="rule_liability_sheet_head_office_no_draft" model="ir.rule">
+            <field name="name">Liability Sheet: Head Office/Procurement HO see submitted+ only</field>
+            <field name="model_id" ref="model_x_liability_sheet"/>
+            <field name="groups" eval="[
+                (4, ref('purchase_demand_raise.group_head_office')),
+                (4, ref('purchase_demand_raise.group_procurement_ho')),
+            ]"/>
+            <field name="domain_force">[('state', '!=', 'draft')]</field>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
         <record id="rule_account_move_matracon_admin" model="ir.rule">
             <field name="name">Account Move: Matracon Admin sees all</field>
             <field name="model_id" ref="account.model_account_move"/>
@@ -510,6 +609,219 @@
             <field name="perm_write" eval="False"/>
             <field name="perm_create" eval="False"/>
             <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <!-- ═══════════════════════════════════════════════════════════════════
+             HO / CEO — NO DRAFT VISIBILITY (A to Z)
+             CEO, Head Office, Finance HO, Procurement HO see only submitted /
+             posted / approved / active records — never site-level drafts.
+             Admin (group_matracon_admin) and System (base.group_system) bypass
+             these via their (1, '=', 1) rules defined above.
+        ════════════════════════════════════════════════════════════════════ -->
+
+        <!-- Account Move (vendor bills / customer invoices / journal entries):
+             HO/CEO see posted or cancelled only — draft = site work-in-progress.
+             Journal entries (move_type='entry'): additionally restricted to records
+             created by the current user.  Bills/invoices retain full cross-site
+             visibility so HO can review all site financials. -->
+        <record id="rule_account_move_no_draft_ho" model="ir.rule">
+            <field name="name">Account Move: HO/CEO see posted/cancelled only; JE own only</field>
+            <field name="model_id" ref="account.model_account_move"/>
+            <field name="domain_force">['&amp;',
+                ('state', '!=', 'draft'),
+                '|', ('move_type', '!=', 'entry'), ('create_uid', '=', user.id)
+            ]</field>
+            <field name="groups" eval="[
+                (4, ref('purchase_demand_raise.group_ceo_approval')),
+                (4, ref('purchase_demand_raise.group_head_office')),
+                (4, ref('site_operations.group_finance_ho')),
+                (4, ref('purchase_demand_raise.group_procurement_ho')),
+            ]"/>
+        </record>
+
+        <!-- Account Move Line: Partner Ledger / Aged Payables query this directly;
+             restrict draft lines so HO reports only show confirmed data.
+             Journal entry lines additionally restricted to moves created by the user. -->
+        <record id="rule_account_move_line_no_draft_ho" model="ir.rule">
+            <field name="name">Account Move Line: HO/CEO see posted/cancelled only; JE own only</field>
+            <field name="model_id" ref="account.model_account_move_line"/>
+            <field name="domain_force">['&amp;',
+                ('move_id.state', '!=', 'draft'),
+                '|', ('move_id.move_type', '!=', 'entry'), ('move_id.create_uid', '=', user.id)
+            ]</field>
+            <field name="groups" eval="[
+                (4, ref('purchase_demand_raise.group_ceo_approval')),
+                (4, ref('purchase_demand_raise.group_head_office')),
+                (4, ref('site_operations.group_finance_ho')),
+                (4, ref('purchase_demand_raise.group_procurement_ho')),
+            ]"/>
+        </record>
+
+        <!-- Stock Picking (material issuances, receipts, site-to-site transfers):
+             HO/CEO see only confirmed / ready / done transfers — not draft.
+             Procurement HO is intentionally excluded — they need full inventory
+             admin access including draft receipts/transfers. -->
+        <record id="rule_stock_picking_no_draft_ho" model="ir.rule">
+            <field name="name">Stock Picking: HO/CEO see confirmed/in-progress/done only</field>
+            <field name="model_id" ref="stock.model_stock_picking"/>
+            <field name="domain_force">[('state', '!=', 'draft')]</field>
+            <field name="groups" eval="[
+                (4, ref('purchase_demand_raise.group_ceo_approval')),
+                (4, ref('purchase_demand_raise.group_head_office')),
+                (4, ref('site_operations.group_finance_ho')),
+            ]"/>
+        </record>
+
+        <!-- Stock Picking: Procurement HO sees ALL (including draft) — admin level -->
+        <record id="rule_stock_picking_procurement_ho" model="ir.rule">
+            <field name="name">Stock Picking: Procurement HO sees all</field>
+            <field name="model_id" ref="stock.model_stock_picking"/>
+            <field name="groups" eval="[(4, ref('purchase_demand_raise.group_procurement_ho'))]"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+        </record>
+
+        <!-- Stock Quant: Procurement HO sees all warehouses -->
+        <record id="rule_stock_quant_procurement_ho" model="ir.rule">
+            <field name="name">Stock Quant: Procurement HO sees all</field>
+            <field name="model_id" ref="stock.model_stock_quant"/>
+            <field name="groups" eval="[(4, ref('purchase_demand_raise.group_procurement_ho'))]"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+        </record>
+
+        <!-- Stock Move: Procurement HO sees all -->
+        <record id="rule_stock_move_procurement_ho" model="ir.rule">
+            <field name="name">Stock Move: Procurement HO sees all</field>
+            <field name="model_id" ref="stock.model_stock_move"/>
+            <field name="groups" eval="[(4, ref('purchase_demand_raise.group_procurement_ho'))]"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+        </record>
+
+        <!-- Stock Move Line: Procurement HO sees all -->
+        <record id="rule_stock_move_line_procurement_ho" model="ir.rule">
+            <field name="name">Stock Move Line: Procurement HO sees all</field>
+            <field name="model_id" ref="stock.model_stock_move_line"/>
+            <field name="groups" eval="[(4, ref('purchase_demand_raise.group_procurement_ho'))]"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+        </record>
+
+        <!-- Stock Warehouse: Procurement HO sees all warehouses -->
+        <record id="rule_stock_warehouse_procurement_ho" model="ir.rule">
+            <field name="name">Stock Warehouse: Procurement HO sees all</field>
+            <field name="model_id" ref="stock.model_stock_warehouse"/>
+            <field name="groups" eval="[(4, ref('purchase_demand_raise.group_procurement_ho'))]"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+        </record>
+
+        <!-- Stock Location: Procurement HO sees all locations -->
+        <record id="rule_stock_location_procurement_ho" model="ir.rule">
+            <field name="name">Stock Location: Procurement HO sees all</field>
+            <field name="model_id" ref="stock.model_stock_location"/>
+            <field name="groups" eval="[(4, ref('purchase_demand_raise.group_procurement_ho'))]"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+        </record>
+
+        <!-- Salary Sheet: HO/CEO see submitted/approved/paid only -->
+        <record id="rule_salary_sheet_no_draft_ho" model="ir.rule">
+            <field name="name">Salary Sheet: HO/CEO see submitted+ only</field>
+            <field name="model_id" ref="model_x_salary_sheet"/>
+            <field name="domain_force">[('state', '!=', 'draft')]</field>
+            <field name="groups" eval="[
+                (4, ref('purchase_demand_raise.group_ceo_approval')),
+                (4, ref('purchase_demand_raise.group_head_office')),
+                (4, ref('site_operations.group_finance_ho')),
+                (4, ref('purchase_demand_raise.group_procurement_ho')),
+            ]"/>
+        </record>
+
+        <!-- Attendance Sheet: HO/CEO see submitted/approved only -->
+        <record id="rule_attendance_sheet_no_draft_ho" model="ir.rule">
+            <field name="name">Attendance Sheet: HO/CEO see submitted+ only</field>
+            <field name="model_id" ref="model_x_attendance_sheet"/>
+            <field name="domain_force">[('state', '!=', 'draft')]</field>
+            <field name="groups" eval="[
+                (4, ref('purchase_demand_raise.group_ceo_approval')),
+                (4, ref('purchase_demand_raise.group_head_office')),
+                (4, ref('site_operations.group_finance_ho')),
+                (4, ref('purchase_demand_raise.group_procurement_ho')),
+            ]"/>
+        </record>
+
+        <!-- Bank Guarantee: HO/CEO see active/expired/cancelled only — not draft -->
+        <record id="rule_bank_guarantee_no_draft_ho" model="ir.rule">
+            <field name="name">Bank Guarantee: HO/CEO see submitted+ only</field>
+            <field name="model_id" ref="model_x_bank_guarantee"/>
+            <field name="domain_force">[('state', '!=', 'draft')]</field>
+            <field name="groups" eval="[
+                (4, ref('purchase_demand_raise.group_ceo_approval')),
+                (4, ref('purchase_demand_raise.group_head_office')),
+                (4, ref('site_operations.group_finance_ho')),
+                (4, ref('purchase_demand_raise.group_procurement_ho')),
+            ]"/>
+        </record>
+
+        <!-- Subcontractor IPC: HO/CEO see submitted+ only -->
+        <record id="rule_subcontractor_ipc_no_draft_ho" model="ir.rule">
+            <field name="name">Subcontractor IPC: HO/CEO see submitted+ only</field>
+            <field name="model_id" ref="model_x_subcontractor_ipc"/>
+            <field name="domain_force">[('state', '!=', 'draft')]</field>
+            <field name="groups" eval="[
+                (4, ref('purchase_demand_raise.group_ceo_approval')),
+                (4, ref('purchase_demand_raise.group_head_office')),
+                (4, ref('site_operations.group_finance_ho')),
+                (4, ref('purchase_demand_raise.group_procurement_ho')),
+            ]"/>
+        </record>
+
+        <!-- Subcontractor Backcharge: HO/CEO see submitted+ only -->
+        <record id="rule_subcontractor_backcharge_no_draft_ho" model="ir.rule">
+            <field name="name">Subcontractor Backcharge: HO/CEO see submitted+ only</field>
+            <field name="model_id" ref="model_x_subcontractor_backcharge"/>
+            <field name="domain_force">[('state', '!=', 'draft')]</field>
+            <field name="groups" eval="[
+                (4, ref('purchase_demand_raise.group_ceo_approval')),
+                (4, ref('purchase_demand_raise.group_head_office')),
+                (4, ref('site_operations.group_finance_ho')),
+                (4, ref('purchase_demand_raise.group_procurement_ho')),
+            ]"/>
+        </record>
+
+        <!-- Employee Backcharge: HO/CEO see submitted+ only -->
+        <record id="rule_employee_backcharge_no_draft_ho" model="ir.rule">
+            <field name="name">Employee Backcharge: HO/CEO see submitted+ only</field>
+            <field name="model_id" ref="model_x_employee_backcharge"/>
+            <field name="domain_force">[('state', '!=', 'draft')]</field>
+            <field name="groups" eval="[
+                (4, ref('purchase_demand_raise.group_ceo_approval')),
+                (4, ref('purchase_demand_raise.group_head_office')),
+                (4, ref('site_operations.group_finance_ho')),
+                (4, ref('purchase_demand_raise.group_procurement_ho')),
+            ]"/>
+        </record>
+
+        <!-- WHT Certificate: HO/CEO see submitted+ only -->
+        <record id="rule_wht_certificate_no_draft_ho" model="ir.rule">
+            <field name="name">WHT Certificate: HO/CEO see submitted+ only</field>
+            <field name="model_id" ref="model_x_wht_certificate"/>
+            <field name="domain_force">[('state', '!=', 'draft')]</field>
+            <field name="groups" eval="[
+                (4, ref('purchase_demand_raise.group_ceo_approval')),
+                (4, ref('purchase_demand_raise.group_head_office')),
+                (4, ref('site_operations.group_finance_ho')),
+                (4, ref('purchase_demand_raise.group_procurement_ho')),
+            ]"/>
+        </record>
+
+        <!-- Tax Notice: HO/CEO see submitted+ only -->
+        <record id="rule_tax_notice_no_draft_ho" model="ir.rule">
+            <field name="name">Tax Notice: HO/CEO see submitted+ only</field>
+            <field name="model_id" ref="model_x_tax_notice_order"/>
+            <field name="domain_force">[('state', '!=', 'draft')]</field>
+            <field name="groups" eval="[
+                (4, ref('purchase_demand_raise.group_ceo_approval')),
+                (4, ref('purchase_demand_raise.group_head_office')),
+                (4, ref('site_operations.group_finance_ho')),
+                (4, ref('purchase_demand_raise.group_procurement_ho')),
+            ]"/>
         </record>
 
     </data>

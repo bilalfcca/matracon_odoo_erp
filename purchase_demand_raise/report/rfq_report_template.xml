@@ -24,20 +24,12 @@
                 <t t-set="rfq_partner"
                    t-value="env['res.partner'].browse(_rpid) if _rpid else False"/>
 
-                <t t-call="purchase_demand_raise.matracon_po_layout">
+                <!-- Supply ref + date to the layout header BEFORE t-call -->
+                <t t-set="po_ref_number" t-value="o.name"/>
+                <t t-set="po_ref_date"
+                   t-value="context_timestamp(datetime.datetime.now()).strftime('%B %d, %Y')"/>
 
-                    <!-- RFQ# left — Print date right -->
-                    <table style="width:100%; border:0; border-collapse:collapse; border-spacing:0; margin-bottom:12px;">
-                        <tr>
-                            <td style="border:0; padding:0; font-size:13px; font-weight:bold; color:#222;">
-                                <t t-esc="o.name"/>
-                            </td>
-                            <td style="border:0; padding:0; font-size:13px; font-weight:bold;
-                                       color:#222; text-align:right;">
-                                <t t-esc="context_timestamp(datetime.datetime.now()).strftime('%B %d, %Y')"/>
-                            </td>
-                        </tr>
-                    </table>
+                <t t-call="purchase_demand_raise.matracon_po_layout">
 
                     <!-- Vendor: Company / City / Attn (divs — avoids Bootstrap table border CSS) -->
                     <t t-if="rfq_partner">
@@ -74,16 +66,8 @@
                         Request for Quotation
                     </p>
 
-                    <!-- RFQ meta (ref / date / deadline / project) — divs avoid table border artifacts -->
+                    <!-- RFQ meta (deadline / project only — ref + date are now in the header) -->
                     <div style="margin-bottom:12px; font-size:13px; color:#222; line-height:1.7;">
-                        <div>
-                            <span style="font-weight:bold; display:inline-block; min-width:110px;">RFQ Reference:</span>
-                            <span><t t-esc="o.name"/></span>
-                        </div>
-                        <div>
-                            <span style="font-weight:bold; display:inline-block; min-width:110px;">Date:</span>
-                            <span><t t-esc="context_timestamp(datetime.datetime.now()).strftime('%B %d, %Y')"/></span>
-                        </div>
                         <t t-if="o.date_approve">
                             <div>
                                 <span style="font-weight:bold; display:inline-block; min-width:110px;">Deadline:</span>
@@ -98,32 +82,12 @@
                         </t>
                     </div>
 
-                    <!-- Formal letter body -->
-                    <p style="font-size:13px; line-height:1.65; margin:0 0 6px 0;">Dear Sir/Madam,</p>
-                    <p style="font-size:13px; line-height:1.65; margin:0 0 6px 0;">
-                        We are pleased to invite your quotation for the supply of
-                        materials/services as per the following requirements.
-                    </p>
-                    <p style="font-size:13px; line-height:1.65; margin:0 0 6px 0;">
-                        Please find attached the RFQ document
-                        (<t t-esc="o.name"/>) for your reference.
-                    </p>
-                    <p style="font-size:13px; line-height:1.65; margin:0 0 4px 0;">Kindly provide the following in your quotation:</p>
-                    <ul style="font-size:13px; margin:0 0 6px 22px; padding:0;">
-                        <li style="margin-bottom:2px;">Technical compliance with specifications</li>
-                        <li style="margin-bottom:2px;">Unit rates and total quoted price</li>
-                        <li style="margin-bottom:2px;">Delivery period</li>
-                        <li style="margin-bottom:2px;">Warranty details</li>
-                        <li style="margin-bottom:2px;">Validity of the offer</li>
-                        <li style="margin-bottom:2px;">Installation / testing charges (if applicable)</li>
-                    </ul>
-                    <p style="font-size:13px; line-height:1.65; margin:0 0 6px 0;">
-                        We look forward to receiving your competitive quotation at the earliest.
-                    </p>
-                    <p style="font-size:13px; line-height:1.65; margin:0 0 14px 0;">
-                        Best regards,<br/>
-                        <strong>Procurement Department</strong><br/>
-                        Matracon Pakistan (Pvt.) Limited
+                    <!-- Formal letter body — 2 lines like PO -->
+                    <p style="margin:0 0 7px 0; font-size:13px; line-height:1.7; text-align:justify;">Dear Sir/Madam,</p>
+                    <p style="margin:0 0 14px 0; font-size:13px; line-height:1.7; text-align:justify; text-indent:28px;">
+                        We are pleased to invite your quotation for the supply of the below mentioned
+                        materials/services for our subject project, as per the required standards and
+                        specifications.
                     </p>
 
                     <!-- Line items — Price / Tax / Total BLANK for vendor to fill -->
@@ -165,7 +129,7 @@
                                             <t t-esc="line.product_uom_id.name"/>
                                         </td>
                                         <td style="text-align:center; font-weight:bold; color:#222;">
-                                            <t t-esc="'%.4g' % rfq_qty"/>
+                                            <t t-esc="('{:,.0f}' if rfq_qty == int(rfq_qty) else '{:,.3f}').format(rfq_qty)"/>
                                         </td>
                                         <!-- Price / Tax / Total: BLANK — vendor fills in -->
                                         <td></td>
@@ -176,6 +140,21 @@
                             </t>
                         </tbody>
                     </table>
+
+                    <!-- Terms &amp; Conditions -->
+                    <t t-if="o.note">
+                        <div style="margin-top:18px;">
+                            <p style="font-size:13px; font-weight:bold; color:#1a3a5c;
+                                       margin:0 0 4px 0; text-transform:uppercase;
+                                       letter-spacing:0.5px;">
+                                Terms &amp; Conditions
+                            </p>
+                            <div style="font-size:12px; line-height:1.6; color:#222;
+                                        border-top:1px solid #ccc; padding-top:6px;">
+                                <t t-out="o.note"/>
+                            </div>
+                        </div>
+                    </t>
 
                 </t>
             </t>

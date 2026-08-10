@@ -385,6 +385,14 @@ class PurchaseOrder(models.Model):
             # Clear vendor — selected by HO during approval
             'partner_id': False,
         })
+        # Re-derive origin from the duplicating user so the new draft is
+        # immediately visible under that user's record rule.
+        user = self.env.user
+        if user.has_group('purchase_demand_raise.group_procurement_ho') \
+                and not user.has_group('purchase_demand_raise.group_site_store'):
+            default.setdefault('x_pr_origin', 'procurement_ho')
+        elif user.has_group('purchase_demand_raise.group_site_store'):
+            default.setdefault('x_pr_origin', 'site_store')
         return super().copy(default)
 
     # ── Default picking_type_id and analytic account for site users ──────────
@@ -1209,12 +1217,39 @@ class PurchaseOrder(models.Model):
                 ctx['default_template_id'] = our_template.id
         return result
 
-    def button_cancel(self):
-        """Override: block cancellation of rejected PR documents (already in terminal state)."""
+    @api.ondelete(at_uninstall=False)
+    def _unlink_if_cancelled(self):
+        """Override: allow deletion of rejected or cancelled PRs without extra steps.
+
+        Standard Odoo requires state='cancel' before deletion. Rejected PRs
+        have state='draft' (never confirmed as a PO) so they would be blocked.
+        We allow deletion of any PR that is in 'rejected' or 'cancelled' x_pr_state.
+        """
         for order in self:
-            if order.x_is_pr_document and order.x_pr_state == 'rejected':
-                raise UserError(_('This PR has already been rejected. Cancellation is not allowed on a rejected PR.'))
-        return super().button_cancel()
+            if order.x_is_pr_document and order.x_pr_state in ('rejected', 'cancelled'):
+                continue  # Allow deletion
+            if order.state != 'cancel':
+                raise UserError(_(
+                    'In order to delete a purchase order, you must cancel it first.'
+                ))
+
+    def button_cancel(self):
+        """Override: update x_pr_state to 'cancelled' for PR documents on cancel.
+
+        Previously blocked cancellation of rejected PRs — now allowed so users
+        can cancel and subsequently delete rejected PRs if needed.
+        """
+        result = super().button_cancel()
+        for order in self:
+            if order.x_is_pr_document and order.x_pr_state not in ('po_locked', 'cancelled'):
+                order.write({'x_pr_state': 'cancelled'})
+                order.message_post(
+                    body=Markup(
+                        '❌ PR cancelled by <b>%(user)s</b>.'
+                    ) % {'user': self.env.user.name},
+                    subtype_xmlid='mail.mt_log_note',
+                )
+        return result
 
     def action_reset_to_draft(self):
         """Role-specific partial revert — each user only undoes their own step.
@@ -1561,5 +1596,14 @@ class PurchaseOrder(models.Model):
         return {
             'type': 'ir.actions.act_url',
             'url': f'/site_operations/print/purchase.order/{self.id}',
+            'target': 'new',
+        }
+
+    def action_preview_po_pdf(self):
+        """Open the Purchase Order PDF in a new browser tab for preview."""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_url',
+            'url': f'/report/pdf/purchase_demand_raise.report_final_po_template/{self.id}',
             'target': 'new',
         }

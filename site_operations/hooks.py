@@ -400,6 +400,334 @@ def post_init_hook(env):
             '(not a production DB or users not yet created): %s', e
         )
     reprocess_existing_payments(env)
+    # Restrict Odoo's built-in 'see all' account.move rules to group_account_manager
+    # so site accountants are properly scoped to their own project.
+    fix_account_move_rules(env)
+    # Fix any posted petty cash expenses that have no JE or wrong JE credit account.
+    # On a fresh install into a DB with existing data (e.g. a restored production dump),
+    # post_migrate_hook does NOT run — only post_init_hook runs.
+    try:
+        fix_petty_cash_expense_accounts(env)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(
+            'post_init_hook: fix_petty_cash_expense_accounts failed: %s', e)
+
+
+def fix_petty_cash_expense_accounts(env):
+    """Back-fill x_petty_cash_account_id on petty cash expenses where it was never
+    persisted (readonly field not sent by browser on save), create missing journal
+    entries, and correct JEs that were created with the wrong credit account.
+
+    Runs on every module upgrade via post_migrate_hook. Safe to call multiple times
+    — each step is idempotent and skips records that are already correct.
+
+    Three-step process
+    ──────────────────
+    Step 1 — Fill x_petty_cash_account_id where NULL
+        Resolution order:
+          1. fund._get_petty_cash_account()  →  fund.x_petty_cash_account_id
+                                             OR  site_config.x_petty_cash_account_id
+          2. Cash journal linked to the site analytic  →  journal.default_account_id
+          3. Any company cash journal                  →  journal.default_account_id
+
+    Step 2 — Create missing JEs for posted expenses
+        Covers expenses where _create_journal_entry() silently returned early
+        (no credit account resolved, no cash journal found at post time).
+
+    Step 3 — Correct JEs where credit account ≠ x_petty_cash_account_id
+        Covers expenses posted before x_petty_cash_account_id was set on the record.
+        _create_journal_entry fell back to cash_journal.default_account_id, which
+        may be a different account than the configured site petty cash account.
+        Fix: reverse the wrong JE, clear x_account_move_id, re-run _create_journal_entry.
+    """
+    import logging
+    _logger = logging.getLogger(__name__)
+
+    PCE = env['x.petty.cash.expense'].sudo()
+    Journal = env['account.journal'].sudo()
+
+    # ── Step 1: fill missing x_petty_cash_account_id ─────────────────────────
+    missing_account = PCE.search([('x_petty_cash_account_id', '=', False)])
+    _logger.info(
+        'fix_petty_cash_expense_accounts: %d expense(s) have no petty cash account set',
+        len(missing_account),
+    )
+    filled = 0
+    skipped_no_config = []
+    for expense in missing_account:
+        pc_account = expense.fund_id._get_petty_cash_account()
+
+        # Fallback: look up the site cash journal (same logic as _create_journal_entry)
+        if not pc_account:
+            analytic = expense.project_analytic_account_id
+            cash_journal = False
+            if analytic:
+                cash_journal = Journal.search([
+                    ('type', '=', 'cash'),
+                    ('x_site_ids', 'in', [analytic.id]),
+                    ('company_id', '=', env.company.id),
+                ], limit=1)
+            if not cash_journal:
+                cash_journal = Journal.search([
+                    ('type', '=', 'cash'),
+                    ('company_id', '=', env.company.id),
+                ], limit=1)
+            if cash_journal and cash_journal.default_account_id:
+                pc_account = cash_journal.default_account_id
+
+        if pc_account:
+            expense.x_petty_cash_account_id = pc_account
+            filled += 1
+        else:
+            skipped_no_config.append(expense.x_ref or str(expense.id))
+
+    if filled:
+        _logger.info(
+            'fix_petty_cash_expense_accounts: filled x_petty_cash_account_id on %d expense(s)',
+            filled,
+        )
+    if skipped_no_config:
+        _logger.warning(
+            'fix_petty_cash_expense_accounts: %d expense(s) skipped — no petty cash account '
+            'found (configure "Petty Cash Account" on Site Configuration for each site): %s',
+            len(skipped_no_config),
+            ', '.join(skipped_no_config[:20]),
+        )
+
+    # ── Step 2: create missing JEs for posted expenses ────────────────────────
+    # These are expenses that were "posted" but _create_journal_entry silently
+    # returned early (no credit account / no journal) — so the GL was never
+    # touched and the fund balance never decreased.
+    posted_no_je = PCE.search([
+        ('state', '=', 'posted'),
+        ('x_account_move_id', '=', False),
+    ])
+    _logger.info(
+        'fix_petty_cash_expense_accounts: %d posted expense(s) have no journal entry',
+        len(posted_no_je),
+    )
+    created = 0
+    failed = []
+    for expense in posted_no_je:
+        try:
+            expense._create_journal_entry()
+            if expense.x_account_move_id:
+                created += 1
+            else:
+                failed.append(
+                    '%s (no credit/journal account configured)'
+                    % (expense.x_ref or expense.id)
+                )
+        except Exception as e:
+            failed.append('%s: %s' % (expense.x_ref or expense.id, e))
+            _logger.warning(
+                'fix_petty_cash_expense_accounts: could not create JE for %s: %s',
+                expense.x_ref or expense.id, e,
+            )
+    if created:
+        _logger.info(
+            'fix_petty_cash_expense_accounts: created %d missing journal entry/entries',
+            created,
+        )
+    if failed:
+        _logger.warning(
+            'fix_petty_cash_expense_accounts: %d expense(s) still have no JE after fix attempt: %s',
+            len(failed),
+            ', '.join(failed[:20]),
+        )
+
+    # ── Step 3: correct JEs where credit account ≠ expected petty cash account ─
+    # Covers all ~257 MCH petty cash JEs that were posted via the "Cash at HO"
+    # journal (wrong credit account 112631) instead of the site-specific account
+    # (e.g. 112634 Cash at MCH Bahawalnagar).
+    #
+    # Strategy: direct SQL update on account_move_line.account_id.
+    # This is correct for a migration fix because:
+    #   1. account_type is NOT a stored column in Odoo 19 — only account_id
+    #      needs updating.
+    #   2. Preserves original JE numbers (no reversal entries created).
+    #      257 JEs → 257 corrected in-place, zero extra accounting entries.
+    #   3. Petty cash (asset_cash) accounts are not reconcilable, so no
+    #      reconciliation entries are broken.
+    #   4. We run in the post_migrate context as sudo so no lock-period issue.
+    posted_with_je = PCE.search([
+        ('state', '=', 'posted'),
+        ('x_account_move_id', '!=', False),
+        ('x_petty_cash_account_id', '!=', False),
+    ])
+    wrong_count = 0
+    fixed_count = 0
+    unfixed_step3 = []
+    cr = env.cr
+
+    for expense in posted_with_je:
+        move = expense.x_account_move_id
+        if not move or move.state != 'posted':
+            continue
+        expected_acct = expense.x_petty_cash_account_id
+
+        # Fast check via SQL: does the move have a credit line with the wrong account?
+        cr.execute("""
+            SELECT id, account_id
+            FROM account_move_line
+            WHERE move_id = %s
+              AND credit > 0
+              AND account_id != %s
+            LIMIT 1
+        """, (move.id, expected_acct.id))
+        wrong_row = cr.fetchone()
+        if not wrong_row:
+            continue  # Credit already correct — skip
+
+        wrong_acct_id = wrong_row[1]
+        # Safety: skip if reconciled (shouldn't happen for cash accounts)
+        cr.execute("""
+            SELECT 1 FROM account_move_line
+            WHERE move_id = %s AND credit > 0 AND reconciled = true LIMIT 1
+        """, (move.id,))
+        if cr.fetchone():
+            unfixed_step3.append('%s (reconciled credit lines — manual fix required)'
+                                 % (expense.x_ref or expense.id))
+            _logger.warning(
+                'fix_petty_cash_expense_accounts: expense %s — JE %s credit lines are '
+                'reconciled; skipping auto-fix. Correct this JE manually.',
+                expense.x_ref or expense.id, move.name,
+            )
+            continue
+
+        wrong_count += 1
+        _logger.info(
+            'fix_petty_cash_expense_accounts: expense %s — JE %s: '
+            'credit account_id %s → %s (%s)',
+            expense.x_ref or expense.id,
+            move.name,
+            wrong_acct_id,
+            expected_acct.id,
+            expected_acct.code or expected_acct.name,
+        )
+
+        try:
+            # Direct in-place correction — no reversal entries created
+            cr.execute("""
+                UPDATE account_move_line
+                SET account_id = %s
+                WHERE move_id = %s
+                  AND credit > 0
+                  AND account_id != %s
+            """, (expected_acct.id, move.id, expected_acct.id))
+            fixed_count += 1
+        except Exception as e:
+            unfixed_step3.append('%s: %s' % (expense.x_ref or expense.id, e))
+            _logger.warning(
+                'fix_petty_cash_expense_accounts: SQL update failed for expense %s: %s',
+                expense.x_ref or expense.id, e,
+            )
+
+    # Invalidate ORM cache so recomputed fields (balance, etc.) reflect the SQL changes
+    if fixed_count:
+        env['account.move'].invalidate_model()
+        env['account.move.line'].invalidate_model()
+        _logger.info(
+            'fix_petty_cash_expense_accounts: corrected credit account on %d JE(s) '
+            'in-place (no reversal entries created)',
+            fixed_count,
+        )
+    if wrong_count and wrong_count != fixed_count:
+        _logger.info(
+            'fix_petty_cash_expense_accounts: found %d JE(s) with wrong credit account — '
+            'fixed %d, could not fix %d',
+            wrong_count, fixed_count, len(unfixed_step3),
+        )
+    if unfixed_step3:
+        _logger.warning(
+            'fix_petty_cash_expense_accounts: %d JE(s) could not be auto-corrected '
+            '(manual fix required): %s',
+            len(unfixed_step3),
+            ', '.join(unfixed_step3[:20]),
+        )
+
+
+def fix_account_move_rules(env):
+    """
+    Restrict Odoo's built-in 'see all' record rules on account.move /
+    account.move.line so that site accountants cannot bypass project-scoped
+    restrictions.
+
+    The problem
+    ───────────
+    group_site_accountant implies account.group_account_user, which in turn
+    implies group_account_basic → group_account_invoice AND group_account_readonly.
+
+    Odoo ships three group-based rules on account.move that grant [(1,'=',1)]:
+      • account.account_move_see_all           → group_account_invoice
+      • account.account_move_rule_group_invoice → group_account_invoice  (Odoo 19)
+      • account.account_move_rule_group_readonly → group_account_readonly
+
+    Because Odoo ORs group-based rules, site accountants inherit these permissive
+    rules and see every journal entry regardless of the project-scoped rule.
+
+    The fix
+    ───────
+    Replace the groups on those rules with account.group_account_manager only.
+    Finance HO and Matracon Admin both imply group_account_manager, so they
+    keep full visibility.  Site accountants only have group_account_user (not
+    group_account_manager) so they fall through to rule_account_move_site_accountant
+    (own project only).
+
+    These rules are shipped with noupdate=True so they cannot be overridden via
+    XML.  Python is the only reliable way to modify them.
+    """
+    import logging
+    _logger = logging.getLogger(__name__)
+
+    # Rules to restrict (account.move and account.move.line variants)
+    RULE_XML_IDS = [
+        'account.account_move_see_all',
+        'account.account_move_line_see_all',
+        'account.account_move_rule_group_invoice',
+        'account.account_move_line_rule_group_invoice',
+        'account.account_move_rule_group_readonly',
+        'account.account_move_line_rule_group_readonly',
+    ]
+    manager_group = env.ref('account.group_account_manager', raise_if_not_found=False)
+    if not manager_group:
+        _logger.warning('fix_account_move_rules: account.group_account_manager not found — skipping')
+        return
+
+    for xml_id in RULE_XML_IDS:
+        rule = env.ref(xml_id, raise_if_not_found=False)
+        if not rule:
+            continue  # Some rules may not exist in all Odoo versions
+        current_groups = rule.groups
+        if current_groups == manager_group:
+            continue  # Already correct — idempotent
+        rule.sudo().write({'groups': [(6, 0, [manager_group.id])]})
+        old_names = ', '.join(current_groups.mapped('name')) or '(none)'
+        _logger.info(
+            'fix_account_move_rules: %s → groups changed from [%s] to [Administrator]',
+            xml_id, old_names,
+        )
+
+
+def generate_cheque_leaves_for_existing_series(env):
+    """Generate x.cheque.leaf records for all existing series that have none.
+
+    Safe to re-run — skips numbers that already have a leaf record.
+    Called from post_migrate_hook so existing compliance series are populated
+    automatically on the first upgrade after this feature is deployed.
+    """
+    import logging
+    _log = logging.getLogger(__name__)
+    series_all = env['x.cheque.series'].search([])
+    for series in series_all:
+        if series.leaf_ids:
+            # Already has leaves — call the idempotent sync helper
+            series.generate_leaves_for_existing()
+        else:
+            series._generate_leaves()
+        _log.info('cheque_leaves: generated leaves for series "%s" (bank: %s)',
+                  series.name, series.bank_journal_id.name)
 
 
 def post_migrate_hook(env):
@@ -407,7 +735,22 @@ def post_migrate_hook(env):
     set_date_format(env)
     set_pakistan_fiscal_year(env)
     deduplicate_partner_tags(env)
+    try:
+        generate_cheque_leaves_for_existing_series(env)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(
+            'post_migrate_hook: generate_cheque_leaves failed: %s', e)
     reprocess_existing_payments(env)
+    # Restrict Odoo's built-in 'see all' account.move rules to group_account_manager
+    # so site accountants are properly scoped to their own project.
+    fix_account_move_rules(env)
+    try:
+        fix_petty_cash_expense_accounts(env)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(
+            'post_migrate_hook: fix_petty_cash_expense_accounts failed: %s', e)
     # Re-apply production user config (groups + default analytic/warehouse) on every update
     # so that a module upgrade or re-install never silently resets site user settings.
     try:
@@ -441,3 +784,60 @@ def post_migrate_hook(env):
             old_menu.sudo().unlink()
     except Exception:
         pass
+    # Hide the enterprise Vendors > Batch Payments menu (account_batch_payment module).
+    # Matracon uses its own x.batch.payment model; the enterprise menu is redundant
+    # and appears above Liability Sheets which is confusing.
+    try:
+        bp_menu = env.ref('account_batch_payment.menu_batch_payment_purchases',
+                          raise_if_not_found=False)
+        if bp_menu and bp_menu.active:
+            bp_menu.sudo().write({'active': False})
+    except Exception:
+        pass
+    # Backfill cheque numbers from payments → journal entries (and → journal lines).
+    try:
+        backfill_payment_cheque_numbers(env)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(
+            'post_migrate_hook: backfill_payment_cheque_numbers failed: %s', e)
+
+
+def backfill_payment_cheque_numbers(env):
+    """Propagate x_cheque_number from posted account.payment → account.move → account.move.line.
+
+    For payments posted before _matracon_propagate_cheque_to_move() was added, the
+    cheque number lived only on account.payment and was never written to the linked
+    account.move.  This one-time SQL pass fills the gap so the Chart of Accounts
+    drill-down shows the correct cheque / reference numbers.
+
+    The UPDATE on account_move_line is needed because x_cheque_number there is a
+    store=True related field — Odoo's ORM recompute is not triggered by a raw SQL
+    UPDATE on the parent, so we patch both tables directly.
+    """
+    import logging
+    _log = logging.getLogger(__name__)
+
+    env.cr.execute("""
+        UPDATE account_move am
+           SET x_cheque_number = ap.x_cheque_number
+          FROM account_payment ap
+         WHERE ap.move_id = am.id
+           AND ap.x_cheque_number IS NOT NULL
+           AND ap.x_cheque_number != ''
+           AND (am.x_cheque_number IS NULL OR am.x_cheque_number = '')
+    """)
+    move_rows = env.cr.rowcount
+    _log.info('backfill_payment_cheque_numbers: updated %d account_move rows', move_rows)
+
+    env.cr.execute("""
+        UPDATE account_move_line aml
+           SET x_cheque_number = am.x_cheque_number
+          FROM account_move am
+         WHERE aml.move_id = am.id
+           AND am.x_cheque_number IS NOT NULL
+           AND am.x_cheque_number != ''
+           AND (aml.x_cheque_number IS NULL OR aml.x_cheque_number = '')
+    """)
+    line_rows = env.cr.rowcount
+    _log.info('backfill_payment_cheque_numbers: updated %d account_move_line rows', line_rows)

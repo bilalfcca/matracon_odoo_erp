@@ -10,21 +10,20 @@
         <field name="inherit_id" ref="base.view_partner_form"/>
         <field name="arch" type="xml">
 
-            <!-- ── When opened from Site Procurement (x_site_vendor_id create),
-                 make Tags (category_id) required so Site Store MUST add
-                 the "Local Supplier" tag before saving. ── -->
+            <!-- ── Tags: always required for every contact ── -->
             <field name="category_id" position="attributes">
-                <attribute name="required">context.get('site_procurement_vendor', False)</attribute>
-                <attribute name="readonly">context.get('site_procurement_vendor', False) or context.get('subcontractor_create', False) or context.get('site_accountant_vendor', False)</attribute>
-                <attribute name="help">Tag this contact. Automatically set when creating from Site Procurement (Local Supplier) or Material Issuance (Subcontractor).</attribute>
+                <attribute name="required">1</attribute>
+                <attribute name="readonly">context.get('site_procurement_vendor', False) or context.get('subcontractor_create', False) or context.get('third_party_create', False) or context.get('site_accountant_vendor', False)</attribute>
+                <attribute name="help">Tag is required for all contacts. Automatically set when creating from Site Procurement (Local Supplier) or Material Issuance (Subcontractor / 3rd Party).</attribute>
             </field>
 
-            <!-- ── Description field — shown on Liability Sheet lines as "Tag (Description)" ── -->
+            <!-- ── Description: always required for every contact ── -->
             <field name="category_id" position="after">
                 <field name="x_description"
                        string="Description"
+                       required="1"
                        placeholder="e.g. Cement Supplier, Labour Contractor"
-                       help="Brief description. Appears on Liability Sheet lines as Tag (Description)."/>
+                       help="Required. Brief description of this contact. Appears on Liability Sheet lines as Tag (Description)."/>
             </field>
 
             <xpath expr="//div[@name='button_box']" position="inside">
@@ -37,6 +36,45 @@
                            widget="statinfo"
                            string="Issuances"/>
                 </button>
+            </xpath>
+
+            <!-- ── WHT Exemption tab ── -->
+            <xpath expr="//notebook" position="inside">
+                <page string="WHT Exemption" name="wht_exemption"
+                      groups="site_operations.group_finance_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin">
+                    <field name="x_wht_exemption_ids" widget="one2many">
+                        <list string="WHT Exemption Certificates" editable="bottom">
+                            <field name="tax_year" string="Tax Year"/>
+                            <field name="period_from" string="Period From"/>
+                            <field name="period_to" string="Period To"/>
+                            <field name="barcode_number" string="Barcode No."/>
+                            <field name="description" string="Description"/>
+                            <field name="rate" string="Rate %" digits="[5,2]"/>
+                            <field name="x_wht_payable_account_id" string="WHT Payable Account"/>
+                            <field name="is_active_today" string="Active" readonly="1" widget="boolean_toggle"/>
+                            <field name="attachment_ids" widget="many2many_binary" string="Attachment"/>
+                        </list>
+                        <form string="WHT Exemption Certificate">
+                            <group>
+                                <group string="Certificate Details">
+                                    <field name="tax_year" string="Tax Year"/>
+                                    <field name="period_from" string="Period From"/>
+                                    <field name="period_to" string="Period To"/>
+                                    <field name="barcode_number" string="Barcode Number"/>
+                                    <field name="description" string="Description"/>
+                                    <field name="rate" string="Rate %" digits="[5,2]"/>
+                                    <field name="is_active_today" string="Currently Active" readonly="1"/>
+                                </group>
+                                <group string="Payment Defaults">
+                                    <field name="x_wht_payable_account_id" string="WHT Payable Account"/>
+                                </group>
+                            </group>
+                            <group string="Attachments">
+                                <field name="attachment_ids" widget="many2many_binary" nolabel="1"/>
+                            </group>
+                        </form>
+                    </field>
+                </page>
             </xpath>
 
         </field>

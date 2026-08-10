@@ -6,6 +6,15 @@ from odoo import models, fields, api
 class ProjectProjectMatracon(models.Model):
     _inherit = 'project.project'
 
+    @api.model
+    def _register_hook(self):
+        self.env.cr.execute("""
+            ALTER TABLE project_project
+                ADD COLUMN IF NOT EXISTS x_balance_adjustment DOUBLE PRECISION
+                    NOT NULL DEFAULT 0.0
+        """)
+        return super()._register_hook()
+
     x_analytic_account_id = fields.Many2one(
         'account.analytic.account',
         string='Project Analytic Account',
@@ -35,6 +44,28 @@ class ProjectProjectMatracon(models.Model):
     )
 
     # ── Live financial metrics (fund pool model) ───────────────────────────────
+    x_opening_balance = fields.Monetary(
+        string='Opening Balance',
+        currency_field='currency_id',
+        default=0.0,
+        help=(
+            'One-time opening balance for this project — representing funds that '
+            'existed before the system was set up. Added on top of Funds Received '
+            'when computing Available Balance.'
+        ),
+    )
+    x_balance_adjustment = fields.Monetary(
+        string='Balance Correction',
+        currency_field='currency_id',
+        default=0.0,
+        help=(
+            'One-time correction for historical payments or receipts NOT captured '
+            'in Odoo (e.g. payments made before proper tracking was set up). '
+            'Enter a NEGATIVE amount to reduce the balance for past untracked '
+            'spends; enter a POSITIVE amount to add untracked fund receipts. '
+            'Does not create any journal entries — purely a balance offset.'
+        ),
+    )
     x_funds_received = fields.Monetary(
         string='Funds Received',
         compute='_compute_project_financials',
@@ -160,7 +191,7 @@ class ProjectProjectMatracon(models.Model):
                 project.x_financial_completion_pct = 0.0
                 project.x_remaining_work_value = 0.0
 
-    @api.depends('x_analytic_account_id')
+    @api.depends('x_analytic_account_id', 'x_opening_balance', 'x_balance_adjustment')
     def _compute_project_financials(self):
         Payment = self.env['account.payment']
         Allocation = self.env['x.payment.project.allocation']
@@ -238,7 +269,34 @@ class ProjectProjectMatracon(models.Model):
         ])
         total_spent += sum(outbound_direct.mapped('amount'))
 
-        available = funds_received - total_spent
+        # ── Finance HO Journal Entry payments (x_ho_source_project_id) ──────
+        # When Finance HO makes a payment via a manual journal entry (instead
+        # of the Vendor Payment wizard), they set x_ho_source_project_id on
+        # the move.  Sum the credit on non-payable/non-receivable lines (i.e.
+        # the bank / cash outflow lines) to capture the fund outflow from this
+        # source project.  account.payment-based payments are already captured
+        # above via x_fund_project_id / x_allocation_ids — no double-counting.
+        self.env.cr.execute("""
+            SELECT COALESCE(SUM(aml.credit), 0)
+              FROM account_move_line aml
+              JOIN account_move      am  ON am.id  = aml.move_id
+              JOIN account_account   aa  ON aa.id  = aml.account_id
+             WHERE am.state                  = 'posted'
+               AND am.move_type              = 'entry'
+               AND am.x_ho_source_project_id = %s
+               AND aa.account_type NOT IN (
+                       'liability_payable', 'asset_receivable'
+                   )
+               AND aml.credit > 0
+        """, [analytic_id])
+        total_spent += self.env.cr.fetchone()[0] or 0.0
+
+        available = (
+            self.x_opening_balance
+            + self.x_balance_adjustment
+            + funds_received
+            - total_spent
+        )
 
         # ── Liabilities: from partner ledger (GL) — single source of truth ──────
         # Matches the Partner Ledger exactly; net of ALL payments regardless of
@@ -313,6 +371,7 @@ class ProjectProjectMatracon(models.Model):
             ('x_fund_project_id', '=', aid),
             ('x_allocation_ids', '=', False),
         ]).mapped('amount'))
+        # Fallback path — no project record; opening balance can't be retrieved
         return funds_in - spent
 
     @api.model

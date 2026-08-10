@@ -240,6 +240,36 @@ class SubcontractorIPC(models.Model):
         'x.liability.sheet', string='Liability Sheet',
         readonly=True, copy=False)
 
+    # ── Accounting — journal entry created on submission ──────────────────────
+    x_expense_account_id = fields.Many2one(
+        'account.account',
+        string='Work Expense Account',
+        tracking=True,
+        domain="[('account_type', 'not in', ['liability_payable', 'asset_receivable']), ('active', '=', True)]",
+        help='GL account to DEBIT for the certified work done cost '
+             '(e.g. "Subcontract Work Expense", "Cost of Construction"). '
+             'Required before submission — creates the expense side of the IPC entry.')
+    x_payable_account_id = fields.Many2one(
+        'account.account',
+        string='Subcontractor Payable Account',
+        tracking=True,
+        domain="[('account_type', '=', 'liability_payable'), ('active', '=', True)]",
+        help='GL account to CREDIT for the net payable to the subcontractor. '
+             'Auto-filled from the subcontractor partner\'s default payable account. '
+             'This credit entry is what appears in the Partner Ledger and is picked '
+             'up by "Refresh from Ledger" on the Liability Sheet.')
+    x_journal_id = fields.Many2one(
+        'account.journal',
+        string='Accounting Journal',
+        tracking=True,
+        domain="[('type', 'in', ('general', 'purchase'))]",
+        help='Journal used for the IPC journal entry. '
+             'Auto-fills with the first General journal if left blank.')
+    x_account_move_id = fields.Many2one(
+        'account.move', string='Journal Entry',
+        readonly=True, copy=False, ondelete='set null',
+        help='Posted journal entry created on IPC submission (Dr Expense / Cr Payable).')
+
     notes = fields.Text(string='Notes / Scope of Work')
 
     # ─────────────────────────────────────────────────────────────────────────
@@ -328,8 +358,9 @@ class SubcontractorIPC(models.Model):
 
                 # Journal-entry payments (Dr Payable Cr Bank) not via account.payment
                 # Captures SA direct JEs, HO JEs with analytic, Excel-imported entries.
-                # am.origin_payment_id IS NULL prevents double-counting: payment-wizard
-                # JEs have origin_payment_id set and are already counted via account_payment.
+                # am.origin_payment_id IS NULL prevents double-counting with account_payment.
+                # x_account_move_id IS NOT NULL on petty cash expenses prevents double-counting
+                # with the petty_cash query above — petty cash JEs are already counted there.
                 cr.execute("""
                     SELECT COALESCE(SUM(aml.debit), 0)
                       FROM account_move_line aml
@@ -345,6 +376,10 @@ class SubcontractorIPC(models.Model):
                            am.x_project_analytic_account_id = %s
                            OR (aml.analytic_distribution IS NOT NULL
                                AND aml.analytic_distribution ? %s)
+                       )
+                       AND NOT EXISTS (
+                           SELECT 1 FROM x_petty_cash_expense pce_excl
+                            WHERE pce_excl.x_account_move_id = am.id
                        )
                 """, (partner_id, cutoff_date, analytic_id, str_analytic_id))
                 je_pay = cr.fetchone()[0] or 0.0
@@ -375,7 +410,7 @@ class SubcontractorIPC(models.Model):
         for ipc in self:
             this_gross = max(
                 ipc.gross_work_done - ipc.previous_gross_work_done, 0.0)
-            pct = (ipc.retention_pct or 5.0) / 100.0
+            pct = ipc.retention_pct / 100.0
             total_ret = ipc.gross_work_done * pct
             prev_ret = ipc.previous_gross_work_done * pct
             this_ret = total_ret - prev_ret
@@ -504,6 +539,14 @@ class SubcontractorIPC(models.Model):
         till_this = _total_payments(self.ipc_date)
         self.ho_advance_recovery = max(till_this - till_prev, 0.0)
 
+    @api.onchange('subcontractor_id')
+    def _onchange_subcontractor_fill_payable(self):
+        """Auto-fill payable account from the subcontractor's partner record."""
+        if (self.subcontractor_id
+                and self.subcontractor_id.property_account_payable_id
+                and not self.x_payable_account_id):
+            self.x_payable_account_id = self.subcontractor_id.property_account_payable_id
+
     @api.onchange('subcontractor_id', 'project_analytic_account_id')
     def _onchange_fetch_backcharges(self):
         """Auto-populate back charge lines from all pending back charges
@@ -569,6 +612,18 @@ class SubcontractorIPC(models.Model):
                     'Please attach the signed IPC document before submitting.\n\n'
                     'Upload the signed/stamped IPC file using the "IPC Document" field.'
                 ))
+            if not ipc.x_expense_account_id:
+                raise UserError(_(
+                    'Please select a Work Expense Account before submitting.\n\n'
+                    'This is the GL account that will be debited for the certified '
+                    'work done (e.g. "Subcontract Work Expense").'
+                ))
+            if not ipc.x_payable_account_id:
+                raise UserError(_(
+                    'Please select a Subcontractor Payable Account before submitting.\n\n'
+                    'This is the liability account that will be credited for the net '
+                    'payable — it creates the entry in the Partner Ledger and Liability Sheet.'
+                ))
             if ipc.other_deductions_amount and not (
                     ipc.other_deductions_reason or '').strip():
                 raise UserError(_(
@@ -581,7 +636,11 @@ class SubcontractorIPC(models.Model):
                     'A reason is required when Other Additions > 0.\n\n'
                     'Please fill in the "Reason (Other Additions)" field.'
                 ))
-            # Update liability sheet with net payable
+            # Create the accounting journal entry FIRST — this is what hits the
+            # partner ledger and makes "Refresh from Ledger" on the liability sheet
+            # find the subcontractor's balance instead of wiping it.
+            ipc._create_ipc_journal_entry()
+            # Update liability sheet with net payable (direct write for immediate UI)
             ipc._update_liability_sheet()
             # Mark all included back charges as processed
             for line in ipc.backcharge_line_ids:
@@ -594,13 +653,162 @@ class SubcontractorIPC(models.Model):
             ipc.message_post(body=Markup(_(
                 'IPC <b>%(name)s</b> (IPC No. %(num)s) submitted. '
                 'Net Payable: <b>%(currency)s %(amount)s</b>. '
+                'Journal entry <b>%(move)s</b> posted '
+                '(Dr %(expense)s / Cr %(payable)s). '
                 'Liability sheet updated.'
             )) % {
                 'name': ipc.name,
                 'num': ipc.ipc_number,
                 'currency': ipc.currency_id.symbol,
                 'amount': f'{ipc.net_payable:,.2f}',
+                'move': ipc.x_account_move_id.name if ipc.x_account_move_id else '—',
+                'expense': ipc.x_expense_account_id.display_name,
+                'payable': ipc.x_payable_account_id.display_name,
             })
+
+    def _create_ipc_journal_entry(self):
+        """Post a journal entry for the IPC net payable.
+
+        Entry:
+          Dr  x_expense_account_id   (work done cost — P&L expense)   = net_payable
+          Cr  x_payable_account_id   (subcontractor liability)         = net_payable
+              └─ partner_id = subcontractor_id
+              └─ analytic_distribution = {project_analytic_id: 100}
+
+        The CREDIT on the payable account with partner_id stamped is what
+        makes this entry appear in the Partner Ledger and be picked up by
+        "Refresh from Ledger" on the Liability Sheet — mirroring exactly how
+        a posted vendor bill hits the payable account.
+        """
+        self.ensure_one()
+        if self.net_payable <= 0:
+            return
+
+        analytic_distribution = {}
+        if self.project_analytic_account_id:
+            analytic_distribution = {str(self.project_analytic_account_id.id): 100}
+
+        # Auto-resolve journal: prefer user's choice, then first General journal
+        journal = self.x_journal_id
+        if not journal:
+            journal = self.env['account.journal'].search([
+                ('type', '=', 'general'),
+                ('company_id', '=', self.env.company.id),
+            ], limit=1)
+        if not journal:
+            raise UserError(_(
+                'No General journal found. Please create one in '
+                'Accounting → Configuration → Journals, '
+                'or select a journal on the IPC form.'
+            ))
+
+        move = self.env['account.move'].create({
+            'move_type': 'entry',
+            'journal_id': journal.id,
+            'date': self.ipc_date or fields.Date.today(),
+            'ref': _('IPC %(name)s — %(sub)s (IPC No. %(num)s)') % {
+                'name': self.name,
+                'sub': self.subcontractor_id.name or '',
+                'num': self.ipc_number,
+            },
+            'x_project_analytic_account_id': (
+                self.project_analytic_account_id.id
+                if self.project_analytic_account_id else False
+            ),
+            'line_ids': [
+                # ── Debit: Work expense account ──────────────────────────────
+                (0, 0, {
+                    'name': _('Subcontract Work — %(sub)s (IPC No. %(num)s)') % {
+                        'sub': self.subcontractor_id.name or '',
+                        'num': self.ipc_number,
+                    },
+                    'account_id': self.x_expense_account_id.id,
+                    'debit': self.net_payable,
+                    'credit': 0.0,
+                    'analytic_distribution': analytic_distribution or False,
+                }),
+                # ── Credit: Subcontractor payable (hits partner ledger) ───────
+                (0, 0, {
+                    'name': _('IPC %(name)s — %(sub)s') % {
+                        'name': self.name,
+                        'sub': self.subcontractor_id.name or '',
+                    },
+                    'account_id': self.x_payable_account_id.id,
+                    'partner_id': self.subcontractor_id.id,
+                    'debit': 0.0,
+                    'credit': self.net_payable,
+                    'analytic_distribution': analytic_distribution or False,
+                }),
+            ],
+        })
+        move.action_post()
+        self.x_account_move_id = move
+
+    def action_reset_to_draft(self):
+        """Reset a submitted IPC back to Draft.
+
+        Steps:
+          1. Reverse and cancel the linked journal entry (clean GL trail).
+          2. Restore linked back charges to 'pending'.
+          3. Clear liability sheet link (sheet can re-sync via Refresh from Ledger).
+          4. Reset state → 'draft'.
+
+        Access: Site Accountant, Finance HO, Matracon Admin, System.
+        Paid IPCs cannot be reset — they must be handled via a payment reversal.
+        """
+        allowed = [
+            'site_operations.group_site_accountant',
+            'site_operations.group_finance_ho',
+            'purchase_demand_raise.group_matracon_admin',
+            'base.group_system',
+        ]
+        if not any(self.env.user.has_group(g) for g in allowed):
+            raise UserError(_(
+                'Only Site Accountant, Finance HO, or Matracon Admin can reset an IPC to Draft.'
+            ))
+        for ipc in self:
+            if ipc.state == 'draft':
+                continue
+            if ipc.state == 'paid':
+                raise UserError(_(
+                    'IPC %s is already marked as Paid and cannot be reset to Draft.\n\n'
+                    'If a payment needs to be reversed, handle it via the linked payment record.'
+                ) % ipc.name)
+
+            # ── 1. Reverse the journal entry ──────────────────────────────────
+            move = ipc.x_account_move_id
+            if move and move.state == 'posted':
+                move.sudo()._reverse_moves(
+                    default_values_list=[{
+                        'ref': _('Reversal: IPC %(name)s reset to Draft by %(user)s') % {
+                            'name': ipc.name,
+                            'user': self.env.user.name,
+                        },
+                        'date': fields.Date.today(),
+                    }],
+                    cancel=True,
+                )
+            elif move and move.state == 'draft':
+                move.sudo().unlink()
+
+            # ── 2. Restore back charges to pending ────────────────────────────
+            for line in ipc.backcharge_line_ids:
+                bc = line.backcharge_id
+                if bc and bc.ipc_id == ipc and bc.state == 'processed':
+                    bc.sudo().write({'state': 'pending', 'ipc_id': False})
+
+            # ── 3. Reset IPC fields ───────────────────────────────────────────
+            ipc.write({
+                'state': 'draft',
+                'x_account_move_id': False,
+                'liability_sheet_id': False,
+            })
+            ipc.message_post(body=Markup(_(
+                '↩ IPC reset to <b>Draft</b> by <b>%(user)s</b>.<br/>'
+                'Journal entry reversed. Back charges restored to Pending.<br/>'
+                'Liability sheet link cleared — refresh the sheet from the ledger '
+                'to resync.'
+            )) % {'user': self.env.user.name})
 
     def action_mark_paid(self):
         for ipc in self:
@@ -671,6 +879,19 @@ class SubcontractorIPC(models.Model):
     # ─────────────────────────────────────────────────────────────────────────
     # SMART BUTTON ACTIONS
     # ─────────────────────────────────────────────────────────────────────────
+
+    def action_view_ipc_journal_entry(self):
+        """Open the journal entry created on IPC submission."""
+        self.ensure_one()
+        if not self.x_account_move_id:
+            raise UserError(_('No journal entry is linked to this IPC yet.'))
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('IPC Journal Entry — %s') % self.name,
+            'res_model': 'account.move',
+            'view_mode': 'form',
+            'res_id': self.x_account_move_id.id,
+        }
 
     def action_view_payments(self):
         self.ensure_one()

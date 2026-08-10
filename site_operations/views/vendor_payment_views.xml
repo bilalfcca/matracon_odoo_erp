@@ -18,9 +18,11 @@
                 <attribute name="readonly">1</attribute>
             </xpath>
 
-            <!-- Hide Odoo default payment state bar when using Matracon liability workflow -->
+            <!-- Hide Odoo default payment state bar when using Matracon liability workflow
+                 Also hide it on reversed payments (any type) so the custom x_payment_status
+                 statusbar shows the Reversed step instead of dropping back to "Draft". -->
             <xpath expr="//field[@name='state'][@widget='statusbar']" position="attributes">
-                <attribute name="invisible">payment_type == 'outbound' and (x_liability_sheet_id or x_ceo_direct_payment)</attribute>
+                <attribute name="invisible">payment_type == 'outbound' and (x_liability_sheet_id or x_ceo_direct_payment or x_payment_status == 'reversed')</attribute>
             </xpath>
 
             <!-- Hide standard Confirm button for:
@@ -115,6 +117,17 @@
                         groups="purchase_demand_raise.group_ceo_approval"
                         invisible="x_ceo_approval_state not in ('pending', 'submitted')"/>
 
+                <!-- CEO: reverse a previously-given approval (e.g. approved in error or
+                     payment details changed). Only on draft payments — posted payments
+                     must be cancelled first. -->
+                <button name="action_ceo_reverse_approval"
+                        type="object"
+                        string="Reverse Decision"
+                        class="btn-warning"
+                        confirm="Reverse your CEO approval? Finance HO will need to re-submit this payment."
+                        groups="purchase_demand_raise.group_ceo_approval"
+                        invisible="x_ceo_approval_state != 'approved' or state != 'draft'"/>
+
                 <!-- Finance HO: FIRST submission — only visible when still in 'pending'
                      (not yet sent to CEO).  After click, state → 'submitted' and this
                      button disappears; the Re-notify button below takes its place. -->
@@ -147,11 +160,12 @@
                        decoration-success="x_ceo_approval_state == 'approved'"
                        decoration-muted="x_ceo_approval_state == 'not_required'"/>
 
-                <!-- CEO Direct Payment: statusbar + Submit button -->
+                <!-- Custom payment statusbar: shown for liability-sheet, CEO direct,
+                     and any reversed payment so "Reversed" is visible regardless of type. -->
                 <field name="x_payment_status"
                        widget="statusbar"
-                       statusbar_visible="draft,in_process,paid"
-                       invisible="payment_type != 'outbound' or (not x_liability_sheet_id and not x_ceo_direct_payment)"/>
+                       statusbar_visible="draft,in_process,paid,reversed"
+                       invisible="payment_type != 'outbound' or (not x_liability_sheet_id and not x_ceo_direct_payment and x_payment_status != 'reversed')"/>
 
                 <!-- CEO submits their direct payment to FO -->
                 <button name="action_ceo_submit_to_fo"
@@ -181,6 +195,18 @@
                         class="btn-success"
                         groups="site_operations.group_finance_ho,purchase_demand_raise.group_head_office"
                         invisible="x_payment_status != 'in_process' or payment_type != 'outbound'"/>
+
+                <!-- Finance HO: Reverse a posted payment.
+                     Unwinds the main JE, WHT deduction entry, WHT companion,
+                     interproject entries, bank allocations, and restores the
+                     liability sheet paid_amount.  Payment returns to Draft. -->
+                <button name="action_matracon_reverse_payment"
+                        type="object"
+                        string="↩ Reverse Payment"
+                        class="btn-danger"
+                        groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"
+                        invisible="state not in ('in_process', 'paid', 'partial')"
+                        confirm="Reverse this payment? ALL accounting entries (JE, WHT deduction, bank splits, analytic tags) will be cancelled and the payment reset to Draft. This cannot be undone automatically — continue?"/>
             </xpath>
 
             <xpath expr="//field[@name='amount']" position="before">
@@ -196,11 +222,15 @@
             <xpath expr="//group[@name='group1']/field[@name='partner_id'][1]" position="attributes">
                 <attribute name="invisible">partner_type != 'customer' or x_payment_category in ('petty_cash', 'salary')</attribute>
                 <attribute name="required">partner_type == 'customer' and x_payment_category not in ('petty_cash', 'salary')</attribute>
+                <!-- no_quick_create: force "Create and Edit" dialog so tag/description fields are filled -->
+                <attribute name="options">{'no_quick_create': True}</attribute>
             </xpath>
             <!-- Vendor field: hidden for petty_cash/salary; on WHT payments x_payee_id takes over -->
             <xpath expr="//group[@name='group1']/field[@name='partner_id'][2]" position="attributes">
                 <attribute name="invisible">partner_type != 'supplier' or x_payment_category in ('petty_cash', 'salary') or x_origin_payment_id</attribute>
                 <attribute name="required">partner_type == 'supplier' and x_payment_category not in ('petty_cash', 'salary') and not x_origin_payment_id</attribute>
+                <!-- no_quick_create: force "Create and Edit" dialog so tag/description fields are filled -->
+                <attribute name="options">{'no_quick_create': True}</attribute>
             </xpath>
 
             <xpath expr="//group[@name='group1']/field[@name='partner_id'][2]" position="after">
@@ -280,14 +310,23 @@
             </xpath>
 
             <xpath expr="//field[@name='x_available_bank_balance']" position="after">
-                <!-- Header cheque — only when NOT using per-bank allocation lines -->
+                <!-- Header cheque (single-bank path — no per-bank allocation lines) -->
+                <!-- Leaf dropdown replaces free-text cheque number -->
+                <field name="x_cheque_leaf_id"
+                       string="Cheque No."
+                       options="{'no_create': True, 'no_open': True}"
+                       domain="[('bank_journal_id', '=', journal_id), ('state', '=', 'available')]"
+                       invisible="payment_type != 'outbound' or not x_is_cheque_payment or (x_ceo_direct_payment and x_viewer_is_ceo_only) or x_bank_allocation_ids"/>
+                <!-- Keep x_cheque_number visible read-only for already-posted payments -->
                 <field name="x_cheque_number"
-                       invisible="payment_type != 'outbound' or not x_is_cheque_payment or (x_ceo_direct_payment and x_viewer_is_ceo_only) or x_bank_allocation_ids"
-                       required="payment_type == 'outbound' and x_is_cheque_payment and x_liability_sheet_id and not x_bank_allocation_ids"/>
-                <button name="action_assign_cheque_number" type="object"
-                        string="Auto Assign Cheque No"
-                        class="btn-secondary"
-                        invisible="not x_is_cheque_payment or x_cheque_number or (x_ceo_direct_payment and x_viewer_is_ceo_only) or x_bank_allocation_ids"/>
+                       string="Cheque Ref"
+                       readonly="1"
+                       invisible="payment_type != 'outbound' or not x_is_cheque_payment or not x_cheque_number or x_bank_allocation_ids"/>
+                <!-- Account Title — shown when no per-bank allocation lines (single bank) -->
+                <field name="x_account_title"
+                       string="Account Title"
+                       placeholder="Account holder name (for Bank Payment Voucher)"
+                       invisible="payment_type != 'outbound' or x_bank_allocation_ids"/>
             </xpath>
 
             <xpath expr="//field[@name='x_ceo_direct_payment']" position="after">
@@ -330,16 +369,23 @@
                                    options="{'no_create': True}"/>
                             <field name="available_balance" string="Available Bank Balance" readonly="1"/>
                             <field name="allocation_amount" string="Allocation Amount"/>
-                            <!-- Cheque No.: only shown when payment method is a cheque type -->
-                            <field name="x_cheque_number" string="Cheque No."
+                            <field name="x_account_title" string="Account Title"
+                                   placeholder="Account holder name (for voucher)"/>
+                            <!-- Cheque No.: leaf dropdown when payment is cheque type -->
+                            <field name="x_cheque_leaf_id"
+                                   string="Cheque No."
+                                   options="{'no_create': True, 'no_open': True}"
+                                   domain="[('bank_journal_id', '=', journal_id), ('state', '=', 'available')]"
                                    invisible="not parent.x_is_cheque_payment"/>
-                            <!-- Auto Assign: hidden when already has a cheque no. OR when not cheque payment -->
-                            <button name="action_assign_cheque_number"
+                            <!-- Discard button: visible when a leaf is assigned -->
+                            <button name="action_discard_leaf"
                                     type="object"
-                                    string="Auto Assign"
-                                    title="Auto-assign next cheque number from the active series"
-                                    class="btn-secondary btn-sm"
-                                    invisible="x_cheque_number or not parent.x_is_cheque_payment"/>
+                                    string="Discard"
+                                    icon="fa-ban"
+                                    class="btn-sm btn-warning"
+                                    title="Discard this cheque (spoiled/faulty)"
+                                    confirm="Mark this cheque as discarded? It cannot be reused."
+                                    invisible="not x_cheque_leaf_id or not parent.x_is_cheque_payment"/>
                         </list>
                     </field>
                 </page>
@@ -448,10 +494,23 @@
         <field name="name">account.payment.ho.list</field>
         <field name="model">account.payment</field>
         <field name="arch" type="xml">
-            <list string="Finance HO Payments"
+            <list string="Payments"
+                  create="False"
                   decoration-success="state == 'posted'"
                   decoration-warning="x_payment_status == 'in_process'"
                   decoration-muted="state == 'draft'">
+                <header>
+                    <!-- Opens Batch Payment form — even single-vendor payments
+                         go through a batch so all existing hooks fire correctly.
+                         display="always" is required so the button appears in the
+                         control-panel-always-buttons slot (visible at all times),
+                         not only in the selection-actions bar. -->
+                    <button string="New"
+                            type="object"
+                            name="action_open_new_batch_payment"
+                            class="btn-primary"
+                            display="always"/>
+                </header>
                 <field name="name" string="Reference"/>
                 <field name="date" string="Payment Date"/>
                 <field name="partner_id" string="Vendor"/>
@@ -524,6 +583,36 @@
          ═══════════════════════════════════════════════════════════════════ -->
     <record id="account.action_account_payments_payable" model="ir.actions.act_window">
         <field name="domain">[('payment_type', '=', 'outbound')]</field>
+    </record>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         "New Batch Payment" — action button in the Payments list Action menu.
+         Opens the x.batch.payment form in create mode directly from the
+         Payments list view so Finance HO never needs a separate menu entry.
+         binding_view_types="list" keeps it out of the payment form's action menu.
+         ═══════════════════════════════════════════════════════════════════ -->
+    <record id="action_create_batch_from_payments" model="ir.actions.server">
+        <field name="name">New Batch Payment</field>
+        <field name="state">code</field>
+        <field name="model_id" ref="account.model_account_payment"/>
+        <field name="binding_model_id" ref="account.model_account_payment"/>
+        <field name="binding_view_types">list</field>
+        <field name="group_ids" eval="[
+            (4, ref('site_operations.group_finance_ho')),
+            (4, ref('purchase_demand_raise.group_head_office')),
+            (4, ref('purchase_demand_raise.group_matracon_admin')),
+            (4, ref('base.group_system')),
+        ]"/>
+        <field name="code">
+action = {
+    'type': 'ir.actions.act_window',
+    'name': 'New Batch Payment',
+    'res_model': 'x.batch.payment',
+    'view_mode': 'form',
+    'target': 'current',
+    'context': {},
+}
+        </field>
     </record>
 
 </odoo>

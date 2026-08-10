@@ -1,68 +1,88 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <!--
-        Matracon Purchase Order — QWeb PDF Template
-        =============================================
-        Uses web.external_layout for proven rendering, with our custom Matracon
-        layout injected as a thin wrapper that provides the header/footer/article
-        divs in exactly the same structure as web.external_layout_standard.
+        Matracon Purchase Order: QWeb PDF Template
+        ============================================
+        Uses web.html_container then matracon_po_layout (our own standalone layout)
+        which provides header / article / footer divs for wkhtmltopdf.
 
-        The <t t-call="web.html_container"> → <t t-call="web.external_layout">
-        chain is the proven Odoo pattern (same as MIF, cheque, etc.).
+        Header carries:
+          * Logo (left cell) + Company name (right cell) — side-by-side table layout
+          * Thin navy divider
+          * PO / RFQ reference + print-date
 
-        web.external_layout_standard generates:
-          <div class="header ...">  ← company logo + details (overridden by us)
-          <div class="article ..."> ← main content via t-out="0"
-          <div class="footer ...">  ← company report_footer (overridden by us)
+        Putting ref/date in the header guarantees they are always visible:
+        they bypass the wkhtmltopdf article invisible-zone entirely.
     -->
 
     <!-- ═══════════════════════════════════════════════════════════════════
-         Matracon PO/RFQ layout — overrides web.external_layout_standard
-         to show the Matracon letterhead header and HO/RO footer.
-         Called by our PO and RFQ templates instead of web.external_layout.
+         Matracon PO/RFQ layout — shared by PO and RFQ templates.
+         Calling template must set po_ref_number / po_ref_date before t-call.
     ═══════════════════════════════════════════════════════════════════════ -->
     <template id="matracon_po_layout">
-        <!-- ── HEADER (repeats every page) ── -->
-        <div class="header" style="
-                font-family: Arial, sans-serif;
-                width: 100%;
-                padding: 4mm 12mm 2mm 12mm;
-                box-sizing: border-box;
-                background: #ffffff;">
-            <table style="width:100%; border:0; border-collapse:collapse; border-spacing:0;">
-                <tr>
-                    <td style="width:88px; padding:0; border:0; vertical-align:middle;">
-                        <t t-if="env.company.logo">
-                            <img t-att-src="image_data_uri(env.company.logo)"
-                                 style="max-height:52px; max-width:82px; object-fit:contain; display:block;"/>
-                        </t>
-                    </td>
-                    <td style="padding:0 0 0 10px; border:0; vertical-align:middle;
-                               font-size:20px; font-weight:bold; color:#1a3a5c;
-                               letter-spacing:0.5px; white-space:nowrap;">
-                        MATRACON PAKISTAN (PVT) LIMITED
-                    </td>
-                </tr>
-            </table>
-            <div style="border-top:2.5px solid #1a3a5c; margin-top:4px;"></div>
-        </div>
 
-        <!-- ── ARTICLE (main body — content injected via t-out="0") ── -->
+        <!-- ── ARTICLE (margin_top=0 so the article starts at the very top of the page)
+             The logo / company name / ref-bar live here so they appear right at y=0
+             on page 1.  They do NOT repeat on page 2+ (which is fine for PO/RFQ).
+             The footer div below still repeats on every page via wkhtmltopdf. -->
         <div class="article" style="
                 font-family: Arial, sans-serif;
                 font-size: 13px;
                 color: #222;
-                padding: 16mm 12mm 4mm 12mm;">
+                text-align: justify;
+                padding: 0 12mm 4mm 12mm;">
 
-            <!-- CSS for the product table — inside article so it's included
-                 in the minimal_layout body that wkhtmltopdf renders. -->
+            <!-- ── Embedded letterhead (logo + company name + divider + ref bar) ── -->
+            <div style="
+                    font-family: Arial, sans-serif;
+                    width: 100%;
+                    padding: 4px 0 0 0;
+                    box-sizing: border-box;
+                    background: #ffffff;
+                    margin-bottom: 4px;">
+
+                <!-- Logo (left) + Company Name (right) -->
+                <div style="display:table; width:100%; border-collapse:collapse; border:none;">
+                    <div style="display:table-cell; vertical-align:top; width:130px; padding-right:12px; border:none;">
+                        <t t-if="env.company.logo">
+                            <img t-att-src="image_data_uri(env.company.logo)"
+                                 style="height:120px; width:auto; display:block;"/>
+                        </t>
+                    </div>
+                    <div style="display:table-cell; vertical-align:middle; border:none;">
+                        <span style="font-family:'CG Omega', Arial, sans-serif;
+                                     font-size:30px; font-weight:bold; font-style:normal;
+                                     color:#4a1a6e; white-space:nowrap; display:block;">
+                            MATRACON PAKISTAN (PVT) LIMITED
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Thin navy divider -->
+                <div style="border-top:2.5px solid #1a3a5c; margin-top:4px; margin-bottom:2px;"></div>
+
+                <!-- PO / RFQ reference (left) + date (right) -->
+                <t t-if="po_ref_number or po_ref_date">
+                    <div style="overflow:hidden; padding:3px 0 4px 0; font-size:12px; font-weight:bold; color:#222;">
+                        <span style="float:right;"><t t-esc="po_ref_date or ''"/></span>
+                        <span><t t-esc="po_ref_number or ''"/></span>
+                    </div>
+                </t>
+            </div>
+
+            <!-- CSS for product tables and body text -->
+            <!-- (margin_top=0 in paper format; letterhead is embedded above) -->
             <style type="text/css">
                 body, div, p, span, li, td, th {
                     font-family: Arial, sans-serif;
                     color: #222;
                 }
+                /* Default justification for all body text */
+                body, p, li {
+                    text-align: justify;
+                }
                 /* Global reset: suppress borders on all td/th (Bootstrap may add them).
-                   Data tables (.po-table, .rfq-table) override via higher specificity below. */
+                   Data tables (.po-table, .rfq-table) override via higher specificity. */
                 table  { border: none !important; border-collapse: collapse !important; border-spacing: 0 !important; }
                 td, th { border: none !important; }
 
@@ -95,6 +115,7 @@
                     font-weight: bold;
                     background: #eef1f7;
                 }
+
                 /* RFQ product table */
                 .rfq-table {
                     width: 100%;
@@ -119,30 +140,36 @@
                 }
                 .rfq-table tbody tr:nth-child(odd)  td { background: #ffffff; }
                 .rfq-table tbody tr:nth-child(even) td { background: #f4f6fa; }
+
+                /* Avoid splitting a table row across pages */
+                .po-table tbody tr,
+                .rfq-table tbody tr { page-break-inside: avoid; }
+
+                /* T&amp;C HTML formatting — preserve bullets, numbering, indentation */
+                .po-tnc ol, .po-tnc ul { padding-left: 22px; margin: 4px 0; }
+                .po-tnc li { margin-bottom: 3px; }
+                .po-tnc p  { margin: 3px 0; }
             </style>
 
             <!-- Actual page content from the calling template -->
             <t t-out="0"/>
         </div>
 
-        <!-- ── FOOTER (repeats every page) ── -->
+        <!-- ── FOOTER (repeats every page via wkhtmltopdf footer-html) ── -->
         <div class="footer" style="
                 font-family: Arial, sans-serif;
-                font-size: 8px;
+                font-size: 11px;
                 color: #444;
                 text-align: center;
-                padding: 1mm 12mm 1mm 12mm;
+                padding: 2mm 12mm 3mm 12mm;
                 width: 100%;
                 box-sizing: border-box;
-                background: #ffffff;">
-            <div style="border-top:1px solid #aaa; margin-bottom:2px;"></div>
+                background: #ffffff;
+                white-space: nowrap;">
+            <div style="border-top:1px solid #aaa; margin-bottom:4px;"></div>
             <div>
                 <strong>Head Office</strong>&#160;:&#160;17, Street No. 89, G-6/3, Islamabad,
                 UAN: 0092-51-111-025-025&#160;&#160;Fax: +92-51-2101183&#160;&#160;E-mail: matracon@gmail.com
-            </div>
-            <div>
-                <strong>Regional Office</strong>&#160;:&#160;2nd Floor, Plot No. 26-C, Lane-3,
-                Main Rahat Commercial, Phase-6 DHA, Karachi&#160;&#160;021-35853154
             </div>
         </div>
     </template>
@@ -154,22 +181,15 @@
     <template id="report_final_po_template">
         <t t-call="web.html_container">
             <t t-foreach="docs" t-as="o">
+
+                <!-- Supply ref + date to the layout header BEFORE t-call -->
+                <t t-set="po_ref_number" t-value="o.name"/>
+                <t t-set="po_ref_date"
+                   t-value="context_timestamp(datetime.datetime.now()).strftime('%B %d, %Y')"/>
+
                 <t t-call="purchase_demand_raise.matracon_po_layout">
 
-                    <!-- PO# left — Print date right -->
-                    <table style="width:100%; border:0; border-collapse:collapse; border-spacing:0; margin-bottom:12px;">
-                        <tr>
-                            <td style="border:0; padding:0; font-size:13px; font-weight:bold; color:#222;">
-                                <t t-esc="o.name"/>
-                            </td>
-                            <td style="border:0; padding:0; font-size:13px; font-weight:bold;
-                                       color:#222; text-align:right;">
-                                <t t-esc="context_timestamp(datetime.datetime.now()).strftime('%B %d, %Y')"/>
-                            </td>
-                        </tr>
-                    </table>
-
-                    <!-- Vendor: Company / City / Attn (divs, not table — avoids Bootstrap table border CSS) -->
+                    <!-- Vendor: Company / City / Attn (divs, not table — avoids Bootstrap border CSS) -->
                     <t t-set="vendor"    t-value="o.partner_id"/>
                     <t t-set="v_company" t-value="vendor.parent_id if vendor.parent_id else vendor"/>
                     <t t-set="v_contact" t-value="vendor if vendor.parent_id else False"/>
@@ -195,9 +215,15 @@
                         </t>
                     </div>
 
+                    <!-- PURCHASE ORDER heading -->
+                    <p style="text-align:center; font-size:18px; font-weight:bold; margin:0 0 12px 0;
+                               text-transform:uppercase; letter-spacing:1px; color:#1a3a5c;">
+                        Purchase Order
+                    </p>
+
                     <!-- PROJECT (bold, uppercase, underlined) -->
                     <t t-if="o.x_project_analytic_account_id">
-                        <p style="margin:0 0 12px 0; font-size:13px;">
+                        <p style="margin:0 0 12px 0; font-size:13px; text-align:justify;">
                             <strong>PROJECT:&#160;</strong><span
                                 style="text-decoration:underline; font-weight:bold; text-transform:uppercase;">
                                 <t t-esc="o.x_project_analytic_account_id.name"/>
@@ -207,7 +233,7 @@
 
                     <!-- Subject (underlined) -->
                     <t t-if="o.partner_ref">
-                        <p style="margin:0 0 14px 0; font-size:13px;">
+                        <p style="margin:0 0 14px 0; font-size:13px; text-align:justify;">
                             <strong>Subject:&#160;</strong><span
                                 style="text-decoration:underline; font-weight:bold;">
                                 <t t-esc="o.partner_ref"/>
@@ -216,12 +242,21 @@
                     </t>
 
                     <!-- Formal letter body -->
-                    <p style="margin:0 0 7px 0; font-size:13px; line-height:1.7;">Dear Sir,</p>
-                    <p style="margin:0 0 14px 0; font-size:13px; line-height:1.7; text-indent:28px;">
+                    <p style="margin:0 0 7px 0; font-size:13px; line-height:1.7; text-align:justify;">Dear Sir,</p>
+                    <p style="margin:0 0 14px 0; font-size:13px; line-height:1.7; text-align:justify; text-indent:28px;">
                         Through your quotation, we are pleased to confirm the order for the Supply
-                        of the abovementioned product for our subject project, as per the required
+                        of the below mentioned product for our subject project, as per the required
                         standards and specifications.
                     </p>
+
+                    <!-- Detect if any line has a non-default currency
+                         (multi-currency PO: show currency symbol per line) -->
+                    <t t-set="_po_order_currency" t-value="o.currency_id"/>
+                    <t t-set="_po_has_multi_currency"
+                       t-value="any(
+                           l.x_line_currency_id and l.x_line_currency_id != _po_order_currency
+                           for l in o.order_line if not l.display_type
+                       )"/>
 
                     <!-- Line items table
                          Qty = x_approved_qty if set and > 0, else product_qty -->
@@ -231,11 +266,14 @@
                         <thead>
                             <tr>
                                 <th style="width:4%;">#</th>
-                                <th style="width:38%; text-align:left;">Product / Description</th>
+                                <th t-attf-style="width:#{_po_has_multi_currency and '35%' or '38%'}; text-align:left;">Product / Description</th>
                                 <th style="width:9%;">UoM</th>
                                 <th style="width:10%;">Qty</th>
-                                <th style="width:18%; text-align:right;">Unit Price</th>
-                                <th style="width:21%; text-align:right;">
+                                <t t-if="_po_has_multi_currency">
+                                    <th style="width:8%; text-align:center;">Curr.</th>
+                                </t>
+                                <th t-attf-style="width:#{_po_has_multi_currency and '16%' or '18%'}; text-align:right;">Unit Price</th>
+                                <th t-attf-style="width:#{_po_has_multi_currency and '18%' or '21%'}; text-align:right;">
                                     Amount (<t t-esc="o.currency_id.name or 'PKR'"/>)
                                 </th>
                             </tr>
@@ -248,6 +286,8 @@
                                                 else (line.product_qty or 0.0)"/>
                                     <t t-set="po_sub" t-value="po_qty * (line.price_unit or 0.0)"/>
                                     <t t-set="po_grand_total" t-value="po_grand_total + po_sub"/>
+                                    <t t-set="_line_ccy"
+                                       t-value="line.x_line_currency_id if line.x_line_currency_id else _po_order_currency"/>
                                     <tr>
                                         <td style="text-align:center;">
                                             <t t-esc="line_no"/>
@@ -265,8 +305,13 @@
                                             <t t-esc="line.product_uom_id.name"/>
                                         </td>
                                         <td style="text-align:center; font-weight:bold;">
-                                            <t t-esc="'%.4g' % po_qty"/>
+                                            <t t-esc="('{:,.0f}' if po_qty == int(po_qty) else '{:,.3f}').format(po_qty)"/>
                                         </td>
+                                        <t t-if="_po_has_multi_currency">
+                                            <td style="text-align:center; font-size:11px; color:#555;">
+                                                <t t-esc="_line_ccy.name or ''"/>
+                                            </td>
+                                        </t>
                                         <td style="text-align:right;">
                                             <t t-esc="'{:,.2f}'.format(line.price_unit or 0.0)"/>
                                         </td>
@@ -279,7 +324,8 @@
                         </tbody>
                         <tfoot>
                             <tr>
-                                <td colspan="5" style="text-align:right; padding:7px 8px;">
+                                <td t-att-colspan="5 + (1 if _po_has_multi_currency else 0)"
+                                    style="text-align:right; padding:7px 8px;">
                                     Total Amount (<t t-esc="o.currency_id.name or 'PKR'"/>)
                                 </td>
                                 <td style="text-align:right; padding:7px 8px; font-weight:bold;">
@@ -289,49 +335,60 @@
                         </tfoot>
                     </table>
 
-                    <!-- Terms &amp; Conditions -->
-                    <t t-if="o.note">
-                        <p style="font-size:13px; font-weight:bold; margin:0 0 4px 0;">
-                            Terms &amp; Conditions:
-                        </p>
-                        <div style="font-size:12px; line-height:1.65;">
+                    <!-- Terms &amp; Conditions (always rendered) -->
+                    <p style="font-size:13px; font-weight:bold; margin:14px 0 4px 0; text-align:justify;">
+                        Terms &amp; Conditions:
+                    </p>
+                    <div class="po-tnc" style="font-size:12px; line-height:1.65; text-align:justify;">
+                        <t t-if="o.note">
                             <t t-out="o.note"/>
-                        </div>
-                    </t>
+                        </t>
+                        <t t-else="">
+                            <span style="color:#888; font-style:italic;">As per standard terms and conditions.</span>
+                        </t>
+                    </div>
 
                     <!-- Signature block -->
                     <t t-set="sig" t-value="o.env['x.po.signature.config'].sudo().search(
                         [('company_id','=',o.company_id.id)], limit=1)"/>
 
-                    <p style="margin:24px 0 0 0; font-size:13px; line-height:1.9;">Thanking you.</p>
-                    <p style="margin:0; font-size:13px; line-height:1.9;">For &amp; on behalf of</p>
-                    <p style="margin:0; font-size:13px; line-height:1.9; font-weight:bold;">
+                    <!-- Determine which CEO signature image to show:
+                         1. x.po.signature.config.x_ceo_signature (uploaded image)
+                         2. CEO user's x_sign_signature (drawn/typed in Preferences)  -->
+                    <t t-set="_po_ceo_img" t-value="sig.x_ceo_signature if (sig and sig.x_ceo_signature) else False"/>
+                    <t t-set="_po_ceo_user" t-value="False"/>
+                    <t t-if="not _po_ceo_img">
+                        <!-- Fall back: find a user in CEO Approval group who has drawn their signature -->
+                        <t t-set="_ceo_grp" t-value="env['res.groups'].sudo().search([('name','=','CEO Approval')], limit=1)"/>
+                        <t t-if="_ceo_grp">
+                            <t t-set="_po_ceo_user" t-value="_ceo_grp.users.filtered(lambda u: u.x_sign_signature)[:1]"/>
+                        </t>
+                    </t>
+
+                    <p style="margin:24px 0 0 0; font-size:13px; line-height:1.9; text-align:justify;">Thanking you.</p>
+                    <p style="margin:0; font-size:13px; line-height:1.9; text-align:justify;">For &amp; on behalf of</p>
+                    <p style="margin:0; font-size:13px; line-height:1.9; font-weight:bold; text-align:justify;">
                         MATRACON PAKISTAN (PVT.) LIMITED
                     </p>
 
                     <div style="margin-top:8px; min-height:52px;">
-                        <t t-if="sig and sig.x_ceo_signature">
-                            <img t-att-src="image_data_uri(sig.x_ceo_signature)"
+                        <t t-if="_po_ceo_img">
+                            <img t-att-src="image_data_uri(_po_ceo_img)"
+                                 style="max-height:52px; max-width:160px; object-fit:contain; display:block;"/>
+                        </t>
+                        <t t-elif="_po_ceo_user and _po_ceo_user.x_sign_signature">
+                            <img t-att-src="image_data_uri(_po_ceo_user.x_sign_signature)"
                                  style="max-height:52px; max-width:160px; object-fit:contain; display:block;"/>
                         </t>
                     </div>
 
                     <div style="border-top:1px solid #000; padding-top:3px; display:inline-block; min-width:160px;">
                         <p style="margin:0; font-weight:bold; font-size:13px;">
-                            <t t-esc="(sig and sig.x_ceo_name) or 'JEHANZEB SAULAT'"/>
+                            <t t-esc="(sig and sig.x_ceo_name) or (_po_ceo_user and _po_ceo_user.name) or 'JEHANZEB SAULAT'"/>
                         </p>
                         <p style="margin:0; font-size:12px;">
                             <t t-esc="(sig and sig.x_ceo_title) or 'CEO'"/>
                         </p>
-                    </div>
-
-                    <!-- CC -->
-                    <div style="margin-top:18px; font-size:13px;">
-                        <p style="margin:0 0 3px 0;">CC:</p>
-                        <ul style="margin:0 0 0 20px; padding:0; font-size:13px;">
-                            <li>Director M/s Matracon Pakistan Pvt. Limited, Islamabad.</li>
-                            <li>File</li>
-                        </ul>
                     </div>
 
                 </t>

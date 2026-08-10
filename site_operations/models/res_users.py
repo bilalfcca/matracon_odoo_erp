@@ -53,6 +53,47 @@ class ResUsersSiteOps(models.Model):
         for user in self:
             user.x_last_online = presence_map.get(user.id, False)
 
+    # ── Allow users to write their own backdate preference ───────────────────
+    # SELF_WRITEABLE_FIELDS controls which fields a non-admin user may write on
+    # their own res.users record (e.g. via Change my Preferences).  Custom
+    # fields added via _inherit are NOT included automatically — we must extend
+    # both properties explicitly, otherwise saving preferences raises
+    # "You are not allowed to modify 'User' (res.users) records."
+
+    # ── Digital Signature ────────────────────────────────────────────────────
+    # Set once in User Preferences (draw / type / upload) — automatically
+    # stamped on all printed documents where this user is the signatory
+    # (BPV, Purchase Orders, Salary Sheets, Petty Cash, Liability Sheets,
+    # Subcontractor IPC, Material Issuances, etc.).
+    x_sign_signature = fields.Binary(
+        string='Digital Signature',
+        attachment=True,
+        copy=False,
+        help='Your personal digital signature. Draw with mouse/touch, type '
+             'your name, or upload an image. Saved once here and automatically '
+             'applied to all printed documents where you are the signatory.',
+    )
+
+    @property
+    def SELF_READABLE_FIELDS(self):
+        return super().SELF_READABLE_FIELDS + ['x_backdate_default', 'x_sign_signature']
+
+    @property
+    def SELF_WRITEABLE_FIELDS(self):
+        return super().SELF_WRITEABLE_FIELDS + ['x_backdate_default', 'x_sign_signature']
+
+    # ── Backdate Default ─────────────────────────────────────────────────────
+    # When set, any new account.move (journal entry / vendor bill / customer
+    # invoice) or account.payment created by THIS user will default to this
+    # date instead of today.  Per-user — does not affect other users.
+    # The user clears it when they're done with the backdated batch.
+    x_backdate_default = fields.Date(
+        string='Default Entry Date',
+        help='When set, new journal entries, invoices, and payments will '
+             'default to this date instead of today. Clear it when done '
+             'with the backdated batch.',
+    )
+
     x_default_project_id = fields.Many2one(
         'project.project',
         string='Assigned Project',

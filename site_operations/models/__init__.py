@@ -1,3 +1,4 @@
+from . import base_backdate  # per-user default entry date (backdate preference)
 from . import x_employee_presence_log
 from . import mail_presence_ext
 from . import hr_employee_ext
@@ -25,10 +26,12 @@ from . import interproject_transfer
 from . import account_payment
 from . import payment_tax_line
 from . import payment_allocation
+from . import batch_payment
 from . import liability_sheet
 from . import project_project
 from . import project_site_config
 from . import account_move
+from . import res_partner_wht_exemption
 from . import res_partner
 from . import res_users
 from . import site_store_dashboard
@@ -47,3 +50,4 @@ from . import account_move_line  # suppress customer-invoice due-date constraint
 from . import employee_backcharge
 from . import account_report_ext  # lock analytic filter for site accountants
 from . import uom_ext  # UoM alternative name search aliases
+from . import product_category_ext  # x_add_to_dashboard flag on product category

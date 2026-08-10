@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ── Trip Records list view ─────────────────────────────────────────── -->
+    <record id="view_fleet_vehicle_trip_list" model="ir.ui.view">
+        <field name="name">x.fleet.vehicle.trip.list</field>
+        <field name="model">x.fleet.vehicle.trip</field>
+        <field name="arch" type="xml">
+            <list string="Trip Records"
+                  decoration-success="state == 'returned'"
+                  decoration-info="state == 'on_trip'"
+                  decoration-warning="state == 'submitted'"
+                  decoration-primary="state == 'approved'"
+                  decoration-muted="state == 'pending'">
+                <field name="date" string="Departure"/>
+                <field name="x_mppl_code" string="MPPL Code" optional="show"/>
+                <field name="vehicle_id" string="Vehicle"/>
+                <field name="x_site_config_id" string="Site" optional="show"/>
+                <field name="driver_id" string="Driver"/>
+                <field name="destination"/>
+                <field name="date_return" string="Return" optional="show"/>
+                <field name="start_meter" string="Start Meter" optional="show"/>
+                <field name="end_meter" string="End Meter" optional="show"/>
+                <field name="x_distance" string="Usage" optional="show"/>
+                <field name="x_meter_unit" string="Unit" optional="show"/>
+                <field name="purpose" optional="hide"/>
+                <field name="state" widget="badge"
+                       decoration-success="state == 'returned'"
+                       decoration-info="state == 'on_trip'"
+                       decoration-warning="state == 'submitted'"
+                       decoration-primary="state == 'approved'"
+                       decoration-muted="state == 'pending'"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ── Trip Records form view ─────────────────────────────────────────── -->
+    <record id="view_fleet_vehicle_trip_form" model="ir.ui.view">
+        <field name="name">x.fleet.vehicle.trip.form</field>
+        <field name="model">x.fleet.vehicle.trip</field>
+        <field name="arch" type="xml">
+            <form string="Trip Record">
+                <header>
+                    <!-- Site Store: submit for manager approval -->
+                    <button name="action_submit" type="object" string="Submit for Approval"
+                            class="btn-primary" invisible="state != 'pending'"/>
+                    <!-- Fleet Manager / Admin: approve or reject -->
+                    <button name="action_approve" type="object" string="Approve"
+                            class="btn-success"
+                            invisible="state != 'submitted'"
+                            groups="purchase_demand_raise.group_matracon_admin,fleet.fleet_group_manager"/>
+                    <button name="action_reject" type="object" string="Reject"
+                            class="btn-danger"
+                            invisible="state != 'submitted'"
+                            groups="purchase_demand_raise.group_matracon_admin,fleet.fleet_group_manager"/>
+                    <!-- Dispatcher / Site Store: start approved trip -->
+                    <button name="action_start_trip" type="object" string="Start Trip"
+                            class="btn-primary" invisible="state != 'approved'"/>
+                    <button name="action_return" type="object" string="Mark Returned"
+                            class="btn-success" invisible="state != 'on_trip'"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="pending,submitted,approved,on_trip,returned"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group string="Vehicle">
+                            <field name="vehicle_id" options="{'no_create': True}"/>
+                            <field name="x_mppl_code" readonly="1"/>
+                            <field name="x_site_config_id" readonly="1"/>
+                            <field name="x_analytic_account_id" readonly="1"/>
+                        </group>
+                        <group string="Trip Details">
+                            <field name="driver_id" options="{'no_create': True}"/>
+                            <field name="date" string="Departure Date &amp; Time"/>
+                            <field name="date_return" string="Return Date &amp; Time"/>
+                            <field name="destination"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="Meter Readings">
+                            <field name="start_meter" string="Start Meter"/>
+                            <field name="end_meter" string="End Meter"/>
+                            <field name="x_distance" readonly="1" string="Distance / Usage"/>
+                            <field name="x_meter_unit" readonly="1" string="Unit"/>
+                        </group>
+                        <group string="Purpose">
+                            <field name="purpose" nolabel="1"
+                                   placeholder="Describe the purpose of this trip…"/>
+                        </group>
+                    </group>
+                    <group invisible="not rejected_reason">
+                        <field name="rejected_reason" string="Rejection Reason" readonly="1"
+                               nolabel="1" widget="text"/>
+                    </group>
+                </sheet>
+                <div class="oe_chatter">
+                    <field name="message_follower_ids"/>
+                    <field name="message_ids"/>
+                </div>
+            </form>
+        </field>
+    </record>
+
+    <!-- ── Search view ────────────────────────────────────────────────────── -->
+    <record id="view_fleet_vehicle_trip_search" model="ir.ui.view">
+        <field name="name">x.fleet.vehicle.trip.search</field>
+        <field name="model">x.fleet.vehicle.trip</field>
+        <field name="arch" type="xml">
+            <search string="Trip Records">
+                <field name="vehicle_id"/>
+                <field name="x_mppl_code" string="MPPL Code"/>
+                <field name="driver_id" string="Driver"/>
+                <field name="destination"/>
+                <field name="x_site_config_id" string="Site"/>
+                <separator/>
+                <filter string="Pending" name="filter_pending"
+                        domain="[('state', '=', 'pending')]"/>
+                <filter string="Awaiting Approval" name="filter_submitted"
+                        domain="[('state', '=', 'submitted')]"/>
+                <filter string="Approved" name="filter_approved"
+                        domain="[('state', '=', 'approved')]"/>
+                <filter string="On Trip" name="filter_on_trip"
+                        domain="[('state', '=', 'on_trip')]"/>
+                <filter string="Returned" name="filter_returned"
+                        domain="[('state', '=', 'returned')]"/>
+                <separator/>
+                <filter string="By Vehicle" name="group_by_vehicle"
+                        context="{'group_by': 'vehicle_id'}"/>
+                <filter string="By Driver" name="group_by_driver"
+                        context="{'group_by': 'driver_id'}"/>
+                <filter string="By Site" name="group_by_site"
+                        context="{'group_by': 'x_site_config_id'}"/>
+                <filter string="By Month" name="group_by_month"
+                        context="{'group_by': 'date:month'}"/>
+            </search>
+        </field>
+    </record>
+
+    <!-- ── Window action ──────────────────────────────────────────────────── -->
+    <record id="action_fleet_vehicle_trip_all" model="ir.actions.act_window">
+        <field name="name">Trip Records</field>
+        <field name="res_model">x.fleet.vehicle.trip</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No trip records found.
+            </p>
+            <p>
+                Record vehicle trips to track <b>driver assignments</b>,
+                destinations, and meter usage per trip.
+            </p>
+        </field>
+    </record>
+</odoo>

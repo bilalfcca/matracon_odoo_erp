@@ -120,6 +120,23 @@
                         invisible="x_transfer_purpose != 'site_to_site' or x_is_dest_receipt or x_site_transfer_state != 'pending_approval'"
                         groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
+                <!-- Submit to Site Accountant (backcharge issuances only, site store) -->
+                <button name="action_submit_to_sa"
+                        type="object"
+                        string="Submit to Site Accountant"
+                        class="btn-primary"
+                        confirm="Submit this issuance to Site Accountant for price review and validation?"
+                        invisible="x_transfer_purpose != 'material_issuance' or not x_backcharge_applicable or x_submitted_to_sa or state in ('done', 'cancel')"
+                        groups="purchase_demand_raise.group_site_store"/>
+
+                <!-- Pending SA Review badge — visible to both site store and SA -->
+                <button type="object" name="action_submit_to_sa"
+                        class="btn-warning"
+                        string="⏳ Pending SA Review"
+                        readonly="1"
+                        invisible="not x_submitted_to_sa or state in ('done', 'cancel')"
+                        groups="purchase_demand_raise.group_site_store,site_operations.group_site_accountant"/>
+
                 <!-- Print MIF button -->
                 <button name="action_print_mif"
                         type="object"
@@ -170,6 +187,7 @@
                     Adjust quantities if needed, then Validate.
                 </div>
                 <field name="x_original_issuance_id" invisible="1"/>
+                <field name="x_submitted_to_sa" invisible="1"/>
             </xpath>
 
             <!-- ── Hide standard partner_id (we use x_contact_id instead) ── -->
@@ -216,11 +234,15 @@
                 <field name="x_is_site_store" invisible="1"/>
 
                 <!-- ─ Contact — hidden for site-to-site ─ -->
-                <!-- Employee mode: contacts must already exist in HR — no create allowed -->
+                <!-- Employee mode: contacts must already exist in HR — no create allowed.
+                     Context employee_contact_search=True activates:
+                       • _name_search  → also matches department, phone, email
+                       • _compute_display_name → shows "Name (Dept, Phone, Email)" in dropdown -->
                 <field name="x_contact_id"
                        domain="[('employee', '=', True)]"
                        options="{'no_create': True}"
-                       invisible="x_issue_type == 'subcontractor' or x_transfer_purpose != 'material_issuance'"/>
+                       context="{'employee_contact_search': True}"
+                       invisible="x_issue_type != 'normal' or x_transfer_purpose != 'material_issuance'"/>
                 <!-- Subcontractor mode: allow "Create and Edit" with tag auto-set;
                      quick-create disabled so the full form (with pre-filled tag) always opens -->
                 <field name="x_contact_id"
@@ -229,6 +251,15 @@
                        options="{'no_quick_create': True}"
                        context="{'subcontractor_create': True}"
                        invisible="x_issue_type != 'subcontractor' or x_transfer_purpose != 'material_issuance'"/>
+                <!-- 3rd Party mode: allow "Create and Edit" with tag auto-set;
+                     quick-create disabled so the full form (with pre-filled tag) always opens.
+                     No backcharge applies for 3rd party contacts. -->
+                <field name="x_contact_id"
+                       string="3rd Party Contact"
+                       domain="[('category_id.name', '=', '3rd Party')]"
+                       options="{'no_quick_create': True}"
+                       context="{'third_party_create': True}"
+                       invisible="x_issue_type != '3rd_party' or x_transfer_purpose != 'material_issuance'"/>
 
                 <!-- ─ Outstanding materials HTML summary ─ -->
                 <div name="outstanding_materials_section"
@@ -349,6 +380,9 @@
             </xpath>
             <xpath expr="//field[@name='move_ids']/list/field[@name='product_id']" position="attributes">
                 <attribute name="domain">[('id', 'in', x_allowed_product_ids)] if parent.x_transfer_purpose == 'material_issuance' and not parent.x_is_return_transfer else []</attribute>
+                <!-- Filter qty_available in the product search popup to the picking's source location
+                     so the "On Hand" column in the dialog matches the x_qty_on_hand line column. -->
+                <attribute name="context">{'default_is_storable': True, 'location': parent.location_id}</attribute>
             </xpath>
 
             <!-- Before Demand: On Hand (issuances only), then return context columns -->

@@ -21,6 +21,7 @@ class StockPickingSiteOps(models.Model):
     x_issue_type = fields.Selection([
         ('normal', 'Normal'),
         ('subcontractor', 'Subcontractor'),
+        ('3rd_party', '3rd Party'),
     ], string='Issue Type', default='normal', tracking=True)
 
     x_inventory_type = fields.Selection([
@@ -115,6 +116,15 @@ class StockPickingSiteOps(models.Model):
         'account.move', string='Inter-Project Entry', readonly=True)
     x_damage_backcharge_entry_id = fields.Many2one(
         'account.move', string='Damage Backcharge Entry', readonly=True)
+
+    # ── SA review workflow ────────────────────────────────────────────────────
+    x_submitted_to_sa = fields.Boolean(
+        string='Submitted to Site Accountant',
+        default=False,
+        copy=False,
+        help='Set by Site Store when submitting a backcharge issuance for '
+             'Site Accountant price review and validation.',
+    )
 
     # ── User context flags (for view domains) ────────────────────────────────
     x_is_site_store = fields.Boolean(
@@ -274,7 +284,9 @@ class StockPickingSiteOps(models.Model):
                 pt = user.x_default_warehouse_id.int_type_id
             if not pt:
                 # Use active_test=False — internal picking types may be archived
-                warehouse = self.env['stock.warehouse'].search(
+                # sudo() — this is a UX default-fill; must not crash on group_site_store
+                # which may lack stock.warehouse read through base.group_user in some DBs
+                warehouse = self.env['stock.warehouse'].sudo().search(
                     [('company_id', '=', self.env.company.id)], limit=1)
                 if warehouse:
                     pt = warehouse.int_type_id
@@ -303,7 +315,7 @@ class StockPickingSiteOps(models.Model):
                     if wh_stock:
                         res['location_id'] = wh_stock.id
                 if not res.get('location_id'):
-                    warehouse = self.env['stock.warehouse'].search(
+                    warehouse = self.env['stock.warehouse'].sudo().search(
                         [('company_id', '=', self.env.company.id)], limit=1)
                     if warehouse and warehouse.lot_stock_id:
                         res['location_id'] = warehouse.lot_stock_id.id
@@ -316,13 +328,15 @@ class StockPickingSiteOps(models.Model):
                     if issue_loc_id:
                         res['location_dest_id'] = issue_loc_id
                     elif not res.get('location_dest_id'):
-                        # Fallback to generic customer location only if nothing else was set
-                        customer_loc = self.env['stock.location'].search([
-                            ('usage', '=', 'customer'),
-                            ('company_id', 'in', [False, self.env.company.id]),
-                        ], limit=1)
-                        if customer_loc:
-                            res['location_dest_id'] = customer_loc.id
+                        # Fallback to Production virtual location
+                        prod_loc = self.env.ref('stock.location_production', raise_if_not_found=False)
+                        if not prod_loc:
+                            prod_loc = self.env['stock.location'].search([
+                                ('usage', '=', 'production'),
+                                ('company_id', 'in', [False, self.env.company.id]),
+                            ], limit=1)
+                        if prod_loc:
+                            res['location_dest_id'] = prod_loc.id
                 else:
                     # Return: source = issue location (Employees/Sub), dest = site stock
                     issue_loc_id = self._matracon_site_issue_location_id(res)
@@ -529,29 +543,15 @@ class StockPickingSiteOps(models.Model):
             self.location_dest_id = loc
             return
 
-        # 2nd priority: type-specific virtual location (name-based fallback)
-        loc = False
-        if self.x_issue_type == 'normal':
-            loc = self.env['stock.location'].search([
-                ('usage', 'in', ('customer', 'internal')),
-                ('name', 'ilike', 'employee'),
+        # 2nd priority: production virtual location (fallback if site config not set up)
+        prod_loc = self.env.ref('stock.location_production', raise_if_not_found=False)
+        if not prod_loc:
+            prod_loc = self.env['stock.location'].search([
+                ('usage', '=', 'production'),
+                ('company_id', 'in', [False, self.env.company.id]),
             ], limit=1)
-        elif self.x_issue_type == 'subcontractor':
-            loc = self.env['stock.location'].search([
-                ('usage', 'in', ('customer', 'internal')),
-                ('name', 'ilike', 'subcontractor'),
-            ], limit=1)
-        if loc:
-            self.location_dest_id = loc
-            return
-
-        # 3rd priority: generic customer location (last resort fallback)
-        customer_loc = self.env['stock.location'].search([
-            ('usage', '=', 'customer'),
-            ('company_id', 'in', [False, self.env.company.id]),
-        ], limit=1)
-        if customer_loc:
-            self.location_dest_id = customer_loc
+        if prod_loc:
+            self.location_dest_id = prod_loc
 
     @api.onchange('x_dest_project_id', 'x_transfer_purpose')
     def _onchange_site_to_site_locations(self):
@@ -582,48 +582,37 @@ class StockPickingSiteOps(models.Model):
             [('analytic_account_id', '=', analytic_account.id)], limit=1)
 
     def _get_site_issue_location(self, issue_type=None):
-        """Return the site-specific issue location (Employees or Subcontractor).
+        """Return the Production virtual location.
 
-        Lazily creates the locations if they don't exist yet on the site config,
-        then re-reads the record from DB so cached-empty values are refreshed.
+        All issue types (normal, subcontractor, 3rd_party) route issuances to
+        Production and returns back to Stock.  The legacy Employee/Subcontractor
+        sub-locations are no longer used for routing.
         """
-        self.ensure_one()
-        config = self._get_site_config_for_analytic(self.x_issuance_project_id)
-        if not config:
-            return self.env['stock.location']
-        # Lazy-ensure locations exist (idempotent, no-op after first run)
-        if not config.x_employee_location_id or not config.x_subcontractor_location_id:
-            config._matracon_ensure_site_issue_locations()
-            # Invalidate ORM cache so the just-written location ids are visible
-            config.invalidate_recordset(['x_employee_location_id', 'x_subcontractor_location_id'])
-        iss_type = issue_type or self.x_issue_type or 'normal'
-        if iss_type == 'subcontractor':
-            return config.x_subcontractor_location_id
-        return config.x_employee_location_id
+        prod_loc = self.env.ref('stock.location_production', raise_if_not_found=False)
+        if prod_loc:
+            return prod_loc
+        # Fallback: any production-usage location in this company
+        return self.env['stock.location'].search([
+            ('usage', '=', 'production'),
+            ('company_id', 'in', [False, self.env.company.id]),
+        ], limit=1)
 
     @api.model
     def _matracon_site_issue_location_id(self, vals=None):
-        """Resolve the site issue location id for use in default_get / create."""
-        vals = vals or {}
-        analytic_id = vals.get('x_issuance_project_id')
-        issue_type = vals.get('x_issue_type', 'normal')
-        config = None
-        if analytic_id:
-            config = self.env['x.project.site.config'].sudo().search(
-                [('analytic_account_id', '=', analytic_id)], limit=1)
-        if not config:
-            user = self.env.user
-            if hasattr(user, 'x_site_config_id') and user.x_site_config_id:
-                config = user.x_site_config_id.sudo()
-        if not config:
-            return False
-        # Lazy-ensure locations exist; invalidate cache so new ids are visible
-        if not config.x_employee_location_id or not config.x_subcontractor_location_id:
-            config._matracon_ensure_site_issue_locations()
-            config.invalidate_recordset(['x_employee_location_id', 'x_subcontractor_location_id'])
-        if issue_type == 'subcontractor':
-            return config.x_subcontractor_location_id.id or False
-        return config.x_employee_location_id.id or False
+        """Resolve the Production virtual location id for use in default_get / create.
+
+        All issue types route to Production on issuance and return from Production
+        to Stock — the legacy Employee/Subcontractor sub-locations are no longer used.
+        """
+        prod_loc = self.env.ref('stock.location_production', raise_if_not_found=False)
+        if prod_loc:
+            return prod_loc.id
+        # Fallback: any production-usage location in this company
+        prod_loc = self.env['stock.location'].search([
+            ('usage', '=', 'production'),
+            ('company_id', 'in', [False, self.env.company.id]),
+        ], limit=1)
+        return prod_loc.id if prod_loc else False
 
     def _get_outstanding_qty(self, product, contact, project, exclude_picking=None):
         """Qty still outstanding for product/contact on this project."""
@@ -673,7 +662,8 @@ class StockPickingSiteOps(models.Model):
                         pt = user.x_default_warehouse_id.int_type_id
                     if not pt:
                         # Use active_test=False — internal picking types may be archived
-                        warehouse = self.env['stock.warehouse'].search(
+                        # sudo() — UX default-fill; must not crash on group_site_store
+                        warehouse = self.env['stock.warehouse'].sudo().search(
                             [('company_id', '=', self.env.company.id)], limit=1)
                         if warehouse:
                             pt = warehouse.int_type_id
@@ -699,7 +689,7 @@ class StockPickingSiteOps(models.Model):
                         if wh_stock:
                             vals['location_id'] = wh_stock.id
                     if not vals.get('location_id'):
-                        warehouse = self.env['stock.warehouse'].search(
+                        warehouse = self.env['stock.warehouse'].sudo().search(
                             [('company_id', '=', self.env.company.id)], limit=1)
                         if warehouse and warehouse.lot_stock_id:
                             vals['location_id'] = warehouse.lot_stock_id.id
@@ -1023,8 +1013,8 @@ class StockPickingSiteOps(models.Model):
                                 'loc': pick.location_id.display_name,
                                 'avail': avail,
                             })
-            if pick.x_transfer_purpose == 'material_issuance' and not pick.x_is_return_transfer:
-                pick._check_duplicate_asset_issuance()
+            # Duplicate-asset check removed per business request — allow re-issuing
+            # an asset to the same contact without requiring a return first.
             if (pick.x_transfer_purpose == 'site_to_site'
                     and not pick.x_is_dest_receipt
                     and pick.x_site_transfer_state != 'approved'):
@@ -1043,6 +1033,17 @@ class StockPickingSiteOps(models.Model):
             if pick.state == 'done':
                 if pick.x_transfer_purpose == 'material_issuance':
                     pick._post_validate_material_issuance()
+                    # Notify Site Store when SA validates a submitted issuance
+                    if pick.x_submitted_to_sa:
+                        store_users = matracon_notify.site_store_users_for_analytic(
+                            pick.env, pick.x_issuance_project_id)
+                        matracon_notify.notify_users(
+                            pick, store_users,
+                            '<b>Material Issuance validated by Site Accountant.</b><br/>'
+                            'Reference: <b>%s</b><br/>'
+                            'Stock has been moved and the issuance is now complete.' % pick.name,
+                            summary=_('Material Issuance Validated'),
+                        )
                 elif pick.x_transfer_purpose == 'site_to_site':
                     if pick.x_is_dest_receipt:
                         if pick.x_source_transfer_id:
@@ -1054,6 +1055,32 @@ class StockPickingSiteOps(models.Model):
                 if pick.x_is_return_transfer:
                     pick._post_validate_return()
         return res
+
+    def action_submit_to_sa(self):
+        """Submit a backcharge material issuance to Site Accountant for price review.
+
+        Called by Site Store.  Sets x_submitted_to_sa = True and notifies all
+        SA users assigned to this project so they know to open, fill missing unit
+        prices, and validate the issuance.
+        """
+        self.ensure_one()
+        if not self.x_backcharge_applicable:
+            raise UserError(_(
+                'This issuance has no backcharge — Site Accountant review is not required.\n'
+                'You can validate it directly.'
+            ))
+        if self.x_submitted_to_sa:
+            raise UserError(_('This issuance has already been submitted to Site Accountant.'))
+        self.x_submitted_to_sa = True
+        sa_users = matracon_notify.site_accountants_for_analytic(
+            self.env, self.x_issuance_project_id)
+        matracon_notify.notify_users(
+            self, sa_users,
+            '<b>Material Issuance submitted for your review.</b><br/>'
+            'Reference: <b>%s</b><br/>'
+            'Please verify unit prices (add any that are missing) and validate.' % self.name,
+            summary=_('Material Issuance Pending Review'),
+        )
 
     def _check_duplicate_asset_issuance(self):
         """Block issuing the same asset product twice to the same contact."""

@@ -1,7 +1,11 @@
+import logging
+
 from markupsafe import Markup
 
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
+
+_logger = logging.getLogger(__name__)
 
 from . import matracon_notifications as matracon_notify
 
@@ -260,6 +264,14 @@ class PettyCashRequest(models.Model):
     currency_id = fields.Many2one(
         'res.currency', default=lambda self: self.env.company.currency_id)
 
+    # ── Approval tracking for digital signatures on PDF ───────────────────
+    x_ceo_approved_by_id = fields.Many2one(
+        'res.users', string='CEO Approved By', readonly=True, copy=False, index=True,
+        help='User who CEO-approved this request. Signature shown on printed PDF.')
+    x_released_by_id = fields.Many2one(
+        'res.users', string='Released By', readonly=True, copy=False, index=True,
+        help='Finance HO user who released the funds. Signature shown on printed PDF.')
+
     # PM-signed document — mandatory before submitting to Finance HO.
     # Workflow: print the petty cash request, get it physically signed by the
     # Project Manager, scan/photograph it and upload here.  action_submit()
@@ -388,6 +400,9 @@ class PettyCashRequest(models.Model):
         """Core approval logic — called by both single and bulk approve."""
         self.ensure_one()
         self.state = 'ceo_approved'
+        self.x_ceo_approved_by_id = self.env.uid
+        # Close the CEO activity scheduled on submission
+        matracon_notify.close_activities(self, summary_contains='Approve petty cash')
         self.message_post(
             body=Markup(_(
                 'CEO approved petty cash: <b>%s %.2f</b>'
@@ -484,42 +499,71 @@ class PettyCashRequest(models.Model):
                 req, ceo_users, _('Approve petty cash %s') % req.name)
 
     def action_reset_to_draft(self):
-        """Reset PCR back to Draft.
+        """Reset PCR back to Draft, reversing any linked payment accounting.
 
         Rules:
-        • Site Accountant — can reset only when state == 'submitted'
-          (CEO has not yet approved). Once CEO approves, Finance HO is in
-          control and the site cannot reverse.
-        • CEO / Matracon Admin — can reset from 'submitted' or 'ceo_approved'.
-          Cannot reset 'released' or 'confirmed' (a payment has been made).
+        • Site Accountant — can reset from 'submitted', 'ceo_approved',
+          'released', OR 'confirmed'.  When a payment exists (released/confirmed),
+          the payment JE is properly reversed before resetting.
+        • CEO / Matracon Admin / Finance HO — same broad permission.
+
+        Accounting reversal (when payment_id is set and posted):
+          The release payment (Dr Cash in Hand, Cr Bank) is reversed by calling
+          `move_id._reverse_moves(cancel=True)`, which posts a counter-entry
+          (Dr Bank, Cr Cash in Hand) and reconciles both — leaving a clean audit
+          trail in the GL instead of silently deleting the JE.
         """
-        is_ceo   = self.env.user.has_group('purchase_demand_raise.group_ceo_approval')
-        is_admin = self.env.user.has_group('purchase_demand_raise.group_matracon_admin')
-        is_privileged = is_ceo or is_admin
+        is_sa      = self.env.user.has_group('site_operations.group_site_accountant')
+        is_finance = self.env.user.has_group('site_operations.group_finance_ho')
+        is_ceo     = self.env.user.has_group('purchase_demand_raise.group_ceo_approval')
+        is_admin   = self.env.user.has_group('purchase_demand_raise.group_matracon_admin')
+        is_system  = self.env.user.has_group('base.group_system')
+        can_reset  = is_sa or is_finance or is_ceo or is_admin or is_system
+
+        if not can_reset:
+            raise UserError(_('You do not have permission to reset petty cash requests to draft.'))
 
         for req in self:
-            if req.state in ('released', 'confirmed'):
-                raise UserError(_(
-                    '%(name)s has already been released. '
-                    'A payment has been made — it cannot be reset to draft.',
-                    name=req.name,
-                ))
-            if not is_privileged and req.state != 'submitted':
-                raise UserError(_(
-                    '%(name)s cannot be reset to draft. '
-                    'CEO has already approved it — contact Finance HO.',
-                    name=req.name,
-                ))
+            # ── Reverse and cancel the release payment when present ───────────
+            had_payment = bool(req.payment_id)
+            if req.state in ('released', 'confirmed') and req.payment_id:
+                payment = req.payment_id.sudo()
+                move = payment.move_id
+
+                if move and move.state == 'posted':
+                    # Create a proper counter-entry so the GL shows the reversal
+                    move.sudo()._reverse_moves(
+                        default_values_list=[{
+                            'ref': _('Reversal: PCR %s cancelled by %s') % (
+                                req.name, self.env.user.name),
+                            'date': fields.Date.today(),
+                        }],
+                        cancel=True,   # posts reversal + marks original as 'cancel'
+                    )
+                elif move and move.state == 'draft':
+                    # Payment was never fully posted — just cancel the draft JE
+                    payment.action_cancel()
+
+            # ── Reset PCR fields ──────────────────────────────────────────────
             req.write({
                 'state': 'draft',
                 'ceo_approved_amount': 0.0,
+                'released_amount': 0.0,
+                'payment_id': False,
             })
             req.message_post(
                 body=Markup(
-                    '↩️ Petty cash request reset to <b>Draft</b> by <b>%(user)s</b>.'
-                ) % {'user': self.env.user.name},
+                    '↩ Petty cash request reset to <b>Draft</b> by <b>%(user)s</b>.'
+                    '%(reversal_note)s'
+                ) % {
+                    'user': self.env.user.name,
+                    'reversal_note': Markup(
+                        '<br/>Release payment reversed and cancelled.'
+                    ) if had_payment else Markup(''),
+                },
                 subtype_xmlid='mail.mt_log_note',
             )
+            matracon_notify.close_activities(req)
 
     def action_release(self):
         """Finance HO releases petty cash via payment workflow.
@@ -570,6 +614,7 @@ class PettyCashRequest(models.Model):
         payment.destination_account_id = petty_cash_account.id
 
         self.payment_id = payment.id
+        self.x_released_by_id = self.env.uid
         return {
             'type': 'ir.actions.act_window',
             'res_model': 'account.payment',
@@ -603,6 +648,8 @@ class PettyCashRequest(models.Model):
         for req in self:
             req.released_amount = amount or req.requested_amount
             req.state = 'released'
+            # Close Finance HO activity scheduled on CEO approval and on submission
+            matracon_notify.close_activities(req, summary_contains='Release petty cash')
             req.message_post(
                 body=Markup(_('Petty cash <b>%s</b> released by Finance HO.'))
                 % f'{req.released_amount:,.2f}')
@@ -763,6 +810,18 @@ class PettyCashRequest(models.Model):
         self.unlink()
         return {'type': 'ir.actions.act_window_close'}
 
+    # ── Convenience proxy ─────────────────────────────────────────────────────
+
+    def _get_petty_cash_account(self):
+        """Convenience proxy — delegates to fund_id._get_petty_cash_account().
+
+        Defined here so that both ``request._get_petty_cash_account()`` AND
+        ``request.fund_id._get_petty_cash_account()`` work identically.
+        Prevents AttributeError if a caller forgets the fund_id indirection.
+        """
+        self.ensure_one()
+        return self.fund_id._get_petty_cash_account()
+
 
 class PettyCashExpense(models.Model):
     _name = 'x.petty.cash.expense'
@@ -870,6 +929,13 @@ class PettyCashExpense(models.Model):
         help='Payable account to debit (e.g. Payable to Subcontractors). '
              'This entry appears in the partner ledger and IPC payment tracking.')
 
+    # ── Link to the journal entry created on posting ──────────────────────────
+    x_account_move_id = fields.Many2one(
+        'account.move', string='Journal Entry',
+        copy=False, readonly=True, ondelete='set null',
+        help='Journal entry created when this expense is posted. '
+             'Used by the IPC payment query to avoid double-counting.')
+
     receipt = fields.Binary(string='Receipt / Voucher')
     receipt_filename = fields.Char()
 
@@ -922,7 +988,12 @@ class PettyCashExpense(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        """Auto-generate x_ref with site-based prefix if not already provided."""
+        """Auto-generate x_ref with site-based prefix if not already provided.
+
+        Also auto-fills x_petty_cash_account_id from the fund/site config when
+        the value was not sent by the client (Odoo does not submit readonly field
+        values from the form, so default_get alone is insufficient).
+        """
         Analytic = self.env['account.analytic.account']
         for vals in vals_list:
             if not vals.get('x_ref'):
@@ -933,6 +1004,14 @@ class PettyCashExpense(models.Model):
                 site_code = Analytic._matracon_site_code_for_id(analytic_id)
                 vals['x_ref'] = Analytic._matracon_ref_with_site(
                     'x.petty.cash.expense', site_code)
+            # Ensure x_petty_cash_account_id is always populated from the fund.
+            # readonly fields are NOT sent by the browser on save, so the value
+            # set by default_get is lost unless we re-fill it here.
+            if not vals.get('x_petty_cash_account_id') and vals.get('fund_id'):
+                fund = self.env['x.petty.cash.fund'].browse(vals['fund_id'])
+                pc_acct = fund._get_petty_cash_account()
+                if pc_acct:
+                    vals['x_petty_cash_account_id'] = pc_acct.id
         return super().create(vals_list)
 
     @api.onchange('is_subcontractor_advance', 'advance_subcontractor_id')
@@ -969,6 +1048,18 @@ class PettyCashExpense(models.Model):
             if journal:
                 self.journal_id = journal
 
+    # ── Convenience proxy ─────────────────────────────────────────────────────
+
+    def _get_petty_cash_account(self):
+        """Convenience proxy — delegates to fund_id._get_petty_cash_account().
+
+        Defined here so that both ``expense._get_petty_cash_account()`` AND
+        ``expense.fund_id._get_petty_cash_account()`` work identically.
+        Prevents AttributeError if a caller forgets the fund_id indirection.
+        """
+        self.ensure_one()
+        return self.fund_id._get_petty_cash_account()
+
     # ── Actions ───────────────────────────────────────────────────────────────
 
     def action_post(self):
@@ -997,14 +1088,33 @@ class PettyCashExpense(models.Model):
                     '"Signed Voucher" field above\n'
                     '4. Then click Post again.'
                 ))
+            # Validate petty cash account early (before state change) so the error
+            # message is clear and the transaction is clean.
+            pc_account = expense.fund_id._get_petty_cash_account()
+            if not pc_account:
+                raise UserError(_(
+                    'No "Cash in Hand" (Petty Cash) account is configured for this site.\n\n'
+                    'Please go to:\n'
+                    'Configuration → Site Configurations → %s → '
+                    'set the "Petty Cash Account (Cash in Hand)" field.\n\n'
+                    'Then try posting again.'
+                ) % (expense.project_analytic_account_id.name or _('your site')))
             balance_before = expense.fund_id.balance
-            if balance_before < expense.amount - 0.01:
+            # Site accountants are allowed to post even when the fund balance
+            # is zero or negative — the balance will go negative and Finance HO
+            # will top up with a fresh replenishment.  Only block if the user
+            # is NOT a site accountant (FO / admin / CEO still see the guard
+            # to prevent accidental overspend from the HO side).
+            user = self.env.user
+            is_site_accountant = user.has_group('site_operations.group_site_accountant')
+            if not is_site_accountant and balance_before < expense.amount - 0.01:
                 raise UserError(_(
                     'Insufficient petty cash balance (available: %s %.2f).'
                 ) % (expense.currency_id.symbol, balance_before))
 
             expense.state = 'posted'
             expense._create_journal_entry()
+            matracon_notify.close_activities(expense, summary_contains='Post petty cash expense')
 
             balance_after = balance_before - expense.amount
             # Store the running balance snapshot
@@ -1110,7 +1220,14 @@ class PettyCashExpense(models.Model):
                 credit_account = cash_journal.default_account_id
 
         if not credit_account:
-            return  # Cannot determine Cash-in-Hand account — skip silently
+            raise UserError(_(
+                'Cannot post this petty cash expense: no Cash-in-Hand account is configured '
+                'for this site.\n\n'
+                'Please go to:\n'
+                'Configuration → Site Configurations → [your site] → '
+                'set the "Petty Cash Account (Cash in Hand)" field.\n\n'
+                'Then try posting again.'
+            ))
 
         # ── Journal for the entry ─────────────────────────────────────────────
         Journal = self.env['account.journal']
@@ -1188,10 +1305,78 @@ class PettyCashExpense(models.Model):
             ],
         }
         if not cash_journal:
-            # Need at least some journal — skip if none
-            return
+            raise UserError(_(
+                'Cannot post this petty cash expense: no Cash journal is configured '
+                'for this site.\n\n'
+                'Please go to:\n'
+                'Accounting → Configuration → Journals → create a Cash journal '
+                'and link it to this site.\n\n'
+                'Then try posting again.'
+            ))
         move = self.env['account.move'].create(move_vals)
         move.action_post()
+        self.x_account_move_id = move
+
+    def action_reset_to_draft(self):
+        """Reset a posted petty cash expense back to Draft.
+
+        Steps:
+          1. Cancel/reverse the linked journal entry (if any) so the GL is clean.
+          2. If this was an employee advance, subtract the amount from the
+             employee's outstanding advance balance.
+          3. Clear snapshot fields (balance_before / balance_after) and the
+             link to the journal entry.
+          4. Set state → 'draft'.
+
+        Access: Finance HO, Matracon Admin, System Administrator.
+        Site Accountants are intentionally excluded — they can post but cannot
+        undo a posting without Finance HO involvement.
+        """
+        allowed_groups = [
+            'site_operations.group_finance_ho',
+            'purchase_demand_raise.group_matracon_admin',
+            'base.group_system',
+        ]
+        if not any(self.env.user.has_group(g) for g in allowed_groups):
+            raise UserError(_(
+                'Only Finance HO or Matracon Admin can reset a petty cash expense to Draft.'
+            ))
+
+        for expense in self:
+            if expense.state == 'draft':
+                continue  # already draft, skip silently
+
+            # ── 1. Cancel the journal entry ───────────────────────────────────
+            move = expense.x_account_move_id
+            if move and move.state == 'posted':
+                move.button_cancel()   # resets the JE to cancel state
+            elif move and move.state != 'cancel':
+                # Draft JE — just unlink it
+                move.unlink()
+
+            # ── 2. Reverse employee advance balance ───────────────────────────
+            if expense.is_employee_advance and expense.employee_id:
+                emp = expense.employee_id.sudo()
+                new_balance = (emp.x_advance_balance or 0.0) - expense.amount
+                emp.x_advance_balance = max(new_balance, 0.0)
+                expense.message_post(body=Markup(_(
+                    'Reset to Draft: employee advance for <b>%(emp)s</b> reversed. '
+                    'Outstanding balance adjusted by <b>−%(sym)s %(amount)s</b>.'
+                )) % {
+                    'emp': emp.name,
+                    'sym': expense.currency_id.symbol,
+                    'amount': f'{expense.amount:,.2f}',
+                })
+
+            # ── 3. Clear snapshot & JE link ───────────────────────────────────
+            expense.write({
+                'state': 'draft',
+                'x_account_move_id': False,
+                'x_balance_before': 0.0,
+                'x_balance_after': 0.0,
+            })
+
+            expense.message_post(body=_('Expense reset to Draft.'))
 
     def action_print_expense_voucher(self):
         return self.env.ref(
@@ -1212,6 +1397,39 @@ class PettyCashExpense(models.Model):
             if rec.state != 'draft':
                 raise UserError(_('Only draft petty cash expenses can be deleted.'))
         return super().unlink()
+
+    @api.model
+    def action_admin_fix_petty_cash_accounts(self):
+        """Admin action: back-fill x_petty_cash_account_id on all posted expenses where
+        it is NULL, and correct posted JEs whose credit account differs from the site's
+        configured petty cash (Cash-in-Hand) account.
+
+        Calls the same three-step function used by the post_migrate_hook so the fix is
+        consistent with what runs on every module upgrade.  Safe to run repeatedly.
+
+        Accessible via:
+          - Petty Cash Expenses list view → Action → Fix Petty Cash Accounts (admins)
+          - Settings → Technical → Server Actions → Fix Petty Cash Accounts
+        """
+        if not (self.env.user.has_group('purchase_demand_raise.group_matracon_admin')
+                or self.env.user.has_group('base.group_system')):
+            raise UserError(_('Only Matracon Admin or System Administrator can run this action.'))
+        from odoo.addons.site_operations.hooks import fix_petty_cash_expense_accounts
+        fix_petty_cash_expense_accounts(self.env)
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Petty Cash Accounts Fixed'),
+                'message': _(
+                    'Done. All expense credit accounts have been filled from site '
+                    'configuration, and posted JEs with the wrong cash account have '
+                    'been corrected. Check the server log for details.'
+                ),
+                'type': 'success',
+                'sticky': True,
+            },
+        }
 
     def action_delete_draft(self):
         self.unlink()
@@ -1313,3 +1531,214 @@ class PettyCashExpense(models.Model):
             )) % {'exp': expense.x_ref}
         )
         return expense
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Admin Maintenance Wizard
+# ═══════════════════════════════════════════════════════════════════════════
+
+class XPettyCashAdminWizard(models.TransientModel):
+    """Admin maintenance wizard — run the 3-step petty cash fix on demand.
+
+    Accessible via:
+      Accounting → Petty Cash → Configuration → Fix Petty Cash Accounts
+
+    This runs the exact same function as the post_migrate_hook, so it is
+    safe to execute multiple times.  Each step is idempotent:
+      Step 1 — fills x_petty_cash_account_id on expenses where it is NULL
+      Step 2 — creates missing journal entries for posted expenses
+      Step 3 — corrects posted JEs whose credit account ≠ the site petty
+               cash (Cash-in-Hand) account (in-place SQL, no reversal entries)
+    """
+    _name = 'x.petty.cash.admin.wizard'
+    _description = 'Petty Cash Admin Maintenance'
+
+    def action_run_fix(self):
+        """Run the full 3-step petty cash account fix."""
+        if not (self.env.user.has_group('purchase_demand_raise.group_matracon_admin')
+                or self.env.user.has_group('base.group_system')):
+            raise UserError(_('Only Matracon Admin or System Administrator can run this action.'))
+        from odoo.addons.site_operations.hooks import fix_petty_cash_expense_accounts
+        fix_petty_cash_expense_accounts(self.env)
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Petty Cash Fix Complete'),
+                'message': _(
+                    'Done. All expense credit accounts have been filled from site '
+                    'configuration, missing journal entries have been created, and '
+                    'posted JEs with the wrong cash account have been corrected '
+                    'in-place. Check the server log for a detailed report.'
+                ),
+                'type': 'success',
+                'sticky': True,
+            },
+        }
+
+    def action_fix_payment_analytic(self):
+        """Retroactively stamp analytic_distribution on all payment JE lines.
+
+        Problem fixed:
+          When Finance HO releases petty cash (or makes any payment tagged to a
+          project), the JE lines that hit site accounts (e.g. "112632 Cash at
+          RWASA") were missing analytic_distribution because the old code only
+          stamped it on liability_payable/expense/asset_receivable types.
+          Cash-type accounts (asset_cash) were skipped.
+
+          Result: site accountants applying the analytic filter in their GL
+          saw ZERO in the Debit column for their cash account — only the
+          credits (their own expense entries) showed, making the balance look
+          like a massive overdraft.
+
+        What this does:
+          For every posted account.payment linked to a project
+          (x_destination_project_id or x_fund_project_id):
+          1. Ensures x_project_analytic_account_id is set on the move header.
+          2. Identifies the HO source-bank lines (journal default_account_id /
+             outstanding_account_id / multi-bank allocation accounts) — these
+             must NOT get the site's analytic (they belong to HO).
+          3. Stamps analytic_distribution on every OTHER line that is missing it.
+
+        Safe to run multiple times — only touches lines where analytic is blank.
+        Each site's analytic is scoped correctly: each SA sees only their own.
+        """
+        if not (self.env.user.has_group('purchase_demand_raise.group_matracon_admin')
+                or self.env.user.has_group('base.group_system')):
+            raise UserError(_('Only Matracon Admin or System Administrator can run this action.'))
+
+        self.env.cr.execute("""
+            SELECT id FROM account_payment
+            WHERE (x_destination_project_id IS NOT NULL
+                   OR x_fund_project_id IS NOT NULL)
+              AND state NOT IN ('draft', 'cancel')
+              AND move_id IS NOT NULL
+        """)
+        payment_ids = [r[0] for r in self.env.cr.fetchall()]
+        payments = self.env['account.payment'].sudo().browse(payment_ids)
+
+        fixed_lines = 0
+        fixed_moves = 0
+
+        for payment in payments:
+            analytic = payment.x_destination_project_id or payment.x_fund_project_id
+            if not analytic or not payment.move_id:
+                continue
+
+            # Ensure move header is tagged (drives the security record rule)
+            if not payment.move_id.x_project_analytic_account_id:
+                payment.move_id.sudo().write(
+                    {'x_project_analytic_account_id': analytic.id}
+                )
+
+            # Collect HO source-bank account IDs to exclude
+            bank_acct_ids = set()
+            if payment.outstanding_account_id:
+                bank_acct_ids.add(payment.outstanding_account_id.id)
+            if payment.journal_id and payment.journal_id.default_account_id:
+                bank_acct_ids.add(payment.journal_id.default_account_id.id)
+            for alloc in payment.x_bank_allocation_ids:
+                if alloc.journal_id and alloc.journal_id.default_account_id:
+                    bank_acct_ids.add(alloc.journal_id.default_account_id.id)
+
+            dist = {str(analytic.id): 100.0}
+            lines_to_fix = payment.move_id.line_ids.filtered(
+                lambda l: l.account_id.id not in bank_acct_ids
+                    and not l.analytic_distribution
+            )
+            if lines_to_fix:
+                lines_to_fix.sudo().write({'analytic_distribution': dist})
+                fixed_lines += len(lines_to_fix)
+                fixed_moves += 1
+                _logger.info(
+                    'fix_payment_analytic: %s (%d) → analytic %s stamped on %d lines',
+                    payment.name, payment.id, analytic.name, len(lines_to_fix),
+                )
+
+        # ── Pass 2: MISC journal entries with site cash-account lines ──────────────
+        # Covers Opening Balance entries and any other posted MISC entries (not
+        # linked to account.payment) that have lines on a site's petty cash account
+        # but are missing analytic_distribution.
+        #
+        # Mapping: project.site.config.x_petty_cash_account_id → analytic_account_id
+        site_configs = self.env['x.project.site.config'].sudo().search([
+            ('x_petty_cash_account_id', '!=', False),
+            ('analytic_account_id', '!=', False),
+        ])
+        cash_to_analytic = {
+            sc.x_petty_cash_account_id.id: sc.analytic_account_id
+            for sc in site_configs
+        }
+        if cash_to_analytic:
+            account_ids = list(cash_to_analytic.keys())
+            # Find posted MISC entries that:
+            #   - have a line on a site cash account with no analytic, AND
+            #   - are NOT the JE of an account.payment (those were fixed in Pass 1)
+            self.env.cr.execute("""
+                SELECT DISTINCT am.id, aml.account_id
+                FROM account_move am
+                JOIN account_move_line aml ON aml.move_id = am.id
+                WHERE am.move_type = 'entry'
+                  AND am.state = 'posted'
+                  AND aml.account_id = ANY(%s)
+                  AND (aml.analytic_distribution IS NULL
+                       OR aml.analytic_distribution::text = '{}')
+                  AND NOT EXISTS (
+                      SELECT 1 FROM account_payment ap WHERE ap.move_id = am.id
+                  )
+            """, (account_ids,))
+            rows = self.env.cr.fetchall()
+
+            # Build move_id → analytic mapping (first site cash account wins)
+            move_to_analytic = {}
+            for move_id, account_id in rows:
+                if move_id not in move_to_analytic:
+                    analytic = cash_to_analytic.get(account_id)
+                    if analytic:
+                        move_to_analytic[move_id] = analytic
+
+            entries = self.env['account.move'].sudo().browse(list(move_to_analytic.keys()))
+            for entry in entries:
+                analytic = move_to_analytic[entry.id]
+                dist = {str(analytic.id): 100.0}
+
+                # Stamp the move header if blank (drives site-SA record rules)
+                if not entry.x_project_analytic_account_id:
+                    entry.sudo().write(
+                        {'x_project_analytic_account_id': analytic.id}
+                    )
+
+                # Stamp every line that is missing analytic
+                lines_missing = entry.line_ids.filtered(
+                    lambda l: not l.analytic_distribution
+                )
+                if lines_missing:
+                    lines_missing.sudo().write({'analytic_distribution': dist})
+                    fixed_lines += len(lines_missing)
+                    fixed_moves += 1
+                    _logger.info(
+                        'fix_payment_analytic: MISC entry %s (%d) → analytic %s'
+                        ' stamped on %d lines',
+                        entry.name, entry.id, analytic.name, len(lines_missing),
+                    )
+
+        _logger.info(
+            'fix_payment_analytic: complete — %d lines fixed across %d entries'
+            ' (payments + MISC)',
+            fixed_lines, fixed_moves,
+        )
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('GL Analytic Fix Complete'),
+                'message': _(
+                    'Stamped analytic distribution on %(lines)d journal entry lines '
+                    'across %(moves)d entries (payment JEs + Opening Balance / MISC). '
+                    'Site accountants can now see all HO-created entries in their '
+                    'filtered General Ledger. Check the server log for details.'
+                ) % {'lines': fixed_lines, 'moves': fixed_moves},
+                'type': 'success',
+                'sticky': True,
+            },
+        }

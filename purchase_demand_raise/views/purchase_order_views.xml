@@ -135,6 +135,15 @@
                         invisible="x_pr_state in ('draft', 'rejected', 'cancelled')"
                         groups="purchase_demand_raise.group_ceo_approval"/>
 
+                <!-- Preview PO PDF — opens in new tab; visible to HO/CEO/Admin once past draft -->
+                <button name="action_preview_po_pdf"
+                        type="object"
+                        string="Preview PO"
+                        class="btn-secondary"
+                        title="Open Purchase Order PDF in a new browser tab"
+                        invisible="x_pr_state in ('draft', 'submitted', 'rejected', 'cancelled')"
+                        groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
             </xpath>
 
             <!-- ── 2. Standard buttons: hide from Site Store; hide on PR docs when rejected ── -->
@@ -160,9 +169,10 @@
             <xpath expr="//header/button[@name='button_confirm'][@id='draft_confirm']" position="attributes">
                 <attribute name="invisible">x_is_pr_document or x_is_site_store or x_is_alternative_rfq</attribute>
             </xpath>
-            <!-- Cancel: hidden from Site Store and from PR docs once rejected/dispatched -->
+            <!-- Cancel: hidden from Site Store and from PR docs once already cancelled/locked.
+                 Rejected PRs CAN be cancelled (so they can then be deleted if needed). -->
             <xpath expr="//header/button[@name='button_cancel']" position="attributes">
-                <attribute name="invisible">x_is_site_store or (x_is_pr_document and x_pr_state in ('rejected', 'cancelled'))</attribute>
+                <attribute name="invisible">x_is_site_store or (x_is_pr_document and x_pr_state in ('po_locked', 'cancelled'))</attribute>
             </xpath>
 
             <!-- Hide the standard Odoo 'Reset to Draft' button on PR documents —
@@ -448,6 +458,14 @@
             <field name="price_unit" position="attributes">
                 <attribute name="column_invisible">parent.x_is_site_store</attribute>
             </field>
+            <!-- Per-line currency: optional column shown after price_unit -->
+            <field name="price_unit" position="after">
+                <field name="x_line_currency_id"
+                       string="Quote Currency"
+                       optional="hide"
+                       options="{'no_create': True, 'no_open': True}"
+                       column_invisible="parent.x_is_site_store"/>
+            </field>
             <field name="price_subtotal" position="attributes">
                 <attribute name="column_invisible">parent.x_is_site_store</attribute>
             </field>
@@ -666,15 +684,19 @@
         <field name="model">purchase.order</field>
         <field name="inherit_id" ref="purchase.purchase_order_form"/>
         <field name="arch" type="xml">
-            <!-- T&C template selector: only for HO/CEO/Admin, never for Site Store -->
-            <xpath expr="//field[@name='note']" position="before">
+            <!-- T&C template selector: injected before the outer group that contains
+                 the note field so it sits at the same layout level and gets full-form
+                 width (not cramped inside a nested half-width group).
+                 colspan="2" spans both columns of the standard 2-col group layout. -->
+            <xpath expr="//group[group[field[@name='note']]]" position="before">
                 <group invisible="x_is_site_store"
                        groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system">
                     <field name="x_terms_template_id"
                            string="T&amp;C Template"
                            placeholder="Select a template to auto-fill Terms &amp; Conditions…"
                            options="{'no_create': True}"
-                           readonly="state in ('purchase', 'done', 'cancel')"/>
+                           readonly="state in ('purchase', 'done', 'cancel')"
+                           colspan="2"/>
                 </group>
             </xpath>
             <!-- T&C note text: hidden from Site Store (vendor terms are internal) -->

@@ -62,20 +62,21 @@
                     <button name="action_submit" type="object" string="Submit to Finance HO"
                             class="btn-primary" invisible="state != 'draft'"
                             groups="site_operations.group_site_accountant"/>
-                    <!-- Reset to Draft — Site Accountant: only while CEO hasn't approved -->
+                    <!-- Reset to Draft — Site Accountant / Finance HO:
+                         any non-draft state; payment reversal runs automatically -->
                     <button name="action_reset_to_draft" type="object"
                             string="↩ Reset to Draft"
                             class="btn-secondary"
-                            invisible="state != 'submitted'"
-                            groups="site_operations.group_site_accountant"
-                            confirm="Reset this request back to Draft? You can edit and resubmit it."/>
-                    <!-- Reset to Draft — CEO / Admin: submitted or ceo_approved only -->
+                            invisible="state == 'draft'"
+                            groups="site_operations.group_site_accountant,site_operations.group_finance_ho"
+                            confirm="Reset this petty cash request to Draft? If a release payment exists it will be reversed and cancelled. This cannot be undone."/>
+                    <!-- Reset to Draft — CEO / Admin: any non-draft state -->
                     <button name="action_reset_to_draft" type="object"
                             string="↩ Reset to Draft"
                             class="btn-secondary"
-                            invisible="state not in ('submitted', 'ceo_approved')"
+                            invisible="state == 'draft'"
                             groups="purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,base.group_system"
-                            confirm="Reset this petty cash request to Draft? Approval status will be cleared."/>
+                            confirm="Reset to Draft? If a release payment exists it will be reversed and cancelled."/>
                     <button name="action_ceo_approve" type="object" string="Approve (CEO)"
                             class="btn-success" invisible="state != 'submitted'"
                             groups="purchase_demand_raise.group_ceo_approval"/>
@@ -165,6 +166,7 @@
                   decoration-primary="state == 'released'"
                   decoration-success="state == 'confirmed'"
                   decoration-danger="state == 'rejected'">
+                <field name="create_date" string="Request Date" widget="date" readonly="1" optional="show"/>
                 <field name="name" readonly="1"/>
                 <field name="project_analytic_account_id" string="Site Project" readonly="1"/>
                 <field name="requested_amount" string="Required Amount" readonly="1"/>
@@ -198,6 +200,14 @@
                     <button name="action_post" type="object" string="Post Expense"
                             class="btn-primary" invisible="state != 'draft'"
                             groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_head_office"/>
+                    <!-- Reset to Draft — Finance HO / Admin only.
+                         Cancels the linked JE and reverses any employee advance balance. -->
+                    <button name="action_reset_to_draft" type="object"
+                            string="↩ Reset to Draft"
+                            class="btn-secondary"
+                            invisible="state != 'posted'"
+                            groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin,base.group_system"
+                            confirm="Reset this expense to Draft? The linked journal entry will be cancelled and the GL reversed. This cannot be undone automatically — you will need to re-post or delete the expense."/>
                     <field name="state" widget="statusbar"/>
                     <button name="action_delete_draft" type="object"
                             string="Delete" class="btn-danger"
@@ -270,20 +280,16 @@
 
                     <group string="Accounting">
                         <group string="Credit (Cash Out)">
-                            <!-- Site accountants: readonly (configured at site level, cannot override) -->
+                            <!-- Always readonly for ALL users — the credit account is determined
+                                 by the site configuration and must never be changed manually.
+                                 force_save="1" ensures the value reaches the DB even though the
+                                 field is readonly (Odoo normally skips readonly fields on save). -->
                             <field name="x_petty_cash_account_id"
                                    string="Petty Cash Account (Credit)"
                                    readonly="1"
+                                   force_save="1"
                                    options="{'no_create': True}"
-                                   groups="site_operations.group_site_accountant"
-                                   help="Cash in Hand account — configured at site level."/>
-                            <!-- HO / Finance: editable in case override needed -->
-                            <field name="x_petty_cash_account_id"
-                                   string="Petty Cash Account (Credit)"
-                                   readonly="state == 'posted'"
-                                   options="{'no_create': True}"
-                                   groups="!site_operations.group_site_accountant"
-                                   help="Cash in Hand account — auto-filled from project configuration."/>
+                                   help="Cash in Hand account — auto-configured from the site project. Always readonly."/>
                             <!-- journal_id is used internally only; not shown to users -->
                             <field name="journal_id" invisible="1"/>
                         </group>
@@ -412,6 +418,7 @@
                 <field name="name"/>
                 <field name="project_analytic_account_id" string="Project"/>
                 <field name="fund_id"/>
+                <field name="create_date" string="Request Date" filter_domain="[('create_date', '&gt;=', self)]"/>
                 <separator/>
                 <filter name="filter_draft" string="Draft"
                         domain="[('state', '=', 'draft')]"/>
@@ -424,10 +431,19 @@
                 <filter name="filter_confirmed" string="Confirmed"
                         domain="[('state', '=', 'confirmed')]"/>
                 <separator/>
+                <!-- Date quick-filters on Request Date (create_date) -->
+                <filter name="filter_req_today" string="Today"
+                        domain="[('create_date', '&gt;=', context_today().strftime('%Y-%m-%d 00:00:00')),
+                                  ('create_date', '&lt;', (context_today() + datetime.timedelta(days=1)).strftime('%Y-%m-%d 00:00:00'))]"/>
+                <filter name="filter_req_this_month" string="This Month"
+                        domain="[('create_date', '&gt;=', context_today().strftime('%Y-%m-01 00:00:00'))]"/>
+                <separator/>
                 <filter name="group_by_project" string="By Project"
                         context="{'group_by': 'project_analytic_account_id'}"/>
                 <filter name="group_by_state" string="By Status"
                         context="{'group_by': 'state'}"/>
+                <filter name="group_by_date" string="By Month"
+                        context="{'group_by': 'create_date:month'}"/>
             </search>
         </field>
     </record>
@@ -467,15 +483,22 @@
                 <field name="x_ref" string="Reference"/>
                 <field name="project_analytic_account_id" string="Project"/>
                 <field name="fund_id"/>
+                <field name="expense_date" string="Expense Date" filter_domain="[('expense_date', '=', self)]"/>
                 <separator/>
                 <filter name="filter_draft" string="Draft"
                         domain="[('state', '=', 'draft')]"/>
                 <filter name="filter_posted" string="Posted"
                         domain="[('state', '=', 'posted')]"/>
                 <separator/>
+                <!-- Date quick-filters on Expense Date -->
+                <filter name="filter_exp_today" string="Today"
+                        domain="[('expense_date', '=', context_today().strftime('%Y-%m-%d'))]"/>
+                <filter name="filter_exp_this_month" string="This Month"
+                        domain="[('expense_date', '&gt;=', context_today().strftime('%Y-%m-01'))]"/>
+                <separator/>
                 <filter name="group_by_project" string="By Project"
                         context="{'group_by': 'project_analytic_account_id'}"/>
-                <filter name="group_by_date" string="By Date"
+                <filter name="group_by_date" string="By Month"
                         context="{'group_by': 'expense_date:month'}"/>
                 <filter name="group_by_category" string="By Category"
                         context="{'group_by': 'category'}"/>
@@ -503,6 +526,92 @@
         <field name="name">Petty Cash Funds</field>
         <field name="res_model">x.petty.cash.fund</field>
         <field name="view_mode">list,form</field>
+    </record>
+
+    <!-- ── Admin Maintenance Wizard ──────────────────────────────────────── -->
+    <record id="view_petty_cash_admin_wizard_form" model="ir.ui.view">
+        <field name="name">x.petty.cash.admin.wizard.form</field>
+        <field name="model">x.petty.cash.admin.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Admin Maintenance Tools">
+                <sheet>
+
+                    <!-- ── Tool 1: Fix Petty Cash Accounts ──────────────── -->
+                    <h4 style="margin-bottom:4px;">Fix Petty Cash Accounts</h4>
+                    <div class="alert alert-info" role="alert">
+                        <strong>What this tool does (safe to run multiple times):</strong>
+                        <ul style="margin-top:8px; margin-bottom:4px;">
+                            <li><b>Step 1</b> — Fills the <em>Petty Cash Account</em> field on all
+                                expenses where it was never saved (browser did not send the readonly
+                                value on save). Resolves the account from the fund or site
+                                configuration.</li>
+                            <li><b>Step 2</b> — Creates missing journal entries for posted expenses
+                                that have no JE (because Step 1's account was missing at post
+                                time).</li>
+                            <li><b>Step 3</b> — Corrects posted JEs whose <em>credit</em> line
+                                points to the wrong cash account. Fixes in-place (no reversal
+                                entries).</li>
+                        </ul>
+                        <small>Check <b>Server Logs</b> after running for a detailed line-by-line
+                            report.</small>
+                    </div>
+                    <div class="alert alert-warning" role="alert" style="margin-top:4px;">
+                        <strong>Pre-requisite:</strong> Make sure each Site Configuration has its
+                        <em>Petty Cash Account (Cash in Hand)</em> field set before running.
+                        Go to <b>Purchase → Configuration → Site Project Configurations</b>.
+                    </div>
+                    <div style="margin-bottom:20px;">
+                        <button name="action_run_fix"
+                                string="Run Petty Cash Fix"
+                                type="object"
+                                class="btn btn-primary"
+                                confirm="This will correct all petty cash GL accounts and journal entries. Continue?"/>
+                    </div>
+
+                    <hr style="border-top:1px solid #dee2e6; margin:12px 0;"/>
+
+                    <!-- ── Tool 2: Fix GL Analytic Distribution ──────────── -->
+                    <h4 style="margin-bottom:4px;">Fix GL Analytic Distribution on Payment Entries</h4>
+                    <div class="alert alert-info" role="alert">
+                        <strong>Problem this fixes:</strong> Site accountants filtering their
+                        General Ledger by analytic saw <b>zero in the Debit column</b> for site
+                        cash accounts (e.g. "Cash at RWASA", "Cash at N-55"). HO-created payment
+                        entries (petty cash releases, vendor payments) were visible to HO but
+                        <em>invisible</em> to site accountants because the cash/payable lines were
+                        missing <code>analytic_distribution</code>.
+                        <ul style="margin-top:8px; margin-bottom:4px;">
+                            <li>Finds all posted payments linked to any project.</li>
+                            <li>Stamps the correct site analytic on every JE line
+                                <em>except</em> the HO source-bank lines (those stay HO-only).</li>
+                            <li>Each site accountant sees only their own project's entries.</li>
+                            <li>Safe to run multiple times — only touches lines where analytic
+                                is blank.</li>
+                        </ul>
+                        <small>Check <b>Server Logs</b> after running for a payment-by-payment
+                            report.</small>
+                    </div>
+                    <div>
+                        <button name="action_fix_payment_analytic"
+                                string="Fix GL Analytic Distribution"
+                                type="object"
+                                class="btn btn-primary"
+                                confirm="This will stamp the correct analytic on all payment JE lines that are missing it. Each site accountant will then see HO payments in their filtered GL. Continue?"/>
+                    </div>
+
+                </sheet>
+                <footer>
+                    <button string="Close" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_petty_cash_admin_wizard" model="ir.actions.act_window">
+        <field name="name">Fix Petty Cash Accounts</field>
+        <field name="res_model">x.petty.cash.admin.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_petty_cash_admin_wizard_form"/>
+        <field name="target">new</field>
     </record>
 
 </odoo>

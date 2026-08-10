@@ -9,19 +9,36 @@
         <field name="name">Receipts</field>
     </record>
 
-    <!-- ── Single "Dashboard" in Purchase — routes to the right dashboard ──────
-         The server action (action_site_store_dashboard) already handles routing:
-           • Admin / PO / HO / CEO → Procurement HO Dashboard
-           • Site Store              → Site Store Dashboard
-         Using ONE menu item means admin sees "Dashboard" only once,
-         not "Procurement HO Dashboard" + "Site Store Dashboard".
+    <!-- ── Hide standard Odoo Vendors > Payments menu ───────────────────────
+         We use action_ho_vendor_payments (our custom Payments menu) instead.
+         The standard menu causes a duplicate "Payments" entry that confuses
+         Finance HO — both pointed to different views.  Our custom menu shows
+         all historical outbound payments AND exposes the "New Batch Payment"
+         action, so the standard one is redundant for Matracon's workflow.
+    ─────────────────────────────────────────────────────────────────────── -->
+    <record id="account.menu_action_account_payments_payable" model="ir.ui.menu">
+        <field name="active" eval="False"/>
+    </record>
+
+
+    <!-- ── "Dashboard" in Purchase — Site Store only ───────────────────────────
+         HO roles (Procurement HO, CEO, Head Office, Admin) now access the
+         consolidated Dashboard app instead.  Keeping this only for Site Store
+         so they still have their dashboard inside the Purchase app.
+         With this menu hidden from HO, Odoo lands on the first visible child
+         (Purchase Requisitions, sequence 5) when HO opens the Purchase app.
+         Use (6,0,[...]) record tag — menuitem groups= attribute does not
+         force-replace on update, so we need the explicit Many2many REPLACE.
     ──────────────────────────────────────────────────────────────────────── -->
     <menuitem id="menu_procurement_ho_dashboard"
               name="Dashboard"
               parent="purchase.menu_purchase_root"
               action="site_operations.action_site_store_dashboard"
               sequence="0"
-              groups="purchase_demand_raise.group_site_store,purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin"/>
+              groups="purchase_demand_raise.group_site_store"/>
+    <record id="menu_procurement_ho_dashboard" model="ir.ui.menu">
+        <field name="group_ids" eval="[(6, 0, [ref('purchase_demand_raise.group_site_store')])]"/>
+    </record>
 
     <!-- ── Single "Dashboard" in Inventory (same routing logic) ──────────── -->
     <menuitem id="menu_site_store_dashboard"
@@ -44,13 +61,21 @@
               sequence="5"
               groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin"/>
 
-    <!-- Purchase → Configuration → T&C Templates (Head Office + Admin) -->
+    <!-- Purchase → Comparative Statements (Procurement HO + CEO + Admin only, NOT site store/accountant) -->
+    <menuitem id="menu_comparative_statements_ho"
+              name="Comparative Statements"
+              parent="purchase.menu_purchase_root"
+              action="purchase_demand_raise.action_comparative_statement"
+              sequence="6"
+              groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin"/>
+
+    <!-- Purchase → Configuration → T&C Templates (Procurement HO + Head Office + Admin) -->
     <menuitem id="menu_po_terms_templates"
               name="T&amp;C Templates"
               parent="purchase.menu_purchase_config"
               action="purchase_demand_raise.action_po_terms_template"
               sequence="48"
-              groups="purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+              groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
     <!-- Purchase → Configuration → Site Project Configurations (Matracon Admin) -->
     <menuitem id="menu_project_site_config_matracon_admin"
@@ -59,6 +84,42 @@
               action="purchase_demand_raise.action_project_site_config"
               sequence="49"
               groups="purchase_demand_raise.group_matracon_admin"/>
+
+    <!-- ── Give Site Accountant access to Inventory app root ────────────────
+         menu_stock_root has groups="group_stock_manager,group_stock_user" so
+         SA (who has neither) cannot see the Inventory app at all without this.
+         We ADD SA here; the root already allows stock_user/stock_manager. -->
+    <record id="stock.menu_stock_root" model="ir.ui.menu">
+        <field name="group_ids" eval="[(4, ref('site_operations.group_site_accountant'))]"/>
+    </record>
+
+    <!-- ── Restore menu_stock_transfers to no-restriction ────────────────────
+         The original Odoo definition has NO groups on this menu (visible to
+         all authenticated users).  A previous revision accidentally added a
+         site_accountant-only restriction using (4,...) which made the entire
+         Transfers branch invisible to site_store and all other roles.
+         (5, 0, 0) clears ALL group_ids, restoring the original "all users"
+         behaviour.  SA can reach it via the unrestricted parent; site_store
+         can reach their Material Issuance / Material Return / S2S children. -->
+    <record id="stock.menu_stock_transfers" model="ir.ui.menu">
+        <field name="group_ids" eval="[(5, 0, 0)]"/>
+    </record>
+
+    <!-- ── Allow site_store to see Replenishment ────────────────────────────
+         Standard Odoo restricts Replenishment to stock.group_stock_manager.
+         Site store keepers need it for day-to-day reorder operations.
+         (4,...) adds site_store alongside the existing stock_manager entry. -->
+    <record id="stock.menu_reordering_rules_replenish" model="ir.ui.menu">
+        <field name="group_ids" eval="[(4, ref('purchase_demand_raise.group_site_store'))]"/>
+    </record>
+
+    <!-- Inventory → Operations → Material Issuance Review (SA only) -->
+    <menuitem id="menu_sa_material_issuance_review"
+              name="Material Issuance Review"
+              parent="stock.menu_stock_transfers"
+              action="site_operations.action_sa_pending_issuances"
+              sequence="23"
+              groups="site_operations.group_site_accountant"/>
 
     <!-- Inventory → Operations → Transfers -->
     <menuitem id="menu_material_issuance"
@@ -158,8 +219,18 @@
               sequence="25"
               groups="site_operations.group_site_accountant,purchase_demand_raise.group_ceo_approval,site_operations.group_finance_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
 
+    <!-- Batch Payments — x.batch.payment records (created from Liability Sheet approval) -->
+    <menuitem id="menu_finance_batch_payments"
+              name="Batch Payments"
+              parent="account.menu_finance_payables"
+              action="site_operations.action_batch_payment"
+              sequence="25"
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
+    <!-- Payments — all vendor payments (historical + new). Batch payment creation
+         is accessible from the Action menu inside this list view. -->
     <menuitem id="menu_finance_ho_payments"
-              name="Finance Payments"
+              name="Payments"
               parent="account.menu_finance_payables"
               action="site_operations.action_ho_vendor_payments"
               sequence="26"
@@ -272,6 +343,108 @@
               action="site_operations.action_petty_cash_fund"
               sequence="30"
               groups="site_operations.group_finance_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
+    <!-- Petty Cash → Configuration (Admin only) -->
+    <menuitem id="menu_petty_cash_config"
+              name="Configuration"
+              parent="site_operations.menu_petty_cash_root"
+              sequence="90"
+              groups="purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
+    <menuitem id="menu_petty_cash_admin_fix"
+              name="Fix Petty Cash Accounts"
+              parent="site_operations.menu_petty_cash_config"
+              action="site_operations.action_petty_cash_admin_wizard"
+              sequence="10"
+              groups="purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
+    <!-- ════════════════════════════════════════════════════════════════════
+         MANAGEMENT DASHBOARD — Standalone App (CEO, Finance HO, Admin)
+         Separate top-level app so management doesn't need to enter
+         Accounting.  The old Accounting and Project entries are hidden.
+    ════════════════════════════════════════════════════════════════════ -->
+    <!-- Root: visible to ALL HO roles — Finance, CEO, Admin, Head Office, Procurement HO -->
+    <menuitem id="menu_matracon_mgmt_root"
+              name="Dashboard"
+              web_icon="site_operations,static/description/dashboard_icon.png"
+              sequence="60"
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_head_office,purchase_demand_raise.group_procurement_ho,base.group_system"/>
+
+    <!-- Management Overview (Finance/CEO/Admin — full financial view) -->
+    <menuitem id="menu_matracon_mgmt_overview"
+              name="Management Overview"
+              parent="site_operations.menu_matracon_mgmt_root"
+              action="site_operations.action_management_dashboard"
+              sequence="10"
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
+    <!-- Project Dashboard — project-level KPIs, BGs, and completion metrics -->
+    <menuitem id="menu_matracon_mgmt_project"
+              name="Project Dashboard"
+              parent="site_operations.menu_matracon_mgmt_root"
+              action="site_operations.action_management_dashboard_project_tab"
+              sequence="20"
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_head_office,purchase_demand_raise.group_procurement_ho,base.group_system"/>
+    <record id="menu_matracon_mgmt_project" model="ir.ui.menu">
+        <field name="group_ids" eval="[(6, 0, [
+            ref('site_operations.group_finance_ho'),
+            ref('purchase_demand_raise.group_ceo_approval'),
+            ref('purchase_demand_raise.group_matracon_admin'),
+            ref('purchase_demand_raise.group_head_office'),
+            ref('purchase_demand_raise.group_procurement_ho'),
+            ref('base.group_system'),
+        ])]"/>
+    </record>
+
+    <!-- Vendors — outstanding balances, bills, and payment history -->
+    <menuitem id="menu_matracon_mgmt_vendors"
+              name="Vendors"
+              parent="site_operations.menu_matracon_mgmt_root"
+              action="site_operations.action_management_dashboard_vendors_tab"
+              sequence="30"
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
+    <!-- Subcontractors — outstanding balances, IPCs, and payments -->
+    <menuitem id="menu_matracon_mgmt_sub"
+              name="Subcontractors"
+              parent="site_operations.menu_matracon_mgmt_root"
+              action="site_operations.action_management_dashboard_sub_tab"
+              sequence="40"
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
+    <!-- Bank Guarantees — facility utilization and expiry alerts -->
+    <menuitem id="menu_matracon_mgmt_bg"
+              name="Bank Guarantees"
+              parent="site_operations.menu_matracon_mgmt_root"
+              action="site_operations.action_management_dashboard_bg_tab"
+              sequence="50"
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
+    <!-- Procurement Dashboard — PO tracking, site store, comparatives -->
+    <menuitem id="menu_matracon_mgmt_procurement"
+              name="Procurement Dashboard"
+              parent="site_operations.menu_matracon_mgmt_root"
+              action="site_operations.action_site_store_dashboard"
+              sequence="60"
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_head_office,purchase_demand_raise.group_procurement_ho,base.group_system"/>
+
+    <!-- Inventory Dashboard — product-wise on-hand qty and PO-based worth -->
+    <menuitem id="menu_matracon_mgmt_inventory"
+              name="Inventory Dashboard"
+              parent="site_operations.menu_matracon_mgmt_root"
+              action="site_operations.action_management_dashboard_inventory_tab"
+              sequence="65"
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_head_office,purchase_demand_raise.group_procurement_ho,base.group_system"/>
+
+    <!-- Hide the old Accounting → Management Dashboard entry -->
+    <record id="menu_management_dashboard" model="ir.ui.menu">
+        <field name="active" eval="False"/>
+    </record>
+
+    <!-- Hide the old Project → Management Dashboard entry -->
+    <record id="menu_management_dashboard_project" model="ir.ui.menu">
+        <field name="active" eval="False"/>
+    </record>
 
     <!-- ════════════════════════════════════════════════════════════════════
          COMPLIANCE — Standalone App (CEO, Finance HO, Admin only)

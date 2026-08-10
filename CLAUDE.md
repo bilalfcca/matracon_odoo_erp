@@ -474,3 +474,127 @@ d67bf22  Fix: PO/RFQ letterhead — all content visible; clean meta/vendor block
 
 #### Pending — odoosh-push blocked
 All commits are **local only**. Enable **AI Code Push** in Odoo.sh project settings, then run `odoosh-push`.
+
+---
+
+## Session Notes — 2026-07-25
+
+### Petty Cash Credit Account Bug Fix
+
+#### Root Cause
+`x_petty_cash_account_id` on `x.petty.cash.expense` is `readonly="1"` in the view for site accountants. Odoo never sends readonly field values back on form save, so the value set by `default_get` was discarded — the field was always `NULL` in the DB. `_create_journal_entry()` then silently returned (`return`) with no JE created → GL never touched → petty cash balance never decreased.
+
+#### Files Changed
+
+**`site_operations/views/petty_cash_views.xml`**
+- Collapsed the two group-conditional `x_petty_cash_account_id` entries (SA + HO/Finance) into a single `readonly="1"` `force_save="1"` field for ALL users
+- `force_save="1"` forces Odoo to include the readonly value in the save payload
+
+**`site_operations/models/petty_cash.py`** — `create()`
+- Auto-fills `x_petty_cash_account_id` from `fund._get_petty_cash_account()` when client doesn't send it
+- Defensive layer independent of view attributes
+
+**`site_operations/hooks.py`** — `fix_petty_cash_expense_accounts()`
+- New function called from `post_migrate_hook`
+- Step 1: fills `x_petty_cash_account_id` on all existing expenses where it's NULL
+- Step 2: creates missing JEs for posted expenses with `x_account_move_id = NULL`
+- JEs dated to original `expense_date` (not today) so historical records are correct
+- Fund balance auto-corrects (computed from GL)
+- **This runs automatically on `odoosh-push`** — no manual intervention needed for the ~100 production entries
+
+**`site_operations/models/stock_picking.py`**
+- Removed `_check_duplicate_asset_issuance()` call from `button_validate()` — re-issuing same asset to same contact no longer blocked
+
+#### Commits This Session
+```
+8afd7cf  Fix: petty cash credit account lost on save + remove duplicate-issuance block
+08bae06  Fix: petty cash credit account — fully readonly for all users
+```
+
+### Push Strategy
+All commits pushed to Development branch on 2026-07-25 via `odoosh-push`.
+Remote: `cecf525..c9e8c9e → Development`
+
+To promote to Staging/Production: use the Odoo.sh dashboard to merge Development → Staging → Production.
+
+---
+
+## Session Notes — 2026-07-25 (continued)
+
+### Petty Cash Admin Wizard — Manual Fix Trigger
+
+#### What was added
+The 3-step petty cash fix (`fix_petty_cash_expense_accounts`) previously only ran
+automatically on module upgrade (via `post_migrate_hook`). A dedicated admin UI is now
+available so the fix can be triggered on demand without upgrading.
+
+#### New: `x.petty.cash.admin.wizard` (TransientModel)
+- **File:** `site_operations/models/petty_cash.py` (appended at end)
+- Single method `action_run_fix()` — calls the same `fix_petty_cash_expense_accounts(env)`
+  as the hook. Group-restricted to `group_matracon_admin` or `base.group_system`.
+- Returns a sticky success notification.
+
+#### New form view + window action
+- **File:** `site_operations/views/petty_cash_views.xml`
+- `view_petty_cash_admin_wizard_form` — modal form with:
+  - Blue info box describing all 3 steps
+  - Yellow warning reminding admin to set the Petty Cash Account on Site Config first
+  - **"Run Fix Now"** button with a confirmation dialog
+  - "Close" cancel button
+- `action_petty_cash_admin_wizard` — `target="new"` (opens as dialog)
+
+#### New menu path
+```
+Accounting → Petty Cash → Configuration → Fix Petty Cash Accounts
+```
+Visible only to **Matracon Admin** and **System Administrator**.
+
+#### ACL added
+- `access_petty_cash_admin_wizard_admin` → `group_matracon_admin` (CRUD)
+- `access_petty_cash_admin_wizard_system` → `base.group_system` (CRUD)
+
+#### Commit
+```
+c9e8c9e  Feat: petty cash admin wizard — manual fix trigger under Petty Cash → Configuration
+```
+
+### All Commits Pushed to Development (2026-07-25)
+51 commits total pushed via `odoosh-push`. Remote tip: `c9e8c9e` on branch `Development`.
+All previous session commits (July 9–25) are now in the remote. Development branch is
+fully up-to-date.
+
+---
+
+## Session Notes — 2026-07-30
+
+### Development Build — DB Not Initialized (500 Error)
+
+#### What happened
+After the last `odoosh-push`, the Odoo.sh development container was rebuilt with a **fresh empty database**
+(normal for dev branches). However, the automated DB initialization (`install.log`) was 0 bytes — it silently
+failed to run. Odoo started with no `ir_module_module` table → every HTTP request threw `KeyError: 'ir.http'`
+→ 500 Internal Server Error on the site.
+
+#### Fix applied (manual, this session)
+```bash
+odoo-bin -i base --stop-after-init --no-http
+odoo-bin -i purchase_demand_raise,site_operations --stop-after-init --no-http
+```
+Both completed with zero errors. The background server restarted via socket activation and returned
+`303` (redirect to login) — site is healthy.
+
+#### Non-critical warning observed
+```
+hr.employee.hr_icon_display: selection=... overrides existing selection; use selection_add instead
+```
+Source: `mail_presence_ext.py` overrides the `hr_icon_display` field selection entirely instead of
+using `selection_add`. Non-fatal — field still works. Fix in a future commit if needed.
+
+#### Key lesson
+On a fresh Odoo.sh dev build, if the site shows 500 immediately after a push, check `install.log`
+(size 0 = init didn't run). Run the two `odoo-bin -i` commands above manually to recover.
+
+### Commits This Session
+```
+(docs only — no code changes)
+```

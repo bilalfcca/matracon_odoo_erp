@@ -1,15 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
+    <!-- A4 paper with very narrow left/right margins so the Credit column is not clipped -->
+    <record id="paperformat_bpv" model="report.paperformat">
+        <field name="name">BPV A4 Narrow</field>
+        <field name="default">False</field>
+        <field name="format">A4</field>
+        <field name="orientation">Portrait</field>
+        <field name="margin_top">5</field>
+        <field name="margin_bottom">10</field>
+        <field name="margin_left">5</field>
+        <field name="margin_right">5</field>
+        <field name="header_line">False</field>
+        <field name="header_spacing">3</field>
+        <field name="dpi">90</field>
+    </record>
+
     <record id="action_report_bank_payment_voucher" model="ir.actions.report">
         <field name="name">Bank Payment Voucher</field>
         <field name="model">account.payment</field>
         <field name="report_type">qweb-pdf</field>
         <field name="report_name">site_operations.report_bank_payment_voucher_document</field>
         <field name="report_file">site_operations.report_bank_payment_voucher_document</field>
-        <field name="print_report_name">'BPV - ' + (object.name or '')</field>
+        <field name="print_report_name">(object.x_bpv_ref or object.name or 'BPV')</field>
         <field name="binding_model_id" ref="account.model_account_payment"/>
         <field name="binding_type">report</field>
+        <field name="paperformat_id" ref="paperformat_bpv"/>
     </record>
 
 </odoo>

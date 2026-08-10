@@ -28,6 +28,11 @@
                 <field name="x_issue_type" string="Issue Type" optional="hide"/>
                 <field name="x_inventory_type" string="Inventory Type" optional="hide"/>
                 <field name="x_backcharge_applicable" string="Backcharged" optional="hide"/>
+                <field name="x_submitted_to_sa" string="SA Review"
+                       optional="show"
+                       widget="badge"
+                       decoration-warning="x_submitted_to_sa == True and state != 'done'"
+                       decoration-success="x_submitted_to_sa == True and state == 'done'"/>
                 <field name="x_original_issued_qty" string="Issued Qty" optional="hide"/>
                 <field name="x_total_returned_qty" string="Returned Qty" optional="hide"/>
                 <field name="x_outstanding_qty" string="Outstanding Qty" optional="hide"/>
@@ -143,6 +148,21 @@
         <field name="res_model">stock.picking</field>
         <field name="view_mode">list,form</field>
         <field name="domain">[('x_transfer_purpose', 'in', ['material_issuance', 'site_to_site'])]</field>
+        <field name="context">{}</field>
+        <field name="view_ids" eval="[
+            (5, 0, 0),
+            (0, 0, {'view_mode': 'list', 'view_id': ref('view_material_issuance_list')}),
+            (0, 0, {'view_mode': 'form', 'view_id': ref('stock.view_picking_form')}),
+        ]"/>
+        <field name="search_view_id" ref="view_material_issuance_search"/>
+    </record>
+
+    <!-- ── Window Action: SA Pending Issuances ──────────────────────────────── -->
+    <record id="action_sa_pending_issuances" model="ir.actions.act_window">
+        <field name="name">Material Issuance Review</field>
+        <field name="res_model">stock.picking</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('x_transfer_purpose', '=', 'material_issuance'), ('x_submitted_to_sa', '=', True), ('x_is_return_transfer', '=', False)]</field>
         <field name="context">{}</field>
         <field name="view_ids" eval="[
             (5, 0, 0),
