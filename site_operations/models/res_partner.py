@@ -21,6 +21,11 @@ class ResPartnerSiteOps(models.Model):
              'Hides them from vendor/customer selection lists.'
     )
 
+    x_wht_exemption_ids = fields.One2many(
+        'x.partner.wht.exemption', 'partner_id',
+        string='WHT Exemptions',
+    )
+
     x_material_issuance_count = fields.Integer(
         string='Material Issuances',
         compute='_compute_x_material_issuance_count',
@@ -169,6 +174,36 @@ class ResPartnerSiteOps(models.Model):
             'Please use "Create and edit…" to open the full form — '
             'a Tag and Description are required for every contact.'
         ))
+
+    def open_follow_up_report(self):
+        """Redirect the 'Due' smart button to Partner Ledger for pure vendors.
+
+        The standard Follow-up Report (account_reports.action_account_report_followup)
+        only queries account_type = 'asset_receivable'.  Vendors whose outstanding
+        balance lives entirely in liability_payable entries always get 0 results.
+
+        For contacts that are only suppliers (supplier_rank > 0, customer_rank == 0)
+        we redirect to the Partner Ledger filtered to unreconciled entries, which
+        correctly shows outstanding payable amounts.
+
+        Contacts that are customers — or both customer and supplier — keep the
+        standard Follow-up Report (receivable focus, follow-up workflow).
+        """
+        self.ensure_one()
+        if self.supplier_rank > 0 and self.customer_rank == 0:
+            action = self.env['ir.actions.actions']._for_xml_id(
+                'account_reports.action_account_report_partner_ledger'
+            )
+            action['params'] = {
+                'options': {
+                    'partner_ids': (self | self.commercial_partner_id).ids,
+                    'unfold_all': True,
+                    'unreconciled': True,
+                },
+                'ignore_session': True,
+            }
+            return action
+        return super().open_follow_up_report()
 
     @api.constrains('category_id', 'x_description', 'active', 'type')
     def _check_tag_and_description_required(self):

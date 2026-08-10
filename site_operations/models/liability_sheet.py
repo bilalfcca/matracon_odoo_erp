@@ -3,7 +3,7 @@ from dateutil.relativedelta import relativedelta
 from markupsafe import Markup
 
 from odoo import models, fields, api, _
-from odoo.exceptions import UserError
+from odoo.exceptions import UserError, ValidationError
 
 from . import matracon_notifications as matracon_notify
 
@@ -73,6 +73,11 @@ class LiabilitySheet(models.Model):
     pm_signed_sheet = fields.Binary(string='PM Signed Copy (Upload)')
     pm_signed_sheet_filename = fields.Char()
 
+    # ── Approval tracking for digital signatures on PDF ───────────────────
+    x_ceo_approved_by_id = fields.Many2one(
+        'res.users', string='CEO Approved By', readonly=True, copy=False, index=True,
+        help='User who CEO-approved this liability sheet. Signature shown on printed PDF.')
+
     line_ids = fields.One2many(
         'x.liability.sheet.line', 'sheet_id', string='Liability Lines')
 
@@ -106,6 +111,16 @@ class LiabilitySheet(models.Model):
     # COMPUTE
     # ─────────────────────────────────────────────────────────────────────────
 
+    # ── Partner filter (used in form to live-filter one2many lines by partner) ──
+    # store=False / no compute → pure transient widget that never touches the DB.
+    # Requires @api.onchange so that a change fires a server round-trip: the
+    # onchange response carries the new value back to the client, which triggers
+    # a full form re-render and re-evaluation of the line_ids/selected_line_ids
+    # domain.  Without the onchange, OWL sees x_filter_partner_id = False (the
+    # server-side default) and never applies the filter.
+    x_filter_partner_id = fields.Many2one(
+        'res.partner', string='Filter by Partner', store=False)
+
     # ── Role flag (used in form to toggle group label visibility) ─────────────
     x_is_site_accountant = fields.Boolean(compute='_compute_role_flag_sheet', store=False)
 
@@ -113,6 +128,26 @@ class LiabilitySheet(models.Model):
         is_sa = self.env.user.has_group('site_operations.group_site_accountant')
         for sheet in self:
             sheet.x_is_site_accountant = is_sa
+
+    @api.onchange('x_filter_partner_id')
+    def _onchange_x_filter_partner_id(self):
+        """Return an updated domain for both One2many line fields.
+
+        Returning {'domain': {'field': [...]}} from an onchange is the standard
+        Odoo mechanism that instructs the client to apply a new domain to a field —
+        it works reliably in Odoo 19 OWL, whereas a static XML domain on a
+        store=False field is not always re-evaluated reactively.
+        """
+        if self.x_filter_partner_id:
+            domain = [('partner_id', '=', self.x_filter_partner_id.id)]
+        else:
+            domain = []
+        return {
+            'domain': {
+                'line_ids': domain,
+                'selected_line_ids': domain,
+            }
+        }
 
     @api.depends('project_analytic_account_id', 'x_sequence_no')
     def _compute_name(self):
@@ -142,6 +177,49 @@ class LiabilitySheet(models.Model):
             sheet.total_recommended = sum(sheet.line_ids.mapped('recommended_amount'))
             sheet.total_approved = sum(sheet.line_ids.mapped('approved_amount'))
             sheet.total_paid = sum(sheet.line_ids.mapped('paid_amount'))
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # CONSTRAINTS
+    # ─────────────────────────────────────────────────────────────────────────
+
+    @api.constrains('date_from', 'date_to', 'project_analytic_account_id')
+    def _check_no_date_overlap(self):
+        """Two sheets for the same project must never have overlapping date ranges.
+
+        If Jun 1–Aug 31 exists, the next sheet must start Sep 1 at the earliest.
+        The constraint applies to all states — paid sheets still own their historical
+        GL data and a new sheet must not re-cover the same period.
+        """
+        for sheet in self:
+            if not sheet.date_from or not sheet.date_to or not sheet.project_analytic_account_id:
+                continue
+            if sheet.date_from > sheet.date_to:
+                raise ValidationError(_(
+                    '"Date From" (%s) cannot be after "Date To" (%s).'
+                ) % (sheet.date_from, sheet.date_to))
+            overlapping = self.search([
+                ('project_analytic_account_id', '=',
+                 sheet.project_analytic_account_id.id),
+                ('id', '!=', sheet.id),
+                # Two ranges [A.from, A.to] and [B.from, B.to] overlap when
+                # A.from <= B.to  AND  B.from <= A.to
+                ('date_from', '<=', sheet.date_to),
+                ('date_to',   '>=', sheet.date_from),
+            ], limit=1)
+            if overlapping:
+                next_allowed = overlapping.date_to + relativedelta(days=1)
+                raise ValidationError(_(
+                    'Period overlap for project "%(project)s":\n'
+                    '%(existing)s already covers %(efrom)s → %(eto)s.\n'
+                    'The new sheet\'s period conflicts — it must start from '
+                    '%(next)s at the earliest.'
+                ) % {
+                    'project': sheet.project_analytic_account_id.display_name,
+                    'existing': overlapping.name,
+                    'efrom': overlapping.date_from,
+                    'eto': overlapping.date_to,
+                    'next': next_allowed,
+                })
 
     # ─────────────────────────────────────────────────────────────────────────
     # CRUD
@@ -186,10 +264,12 @@ class LiabilitySheet(models.Model):
                 raise UserError(_(
                     'Enter a Recommended Amount for every selected vendor before submitting: %s'
                 ) % ', '.join(missing.mapped('partner_id.display_name')))
-            # Pre-fill approved_amount from recommended_amount so CEO sees it ready to edit
+            # Pre-fill approved_amount from recommended_amount so CEO sees it ready to edit.
+            # Use sudo() because LiabilitySheetLine.write() guards approved_amount against
+            # non-CEO users — this is a system-driven pre-fill, not a manual CEO action.
             for line in selected:
                 if line.recommended_amount > 0 and not line.approved_amount:
-                    line.approved_amount = line.recommended_amount
+                    line.sudo().write({'approved_amount': line.recommended_amount})
             sheet.state = 'submitted'
             sheet.message_post(
                 body=Markup(_(
@@ -237,6 +317,22 @@ class LiabilitySheet(models.Model):
             # Create ONE batch payment (Finance HO posts it after adding bank + cheques)
             batch = sheet._create_ceo_batch_payment(lines)
             sheet.state = 'approved'
+            sheet.x_ceo_approved_by_id = self.env.uid
+            # Close the CEO activity that was created on submission
+            matracon_notify.close_activities(sheet, summary_contains='Approve Liability Sheet')
+
+            # ── Auto-create next period sheet ─────────────────────────────────
+            # Runs on approval (not on paid) so SA can start filling the next
+            # period immediately while Finance HO is still processing payments.
+            next_sheet = None
+            try:
+                next_sheet = sheet._create_next_period_sheet()
+            except Exception as e:
+                # Never let auto-creation failure block the CEO approval
+                sheet.message_post(body=Markup(_(
+                    '⚠️ Could not auto-create the next period sheet: %s'
+                )) % str(e))
+
             msg = Markup(_(
                 'Liability Sheet approved by CEO <b>%(ceo)s</b>. '
                 'Total Approved: <b>%(total)s</b>.<br/>'
@@ -250,6 +346,34 @@ class LiabilitySheet(models.Model):
                 'batch_name': batch.name,
             }
             sheet.message_post(body=msg)
+
+            # Post a chatter note on both sheets about the auto-created next period
+            if next_sheet:
+                sheet.message_post(body=Markup(_(
+                    'Next period sheet '
+                    '<a href="#" data-oe-model="x.liability.sheet" '
+                    'data-oe-id="%(id)s"><b>%(name)s</b></a> '
+                    'auto-created for <b>%(from)s → %(to)s</b>. '
+                    'Site Accountant: run "↻ Refresh from Ledger" to populate balances.'
+                )) % {
+                    'id': next_sheet.id,
+                    'name': next_sheet.name,
+                    'from': next_sheet.date_from,
+                    'to': next_sheet.date_to,
+                })
+                next_sheet.message_post(body=Markup(_(
+                    'Sheet auto-created on CEO approval of '
+                    '<a href="#" data-oe-model="x.liability.sheet" '
+                    'data-oe-id="%(id)s"><b>%(name)s</b></a> '
+                    '(period: %(from)s → %(to)s).<br/>'
+                    'Run <b>↻ Refresh from Ledger</b> to pull current vendor balances from GL.'
+                )) % {
+                    'id': sheet.id,
+                    'name': sheet.name,
+                    'from': sheet.date_from,
+                    'to': sheet.date_to,
+                })
+
             fo_users = self.env['res.users'].search([
                 ('group_ids', 'in', self.env.ref(
                     'site_operations.group_finance_ho').id),
@@ -328,48 +452,54 @@ class LiabilitySheet(models.Model):
             ))
 
     def _create_next_period_sheet(self):
-        """Auto-create the next sheet when this one is marked paid.
+        """Auto-create the next liability sheet immediately following this one.
 
-        - date_from = first day of the current calendar month (today)
-        - date_to   = last day of that month
-        - Every vendor line is carried forward; opening_balance = unpaid remainder
-        - new_liability starts at 0 — SA runs "Refresh from Ledger" to pull in
-          any bills that arrived while this sheet was in approved/paid state.
+        Rules:
+        - date_from  = self.date_to + 1 day  (e.g. Jun 1–Aug 31 → Sep 1)
+        - date_to    = last day of that same month (Sep 1 → Sep 30); SA can edit
+        - Lines      = all partners from this sheet copied with 0 amounts so the
+                       site accountant can immediately run "↻ Refresh from Ledger"
+                       to pull current GL balances into the new sheet
+        - Idempotent = if a sheet already covering that next period exists, returns
+                       it without creating a duplicate (safe to call twice)
         """
         self.ensure_one()
-        today = fields.Date.today()
-        date_from = today.replace(day=1)
-        date_to = (date_from + relativedelta(months=1)) - relativedelta(days=1)
 
-        # Safety: if a non-paid sheet already exists for this project don't duplicate.
+        next_date_from = self.date_to + relativedelta(days=1)
+        next_date_to = (next_date_from + relativedelta(months=1)) - relativedelta(days=1)
+
+        # If a sheet already covers this next period, return it — don't duplicate.
         existing = self.search([
             ('project_analytic_account_id', '=', self.project_analytic_account_id.id),
-            ('state', 'not in', ['paid']),
             ('id', '!=', self.id),
+            ('date_from', '<=', next_date_to),
+            ('date_to',   '>=', next_date_from),
         ], limit=1)
         if existing:
             return existing
 
-        line_vals = []
-        for line in self.line_ids:
-            remaining = max(line.liability_amount - line.paid_amount, 0.0)
-            line_vals.append((0, 0, {
+        # Copy partner lines with 0 amounts — SA runs Refresh from Ledger for balances.
+        # Opening balances are intentionally 0: the GL is the authoritative source.
+        # Refresh from Ledger will compute correct opening/new-liability from posted moves.
+        line_vals = [
+            (0, 0, {
                 'partner_id': line.partner_id.id,
                 'description': line.description,
-                'opening_balance': remaining,
+                'opening_balance': 0.0,
                 'new_liability': 0.0,
                 'recommended_amount': 0.0,
-            }))
+            })
+            for line in self.line_ids
+            if line.partner_id
+        ]
 
-        if not line_vals:
-            return self.env['x.liability.sheet']
-
-        return self.create({
+        new_sheet = self.sudo().create({
             'project_analytic_account_id': self.project_analytic_account_id.id,
-            'date_from': date_from,
-            'date_to': date_to,
+            'date_from': next_date_from,
+            'date_to': next_date_to,
             'line_ids': line_vals,
         })
+        return new_sheet
 
     def action_fo_mark_paid(self):
         """Finance HO closes the sheet after all vendor payments are posted."""
@@ -396,13 +526,33 @@ class LiabilitySheet(models.Model):
                     'Some approved lines are not fully paid yet: %s'
                 ) % ', '.join(unpaid.mapped('partner_id.display_name')))
             sheet.state = 'paid'
-            sheet.message_post(body=_('All approved payments completed — sheet closed by Finance HO.'))
+            # Close the Finance HO activity that was created on CEO approval
+            matracon_notify.close_activities(sheet)
+            sheet.message_post(body=_(
+                'All approved payments completed — sheet closed by Finance HO.'))
+            # Next period sheet is normally created on CEO approval.
+            # _create_next_period_sheet() is idempotent — returns the existing sheet
+            # if one was already auto-created at approval time; only creates a new one
+            # if somehow it was missed (e.g. sheets approved before this feature).
             next_sheet = sheet._create_next_period_sheet()
-            if next_sheet:
-                sheet.message_post(body=Markup(_(
-                    'Next period liability sheet <b>%s</b> created with '
-                    'opening balances carried forward.'
-                )) % next_sheet.name)
+            if next_sheet and next_sheet.state == 'draft':
+                # Only post a message if this is a brand-new sheet (wasn't created at approval)
+                already_noted = any(
+                    'auto-created on CEO approval' in (m.body or '')
+                    for m in next_sheet.message_ids
+                )
+                if not already_noted:
+                    sheet.message_post(body=Markup(_(
+                        'Next period sheet '
+                        '<a href="#" data-oe-model="x.liability.sheet" '
+                        'data-oe-id="%(id)s"><b>%(name)s</b></a> '
+                        'created for <b>%(from)s → %(to)s</b>.'
+                    )) % {
+                        'id': next_sheet.id,
+                        'name': next_sheet.name,
+                        'from': next_sheet.date_from,
+                        'to': next_sheet.date_to,
+                    })
 
     def _sync_paid_amounts_from_payments(self):
         """Refresh line paid amounts from posted vendor payments.
@@ -464,6 +614,7 @@ class LiabilitySheet(models.Model):
             sheet.line_ids.write({'is_locked': False, 'payment_id': False})
             prev_state = dict(sheet._fields['state'].selection).get(sheet.state, sheet.state)
             sheet.state = 'draft'
+            matracon_notify.close_activities(sheet)
             sheet.message_post(body=Markup(_(
                 'Liability Sheet reset to <b>Draft</b> by <b>%(user)s</b> '
                 '(was: <i>%(prev)s</i>).'
@@ -504,6 +655,7 @@ class LiabilitySheet(models.Model):
             # Unlock all lines and clear draft payment links.
             sheet.line_ids.write({'is_locked': False, 'payment_id': False})
             sheet.state = 'draft'
+            matracon_notify.close_activities(sheet)
 
             # Build detailed chatter message — always preserved.
             msg_parts = [Markup(_(
@@ -524,7 +676,15 @@ class LiabilitySheet(models.Model):
             sheet.message_post(body=Markup('').join(msg_parts))
 
     def action_download_pdf(self):
-        """Download unsigned sheet for offline PM signature."""
+        """Download liability sheet PDF for the current record(s).
+
+        When called from the form view, ``self`` is a single record.
+        When called from the list view header (multiple checkboxes ticked),
+        ``self`` is the recordset of ONLY the selected records — the header
+        button mechanism guarantees this so the download is scoped correctly.
+        """
+        if not self:
+            raise UserError(_('No liability sheet selected.'))
         return self.env.ref(
             'site_operations.action_report_liability_sheet').report_action(self)
 
@@ -786,9 +946,12 @@ class LiabilitySheetLine(models.Model):
             self.description = partner_desc
 
     def write(self, vals):
+        # self.env.su is True when called via sudo() — allow system-driven pre-fills
+        # (e.g. action_submit pre-filling approved_amount from recommended_amount).
         user = self.env.user
         can_approve = (
-            user.has_group('purchase_demand_raise.group_ceo_approval')
+            self.env.su
+            or user.has_group('purchase_demand_raise.group_ceo_approval')
             or user.has_group('purchase_demand_raise.group_matracon_admin')
             or user.has_group('base.group_system')
         )

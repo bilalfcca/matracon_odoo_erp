@@ -92,6 +92,8 @@
                                     <t t-foreach="prod_lines" t-as="pr_line">
                                         <t t-set="prod"    t-value="pr_line.product_id"/>
                                         <t t-set="row_bg"  t-value="'#f9f9f9' if seq % 2 == 0 else '#ffffff'"/>
+                                        <!-- Collect per-vendor vlines for reuse in remarks row -->
+                                        <t t-set="vlines_for_prod" t-value="[vendor.x_line_ids.filtered(lambda l: l.x_product_id == prod)[:1] for vendor in vendors]"/>
                                         <tr t-att-style="'background:' + row_bg + ';'">
                                             <td style="border:1px solid #ddd; padding:5px; text-align:center; font-size:13px;">
                                                 <t t-esc="seq"/>
@@ -107,7 +109,7 @@
                                                 <t t-esc="'{:,.2f}'.format(pr_line.x_requested_qty or pr_line.product_qty or 0)"/>
                                             </td>
                                             <t t-foreach="vendors" t-as="vendor">
-                                                <t t-set="vline"   t-value="vendor.x_line_ids.filtered(lambda l: l.x_product_id == prod)[:1]"/>
+                                                <t t-set="vline"   t-value="vlines_for_prod[vendor_index]"/>
                                                 <t t-set="is_win"  t-value="vendor.id == cs.x_recommended_vendor_line_id.id"/>
                                                 <t t-set="is_best" t-value="not is_win and _lowest_total &gt; 0 and abs(vendor.x_net_total - _lowest_total) &lt; 0.01"/>
                                                 <t t-if="vline and vline.x_unit_price">
@@ -125,6 +127,23 @@
                                                 </t>
                                             </t>
                                         </tr>
+                                        <!-- Remarks sub-row: shown only when at least one vendor
+                                             has a remark for this product line. -->
+                                        <t t-set="has_prod_remarks" t-value="any(vl and vl.x_remarks for vl in vlines_for_prod)"/>
+                                        <t t-if="has_prod_remarks">
+                                            <tr style="background:#fffde7;">
+                                                <td style="border:1px solid #ddd; padding:3px 5px;"/>
+                                                <td colspan="3" style="border:1px solid #ddd; padding:3px 5px; font-size:11px; color:#5d4037; font-style:italic;">
+                                                    Remarks:
+                                                </td>
+                                                <t t-foreach="vendors" t-as="vendor">
+                                                    <t t-set="vline" t-value="vlines_for_prod[vendor_index]"/>
+                                                    <td colspan="2" t-att-style="'border:1px solid #ddd;padding:3px 6px;font-size:11px;color:#5d4037;font-style:italic;' + ('background:#f1f8e9;' if vendor.id == cs.x_recommended_vendor_line_id.id else '')">
+                                                        <t t-esc="vline.x_remarks if vline and vline.x_remarks else ''"/>
+                                                    </td>
+                                                </t>
+                                            </tr>
+                                        </t>
                                     </t>
                                 </tbody>
                                 <tfoot style="font-weight:bold;">
@@ -347,6 +366,7 @@
                         </t>
 
                         <!-- ── Signatures ── -->
+                                                <t t-set="sig_prepared_user" t-value="cs.sudo().create_uid"/>
                         <t t-call="site_operations.report_sig_3col"/>
 
                         <p style="margin-top:16px; font-size:11px; color:#999; border-top:1px solid #eee; padding-top:6px;">

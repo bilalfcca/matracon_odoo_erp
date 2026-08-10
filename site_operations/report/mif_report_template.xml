@@ -222,10 +222,9 @@
                         <!-- ── Signatures ── -->
                         <!-- 4-col: Return By when return transfer, Received By otherwise -->
                         <t t-call="site_operations.report_sig_4col">
+                            <t t-set="sig_prepared_user" t-value="picking.sudo().create_uid"/>
                             <t t-set="extra_label" t-value="'Return By' if picking.x_is_return_transfer else 'Received By'"/>
                         </t>
-                        <p class="text-muted small mt-3">System-generated — Matracon Pakistan Pvt. Ltd. · Printed: <t t-esc="context_timestamp(datetime.datetime.now()).strftime('%d/%m/%Y')"/></p>
-
                     </div>
                 </t>
             </t>
@@ -362,10 +361,9 @@
 
                         <!-- ── Signatures ── -->
                         <t t-call="site_operations.report_sig_4col">
+                            <t t-set="sig_prepared_user" t-value="picking.sudo().create_uid"/>
                             <t t-set="extra_label">Received By</t>
                         </t>
-                        <p class="text-muted small mt-3">System-generated — Matracon Pakistan Pvt. Ltd. · Printed: <t t-esc="context_timestamp(datetime.datetime.now()).strftime('%d/%m/%Y')"/></p>
-
                     </div>
                 </t>
             </t>
@@ -515,9 +513,8 @@
                         </div>
 
                         <!-- ── Signatures ── -->
+                                                <t t-set="sig_prepared_user" t-value="sheet.sudo().create_uid"/>
                         <t t-call="site_operations.report_sig_3col"/>
-                        <p class="text-muted small mt-3">System-generated — Matracon Pakistan Pvt. Ltd. · Printed: <t t-esc="context_timestamp(datetime.datetime.now()).strftime('%d/%m/%Y')"/></p>
-
                     </div>
                 </t>
             </t>

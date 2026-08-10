@@ -18,9 +18,11 @@
                 <attribute name="readonly">1</attribute>
             </xpath>
 
-            <!-- Hide Odoo default payment state bar when using Matracon liability workflow -->
+            <!-- Hide Odoo default payment state bar when using Matracon liability workflow
+                 Also hide it on reversed payments (any type) so the custom x_payment_status
+                 statusbar shows the Reversed step instead of dropping back to "Draft". -->
             <xpath expr="//field[@name='state'][@widget='statusbar']" position="attributes">
-                <attribute name="invisible">payment_type == 'outbound' and (x_liability_sheet_id or x_ceo_direct_payment)</attribute>
+                <attribute name="invisible">payment_type == 'outbound' and (x_liability_sheet_id or x_ceo_direct_payment or x_payment_status == 'reversed')</attribute>
             </xpath>
 
             <!-- Hide standard Confirm button for:
@@ -158,11 +160,12 @@
                        decoration-success="x_ceo_approval_state == 'approved'"
                        decoration-muted="x_ceo_approval_state == 'not_required'"/>
 
-                <!-- CEO Direct Payment: statusbar + Submit button -->
+                <!-- Custom payment statusbar: shown for liability-sheet, CEO direct,
+                     and any reversed payment so "Reversed" is visible regardless of type. -->
                 <field name="x_payment_status"
                        widget="statusbar"
-                       statusbar_visible="draft,in_process,paid"
-                       invisible="payment_type != 'outbound' or (not x_liability_sheet_id and not x_ceo_direct_payment)"/>
+                       statusbar_visible="draft,in_process,paid,reversed"
+                       invisible="payment_type != 'outbound' or (not x_liability_sheet_id and not x_ceo_direct_payment and x_payment_status != 'reversed')"/>
 
                 <!-- CEO submits their direct payment to FO -->
                 <button name="action_ceo_submit_to_fo"
@@ -192,6 +195,18 @@
                         class="btn-success"
                         groups="site_operations.group_finance_ho,purchase_demand_raise.group_head_office"
                         invisible="x_payment_status != 'in_process' or payment_type != 'outbound'"/>
+
+                <!-- Finance HO: Reverse a posted payment.
+                     Unwinds the main JE, WHT deduction entry, WHT companion,
+                     interproject entries, bank allocations, and restores the
+                     liability sheet paid_amount.  Payment returns to Draft. -->
+                <button name="action_matracon_reverse_payment"
+                        type="object"
+                        string="↩ Reverse Payment"
+                        class="btn-danger"
+                        groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"
+                        invisible="state not in ('in_process', 'paid', 'partial')"
+                        confirm="Reverse this payment? ALL accounting entries (JE, WHT deduction, bank splits, analytic tags) will be cancelled and the payment reset to Draft. This cannot be undone automatically — continue?"/>
             </xpath>
 
             <xpath expr="//field[@name='amount']" position="before">
@@ -295,14 +310,18 @@
             </xpath>
 
             <xpath expr="//field[@name='x_available_bank_balance']" position="after">
-                <!-- Header cheque — only when NOT using per-bank allocation lines -->
+                <!-- Header cheque (single-bank path — no per-bank allocation lines) -->
+                <!-- Leaf dropdown replaces free-text cheque number -->
+                <field name="x_cheque_leaf_id"
+                       string="Cheque No."
+                       options="{'no_create': True, 'no_open': True}"
+                       domain="[('bank_journal_id', '=', journal_id), ('state', '=', 'available')]"
+                       invisible="payment_type != 'outbound' or not x_is_cheque_payment or (x_ceo_direct_payment and x_viewer_is_ceo_only) or x_bank_allocation_ids"/>
+                <!-- Keep x_cheque_number visible read-only for already-posted payments -->
                 <field name="x_cheque_number"
-                       invisible="payment_type != 'outbound' or not x_is_cheque_payment or (x_ceo_direct_payment and x_viewer_is_ceo_only) or x_bank_allocation_ids"
-                       required="payment_type == 'outbound' and x_is_cheque_payment and x_liability_sheet_id and not x_bank_allocation_ids"/>
-                <button name="action_assign_cheque_number" type="object"
-                        string="Auto Assign Cheque No"
-                        class="btn-secondary"
-                        invisible="not x_is_cheque_payment or x_cheque_number or (x_ceo_direct_payment and x_viewer_is_ceo_only) or x_bank_allocation_ids"/>
+                       string="Cheque Ref"
+                       readonly="1"
+                       invisible="payment_type != 'outbound' or not x_is_cheque_payment or not x_cheque_number or x_bank_allocation_ids"/>
                 <!-- Account Title — shown when no per-bank allocation lines (single bank) -->
                 <field name="x_account_title"
                        string="Account Title"
@@ -352,16 +371,21 @@
                             <field name="allocation_amount" string="Allocation Amount"/>
                             <field name="x_account_title" string="Account Title"
                                    placeholder="Account holder name (for voucher)"/>
-                            <!-- Cheque No.: only shown when payment method is a cheque type -->
-                            <field name="x_cheque_number" string="Cheque No."
+                            <!-- Cheque No.: leaf dropdown when payment is cheque type -->
+                            <field name="x_cheque_leaf_id"
+                                   string="Cheque No."
+                                   options="{'no_create': True, 'no_open': True}"
+                                   domain="[('bank_journal_id', '=', journal_id), ('state', '=', 'available')]"
                                    invisible="not parent.x_is_cheque_payment"/>
-                            <!-- Auto Assign: hidden when already has a cheque no. OR when not cheque payment -->
-                            <button name="action_assign_cheque_number"
+                            <!-- Discard button: visible when a leaf is assigned -->
+                            <button name="action_discard_leaf"
                                     type="object"
-                                    string="Auto Assign"
-                                    title="Auto-assign next cheque number from the active series"
-                                    class="btn-secondary btn-sm"
-                                    invisible="x_cheque_number or not parent.x_is_cheque_payment"/>
+                                    string="Discard"
+                                    icon="fa-ban"
+                                    class="btn-sm btn-warning"
+                                    title="Discard this cheque (spoiled/faulty)"
+                                    confirm="Mark this cheque as discarded? It cannot be reused."
+                                    invisible="not x_cheque_leaf_id or not parent.x_is_cheque_payment"/>
                         </list>
                     </field>
                 </page>

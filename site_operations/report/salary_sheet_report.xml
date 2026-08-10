@@ -1,6 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
+    <!-- ──────────────────────────────────────────────────────────────────────
+         Paper format: A4 Landscape with narrow margins for the disbursement table
+    ─────────────────────────────────────────────────────────────────────────── -->
+    <record id="paperformat_salary_sheet_landscape" model="report.paperformat">
+        <field name="name">Salary Sheet (Landscape A4)</field>
+        <field name="default" eval="False"/>
+        <field name="format">A4</field>
+        <field name="orientation">Landscape</field>
+        <field name="margin_top">8</field>
+        <field name="margin_bottom">8</field>
+        <field name="margin_left">7</field>
+        <field name="margin_right">7</field>
+        <field name="header_line" eval="False"/>
+        <field name="header_spacing">3</field>
+        <field name="dpi">90</field>
+    </record>
+
+    <!-- Report action — binds to x.salary.sheet, landscape paper format -->
     <record id="action_report_salary_sheet" model="ir.actions.report">
         <field name="name">Salary Sheet</field>
         <field name="model">x.salary.sheet</field>
@@ -10,146 +28,287 @@
         <field name="print_report_name">'Salary Sheet - ' + (object.name or '')</field>
         <field name="binding_model_id" ref="model_x_salary_sheet"/>
         <field name="binding_type">report</field>
+        <field name="paperformat_id" ref="paperformat_salary_sheet_landscape"/>
     </record>
 
+    <!-- ═══════════════════════════════════════════════════════════════════════
+         MAIN TEMPLATE
+         Part 1 — Department-wise Salary Disbursement Table  (landscape)
+         Part 2 — Individual Salary Receipt / Acknowledgment Slips  (2 per row)
+    ════════════════════════════════════════════════════════════════════════ -->
     <template id="report_salary_sheet_document">
         <t t-call="web.html_container">
             <t t-foreach="docs" t-as="sheet">
-                <t t-call="web.external_layout">
-                    <div class="page">
+                <div class="page">
+                    <style>
+                        /* ── Global reset for salary report ── */
+                        * { box-sizing: border-box; margin: 0; padding: 0; }
+                        body { font-family: Arial, sans-serif; font-size: 8px; color: #000; }
 
-                        <!-- Header -->
-                        <div class="row mb-3 text-center">
-                            <div class="col-12">
-                                <h3 style="font-weight:700;letter-spacing:1px;">SALARY SHEET</h3>
-                                <h5 style="color:#374151;"><t t-esc="sheet.name"/></h5>
-                            </div>
+                        /* ── Page heading ── */
+                        .sal-heading { text-align: center; margin-bottom: 8px; }
+                        .sal-heading .co-name {
+                            font-size: 14px; font-weight: 700; letter-spacing: 0.5px;
+                            text-transform: uppercase; margin-bottom: 2px;
+                        }
+                        .sal-heading .proj-name { font-size: 11px; font-weight: 600; color: #1a3a5c; margin-bottom: 1px; }
+                        .sal-heading .period    { font-size: 9px; color: #555; }
+
+                        /* ── Main disbursement table ── */
+                        table.sal-tbl { width: 100%; border-collapse: collapse; font-size: 7.5px; }
+                        table.sal-tbl th,
+                        table.sal-tbl td {
+                            border: 0.5px solid #888;
+                            padding: 2px 2px;
+                            vertical-align: middle;
+                        }
+                        table.sal-tbl thead tr th {
+                            background-color: #1a3a5c;
+                            color: #fff;
+                            font-weight: 700;
+                            text-align: center;
+                            font-size: 7px;
+                            line-height: 1.2;
+                        }
+                        tr.dept-row td {
+                            background-color: #FFE600 !important;
+                            font-weight: 700;
+                            font-size: 8px;
+                            padding: 3px 4px;
+                        }
+                        tr.sub-row td {
+                            background-color: #e0e4ed !important;
+                            font-weight: 700;
+                            font-size: 7.5px;
+                        }
+                        tr.grand-row td {
+                            background-color: #1a3a5c !important;
+                            color: #fff !important;
+                            font-weight: 700;
+                            font-size: 8px;
+                        }
+                        .tr  { text-align: right  !important; }
+                        .tc  { text-align: center !important; }
+                        .tl  { text-align: left   !important; }
+                        .sig-empty { height: 28px; }
+
+                        /* ── Approval signature block ── */
+                        .approval-row {
+                            display: flex;
+                            justify-content: space-around;
+                            margin-top: 18px;
+                        }
+                        .approval-col {
+                            width: 28%;
+                            text-align: center;
+                        }
+                        .approval-col .sig-space { height: 30px; }
+                        .approval-col .sig-label {
+                            border-top: 1px solid #000;
+                            padding-top: 3px;
+                            font-size: 9px;
+                            font-weight: 700;
+                        }
+
+                    </style>
+
+                    <!-- ════════════════════════════════════════════════════════
+                         PART 1 — SALARY DISBURSEMENT TABLE
+                    ════════════════════════════════════════════════════════ -->
+
+                    <!-- Page heading -->
+                    <div class="sal-heading">
+                        <div class="co-name">Matracon Pakistan (Pvt) Limited</div>
+                        <div class="proj-name">
+                            <t t-esc="sheet.project_analytic_account_id.name or 'Head Office'"/>
                         </div>
-
-                        <!-- Meta info -->
-                        <div class="row mb-3">
-                            <div class="col-6">
-                                <table class="table table-sm table-borderless" style="font-size:13px;">
-                                    <tr>
-                                        <td style="width:38%;font-weight:600;">Project</td>
-                                        <td><t t-esc="sheet.project_analytic_account_id.name or '-'"/></td>
-                                    </tr>
-                                    <tr>
-                                        <td style="font-weight:600;">Period</td>
-                                        <td>
-                                            <t t-esc="sheet.date_from.strftime('%d/%m/%Y') if sheet.date_from else '-'"/>
-                                            &#160;–&#160;
-                                            <t t-esc="sheet.date_to.strftime('%d/%m/%Y') if sheet.date_to else '-'"/>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td style="font-weight:600;">Workforce</td>
-                                        <td><t t-esc="sheet.workforce_count"/> employees</td>
-                                    </tr>
-                                </table>
-                            </div>
-                            <div class="col-6">
-                                <table class="table table-sm table-borderless" style="font-size:13px;">
-                                    <tr>
-                                        <td style="width:40%;font-weight:600;">Gross Basic</td>
-                                        <td class="text-end">
-                                            <t t-esc="'{:,.0f}'.format(sheet.total_basic)"/>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td style="font-weight:600;">Total Allowances</td>
-                                        <td class="text-end">
-                                            <t t-esc="'{:,.0f}'.format(sheet.total_allowances)"/>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td style="font-weight:600;">Total Deductions</td>
-                                        <td class="text-end">
-                                            <t t-esc="'{:,.0f}'.format(sheet.total_deductions)"/>
-                                        </td>
-                                    </tr>
-                                    <tr style="border-top:2px solid #000;">
-                                        <td style="font-weight:700;">Net Payable</td>
-                                        <td class="text-end fw-bold">
-                                            <t t-esc="'{:,.0f}'.format(sheet.total_net)"/>
-                                        </td>
-                                    </tr>
-                                </table>
-                            </div>
+                        <div class="period">
+                            Salary Disbursement Sheet
+                            &#160;|&#160;
+                            <t t-esc="sheet.date_from.strftime('%B %Y') if sheet.date_from else sheet.name"/>
                         </div>
+                    </div>
 
-                        <!-- Payroll Lines Table -->
-                        <table class="table table-sm table-bordered" style="font-size:11px;">
-                            <thead>
-                                <tr style="background:#1E40AF;">
-                                    <th class="text-center" style="width:4%;color:#fff;">#</th>
-                                    <th style="width:18%;color:#fff;">Employee</th>
-                                    <th class="text-center" style="width:7%;color:#fff;">Paid Days</th>
-                                    <th class="text-end" style="width:10%;color:#fff;">Monthly Basic</th>
-                                    <th class="text-end" style="width:10%;color:#fff;">Basic (Days)</th>
-                                    <th class="text-end" style="width:9%;color:#fff;">Allowances</th>
-                                    <th class="text-end" style="width:7%;color:#fff;">WHT</th>
-                                    <th class="text-end" style="width:7%;color:#fff;">EOBI</th>
-                                    <th class="text-end" style="width:8%;color:#fff;">Advance</th>
-                                    <th class="text-end" style="width:8%;color:#fff;">Deductions</th>
-                                    <th class="text-end" style="width:10%;color:#fff;">Net Payable</th>
+                    <!-- Department-wise salary table -->
+                    <t t-set="dept_groups" t-value="sheet._lines_by_department()"/>
+
+                    <!-- Grand total accumulators (accumulated across departments) -->
+                    <t t-set="g_count" t-value="0"/>
+                    <t t-set="g_basic" t-value="0"/>
+                    <t t-set="g_allow" t-value="0"/>
+                    <t t-set="g_gross" t-value="0"/>
+                    <t t-set="g_adv"   t-value="0"/>
+                    <t t-set="g_net"   t-value="0"/>
+
+                    <table class="sal-tbl">
+                        <thead>
+                            <tr>
+                                <th style="width:3%;">Sr.<br/>No</th>
+                                <th style="width:11%;">Name</th>
+                                <th style="width:9%;">Father Name</th>
+                                <th style="width:7%;">Designation</th>
+                                <th style="width:8%;">Mobile No.</th>
+                                <th style="width:7%;">Salary<br/>Per Month</th>
+                                <th style="width:6%;">Allow-<br/>ance</th>
+                                <th style="width:6%;">Date of<br/>Joining</th>
+                                <th style="width:6%;">Date of<br/>Leaving</th>
+                                <th style="width:3%;">Days</th>
+                                <th style="width:7%;">Gross<br/>Salary</th>
+                                <th style="width:6%;">Advan-<br/>ces</th>
+                                <th style="width:7%;">Net Salary<br/>Amount</th>
+                                <th style="width:14%;">Signature</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <t t-foreach="dept_groups" t-as="dept_group">
+
+                                <!-- Yellow department header row -->
+                                <tr class="dept-row">
+                                    <td colspan="14"><t t-esc="dept_group[0]"/></td>
                                 </tr>
-                            </thead>
-                            <tbody>
-                                <t t-foreach="sheet.line_ids" t-as="line">
+
+                                <!-- Per-department accumulators -->
+                                <t t-set="d_sr"    t-value="0"/>
+                                <t t-set="d_basic" t-value="0"/>
+                                <t t-set="d_allow" t-value="0"/>
+                                <t t-set="d_gross" t-value="0"/>
+                                <t t-set="d_adv"   t-value="0"/>
+                                <t t-set="d_net"   t-value="0"/>
+                                <t t-set="d_count" t-value="0"/>
+
+                                <!-- Employee rows -->
+                                <t t-foreach="dept_group[1]" t-as="line">
+                                    <t t-set="d_sr"    t-value="d_sr + 1"/>
+                                    <t t-set="emp"     t-value="line.employee_id.sudo()"/>
+                                    <t t-set="ln_gross" t-value="line.basic_salary + line.allowances"/>
+                                    <t t-set="d_basic" t-value="d_basic + line.detail_basic_full"/>
+                                    <t t-set="d_allow" t-value="d_allow + line.allowances"/>
+                                    <t t-set="d_gross" t-value="d_gross + ln_gross"/>
+                                    <t t-set="d_adv"   t-value="d_adv   + line.detail_advance"/>
+                                    <t t-set="d_net"   t-value="d_net   + line.net_payable"/>
+                                    <t t-set="d_count" t-value="d_count + 1"/>
                                     <tr>
-                                        <td class="text-center"><t t-esc="line_index + 1"/></td>
-                                        <td><t t-esc="line.employee_id.name"/></td>
-                                        <td class="text-center"><t t-esc="'{:.2f}'.format(line.paid_days)"/></td>
-                                        <td class="text-end"><t t-esc="'{:,.0f}'.format(line.detail_basic_full)"/></td>
-                                        <td class="text-end"><t t-esc="'{:,.0f}'.format(line.basic_salary)"/></td>
-                                        <td class="text-end"><t t-esc="'{:,.0f}'.format(line.allowances)"/></td>
-                                        <td class="text-end"><t t-esc="'{:,.0f}'.format(line.detail_wht)"/></td>
-                                        <td class="text-end"><t t-esc="'{:,.0f}'.format(line.detail_eobi)"/></td>
-                                        <td class="text-end"><t t-esc="'{:,.0f}'.format(line.detail_advance)"/></td>
-                                        <td class="text-end"><t t-esc="'{:,.0f}'.format(line.deductions)"/></td>
-                                        <td class="text-end fw-bold"><t t-esc="'{:,.0f}'.format(line.net_payable)"/></td>
+                                        <td class="tc"><t t-esc="d_sr"/></td>
+                                        <td><t t-esc="emp.name"/></td>
+                                        <td><t t-esc="emp.x_father_name or ''"/></td>
+                                        <td><t t-esc="emp.job_id.name or ''"/></td>
+                                        <td><t t-esc="emp.mobile_phone or ''"/></td>
+                                        <td class="tr">
+                                            <t t-esc="'{:,.0f}'.format(line.detail_basic_full) if line.detail_basic_full else '—'"/>
+                                        </td>
+                                        <td class="tr">
+                                            <t t-esc="'{:,.0f}'.format(line.allowances) if line.allowances else ''"/>
+                                        </td>
+                                        <td class="tc">
+                                            <t t-esc="emp.date_start.strftime('%d-%b-%y') if emp.date_start else ''"/>
+                                        </td>
+                                        <td class="tc">
+                                            <t t-esc="emp.date_end.strftime('%d-%b-%y') if emp.date_end else ''"/>
+                                        </td>
+                                        <td class="tc">
+                                            <t t-esc="'{:.0f}'.format(line.paid_days)"/>
+                                        </td>
+                                        <td class="tr">
+                                            <t t-esc="'{:,.0f}'.format(ln_gross)"/>
+                                        </td>
+                                        <td class="tr">
+                                            <t t-esc="'{:,.0f}'.format(line.detail_advance) if line.detail_advance else ''"/>
+                                        </td>
+                                        <td class="tr" style="font-weight:700;">
+                                            <t t-esc="'{:,.0f}'.format(line.net_payable)"/>
+                                        </td>
+                                        <td class="sig-empty"></td>
                                     </tr>
                                 </t>
-                            </tbody>
-                            <tfoot style="background:#F3F4F6;font-weight:700;">
-                                <tr>
-                                    <td colspan="4" class="text-end">Totals</td>
-                                    <td class="text-end">
-                                        <t t-esc="'{:,.0f}'.format(sum(sheet.line_ids.mapped('basic_salary')))"/>
-                                    </td>
-                                    <td class="text-end">
-                                        <t t-esc="'{:,.0f}'.format(sheet.total_allowances)"/>
-                                    </td>
-                                    <td class="text-end">
-                                        <t t-esc="'{:,.0f}'.format(sum(sheet.line_ids.mapped('detail_wht')))"/>
-                                    </td>
-                                    <td class="text-end">
-                                        <t t-esc="'{:,.0f}'.format(sum(sheet.line_ids.mapped('detail_eobi')))"/>
-                                    </td>
-                                    <td class="text-end">
-                                        <t t-esc="'{:,.0f}'.format(sum(sheet.line_ids.mapped('detail_advance')))"/>
-                                    </td>
-                                    <td class="text-end">
-                                        <t t-esc="'{:,.0f}'.format(sheet.total_deductions)"/>
-                                    </td>
-                                    <td class="text-end">
-                                        <t t-esc="'{:,.0f}'.format(sheet.total_net)"/>
-                                    </td>
+
+                                <!-- Accumulate into grand totals BEFORE rendering sub-row
+                                     (QWeb evaluates t-set left-to-right inline) -->
+                                <t t-set="g_count" t-value="g_count + d_count"/>
+                                <t t-set="g_basic" t-value="g_basic + d_basic"/>
+                                <t t-set="g_allow" t-value="g_allow + d_allow"/>
+                                <t t-set="g_gross" t-value="g_gross + d_gross"/>
+                                <t t-set="g_adv"   t-value="g_adv   + d_adv"/>
+                                <t t-set="g_net"   t-value="g_net   + d_net"/>
+
+                                <!-- Sub-Total row for the department -->
+                                <tr class="sub-row">
+                                    <td colspan="4" class="tc">Sub Total</td>
+                                    <td class="tc"><t t-esc="d_count"/></td>
+                                    <td class="tr"><t t-esc="'{:,.0f}'.format(d_basic)"/></td>
+                                    <td class="tr"><t t-esc="'{:,.0f}'.format(d_allow)"/></td>
+                                    <td colspan="3"></td>
+                                    <td class="tr"><t t-esc="'{:,.0f}'.format(d_gross)"/></td>
+                                    <td class="tr"><t t-esc="'{:,.0f}'.format(d_adv) if d_adv else ''"/></td>
+                                    <td class="tr"><t t-esc="'{:,.0f}'.format(d_net)"/></td>
+                                    <td></td>
                                 </tr>
-                            </tfoot>
-                        </table>
 
-                        <!-- ── Signatures ── -->
-                        <t t-call="site_operations.report_sig_3col"/>
+                            </t>
+                        </tbody>
 
-                        <p class="text-muted small mt-3 text-center">
-                            System-generated — Matracon Pakistan Pvt. Ltd. ·
-                            <t t-esc="sheet.name"/> ·
-                            Printed: <t t-esc="context_timestamp(datetime.datetime.now()).strftime('%d/%m/%Y %H:%M')"/>
-                        </p>
+                        <!-- Grand Total -->
+                        <tfoot>
+                            <tr class="grand-row">
+                                <td colspan="4" class="tc">TOTAL AMOUNT</td>
+                                <td class="tc"><t t-esc="g_count"/></td>
+                                <td class="tr"><t t-esc="'{:,.0f}'.format(g_basic)"/></td>
+                                <td class="tr"><t t-esc="'{:,.0f}'.format(g_allow)"/></td>
+                                <td colspan="3"></td>
+                                <td class="tr"><t t-esc="'{:,.0f}'.format(g_gross)"/></td>
+                                <td class="tr"><t t-esc="'{:,.0f}'.format(g_adv) if g_adv else ''"/></td>
+                                <td class="tr"><t t-esc="'{:,.0f}'.format(g_net)"/></td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+
+                    <!-- ── Approval Signatures ───────────────────────────────── -->
+                    <t t-set="_ss_prep" t-value="sheet.sudo().create_uid"/>
+                    <t t-set="_ss_ceo"  t-value="sheet.sudo().x_ceo_approved_by_id"/>
+                    <div class="approval-row">
+                        <!-- Accounts Manager (Prepared By) -->
+                        <div class="approval-col">
+                            <div class="sig-space">
+                                <t t-if="_ss_prep and _ss_prep.x_sign_signature">
+                                    <img t-att-src="image_data_uri(_ss_prep.x_sign_signature)"
+                                         style="max-height:28px; max-width:120px; object-fit:contain;"/>
+                                </t>
+                            </div>
+                            <div class="sig-label">ACCOUNTS MANAGER</div>
+                            <t t-if="_ss_prep">
+                                <div style="font-size:7px; color:#374151; margin-top:2px; font-weight:600;">
+                                    <t t-esc="_ss_prep.name"/>
+                                </div>
+                            </t>
+                        </div>
+                        <!-- Verified By PM (manual) -->
+                        <div class="approval-col">
+                            <div class="sig-space"></div>
+                            <div class="sig-label">VERIFIED BY PM</div>
+                        </div>
+                        <!-- Approved By CEO -->
+                        <div class="approval-col">
+                            <div class="sig-space">
+                                <t t-if="_ss_ceo and _ss_ceo.x_sign_signature">
+                                    <img t-att-src="image_data_uri(_ss_ceo.x_sign_signature)"
+                                         style="max-height:28px; max-width:120px; object-fit:contain;"/>
+                                </t>
+                            </div>
+                            <t t-if="_ss_ceo">
+                                <div class="sig-label" style="border-top-color: #198754; color: #198754;">
+                                    &#10003; APPROVED BY CEO
+                                </div>
+                                <div style="font-size:7px; color:#374151; margin-top:2px; font-weight:600;">
+                                    <t t-esc="_ss_ceo.name"/>
+                                </div>
+                            </t>
+                            <t t-else="">
+                                <div class="sig-label">APPROVED BY CEO</div>
+                            </t>
+                        </div>
                     </div>
-                </t>
+
+                </div><!-- end page -->
             </t>
         </t>
     </template>

@@ -60,13 +60,27 @@ class ResUsersSiteOps(models.Model):
     # both properties explicitly, otherwise saving preferences raises
     # "You are not allowed to modify 'User' (res.users) records."
 
+    # ── Digital Signature ────────────────────────────────────────────────────
+    # Set once in User Preferences (draw / type / upload) — automatically
+    # stamped on all printed documents where this user is the signatory
+    # (BPV, Purchase Orders, Salary Sheets, Petty Cash, Liability Sheets,
+    # Subcontractor IPC, Material Issuances, etc.).
+    x_sign_signature = fields.Binary(
+        string='Digital Signature',
+        attachment=True,
+        copy=False,
+        help='Your personal digital signature. Draw with mouse/touch, type '
+             'your name, or upload an image. Saved once here and automatically '
+             'applied to all printed documents where you are the signatory.',
+    )
+
     @property
     def SELF_READABLE_FIELDS(self):
-        return super().SELF_READABLE_FIELDS + ['x_backdate_default']
+        return super().SELF_READABLE_FIELDS + ['x_backdate_default', 'x_sign_signature']
 
     @property
     def SELF_WRITEABLE_FIELDS(self):
-        return super().SELF_WRITEABLE_FIELDS + ['x_backdate_default']
+        return super().SELF_WRITEABLE_FIELDS + ['x_backdate_default', 'x_sign_signature']
 
     # ── Backdate Default ─────────────────────────────────────────────────────
     # When set, any new account.move (journal entry / vendor bill / customer

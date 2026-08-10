@@ -228,16 +228,16 @@ class TaxNoticeOrder(models.Model):
         self.write({'case_status': 'contested'})
 
     def action_annul(self):
-        self.filtered(lambda r: r.state not in ('paid', 'closed')).write({
-            'state': 'annulled',
-            'case_status': 'annulled',
-        })
+        records = self.filtered(lambda r: r.state not in ('paid', 'closed'))
+        records.write({'state': 'annulled', 'case_status': 'annulled'})
+        for rec in records:
+            matracon_notify.close_activities(rec, summary_contains='Tax notice')
 
     def action_vacate(self):
-        self.filtered(lambda r: r.state not in ('paid', 'closed')).write({
-            'state': 'vacated',
-            'case_status': 'vacated',
-        })
+        records = self.filtered(lambda r: r.state not in ('paid', 'closed'))
+        records.write({'state': 'vacated', 'case_status': 'vacated'})
+        for rec in records:
+            matracon_notify.close_activities(rec, summary_contains='Tax notice')
 
     def action_close(self):
         for rec in self.filtered(lambda r: r.state not in ('paid', 'annulled', 'vacated')):
@@ -247,6 +247,7 @@ class TaxNoticeOrder(models.Model):
                     ref=rec.name, amt=rec.remaining_liability,
                 ))
             rec.write({'state': 'closed', 'case_status': 'closed'})
+            matracon_notify.close_activities(rec, summary_contains='Tax notice')
 
     def action_mark_paid(self):
         for rec in self.filtered(lambda r: r.state not in ('paid', 'annulled', 'vacated', 'closed')):
@@ -256,6 +257,7 @@ class TaxNoticeOrder(models.Model):
                     'Add payment lines or adjust ordered amount.',
                 ))
             rec.write({'state': 'paid', 'case_status': 'closed'})
+            matracon_notify.close_activities(rec, summary_contains='Tax notice')
 
     def action_add_payment(self):
         self.ensure_one()
