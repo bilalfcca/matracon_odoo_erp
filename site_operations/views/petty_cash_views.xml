@@ -166,6 +166,7 @@
                   decoration-primary="state == 'released'"
                   decoration-success="state == 'confirmed'"
                   decoration-danger="state == 'rejected'">
+                <field name="create_date" string="Request Date" widget="date" readonly="1" optional="show"/>
                 <field name="name" readonly="1"/>
                 <field name="project_analytic_account_id" string="Site Project" readonly="1"/>
                 <field name="requested_amount" string="Required Amount" readonly="1"/>
@@ -417,6 +418,7 @@
                 <field name="name"/>
                 <field name="project_analytic_account_id" string="Project"/>
                 <field name="fund_id"/>
+                <field name="create_date" string="Request Date" filter_domain="[('create_date', '&gt;=', self)]"/>
                 <separator/>
                 <filter name="filter_draft" string="Draft"
                         domain="[('state', '=', 'draft')]"/>
@@ -429,10 +431,19 @@
                 <filter name="filter_confirmed" string="Confirmed"
                         domain="[('state', '=', 'confirmed')]"/>
                 <separator/>
+                <!-- Date quick-filters on Request Date (create_date) -->
+                <filter name="filter_req_today" string="Today"
+                        domain="[('create_date', '&gt;=', context_today().strftime('%Y-%m-%d 00:00:00')),
+                                  ('create_date', '&lt;', (context_today() + datetime.timedelta(days=1)).strftime('%Y-%m-%d 00:00:00'))]"/>
+                <filter name="filter_req_this_month" string="This Month"
+                        domain="[('create_date', '&gt;=', context_today().strftime('%Y-%m-01 00:00:00'))]"/>
+                <separator/>
                 <filter name="group_by_project" string="By Project"
                         context="{'group_by': 'project_analytic_account_id'}"/>
                 <filter name="group_by_state" string="By Status"
                         context="{'group_by': 'state'}"/>
+                <filter name="group_by_date" string="By Month"
+                        context="{'group_by': 'create_date:month'}"/>
             </search>
         </field>
     </record>
@@ -472,15 +483,22 @@
                 <field name="x_ref" string="Reference"/>
                 <field name="project_analytic_account_id" string="Project"/>
                 <field name="fund_id"/>
+                <field name="expense_date" string="Expense Date" filter_domain="[('expense_date', '=', self)]"/>
                 <separator/>
                 <filter name="filter_draft" string="Draft"
                         domain="[('state', '=', 'draft')]"/>
                 <filter name="filter_posted" string="Posted"
                         domain="[('state', '=', 'posted')]"/>
                 <separator/>
+                <!-- Date quick-filters on Expense Date -->
+                <filter name="filter_exp_today" string="Today"
+                        domain="[('expense_date', '=', context_today().strftime('%Y-%m-%d'))]"/>
+                <filter name="filter_exp_this_month" string="This Month"
+                        domain="[('expense_date', '&gt;=', context_today().strftime('%Y-%m-01'))]"/>
+                <separator/>
                 <filter name="group_by_project" string="By Project"
                         context="{'group_by': 'project_analytic_account_id'}"/>
-                <filter name="group_by_date" string="By Date"
+                <filter name="group_by_date" string="By Month"
                         context="{'group_by': 'expense_date:month'}"/>
                 <filter name="group_by_category" string="By Category"
                         context="{'group_by': 'category'}"/>
@@ -515,8 +533,11 @@
         <field name="name">x.petty.cash.admin.wizard.form</field>
         <field name="model">x.petty.cash.admin.wizard</field>
         <field name="arch" type="xml">
-            <form string="Petty Cash — Fix Accounts">
+            <form string="Admin Maintenance Tools">
                 <sheet>
+
+                    <!-- ── Tool 1: Fix Petty Cash Accounts ──────────────── -->
+                    <h4 style="margin-bottom:4px;">Fix Petty Cash Accounts</h4>
                     <div class="alert alert-info" role="alert">
                         <strong>What this tool does (safe to run multiple times):</strong>
                         <ul style="margin-top:8px; margin-bottom:4px;">
@@ -534,18 +555,51 @@
                         <small>Check <b>Server Logs</b> after running for a detailed line-by-line
                             report.</small>
                     </div>
-                    <div class="alert alert-warning" role="alert" style="margin-top:8px;">
+                    <div class="alert alert-warning" role="alert" style="margin-top:4px;">
                         <strong>Pre-requisite:</strong> Make sure each Site Configuration has its
                         <em>Petty Cash Account (Cash in Hand)</em> field set before running.
                         Go to <b>Purchase → Configuration → Site Project Configurations</b>.
                     </div>
+                    <div style="margin-bottom:20px;">
+                        <button name="action_run_fix"
+                                string="Run Petty Cash Fix"
+                                type="object"
+                                class="btn btn-primary"
+                                confirm="This will correct all petty cash GL accounts and journal entries. Continue?"/>
+                    </div>
+
+                    <hr style="border-top:1px solid #dee2e6; margin:12px 0;"/>
+
+                    <!-- ── Tool 2: Fix GL Analytic Distribution ──────────── -->
+                    <h4 style="margin-bottom:4px;">Fix GL Analytic Distribution on Payment Entries</h4>
+                    <div class="alert alert-info" role="alert">
+                        <strong>Problem this fixes:</strong> Site accountants filtering their
+                        General Ledger by analytic saw <b>zero in the Debit column</b> for site
+                        cash accounts (e.g. "Cash at RWASA", "Cash at N-55"). HO-created payment
+                        entries (petty cash releases, vendor payments) were visible to HO but
+                        <em>invisible</em> to site accountants because the cash/payable lines were
+                        missing <code>analytic_distribution</code>.
+                        <ul style="margin-top:8px; margin-bottom:4px;">
+                            <li>Finds all posted payments linked to any project.</li>
+                            <li>Stamps the correct site analytic on every JE line
+                                <em>except</em> the HO source-bank lines (those stay HO-only).</li>
+                            <li>Each site accountant sees only their own project's entries.</li>
+                            <li>Safe to run multiple times — only touches lines where analytic
+                                is blank.</li>
+                        </ul>
+                        <small>Check <b>Server Logs</b> after running for a payment-by-payment
+                            report.</small>
+                    </div>
+                    <div>
+                        <button name="action_fix_payment_analytic"
+                                string="Fix GL Analytic Distribution"
+                                type="object"
+                                class="btn btn-primary"
+                                confirm="This will stamp the correct analytic on all payment JE lines that are missing it. Each site accountant will then see HO payments in their filtered GL. Continue?"/>
+                    </div>
+
                 </sheet>
                 <footer>
-                    <button name="action_run_fix"
-                            string="Run Fix Now"
-                            type="object"
-                            class="btn-primary"
-                            confirm="This will correct all petty cash GL accounts and journal entries. Continue?"/>
                     <button string="Close" class="btn-secondary" special="cancel"/>
                 </footer>
             </form>

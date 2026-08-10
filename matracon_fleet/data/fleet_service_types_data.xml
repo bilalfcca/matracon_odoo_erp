@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <record id="fleet_service_type_fuel_diesel" model="fleet.service.type">
+        <field name="name">Fuel — Diesel</field>
+        <field name="category">service</field>
+    </record>
+    <record id="fleet_service_type_fuel_petrol" model="fleet.service.type">
+        <field name="name">Fuel — Petrol</field>
+        <field name="category">service</field>
+    </record>
+    <record id="fleet_service_type_oil_change" model="fleet.service.type">
+        <field name="name">Oil Change</field>
+        <field name="category">service</field>
+    </record>
+    <record id="fleet_service_type_air_filter" model="fleet.service.type">
+        <field name="name">Air Filter</field>
+        <field name="category">service</field>
+    </record>
+    <record id="fleet_service_type_oil_filter" model="fleet.service.type">
+        <field name="name">Oil Filter</field>
+        <field name="category">service</field>
+    </record>
+    <record id="fleet_service_type_ac_filter" model="fleet.service.type">
+        <field name="name">AC Filter</field>
+        <field name="category">service</field>
+    </record>
+    <record id="fleet_service_type_other" model="fleet.service.type">
+        <field name="name">Other Consumable</field>
+        <field name="category">service</field>
+    </record>
+</odoo>

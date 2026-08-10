@@ -341,6 +341,15 @@ class ComparativeStatement(models.Model):
 
     # ── Actions ───────────────────────────────────────────────────────────────
 
+    def copy(self, default=None):
+        """Duplicate a CS: reset state, clear winner, give a distinct name."""
+        self.ensure_one()
+        default = dict(default or {})
+        default.setdefault('name', _('%s (copy)') % self.name)
+        default['x_state'] = 'draft'
+        default['x_recommended_vendor_line_id'] = False
+        return super().copy(default)
+
     def action_confirm(self):
         """Lock CS and route PR to CEO via the HO-approval path."""
         for cs in self:
@@ -440,6 +449,18 @@ class CSVendor(models.Model):
     _description = 'CS Vendor Comparison'
     _order = 'sequence, id'
 
+    # ── Display name (used when this record is shown as a Many2one) ───────────
+    name = fields.Char(
+        string='Vendor Name',
+        compute='_compute_name',
+        store=False,
+    )
+
+    @api.depends('x_partner_id')
+    def _compute_name(self):
+        for record in self:
+            record.name = record.x_partner_id.name or _('Unknown Vendor')
+
     x_cs_id = fields.Many2one(
         'x.comparative.statement', string='CS', ondelete='cascade', index=True,
     )
@@ -494,7 +515,11 @@ class CSVendor(models.Model):
     x_payment_term_id = fields.Many2one(
         'account.payment.term',
         string='Payment Terms',
-        help='Select from standard payment terms.',
+        help='Select from standard payment terms. Choose "Other / Custom Terms" to enter custom text.',
+    )
+    x_custom_payment_note = fields.Char(
+        string='Custom Payment Note',
+        help='Specify custom payment arrangement (shown when "Other / Custom Terms" is selected).',
     )
 
     # 5. Delivery Time
@@ -712,6 +737,46 @@ class CSVendor(models.Model):
             rfq_vendor_partner_id=self.x_partner_id.id
         ).report_action(po)
 
+    def action_enter_prices(self):
+        """Open the price-entry form for this vendor as a full-page view.
+
+        Uses target='current' so all table columns (including Remarks) are
+        fully visible without the width constraint of a modal dialog.
+        x_line_ids is at 1-level nesting in the standalone form, so Odoo 19
+        saves it reliably — no 3-level nesting issue.
+        """
+        self.ensure_one()
+        if not isinstance(self.id, int) or not self.id:
+            raise UserError(_(
+                'Please save the Comparative Statement first, '
+                'then click "📋 Prices" to enter prices for this vendor.'
+            ))
+        view = self.env.ref('purchase_demand_raise.view_cs_vendor_price_form')
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Prices — %s') % (self.x_partner_id.name or _('Vendor')),
+            'res_model': 'x.cs.vendor',
+            'res_id': self.id,
+            'view_mode': 'form',
+            'views': [(view.id, 'form')],
+            'target': 'current',
+        }
+
+    def action_back_to_cs(self):
+        """Navigate back to the parent Comparative Statement form."""
+        self.ensure_one()
+        cs = self.x_cs_id
+        if not cs:
+            return {'type': 'ir.actions.act_window_close'}
+        return {
+            'type': 'ir.actions.act_window',
+            'name': cs.name,
+            'res_model': 'x.comparative.statement',
+            'res_id': cs.id,
+            'view_mode': 'form',
+            'target': 'current',
+        }
+
     def action_send_rfq(self):
         """Open mail compose dialog to send RFQ to THIS specific vendor."""
         self.ensure_one()
@@ -760,6 +825,15 @@ class CSVendor(models.Model):
         if cs.x_state == 'confirmed':
             raise UserError(_('Cannot change the selection on a confirmed Comparative Statement.'))
 
+        # Safety net: ensure ALL vendors in this CS have product lines.
+        # Lines can go missing if the Owl client dropped readonly fields during
+        # save.  Repopulate any vendor that has no lines before we proceed.
+        self.env['x.cs.vendor.line'].flush_model()
+        for vendor in cs.x_vendor_line_ids:
+            vendor.invalidate_recordset(['x_line_ids'])
+            if not vendor.x_line_ids and cs.x_purchase_order_id:
+                vendor._auto_create_lines_from_pr()
+
         # Mark as winner
         cs.x_vendor_line_ids.write({'x_is_recommended': False})
         self.x_is_recommended = True
@@ -772,6 +846,9 @@ class CSVendor(models.Model):
             # Payment Terms (standard Odoo dropdown)
             if self.x_payment_term_id:
                 vals['payment_term_id'] = self.x_payment_term_id.id
+            # Custom payment note (when "Other / Custom Terms" is selected)
+            if self.x_custom_payment_note:
+                vals['x_quote_payment_terms'] = self.x_custom_payment_note
             # T&C (if any set on the vendor row — kept for backward compat)
             if self.x_tc_text:
                 vals['note'] = self.x_tc_text
@@ -793,7 +870,7 @@ class CSVendor(models.Model):
                 vals['x_quote_warranty'] = self.x_warranty
             pr.sudo().write(vals)
 
-            # Copy winning prices to PR lines
+            # Copy winning prices (and per-line currency) to PR lines
             for cs_line in self.x_line_ids:
                 if not cs_line.x_product_id:
                     continue
@@ -802,6 +879,8 @@ class CSVendor(models.Model):
                 )[:1]
                 if pr_line and cs_line.x_unit_price:
                     pr_line.price_unit = cs_line.x_unit_price
+                if pr_line and cs_line.x_currency_id:
+                    pr_line.x_line_currency_id = cs_line.x_currency_id
 
             pr.message_post(
                 body=Markup(
@@ -849,18 +928,28 @@ class CSVendor(models.Model):
 
     # ── Auto-create product lines from PR on vendor addition ──────────────────
 
+    def copy(self, default=None):
+        """Duplicate a vendor row: clear winner flag so copied row is not marked as winner."""
+        default = dict(default or {})
+        default['x_is_recommended'] = False
+        return super().copy(default)
+
     @api.model_create_multi
     def create(self, vals_list):
         """
-        Single create override that:
         1. Syncs x_tc_text from template if not already provided.
-        2. Auto-creates product lines from the linked PR for every new vendor
-           — but ONLY when the caller did NOT already supply x_line_ids in vals.
-           When a vendor is added via the dialog, default_get pre-fills the lines
-           and the user fills in prices; those lines arrive inside vals['x_line_ids'].
-           Calling _auto_create_lines_from_pr() again in that case creates DUPLICATE
-           zero-priced lines (due to ORM cache not yet reflecting the just-created
-           children), making all visible prices appear as 0. Guard against that here.
+        2. Always ensures every new vendor has one product line per PR product.
+
+        Root cause of the "products disappear" bug (Odoo 19):
+        The Owl web client strips readonly fields from nested one2many create
+        payloads, so x_product_id (readonly="1" in the view) is never sent.
+        CSVendorLine.create() then drops those lines.  The old guard
+        `if vals.get('x_line_ids'): continue` prevented _auto_create_lines_from_pr()
+        from running as a recovery step.
+
+        Fix: always call _auto_create_lines_from_pr() after create.
+        It is idempotent — it skips products that already have a line —
+        so no duplicates arise when the client DID send lines correctly.
         """
         # ── Step 1: T&C text sync ─────────────────────────────────────────────
         for vals in vals_list:
@@ -872,42 +961,46 @@ class CSVendor(models.Model):
         # ── Step 2: Create records ────────────────────────────────────────────
         records = super().create(vals_list)
 
-        # ── Step 3: Auto-create product lines from PR (only when needed) ──────
-        # Flush so that any x_line_ids created by super().create() are visible
-        # in the DB before _auto_create_lines_from_pr() checks for existing lines.
+        # ── Step 3: Always ensure product lines exist from PR ─────────────────
+        # Flush so that any x_line_ids already created by super().create() are
+        # visible in DB before _auto_create_lines_from_pr() checks existing lines.
         self.env['x.cs.vendor.line'].flush_model()
-
-        for record, vals in zip(records, vals_list):
-            if not (record.x_cs_id and record.x_cs_id.x_purchase_order_id):
-                continue
-            # Skip if the caller already supplied product lines (e.g. from the
-            # vendor dialog where default_get + user input populate x_line_ids).
-            # In that case super().create() has already created the lines;
-            # calling _auto_create_lines_from_pr() would create zero-priced
-            # duplicates because the ORM cache may not reflect the new lines yet.
-            if vals.get('x_line_ids'):
-                continue
-            record._auto_create_lines_from_pr()
+        for record in records:
+            if record.x_cs_id and record.x_cs_id.x_purchase_order_id:
+                record._auto_create_lines_from_pr()
 
         return records
 
-    def _auto_create_lines_from_pr(self):
-        """Create x.cs.vendor.line for each product in the linked PR.
+    def write(self, vals):
+        """Repopulate product lines from PR if x_line_ids was included in the
+        write payload but the vendor ends up with no lines.  This guards against
+        the web client sending an empty or incomplete x_line_ids payload (e.g.
+        when a button is clicked inside the dialog before any price is entered).
+        """
+        res = super().write(vals)
+        if 'x_line_ids' in vals:
+            self.env['x.cs.vendor.line'].flush_model()
+            for record in self:
+                record.invalidate_recordset(['x_line_ids'])
+                if not record.x_line_ids and record.x_cs_id and record.x_cs_id.x_purchase_order_id:
+                    record._auto_create_lines_from_pr()
+        return res
 
-        Guard: only adds products that don't already have a line for this vendor.
-        We flush and invalidate the x_line_ids cache before checking so that
-        lines created by super().create() (via Command tuples in vals) are
-        visible — the ORM cache may not reflect them immediately after creation.
+    def _auto_create_lines_from_pr(self):
+        """Create x.cs.vendor.line for each PR product not yet on this vendor.
+
+        Idempotent: skips products that already have a line (by x_product_id).
+        Lines that exist but have x_product_id = False are ignored so they are
+        overwritten correctly.
         """
         self.ensure_one()
         pr = self.x_cs_id.x_purchase_order_id
         if not pr:
             return
-        # Flush pending DB writes so newly-created child lines are in the DB,
-        # then clear the ORM cache for x_line_ids to force a fresh SELECT.
         self.env['x.cs.vendor.line'].flush_model()
         self.invalidate_recordset(['x_line_ids'])
-        existing_products = self.x_line_ids.mapped('x_product_id')
+        # Only count lines that actually have a product set.
+        existing_products = self.x_line_ids.filtered('x_product_id').mapped('x_product_id')
         to_create = []
         for pr_line in pr.order_line.filtered(lambda l: l.product_id and not l.display_type):
             if pr_line.product_id in existing_products:
@@ -984,6 +1077,12 @@ class CSVendorLine(models.Model):
                 # NOTE: cannot read the field being computed; always assign a value
                 line.x_qty = 1.0
 
+    x_currency_id = fields.Many2one(
+        'res.currency',
+        string='Currency',
+        default=lambda self: self.env.company.currency_id,
+        help='Currency vendor quoted in. Copied to PO line when this vendor is chosen.',
+    )
     x_unit_price = fields.Float(string='Unit Price', digits='Product Price')
     x_total_price = fields.Float(
         string='Total Price', compute='_compute_line_totals', store=True,
@@ -1006,14 +1105,33 @@ class CSVendorLine(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        """Silently skip any lines without a product.
+        """Ensure every line has a product before writing to the DB.
 
-        Empty-product lines can appear when the editable list in the CS vendor
-        dialog auto-saves a pending row before the user has selected a product
-        (e.g. clicking a header button triggers an automatic form save in Odoo).
-        Dropping them here prevents a ValidationError and preserves all valid lines.
+        Two causes of missing x_product_id:
+        1. Odoo 19 web client strips readonly fields from nested one2many create
+           payloads — x_product_id (readonly="1") is dropped but x_pr_line_id
+           (column_invisible="1", editable from server side) is kept.
+           Recovery: look up the product from the linked PR line.
+        2. A genuinely blank row auto-saved before the user selected a product
+           (e.g. clicking a header button in an editable list).
+           Action: silently skip — _auto_create_lines_from_pr() on the parent
+           vendor will create the correct lines afterwards.
         """
-        vals_list = [v for v in vals_list if v.get('x_product_id')]
-        if not vals_list:
+        cleaned = []
+        for v in vals_list:
+            if not v.get('x_product_id'):
+                pr_line_id = v.get('x_pr_line_id')
+                if pr_line_id:
+                    # Recover product from the linked PR line (handles Odoo 19
+                    # readonly-field stripping in sub-form dialog payloads).
+                    prl = self.env['purchase.order.line'].browse(pr_line_id)
+                    if prl.exists() and prl.product_id:
+                        v = dict(v)
+                        v['x_product_id'] = prl.product_id.id
+                        cleaned.append(v)
+                # If no pr_line_id either, skip — genuinely empty row.
+            else:
+                cleaned.append(v)
+        if not cleaned:
             return self.browse()
-        return super().create(vals_list)
+        return super().create(cleaned)

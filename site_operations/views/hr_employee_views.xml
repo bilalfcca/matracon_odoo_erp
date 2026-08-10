@@ -42,6 +42,7 @@
                 <page string="Matracon Payroll" name="matracon_payroll">
                     <group>
                         <field name="x_project_analytic_account_id"/>
+                        <field name="x_father_name"/>
                         <field name="x_cnic"/>
                         <field name="x_basic_salary"/>
                         <field name="x_hra"/>

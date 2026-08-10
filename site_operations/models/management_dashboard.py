@@ -22,7 +22,10 @@ class ManagementDashboard(models.TransientModel):
     filter_dashboard_tab = fields.Selection([
         ('overview', 'Management Overview'),
         ('project', 'Project Dashboard'),
+        ('vendors', 'Vendors'),
+        ('subcontractors', 'Subcontractors'),
         ('bank_guarantee', 'Bank Guarantees'),
+        ('inventory', 'Inventory Dashboard'),
     ], string='Dashboard View', default='overview', required=True)
 
     filter_scope = fields.Selection([
@@ -130,6 +133,18 @@ class ManagementDashboard(models.TransientModel):
         'x.management.dashboard.inventory.line', 'dashboard_id',
         string='Inventory by Project', readonly=True)
 
+    # ── Inventory Dashboard product lines ────────────────────────────────────
+    kpi_inv_total_worth = fields.Monetary(
+        string='Total Inventory Worth (PO-based)', readonly=True,
+        currency_field='currency_id',
+        help='Sum of (on-hand qty × last PO price) for all dashboard-flagged products.')
+    kpi_inv_total_products = fields.Integer(
+        string='Dashboard Products', readonly=True,
+        help='Number of products currently showing on the Inventory Dashboard.')
+    inv_product_line_ids = fields.One2many(
+        'x.management.dashboard.inv.product.line', 'dashboard_id',
+        string='Inventory Products', readonly=True)
+
     _FILTER_FIELDS = frozenset({
         'filter_dashboard_tab', 'filter_scope', 'filter_project_id',
         'filter_period_preset', 'filter_date_from', 'filter_date_to',
@@ -155,6 +170,7 @@ class ManagementDashboard(models.TransientModel):
             user._matracon_is_admin()
             or user.has_group('site_operations.group_finance_ho')
             or user.has_group('purchase_demand_raise.group_ceo_approval')
+            or user.has_group('purchase_demand_raise.group_procurement_ho')
             or user.has_group('purchase_demand_raise.group_site_store')
         )
 
@@ -502,6 +518,72 @@ class ManagementDashboard(models.TransientModel):
 
         return vendor_lines, sub_lines
 
+    def _period_payable_debits_by_type(self, analytics, date_from, date_to):
+        """Payable-account debits split by vendor vs subcontractor partner.
+
+        Queries ALL posted account_move_line records where
+        account_type = 'liability_payable' and debit > 0 (i.e., payments
+        against payables — via account.payment, manual JEs, petty cash, etc.),
+        filtered to the given analytics and optional date range.
+
+        Used to power tab-aware header KPIs on the Vendors / Subcontractors tabs.
+        Returns (vendor_paid, sub_paid).
+        """
+        if not analytics:
+            return 0.0, 0.0
+
+        cr = self.env.cr
+        analytic_ids = analytics.ids
+        str_ids = [str(aid) for aid in analytic_ids]
+
+        where_date = ''
+        params = [analytic_ids, str_ids]
+        if date_from:
+            where_date += ' AND am.date >= %s'
+            params.append(date_from)
+        if date_to:
+            where_date += ' AND am.date <= %s'
+            params.append(date_to)
+
+        cr.execute("""
+            SELECT aml.partner_id, COALESCE(SUM(aml.debit), 0)
+              FROM account_move_line aml
+              JOIN account_move am ON am.id = aml.move_id
+              JOIN account_account aa ON aa.id = aml.account_id
+             WHERE am.state = 'posted'
+               AND aa.account_type = 'liability_payable'
+               AND aml.debit > 0
+               AND aml.partner_id IS NOT NULL
+               AND (
+                   am.x_project_analytic_account_id = ANY(%s::int[])
+                   OR (aml.analytic_distribution IS NOT NULL
+                       AND aml.analytic_distribution ?| %s::text[])
+               )
+        """ + where_date + """
+             GROUP BY aml.partner_id
+        """, params)
+
+        rows = cr.fetchall()
+        if not rows:
+            return 0.0, 0.0
+
+        paid_map = {r[0]: float(r[1]) for r in rows}
+        partners = self.env['res.partner'].sudo().browse(list(paid_map.keys()))
+
+        vendor_paid = 0.0
+        sub_paid = 0.0
+        for p in partners:
+            is_sub = bool(p.category_id.filtered(
+                lambda c: 'subcontractor' in (c.name or '').lower()
+            ))
+            amount = paid_map.get(p.id, 0.0)
+            if is_sub:
+                sub_paid += amount
+            else:
+                vendor_paid += amount
+
+        return vendor_paid, sub_paid
+
     def _bg_status_for_project(self, project):
         BG = self.env['x.bank.guarantee'].sudo()
         active = BG.search([
@@ -723,6 +805,165 @@ class ManagementDashboard(models.TransientModel):
             'inventory_line_ids': list(by_project.values()),
         }
 
+    def _inventory_product_kpis(self, analytics):
+        """Compute per-product on-hand qty and PO-based worth for the Inventory Dashboard tab.
+
+        Only products (or products in categories) where ``x_add_to_dashboard = True``
+        are included.  On-hand quantity comes from ``stock.quant`` at the internal
+        locations of site warehouses linked to ``analytics``.  Unit price comes from
+        the most recent confirmed/done Purchase Order for that product in the same
+        analytic scope (falls back to any project if none found in scope).
+
+        Returns a dict with:
+          ``kpi_inv_total_worth``    – total worth across all flagged products
+          ``kpi_inv_total_products`` – count of flagged products
+          ``inv_product_line_ids``   – list of dicts ready for O2M write
+        """
+        empty = {'kpi_inv_total_worth': 0.0, 'kpi_inv_total_products': 0, 'inv_product_line_ids': []}
+        if not analytics:
+            return empty
+
+        currency = self.env.company.currency_id
+
+        # ── 1. Collect product templates flagged for dashboard ─────────────────
+        Product = self.env['product.template'].sudo()
+        Category = self.env['product.category'].sudo()
+
+        direct_tmpl = Product.search([('x_add_to_dashboard', '=', True), ('active', '=', True)])
+        flagged_cats = Category.search([('x_add_to_dashboard', '=', True)])
+        cat_tmpl = (
+            Product.search([('categ_id', 'in', flagged_cats.ids), ('active', '=', True)])
+            if flagged_cats else Product.browse()
+        )
+        all_tmpl = direct_tmpl | cat_tmpl
+        if not all_tmpl:
+            return empty
+
+        # ── 2. Map template → product.product variants (storable only) ─────────
+        product_variants = self.env['product.product'].sudo().search([
+            ('product_tmpl_id', 'in', all_tmpl.ids),
+            ('active', '=', True),
+        ])
+        tmpl_to_variants = {}
+        for v in product_variants:
+            tmpl_to_variants.setdefault(v.product_tmpl_id.id, []).append(v.id)
+        variant_ids = product_variants.ids
+        if not variant_ids:
+            return empty
+
+        # ── 3. Internal locations for site warehouses ──────────────────────────
+        site_configs = self.env['x.project.site.config'].sudo().search([
+            ('analytic_account_id', 'in', analytics.ids)
+        ])
+        warehouses = site_configs.mapped('warehouse_id')
+        Location = self.env['stock.location'].sudo()
+        internal_loc_ids = []
+        for wh in warehouses:
+            if wh.lot_stock_id:
+                locs = Location.search([
+                    ('id', 'child_of', wh.lot_stock_id.id),
+                    ('usage', '=', 'internal'),
+                ])
+                internal_loc_ids.extend(locs.ids)
+
+        # ── 4. On-hand qty per variant from stock.quant ────────────────────────
+        cr = self.env.cr
+        qty_by_variant = {}
+        if internal_loc_ids:
+            cr.execute("""
+                SELECT sq.product_id, COALESCE(SUM(sq.quantity), 0)
+                  FROM stock_quant sq
+                 WHERE sq.product_id = ANY(%s)
+                   AND sq.location_id = ANY(%s)
+                 GROUP BY sq.product_id
+            """, [variant_ids, internal_loc_ids])
+            qty_by_variant = dict(cr.fetchall())
+
+        # Aggregate to template level
+        qty_by_tmpl = {}
+        for tmpl_id, var_ids in tmpl_to_variants.items():
+            qty_by_tmpl[tmpl_id] = sum(qty_by_variant.get(v, 0.0) for v in var_ids)
+
+        # ── 5. Last confirmed PO unit price per variant ────────────────────────
+        analytic_ids = analytics.ids
+
+        # Primary: last PO in the selected project scope
+        cr.execute("""
+            SELECT DISTINCT ON (pol.product_id)
+                pol.product_id,
+                pol.price_unit
+              FROM purchase_order_line pol
+              JOIN purchase_order po ON po.id = pol.order_id
+             WHERE po.state IN ('purchase', 'done')
+               AND pol.product_id = ANY(%s)
+               AND po.x_project_analytic_account_id = ANY(%s)
+             ORDER BY pol.product_id, po.date_approve DESC NULLS LAST,
+                      po.id DESC
+        """, [variant_ids, analytic_ids])
+        price_by_variant = dict(cr.fetchall())
+
+        # Fallback: any project, for variants that had no PO in the scope
+        missing = [v for v in variant_ids if v not in price_by_variant]
+        if missing:
+            cr.execute("""
+                SELECT DISTINCT ON (pol.product_id)
+                    pol.product_id,
+                    pol.price_unit
+                  FROM purchase_order_line pol
+                  JOIN purchase_order po ON po.id = pol.order_id
+                 WHERE po.state IN ('purchase', 'done')
+                   AND pol.product_id = ANY(%s)
+                 ORDER BY pol.product_id, po.date_approve DESC NULLS LAST,
+                          po.id DESC
+            """, [missing])
+            for vid, price in cr.fetchall():
+                price_by_variant[vid] = price
+
+        # Aggregate to template: weighted average across variants using qty
+        price_by_tmpl = {}
+        for tmpl_id, var_ids in tmpl_to_variants.items():
+            priced = [(qty_by_variant.get(v, 0.0), price_by_variant.get(v, 0.0))
+                      for v in var_ids if v in price_by_variant]
+            if not priced:
+                price_by_tmpl[tmpl_id] = 0.0
+            else:
+                total_qty = sum(q for q, _ in priced)
+                if total_qty > 0:
+                    # Weighted average by qty (most representative)
+                    price_by_tmpl[tmpl_id] = sum(q * p for q, p in priced) / total_qty
+                else:
+                    # No qty yet — take simple average of all variant prices
+                    price_by_tmpl[tmpl_id] = sum(p for _, p in priced) / len(priced)
+
+        # ── 6. Build lines ─────────────────────────────────────────────────────
+        lines = []
+        for tmpl in all_tmpl:
+            qty = qty_by_tmpl.get(tmpl.id, 0.0)
+            # Skip products with 0 on-hand unless explicitly flagged to show at 0
+            if qty == 0.0 and not tmpl.x_show_zero_qty:
+                continue
+            price = price_by_tmpl.get(tmpl.id, 0.0)
+            worth = qty * price
+            lines.append({
+                'product_id': tmpl.id,
+                'product_name': tmpl.name or '',
+                'category_name': tmpl.categ_id.complete_name or tmpl.categ_id.name or '',
+                'uom_name': tmpl.uom_id.name or '',
+                'qty_on_hand': qty,
+                'last_po_price': price,
+                'total_worth': worth,
+                'currency_id': currency.id,
+            })
+
+        lines.sort(key=lambda l: l['total_worth'], reverse=True)
+        total_worth = sum(l['total_worth'] for l in lines)
+
+        return {
+            'kpi_inv_total_worth': total_worth,
+            'kpi_inv_total_products': len(lines),
+            'inv_product_line_ids': lines,
+        }
+
     def _compute_kpi_data(self):
         self.ensure_one()
         user = self.env.user
@@ -743,6 +984,8 @@ class ManagementDashboard(models.TransientModel):
 
         # Pre-compute inventory values for all analytics at once (single query)
         inventory_data = self._inventory_kpis(analytics, date_from, date_to)
+        # Pre-compute product-level inventory for the Inventory Dashboard tab
+        inv_product_data = self._inventory_product_kpis(analytics)
         inv_by_project = {
             line['analytic_account_id']: line['inventory_value']
             for line in inventory_data['inventory_line_ids']
@@ -809,8 +1052,28 @@ class ManagementDashboard(models.TransientModel):
         else:
             kpi_net_balance = funds_received - total_spent_lifetime
 
-        # Liability partner breakdown always from open liability sheets
+        # Liability partner breakdown always from GL — sorted by outstanding balance DESC
+        # (highest liability first so the view always shows top accounts at the top)
         vendor_lines, sub_lines = self._liability_lines_for_analytics(analytics)
+        vendor_lines = sorted(vendor_lines, key=lambda l: l['liability_amount'], reverse=True)
+        sub_lines    = sorted(sub_lines,    key=lambda l: l['liability_amount'], reverse=True)
+
+        # ── Tab-aware header KPI override ─────────────────────────────────────
+        # On the Vendors tab show only vendor figures; on the Subcontractors tab
+        # show only sub figures.  All other tabs keep the combined totals.
+        _tab = self.filter_dashboard_tab
+        if _tab == 'vendors':
+            total_liabilities = vendor_liability
+            _vendor_paid, _unused = self._period_payable_debits_by_type(
+                analytics, date_from, date_to)
+            payments_made = _vendor_paid
+            kpi_net_balance = payments_received - payments_made
+        elif _tab == 'subcontractors':
+            total_liabilities = sub_liability
+            _unused, _sub_paid = self._period_payable_debits_by_type(
+                analytics, date_from, date_to)
+            payments_made = _sub_paid
+            kpi_net_balance = payments_received - payments_made
 
         facilities = self.env['x.bank.guarantee.facility'].sudo().search([])
         bg_total_facility = sum(facilities.mapped('total_limit'))
@@ -969,6 +1232,9 @@ class ManagementDashboard(models.TransientModel):
             'ipc_line_ids': ipc_lines,
             'kpi_inventory_value': inventory_data['kpi_inventory_value'],
             'inventory_line_ids': inventory_data['inventory_line_ids'],
+            'kpi_inv_total_worth': inv_product_data['kpi_inv_total_worth'],
+            'kpi_inv_total_products': inv_product_data['kpi_inv_total_products'],
+            'inv_product_line_ids': inv_product_data['inv_product_line_ids'],
         }
 
     @api.model
@@ -978,6 +1244,7 @@ class ManagementDashboard(models.TransientModel):
             'project_line_ids', 'vendor_liability_line_ids', 'sub_liability_line_ids',
             'bank_line_ids', 'bg_facility_line_ids', 'bg_project_line_ids',
             'attendance_line_ids', 'ipc_line_ids', 'inventory_line_ids',
+            'inv_product_line_ids',
         }
         write_vals = {}
         for fname, val in data.items():
@@ -1012,6 +1279,7 @@ class ManagementDashboard(models.TransientModel):
             'project_line_ids', 'vendor_liability_line_ids', 'sub_liability_line_ids',
             'bank_line_ids', 'bg_facility_line_ids', 'bg_project_line_ids',
             'attendance_line_ids', 'ipc_line_ids', 'inventory_line_ids',
+            'inv_product_line_ids',
         }
         for fname, val in data.items():
             if fname in line_fields:
@@ -1045,7 +1313,7 @@ class ManagementDashboard(models.TransientModel):
     def action_open_dashboard(self):
         if not self._can_open_dashboard():
             raise UserError(_(
-                'This dashboard is available to CEO, Finance Officer, and Site Accountant only.'
+                'This dashboard is available to CEO, Finance HO, Procurement HO, and Site Accountant only.'
             ))
         dashboard = self.create({})
         self._refresh_dashboard_data(dashboard)
@@ -1170,14 +1438,17 @@ class ManagementDashboard(models.TransientModel):
             ('state', 'in', self._ACTIVE_PAYMENT_STATES),
         ] + self._payment_date_domain(date_from, date_to)
         if analytics:
-            # Check all three project-link fields so no real payment is missed:
-            # x_fund_project_id   — primary project tag (most direct payments)
-            # x_destination_project_id — vendor bill payments where fund isn't set
-            # move_id.x_project_analytic_account_id — standard payment journal entries
-            domain += ['|', '|',
+            # Four project-link channels so no real payment is ever missed:
+            # 1. x_fund_project_id             — primary project tag (batch payments)
+            # 2. x_destination_project_id      — vendor bill payments
+            # 3. move_id.x_project_analytic_account_id — standard payment JE header
+            # 4. x_allocation_ids.project_analytic_account_id — multi-source
+            #    batch payments where the project is only tracked via allocation lines
+            domain += ['|', '|', '|',
                 ('x_fund_project_id', 'in', analytics.ids),
                 ('x_destination_project_id', 'in', analytics.ids),
                 ('move_id.x_project_analytic_account_id', 'in', analytics.ids),
+                ('x_allocation_ids.project_analytic_account_id', 'in', analytics.ids),
             ]
         return {
             'type': 'ir.actions.act_window',
@@ -1195,11 +1466,12 @@ class ManagementDashboard(models.TransientModel):
             ('state', 'in', self._ACTIVE_PAYMENT_STATES),
         ] + self._payment_date_domain(date_from, date_to)
         if analytics:
-            # Same three-field OR as payments_made — receipts tagged via any channel
-            domain += ['|', '|',
+            # Same four-field OR as payments_made — receipts tagged via any channel
+            domain += ['|', '|', '|',
                 ('x_fund_project_id', 'in', analytics.ids),
                 ('x_destination_project_id', 'in', analytics.ids),
                 ('move_id.x_project_analytic_account_id', 'in', analytics.ids),
+                ('x_allocation_ids.project_analytic_account_id', 'in', analytics.ids),
             ]
         return {
             'type': 'ir.actions.act_window',
@@ -1299,11 +1571,16 @@ class ManagementDashboard(models.TransientModel):
 
     def action_open_bank_balances(self):
         """Open per-bank balance breakdown computed from the GL."""
+        view = self.env.ref(
+            'site_operations.view_management_dashboard_bank_line_list',
+            raise_if_not_found=False,
+        )
         return {
             'type': 'ir.actions.act_window',
             'name': _('Bank Balances'),
             'res_model': 'x.management.dashboard.bank.line',
             'view_mode': 'list',
+            'views': [(view.id if view else False, 'list')],
             'domain': [('dashboard_id', '=', self.id)],
             'context': {'create': False, 'delete': False, 'edit': False},
         }
@@ -1338,3 +1615,154 @@ class ManagementDashboard(models.TransientModel):
         """Open selected project from summary table."""
         self.ensure_one()
         return self.action_open_project_financial_overview()
+
+    # ── Tab-specific dashboard openers ────────────────────────────────────────
+
+    @api.model
+    def action_open_dashboard_tab(self, tab):
+        """Open the dashboard pre-set to *tab*."""
+        if not self._can_open_dashboard():
+            raise UserError(_(
+                'This dashboard is available to Finance HO, CEO, Procurement HO, and Admin roles only.'
+            ))
+        dashboard = self.create({'filter_dashboard_tab': tab})
+        self._refresh_dashboard_data(dashboard)
+        tab_names = {
+            'overview':       _('Management Overview'),
+            'project':        _('Project Dashboard'),
+            'vendors':        _('Vendors Dashboard'),
+            'subcontractors': _('Subcontractors Dashboard'),
+            'bank_guarantee': _('Bank Guarantee Management'),
+        }
+        return {
+            'type': 'ir.actions.act_window',
+            'name': tab_names.get(tab, _('Management Dashboard')),
+            'res_model': self._name,
+            'res_id': dashboard.id,
+            'view_mode': 'form',
+            'target': 'current',
+        }
+
+    @api.model
+    def action_open_inventory_dashboard(self):
+        return self.action_open_dashboard_tab('inventory')
+
+    @api.model
+    def action_open_project_dashboard(self):
+        return self.action_open_dashboard_tab('project')
+
+    @api.model
+    def action_open_vendors_dashboard(self):
+        return self.action_open_dashboard_tab('vendors')
+
+    @api.model
+    def action_open_subcontractors_dashboard(self):
+        return self.action_open_dashboard_tab('subcontractors')
+
+    @api.model
+    def action_open_bg_dashboard(self):
+        return self.action_open_dashboard_tab('bank_guarantee')
+
+    # ── Drilldown actions ─────────────────────────────────────────────────────
+
+    def action_open_vendor_bills(self):
+        """All posted vendor bills for the current scope/period."""
+        analytics = self._active_analytic_accounts()
+        date_from, date_to = self._resolve_date_range()
+        domain = [
+            ('move_type', '=', 'in_invoice'),
+            ('state', '=', 'posted'),
+        ]
+        if analytics:
+            domain.append(('x_project_analytic_account_id', 'in', analytics.ids))
+        if date_from:
+            domain.append(('invoice_date', '>=', date_from))
+        if date_to:
+            domain.append(('invoice_date', '<=', date_to))
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Vendor Bills'),
+            'res_model': 'account.move',
+            'view_mode': 'list,form',
+            'domain': domain,
+        }
+
+    def action_open_sub_vendor_bills(self):
+        """All posted vendor bills for subcontractor partners in current scope."""
+        analytics = self._active_analytic_accounts()
+        date_from, date_to = self._resolve_date_range()
+        sub_partner_ids = self.sub_liability_line_ids.mapped('partner_id').ids or [0]
+        domain = [
+            ('move_type', '=', 'in_invoice'),
+            ('state', '=', 'posted'),
+            ('partner_id', 'in', sub_partner_ids),
+        ]
+        if analytics:
+            domain.append(('x_project_analytic_account_id', 'in', analytics.ids))
+        if date_from:
+            domain.append(('invoice_date', '>=', date_from))
+        if date_to:
+            domain.append(('invoice_date', '<=', date_to))
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Subcontractor Bills'),
+            'res_model': 'account.move',
+            'view_mode': 'list,form',
+            'domain': domain,
+        }
+
+    def action_open_subcontractor_ipcs(self):
+        """All subcontractor IPCs for current scope."""
+        analytics = self._active_analytic_accounts()
+        domain = [('state', 'in', ('submitted', 'approved', 'paid'))]
+        if analytics:
+            domain.append(('project_analytic_account_id', 'in', analytics.ids))
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Subcontractor IPCs'),
+            'res_model': 'x.subcontractor.ipc',
+            'view_mode': 'list,form',
+            'domain': domain,
+        }
+
+    def action_open_dashboard_products(self):
+        """Open products flagged for the Inventory Dashboard (direct + via category)."""
+        Category = self.env['product.category'].sudo()
+        flagged_cats = Category.search([('x_add_to_dashboard', '=', True)])
+        domain = ['|',
+            ('x_add_to_dashboard', '=', True),
+            ('categ_id', 'in', flagged_cats.ids),
+        ]
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Inventory Dashboard Products'),
+            'res_model': 'product.template',
+            'view_mode': 'list,form',
+            'domain': domain,
+            'context': {'search_default_group_by_categ_id': 1},
+        }
+
+    def action_open_sub_payments(self):
+        """All outbound payments to subcontractor partners in current scope."""
+        analytics = self._active_analytic_accounts()
+        date_from, date_to = self._resolve_date_range()
+        sub_partner_ids = self.sub_liability_line_ids.mapped('partner_id').ids or [0]
+        domain = [
+            ('payment_type', '=', 'outbound'),
+            ('state', 'in', self._ACTIVE_PAYMENT_STATES),
+            ('partner_id', 'in', sub_partner_ids),
+        ] + self._payment_date_domain(date_from, date_to)
+        if analytics:
+            domain += ['|', '|', '|',
+                ('x_fund_project_id', 'in', analytics.ids),
+                ('x_destination_project_id', 'in', analytics.ids),
+                ('move_id.x_project_analytic_account_id', 'in', analytics.ids),
+                ('x_allocation_ids.project_analytic_account_id', 'in', analytics.ids),
+            ]
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Subcontractor Payments'),
+            'res_model': 'account.payment',
+            'view_mode': 'list,form',
+            'domain': domain,
+        }

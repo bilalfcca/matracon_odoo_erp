@@ -1598,3 +1598,12 @@ class PurchaseOrder(models.Model):
             'url': f'/site_operations/print/purchase.order/{self.id}',
             'target': 'new',
         }
+
+    def action_preview_po_pdf(self):
+        """Open the Purchase Order PDF in a new browser tab for preview."""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_url',
+            'url': f'/report/pdf/purchase_demand_raise.report_final_po_template/{self.id}',
+            'target': 'new',
+        }

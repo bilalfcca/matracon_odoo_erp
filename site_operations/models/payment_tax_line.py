@@ -30,6 +30,17 @@ class PaymentTaxLine(models.Model):
         currency_field='currency_id',
         help='When set, overrides the tax-rate computation (used for salary deductions '
              'where the amount comes from the payroll sheet, not a tax rate).')
+    x_exemption_id = fields.Many2one(
+        'x.partner.wht.exemption', string='WHT Exemption',
+        ondelete='set null',
+        help='Exemption certificate that drove this WHT rate.',
+    )
+    x_exemption_rate = fields.Float(
+        string='Exemption Rate %',
+        digits=(5, 2),
+        help='WHT rate from the exemption certificate. '
+             'When set, overrides tax_id rate computation. Editable.',
+    )
     amount = fields.Monetary(
         string='Amount',
         compute='_compute_amount',
@@ -40,7 +51,7 @@ class PaymentTaxLine(models.Model):
         related='payment_id.currency_id', depends=['payment_id'])
 
     @api.depends(
-        'tax_id', 'x_fixed_amount',
+        'tax_id', 'x_fixed_amount', 'x_exemption_rate',
         'payment_id.x_gross_approved_amount', 'payment_id.amount',
         'effect',
     )
@@ -48,6 +59,10 @@ class PaymentTaxLine(models.Model):
         for line in self:
             if line.x_fixed_amount:
                 line.amount = line.x_fixed_amount
+            elif line.x_exemption_rate:
+                payment = line.payment_id
+                base = payment.x_gross_approved_amount or payment.amount or 0.0
+                line.amount = base * line.x_exemption_rate / 100.0
             else:
                 payment = line.payment_id
                 base = payment.x_gross_approved_amount or payment.amount or 0.0

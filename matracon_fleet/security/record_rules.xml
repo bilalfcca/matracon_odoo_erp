@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        Site-scoped vehicle visibility:
+        - HO / Finance HO / CEO / Admin: see all vehicles (no restricting rule)
+        - Site Store / Site Accountant: see only vehicles assigned to their site
+    -->
+    <record id="rule_fleet_vehicle_site_scoped" model="ir.rule">
+        <field name="name">Fleet Vehicle — site-scoped (non-HO)</field>
+        <field name="model_id" ref="fleet.model_fleet_vehicle"/>
+        <field name="domain_force">[
+            '|',
+            ('x_analytic_account_id', '=', False),
+            ('x_analytic_account_id', 'in', [u.x_default_analytic_account_id.id for u in [user]])
+        ]</field>
+        <field name="groups" eval="[
+            (4, ref('purchase_demand_raise.group_site_store')),
+            (4, ref('site_operations.group_site_accountant')),
+        ]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+
+    <!-- Spare parts: same site scoping -->
+    <record id="rule_fleet_spare_part_site_scoped" model="ir.rule">
+        <field name="name">Fleet Spare Part — site-scoped (non-HO)</field>
+        <field name="model_id" ref="matracon_fleet.model_x_fleet_spare_part"/>
+        <field name="domain_force">[
+            '|',
+            ('x_analytic_account_id', '=', False),
+            ('x_analytic_account_id', 'in', [u.x_default_analytic_account_id.id for u in [user]])
+        ]</field>
+        <field name="groups" eval="[
+            (4, ref('purchase_demand_raise.group_site_store')),
+            (4, ref('site_operations.group_site_accountant')),
+        ]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+</odoo>

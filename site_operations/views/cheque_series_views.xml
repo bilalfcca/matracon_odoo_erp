@@ -1,6 +1,40 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
+    <!-- ── x.cheque.leaf — list view (used inside series form tab) ── -->
+    <record id="view_cheque_leaf_list" model="ir.ui.view">
+        <field name="name">x.cheque.leaf.list</field>
+        <field name="model">x.cheque.leaf</field>
+        <field name="arch" type="xml">
+            <list string="Cheque Leaves"
+                  decoration-success="state == 'available'"
+                  decoration-muted="state == 'used'"
+                  decoration-danger="state == 'discarded'"
+                  default_order="number_int asc">
+                <field name="cheque_number" string="Cheque No."/>
+                <field name="state" widget="badge"
+                       decoration-success="state == 'available'"
+                       decoration-muted="state == 'used'"
+                       decoration-danger="state == 'discarded'"/>
+                <field name="payment_id" string="Used in Payment" optional="show"/>
+                <field name="discarded_date" optional="show"/>
+                <field name="discarded_reason" optional="show"/>
+                <button name="action_discard" type="object"
+                        string="Discard" icon="fa-ban"
+                        class="btn-sm btn-warning"
+                        title="Mark as discarded (spoiled/fault)"
+                        confirm="Mark this cheque as discarded? It will not appear in future assignments."
+                        invisible="state != 'available'"/>
+                <button name="action_make_available" type="object"
+                        string="Reset" icon="fa-undo"
+                        class="btn-sm"
+                        title="Reset to Available"
+                        invisible="state != 'discarded'"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ── x.cheque.series — list view ── -->
     <record id="view_cheque_series_list" model="ir.ui.view">
         <field name="name">x.cheque.series.list</field>
         <field name="model">x.cheque.series</field>
@@ -11,12 +45,12 @@
                   decoration-success="state == 'active'">
                 <field name="name" string="Series Name"/>
                 <field name="bank_journal_id" string="Bank Account"/>
-                <field name="prefix"/>
                 <field name="start_number"/>
                 <field name="end_number"/>
-                <field name="current_number" string="Next Number"/>
-                <field name="issued_count" string="Issued"/>
-                <field name="remaining_count" string="Remaining"/>
+                <field name="current_number" string="Next (legacy)"/>
+                <field name="issued_count" string="Used"/>
+                <field name="remaining_count" string="Available"/>
+                <field name="discarded_count" string="Discarded"/>
                 <field name="state" widget="badge"
                        decoration-success="state == 'active'"
                        decoration-warning="state == 'exhausted'"
@@ -25,12 +59,19 @@
         </field>
     </record>
 
+    <!-- ── x.cheque.series — form view ── -->
     <record id="view_cheque_series_form" model="ir.ui.view">
         <field name="name">x.cheque.series.form</field>
         <field name="model">x.cheque.series</field>
         <field name="arch" type="xml">
             <form string="Cheque Series">
                 <header>
+                    <button name="generate_leaves_for_existing"
+                            type="object"
+                            string="Generate / Sync Leaves"
+                            class="btn-secondary"
+                            title="Create leaf records for any missing cheque numbers in this series"
+                            confirm="This will generate individual cheque leaf records for all numbers not yet created. Continue?"/>
                     <field name="state" widget="statusbar"
                            statusbar_visible="active,exhausted,closed"/>
                 </header>
@@ -41,25 +82,64 @@
                     <group>
                         <group string="Series Configuration">
                             <field name="bank_journal_id"/>
-                            <field name="prefix" placeholder="e.g. HBL- or MCB-A-"/>
-                            <field name="pad_digits" string="Number Width (digits)"
-                                   help="Set to 0 for no zero-padding"/>
                             <field name="start_number"/>
                             <field name="end_number"/>
-                            <field name="current_number" string="Next Number"/>
+                            <field name="current_number" string="Next No. (legacy pointer)" readonly="1"/>
                         </group>
                         <group string="Statistics">
-                            <field name="issued_count" readonly="1"/>
-                            <field name="remaining_count" readonly="1"/>
+                            <field name="issued_count" readonly="1" string="Used"/>
+                            <field name="remaining_count" readonly="1" string="Available"/>
+                            <field name="discarded_count" readonly="1" string="Discarded"/>
                             <field name="state" readonly="1"/>
                         </group>
                     </group>
+
+                    <!-- ── Leaves tab ── -->
+                    <notebook>
+                        <page string="Cheque Leaves" name="leaves">
+                            <div class="alert alert-info mb-2" role="alert">
+                                Each row is one physical cheque leaf.
+                                <b>Available</b> cheques appear in the dropdown when making payments.
+                                Use <b>Discard</b> to remove a faulty/spoiled leaf.
+                                <b>Used</b> leaves are linked to the payment they were issued on.
+                            </div>
+                            <field name="leaf_ids"
+                                   widget="one2many">
+                                <list string="Cheque Leaves"
+                                      decoration-success="state == 'available'"
+                                      decoration-muted="state == 'used'"
+                                      decoration-danger="state == 'discarded'"
+                                      default_order="number_int asc">
+                                    <field name="cheque_number" string="Cheque No." readonly="1"/>
+                                    <field name="state" widget="badge"
+                                           decoration-success="state == 'available'"
+                                           decoration-muted="state == 'used'"
+                                           decoration-danger="state == 'discarded'"/>
+                                    <field name="payment_id" string="Payment" optional="show"/>
+                                    <field name="discarded_date" string="Discarded On" optional="show"/>
+                                    <field name="discarded_reason" string="Reason" optional="show"/>
+                                    <button name="action_discard" type="object"
+                                            string="Discard" icon="fa-ban"
+                                            class="btn-sm btn-warning"
+                                            title="Mark as discarded (spoiled/faulty)"
+                                            confirm="Mark this cheque as discarded? It will not appear in future payment dropdowns."
+                                            invisible="state != 'available'"/>
+                                    <button name="action_make_available" type="object"
+                                            string="Reset" icon="fa-undo"
+                                            class="btn-sm"
+                                            title="Reset discarded leaf back to Available"
+                                            invisible="state != 'discarded'"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
                 </sheet>
                 <chatter/>
             </form>
         </field>
     </record>
 
+    <!-- ── x.cheque.series — search view ── -->
     <record id="view_cheque_series_search" model="ir.ui.view">
         <field name="name">x.cheque.series.search</field>
         <field name="model">x.cheque.series</field>

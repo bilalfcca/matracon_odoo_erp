@@ -562,3 +562,39 @@ c9e8c9e  Feat: petty cash admin wizard — manual fix trigger under Petty Cash �
 51 commits total pushed via `odoosh-push`. Remote tip: `c9e8c9e` on branch `Development`.
 All previous session commits (July 9–25) are now in the remote. Development branch is
 fully up-to-date.
+
+---
+
+## Session Notes — 2026-07-30
+
+### Development Build — DB Not Initialized (500 Error)
+
+#### What happened
+After the last `odoosh-push`, the Odoo.sh development container was rebuilt with a **fresh empty database**
+(normal for dev branches). However, the automated DB initialization (`install.log`) was 0 bytes — it silently
+failed to run. Odoo started with no `ir_module_module` table → every HTTP request threw `KeyError: 'ir.http'`
+→ 500 Internal Server Error on the site.
+
+#### Fix applied (manual, this session)
+```bash
+odoo-bin -i base --stop-after-init --no-http
+odoo-bin -i purchase_demand_raise,site_operations --stop-after-init --no-http
+```
+Both completed with zero errors. The background server restarted via socket activation and returned
+`303` (redirect to login) — site is healthy.
+
+#### Non-critical warning observed
+```
+hr.employee.hr_icon_display: selection=... overrides existing selection; use selection_add instead
+```
+Source: `mail_presence_ext.py` overrides the `hr_icon_display` field selection entirely instead of
+using `selection_add`. Non-fatal — field still works. Fix in a future commit if needed.
+
+#### Key lesson
+On a fresh Odoo.sh dev build, if the site shows 500 immediately after a push, check `install.log`
+(size 0 = init didn't run). Run the two `odoo-bin -i` commands above manually to recover.
+
+### Commits This Session
+```
+(docs only — no code changes)
+```

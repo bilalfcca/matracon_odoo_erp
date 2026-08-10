@@ -135,6 +135,15 @@
                         invisible="x_pr_state in ('draft', 'rejected', 'cancelled')"
                         groups="purchase_demand_raise.group_ceo_approval"/>
 
+                <!-- Preview PO PDF — opens in new tab; visible to HO/CEO/Admin once past draft -->
+                <button name="action_preview_po_pdf"
+                        type="object"
+                        string="Preview PO"
+                        class="btn-secondary"
+                        title="Open Purchase Order PDF in a new browser tab"
+                        invisible="x_pr_state in ('draft', 'submitted', 'rejected', 'cancelled')"
+                        groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
             </xpath>
 
             <!-- ── 2. Standard buttons: hide from Site Store; hide on PR docs when rejected ── -->
@@ -448,6 +457,14 @@
             <!-- ── 7. PRICE FIELDS — hidden for Site Store ── -->
             <field name="price_unit" position="attributes">
                 <attribute name="column_invisible">parent.x_is_site_store</attribute>
+            </field>
+            <!-- Per-line currency: optional column shown after price_unit -->
+            <field name="price_unit" position="after">
+                <field name="x_line_currency_id"
+                       string="Quote Currency"
+                       optional="hide"
+                       options="{'no_create': True, 'no_open': True}"
+                       column_invisible="parent.x_is_site_store"/>
             </field>
             <field name="price_subtotal" position="attributes">
                 <attribute name="column_invisible">parent.x_is_site_store</attribute>
