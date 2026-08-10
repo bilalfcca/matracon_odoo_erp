@@ -105,9 +105,7 @@
                             <div class="mt-2 p-3 border rounded" style="font-size:12px; color:#555;">
                                 <strong>Auditor Remarks:</strong> <t t-esc="notice.auditor_remarks"/>
                             </div>
-                        </t>
-                        <p class="text-muted small mt-3">System-generated — Matracon Pakistan Pvt. Ltd. · Printed: <t t-esc="context_timestamp(datetime.datetime.now()).strftime('%d/%m/%Y')"/></p>
-                    </div>
+                        </t>                    </div>
                 </t>
             </t>
         </t>

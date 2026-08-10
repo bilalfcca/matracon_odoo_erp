@@ -34,6 +34,10 @@ class HrEmployeeMatracon(models.Model):
     # x_last_online — the last_poll timestamp from mail_presence (last heartbeat).
     #   Shown as "Last seen" on the kanban card when the employee is offline.
 
+    # Payroll report fields
+    x_father_name = fields.Char(string='Father Name', tracking=True,
+        help="Father's name — printed on salary disbursement sheet and receipts.")
+
     x_last_online = fields.Datetime(
         string='Last Seen',
         compute='_compute_x_presence_info',
@@ -287,6 +291,7 @@ class HrEmployeePublicMatracon(models.Model):
     """
     _inherit = 'hr.employee.public'
 
+    x_father_name = fields.Char(string='Father Name')
     x_project_analytic_account_id = fields.Many2one(
         'account.analytic.account', string='Site Project')
     x_cnic = fields.Char(string='CNIC')

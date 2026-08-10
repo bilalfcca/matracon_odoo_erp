@@ -42,6 +42,11 @@ class SalarySheet(models.Model):
         'res.currency', default=lambda self: self.env.company.currency_id)
     wht_certificate_count = fields.Integer(compute='_compute_wht_certificate_count')
 
+    # ── Approval tracking for digital signatures on PDF ───────────────────
+    x_ceo_approved_by_id = fields.Many2one(
+        'res.users', string='CEO Approved By', readonly=True, copy=False, index=True,
+        help='User who CEO-approved this salary sheet. Signature shown on printed PDF.')
+
     # ── Physical Signature (download → sign → upload) ─────────────────────────
     signed_sheet = fields.Binary(
         string='Signed Salary Sheet (Upload)',
@@ -205,6 +210,9 @@ class SalarySheet(models.Model):
             if sheet.state != 'submitted':
                 raise UserError(_('Only submitted salary sheets can be approved.'))
             sheet.state = 'approved'
+            sheet.x_ceo_approved_by_id = self.env.uid
+            # Close the CEO activity created when the sheet was submitted
+            matracon_notify.close_activities(sheet, summary_contains='Approve salary sheet')
 
             # ── Reduce employee advance balances by the deducted amounts ──────
             advance_log = []
@@ -351,6 +359,8 @@ class SalarySheet(models.Model):
             'x_ceo_approval_state': 'approved',
             'x_tax_line_ids': tax_lines,
         })
+        # Close Finance HO activity created after CEO approval
+        matracon_notify.close_activities(self, summary_contains='Create salary payment')
         return {
             'type': 'ir.actions.act_window',
             'res_model': 'account.payment',
@@ -438,6 +448,35 @@ class SalarySheet(models.Model):
     def action_delete_draft(self):
         self.unlink()
         return {'type': 'ir.actions.act_window_close'}
+
+    def _lines_by_department(self):
+        """Return salary lines grouped and sorted by department.
+
+        Used by the salary disbursement sheet PDF report.
+
+        Returns:
+            list of (dept_name: str, lines: x.salary.sheet.line recordset)
+            sorted alphabetically by department name.  Employees without a
+            department are collected under 'General Staff'.
+        """
+        self.ensure_one()
+        groups = {}     # dept_name → [line.id, ...]
+        order = []      # first-seen order (used to preserve in case of ties)
+
+        for line in self.line_ids:
+            emp = line.employee_id.sudo()
+            dept = emp.department_id
+            dept_name = dept.name if dept else 'General Staff'
+            if dept_name not in groups:
+                groups[dept_name] = []
+                order.append(dept_name)
+            groups[dept_name].append(line.id)
+
+        SalaryLine = self.env['x.salary.sheet.line']
+        return [
+            (dept_name, SalaryLine.browse(groups[dept_name]))
+            for dept_name in sorted(order)
+        ]
 
 
 class SalarySheetLine(models.Model):

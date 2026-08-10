@@ -5,9 +5,9 @@
 <t t-foreach="docs" t-as="o">
 <!-- No layout wrapper here. _prepare_html() extracts every div.article and
      wraps it in web.minimal_layout automatically (passing content as `body`).
-     padding-top:16mm clears the ~14mm invisible zone wkhtmltopdf introduces
-     at the top of every article body. -->
-<div class="article" style="font-family:Arial,sans-serif; font-size:11pt; padding-top:16mm;">
+     padding-top:12mm clears the ~14mm invisible zone wkhtmltopdf introduces
+     at the top of every article body (12mm is sufficient in practice). -->
+<div class="article" style="font-family:Arial,sans-serif; font-size:9pt; padding-top:6mm;">
 
     <!-- ════════════════════════════════════════════════════════════
          Pre-compute variables
@@ -57,18 +57,30 @@
     <t t-set="has_allocs" t-value="bool(o.x_bank_allocation_ids)"/>
 
     <!-- ════════════════════════════════════════════════════════════
+         REVERSED BANNER — shown only when payment has been reversed
+    ═══════════════════════════════════════════════════════════════ -->
+    <t t-if="o.x_payment_status == 'reversed'">
+        <div style="background:#dc3545; color:#fff; text-align:center; padding:7px 10px; font-size:12pt; font-weight:700; letter-spacing:2px; margin-bottom:8px; border-radius:3px;">
+            ⚠&#160;&#160;THIS PAYMENT HAS BEEN REVERSED&#160;&#160;⚠
+        </div>
+    </t>
+
+    <!-- ════════════════════════════════════════════════════════════
          HEADER — title left, company logo right
     ═══════════════════════════════════════════════════════════════ -->
-    <div class="row mb-3" style="align-items:center;">
+    <div class="row mb-1" style="align-items:center;">
         <div class="col-8">
-            <div style="font-size:20pt; font-weight:700; letter-spacing:0.5px;">
+            <div style="font-size:13pt; font-weight:700; letter-spacing:0.3px;">
                 Bank Payment Voucher (HO)
+                <t t-if="o.x_payment_status == 'reversed'">
+                    &#160;<span style="font-size:9pt; background:#dc3545; color:#fff; padding:2px 8px; border-radius:3px; font-weight:700; letter-spacing:1px;">REVERSED</span>
+                </t>
             </div>
         </div>
         <div class="col-4 text-end">
             <t t-if="o.company_id.logo">
                 <img t-att-src="image_data_uri(o.company_id.logo)"
-                     style="height:90px; max-width:220px; object-fit:contain;"/>
+                     style="height:75px; max-width:200px; object-fit:contain;"/>
             </t>
         </div>
     </div>
@@ -76,54 +88,57 @@
     <!-- ════════════════════════════════════════════════════════════
          META INFO BOX
     ═══════════════════════════════════════════════════════════════ -->
-    <div class="row mb-3">
+    <div class="row mb-1">
         <div class="col-6">
-            <table style="font-size:10.5pt; width:100%;">
+            <table style="font-size:9pt; width:100%;">
                 <tr>
-                    <td style="font-weight:600; width:38%; padding:2px 6px 2px 0;">Vendor</td>
-                    <td style="padding:2px 0;"><t t-esc="o.partner_id.name or '—'"/></td>
+                    <td style="font-weight:600; width:32%; padding:0px 4px 0px 0;">Vendor</td>
+                    <td style="padding:0px 0;"><t t-esc="o.partner_id.name or '—'"/></td>
                 </tr>
                 <t t-if="o.x_destination_project_id">
                     <tr>
-                        <td style="font-weight:600; padding:2px 6px 2px 0;">Project</td>
-                        <td style="padding:2px 0;"><t t-esc="o.x_destination_project_id.name"/></td>
+                        <td style="font-weight:600; padding:0px 4px 0px 0;">Project</td>
+                        <td style="padding:0px 0;"><t t-esc="o.x_destination_project_id.name"/></td>
                     </tr>
                 </t>
                 <t t-if="o.memo">
                     <tr>
-                        <td style="font-weight:600; padding:2px 6px 2px 0; vertical-align:top;">Narration</td>
-                        <td style="padding:2px 0;"><t t-esc="o.memo"/></td>
+                        <td style="font-weight:600; padding:0px 4px 0px 0; vertical-align:top;">Narration</td>
+                        <td style="padding:0px 0;"><t t-esc="o.memo"/></td>
                     </tr>
                 </t>
             </table>
         </div>
         <div class="col-6">
-            <table style="font-size:10.5pt; border-collapse:collapse; width:100%;
-                          border:1.5px solid #333;">
+            <table style="font-size:9pt; border-collapse:collapse; width:100%; border:1.5px solid #333;">
                 <tr style="background:#f0f0f0;">
-                    <td style="font-weight:700; padding:4px 10px; border:1px solid #aaa; width:50%;">
-                        Financial Year
-                    </td>
-                    <td style="padding:4px 10px; border:1px solid #aaa;">
+                    <td style="font-weight:700; padding:2px 6px; border:1px solid #aaa; width:50%;">Financial Year</td>
+                    <td style="padding:2px 6px; border:1px solid #aaa;">
                         <t t-esc="fy_start"/>&#160;–&#160;<t t-esc="fy_end"/>
                     </td>
                 </tr>
                 <tr>
-                    <td style="font-weight:700; padding:4px 10px; border:1px solid #aaa;">
-                        Voucher No
-                    </td>
-                    <td style="padding:4px 10px; border:1px solid #aaa;">
+                    <td style="font-weight:700; padding:2px 6px; border:1px solid #aaa;">Voucher No</td>
+                    <td style="padding:2px 6px; border:1px solid #aaa;">
                         <t t-esc="o.x_bpv_ref or o.name or '—'"/>
                     </td>
                 </tr>
                 <tr style="background:#f0f0f0;">
-                    <td style="font-weight:700; padding:4px 10px; border:1px solid #aaa;">
-                        Date
-                    </td>
-                    <td style="padding:4px 10px; border:1px solid #aaa;">
+                    <td style="font-weight:700; padding:2px 6px; border:1px solid #aaa;">Date</td>
+                    <td style="padding:2px 6px; border:1px solid #aaa;">
                         <t t-esc="o.date.strftime('%d/%m/%Y') if o.date else '—'"/>
                     </td>
                 </tr>
+                <!-- Reversal reference row — only shown when payment is reversed -->
+                <t t-if="o.x_payment_status == 'reversed'">
+                    <tr style="background:#fff0f0;">
+                        <td style="font-weight:700; padding:2px 6px; border:1px solid #aaa; color:#dc3545;">Original Ref</td>
+                        <td style="padding:2px 6px; border:1px solid #aaa; color:#dc3545; font-weight:600;">
+                            <t t-esc="o.name or '—'"/>
+                            &#160;<span style="font-size:7.5pt; font-weight:400; color:#888;">(reversed)</span>
+                        </td>
+                    </tr>
+                </t>
             </table>
         </div>
     </div>
@@ -139,20 +154,20 @@
            6. Other deductions
            7. Total
     ═══════════════════════════════════════════════════════════════ -->
-    <table style="width:100%; border-collapse:collapse; font-size:10.5pt; margin-top:6px;">
+    <table style="width:100%; border-collapse:collapse; font-size:8.5pt; margin-top:2px;">
 
         <thead>
             <tr style="background:#222; color:#fff;">
-                <th style="padding:6px 8px; border:1px solid #555; width:12%; text-align:left;">
-                    Account Code
+                <th style="padding:3px 5px; border:1px solid #555; width:10%; text-align:left;">
+                    Acct Code
                 </th>
-                <th style="padding:6px 8px; border:1px solid #555; text-align:left;">
+                <th style="padding:3px 5px; border:1px solid #555; text-align:left;">
                     Title / Narration
                 </th>
-                <th style="padding:6px 8px; border:1px solid #555; width:14%; text-align:right;">
+                <th style="padding:3px 5px; border:1px solid #555; width:12%; text-align:right;">
                     Debit
                 </th>
-                <th style="padding:6px 8px; border:1px solid #555; width:14%; text-align:right;">
+                <th style="padding:3px 5px; border:1px solid #555; width:12%; text-align:right;">
                     Credit
                 </th>
             </tr>
@@ -162,26 +177,26 @@
 
             <!-- ── ROW 1: Vendor AP — DEBIT (gross) ────────────────────── -->
             <tr style="border-bottom:1px solid #dee2e6;">
-                <td style="padding:7px 8px; border:1px solid #ccc; font-family:monospace; font-size:10pt; vertical-align:top;">
+                <td style="padding:2px 4px; border:1px solid #ccc; font-family:monospace; font-size:9pt; vertical-align:top;">
                     <t t-esc="debit_account_code or '—'"/>
                 </td>
-                <td style="padding:7px 8px; border:1px solid #ccc; vertical-align:top;">
+                <td style="padding:2px 4px; border:1px solid #ccc; vertical-align:top;">
                     <div style="font-weight:600;">
                         <t t-esc="o.partner_id.name or debit_account_name or '—'"/>
                     </div>
                     <t t-if="o.memo">
-                        <div style="font-size:9.5pt; color:#444; margin-top:3px;">
+                        <div style="font-size:8.5pt; color:#444; margin-top:1px;">
                             <t t-esc="o.memo"/>
                         </div>
                     </t>
                     <t t-if="o.x_destination_project_id">
-                        <div style="font-size:9pt; color:#666; margin-top:2px;">
+                        <div style="font-size:8.5pt; color:#666; margin-top:1px;">
                             Project: <t t-esc="o.x_destination_project_id.name"/>
                         </div>
                     </t>
                     <!-- Gross breakdown hint when deductions exist -->
                     <t t-if="has_deductions">
-                        <div style="font-size:9pt; color:#666; margin-top:4px; padding-top:4px; border-top:1px dashed #ddd;">
+                        <div style="font-size:8.5pt; color:#666; margin-top:2px; padding-top:2px; border-top:1px dashed #ddd;">
                             Net to Vendor:&#160;<b><t t-esc="'{:,.0f}'.format(o.amount)"/></b>
                             <t t-if="wht_total > 0">
                                 &#160;+&#160;WHT:&#160;<b><t t-esc="'{:,.0f}'.format(wht_total)"/></b>
@@ -195,10 +210,10 @@
                         </div>
                     </t>
                 </td>
-                <td style="padding:7px 8px; border:1px solid #ccc; text-align:right; font-weight:600; vertical-align:top;">
+                <td style="padding:2px 4px; border:1px solid #ccc; text-align:right; font-weight:600; vertical-align:top;">
                     <t t-esc="'{:,.2f}'.format(gross_amount)"/>
                 </td>
-                <td style="padding:7px 8px; border:1px solid #ccc; text-align:right; color:#aaa; vertical-align:top;">
+                <td style="padding:2px 4px; border:1px solid #ccc; text-align:right; color:#aaa; vertical-align:top;">
                     —
                 </td>
             </tr>
@@ -209,28 +224,33 @@
             <t t-if="has_allocs">
                 <t t-foreach="o.x_bank_allocation_ids" t-as="alloc">
                     <tr style="border-bottom:1px solid #dee2e6;">
-                        <td style="padding:7px 8px; border:1px solid #ccc; font-family:monospace; font-size:10pt; vertical-align:top;">
+                        <td style="padding:2px 4px; border:1px solid #ccc; font-family:monospace; font-size:9pt; vertical-align:top;">
                             <t t-esc="alloc.journal_id.default_account_id.code or '—'"/>
                         </td>
-                        <td style="padding:7px 8px; border:1px solid #ccc; vertical-align:top;">
+                        <td style="padding:2px 4px; border:1px solid #ccc; vertical-align:top;">
                             <div style="font-weight:600;">
                                 <t t-esc="alloc.journal_id.name"/>
                             </div>
-                            <table style="margin-top:6px; font-size:9.5pt; border-collapse:collapse; width:auto;">
+                            <t t-if="o.memo">
+                                <div style="font-size:8pt; color:#444; margin-top:1px;">
+                                    <t t-esc="o.memo"/>
+                                </div>
+                            </t>
+                            <table style="margin-top:3px; font-size:8pt; border-collapse:collapse; width:auto;">
                                 <tr>
-                                    <td style="border:1px solid #aaa; padding:3px 10px; background:#f8f8f8; font-weight:600;">Account Title</td>
-                                    <td style="border:1px solid #aaa; padding:3px 14px; min-width:130px;">
+                                    <td style="border:1px solid #aaa; padding:2px 5px; background:#f8f8f8; font-weight:600;">Account Title</td>
+                                    <td style="border:1px solid #aaa; padding:2px 7px; min-width:110px;">
                                         <t t-esc="alloc.x_account_title or o.partner_id.name or ''"/>
                                     </td>
-                                    <td style="border:1px solid #aaa; padding:3px 10px; background:#f8f8f8; font-weight:600; padding-left:16px;">Cheque No</td>
-                                    <td style="border:1px solid #aaa; padding:3px 14px; min-width:110px;">
+                                    <td style="border:1px solid #aaa; padding:2px 5px; background:#f8f8f8; font-weight:600;">Cheque No</td>
+                                    <td style="border:1px solid #aaa; padding:2px 7px; min-width:90px;">
                                         <t t-esc="alloc.x_cheque_number or ''"/>
                                     </td>
                                 </tr>
                             </table>
                         </td>
-                        <td style="padding:7px 8px; border:1px solid #ccc; text-align:right; color:#aaa; vertical-align:top;">—</td>
-                        <td style="padding:7px 8px; border:1px solid #ccc; text-align:right; font-weight:600; vertical-align:top;">
+                        <td style="padding:2px 4px; border:1px solid #ccc; text-align:right; color:#aaa; vertical-align:top;">—</td>
+                        <td style="padding:2px 4px; border:1px solid #ccc; text-align:right; font-weight:600; vertical-align:top;">
                             <t t-esc="'{:,.2f}'.format(alloc.allocation_amount)"/>
                         </td>
                     </tr>
@@ -240,30 +260,35 @@
             <!-- Case B: Single bank (no allocation records) -->
             <t t-else="">
                 <tr style="border-bottom:1px solid #dee2e6;">
-                    <td style="padding:7px 8px; border:1px solid #ccc; font-family:monospace; font-size:10pt; vertical-align:top;">
+                    <td style="padding:2px 4px; border:1px solid #ccc; font-family:monospace; font-size:9pt; vertical-align:top;">
                         <t t-esc="o.journal_id.default_account_id.code or '—'"/>
                     </td>
-                    <td style="padding:7px 8px; border:1px solid #ccc; vertical-align:top;">
+                    <td style="padding:2px 4px; border:1px solid #ccc; vertical-align:top;">
                         <div style="font-weight:600;"><t t-esc="o.journal_id.name"/></div>
-                        <table style="margin-top:6px; font-size:9.5pt; border-collapse:collapse; width:auto;">
+                        <t t-if="o.memo">
+                            <div style="font-size:8pt; color:#444; margin-top:1px;">
+                                <t t-esc="o.memo"/>
+                            </div>
+                        </t>
+                        <table style="margin-top:3px; font-size:8pt; border-collapse:collapse; width:auto;">
                             <tr>
-                                <td style="border:1px solid #aaa; padding:3px 10px; background:#f8f8f8; font-weight:600;">Account Title</td>
-                                <td style="border:1px solid #aaa; padding:3px 14px; min-width:130px;">
+                                <td style="border:1px solid #aaa; padding:2px 5px; background:#f8f8f8; font-weight:600;">Account Title</td>
+                                <td style="border:1px solid #aaa; padding:2px 7px; min-width:110px;">
                                     <t t-esc="o.x_account_title or o.partner_id.name or ''"/>
                                 </td>
-                                <td style="border:1px solid #aaa; padding:3px 10px; background:#f8f8f8; font-weight:600; padding-left:16px;">Cheque No</td>
-                                <td style="border:1px solid #aaa; padding:3px 14px; min-width:110px;">
+                                <td style="border:1px solid #aaa; padding:2px 5px; background:#f8f8f8; font-weight:600;">Cheque No</td>
+                                <td style="border:1px solid #aaa; padding:2px 7px; min-width:90px;">
                                     <t t-esc="o.x_cheque_number or ''"/>
                                 </td>
-                                <td style="border:1px solid #aaa; padding:3px 10px; background:#f8f8f8; font-weight:600; padding-left:16px;">Date</td>
-                                <td style="border:1px solid #aaa; padding:3px 14px; min-width:90px;">
+                                <td style="border:1px solid #aaa; padding:2px 5px; background:#f8f8f8; font-weight:600;">Date</td>
+                                <td style="border:1px solid #aaa; padding:2px 7px; min-width:75px;">
                                     <t t-esc="o.date.strftime('%d/%m/%Y') if o.date else ''"/>
                                 </td>
                             </tr>
                         </table>
                     </td>
-                    <td style="padding:7px 8px; border:1px solid #ccc; text-align:right; color:#aaa; vertical-align:top;">—</td>
-                    <td style="padding:7px 8px; border:1px solid #ccc; text-align:right; font-weight:600; vertical-align:top;">
+                    <td style="padding:2px 4px; border:1px solid #ccc; text-align:right; color:#aaa; vertical-align:top;">—</td>
+                    <td style="padding:2px 4px; border:1px solid #ccc; text-align:right; font-weight:600; vertical-align:top;">
                         <t t-esc="'{:,.2f}'.format(o.amount)"/>
                     </td>
                 </tr>
@@ -281,34 +306,56 @@
 
                 <!-- ROW 3a: WHT Payable — GL account descriptor ──────────── -->
                 <tr style="border-bottom:0; background:#fffbf2;">
-                    <td style="padding:7px 8px; border:1px solid #ccc; border-bottom:0; font-family:monospace; font-size:10pt; vertical-align:top; color:#7a4500;">
+                    <td style="padding:2px 4px; border:1px solid #ccc; border-bottom:0; font-family:monospace; font-size:9pt; vertical-align:top; color:#7a4500;">
                         <t t-esc="wht_acct_code or '—'"/>
                     </td>
-                    <td style="padding:7px 8px; border:1px solid #ccc; border-bottom:0; vertical-align:top;">
+                    <td style="padding:2px 4px; border:1px solid #ccc; border-bottom:0; vertical-align:top;">
                         <div style="font-weight:600; color:#7a4500;">
                             <t t-esc="wht_acct_name"/>
-                            &#160;<span style="font-size:8.5pt; background:#ffecd0; color:#7a4500; padding:1px 6px; border-radius:3px; font-weight:700;">WHT</span>
+                            &#160;<span style="font-size:8pt; background:#ffecd0; color:#7a4500; padding:1px 5px; border-radius:3px; font-weight:700;">WHT</span>
                         </div>
                         <!-- Individual WHT line descriptions -->
                         <t t-foreach="wht_ded_lines" t-as="wl">
-                            <div style="font-size:9.5pt; color:#666; margin-top:2px;">
+                            <div style="font-size:8.5pt; color:#666; margin-top:1px;">
                                 <t t-esc="wl.name or (wl.tax_id.name if wl.tax_id else 'Withholding Tax')"/>
-                                <t t-if="wl.tax_id and wl.tax_id.amount">
+                                <t t-if="wl.x_exemption_rate">
+                                    &#160;(<t t-esc="'{:.2f}%'.format(wl.x_exemption_rate)"/>)
+                                </t>
+                                <t t-elif="wl.tax_id and wl.tax_id.amount">
                                     &#160;(<t t-esc="'{:.1f}%'.format(wl.tax_id.amount)"/>)
                                 </t>
                                 — Rs.&#160;<t t-esc="'{:,.2f}'.format(wl.amount)"/>
                             </div>
                         </t>
+                        <!-- WHT Exemption Details — compact single-line strip -->
+                        <t t-set="exemption_line" t-value="wht_ded_lines.filtered(lambda l: l.x_exemption_id)[:1]"/>
+                        <t t-if="exemption_line and exemption_line.x_exemption_id">
+                            <t t-set="exc" t-value="exemption_line.x_exemption_id"/>
+                            <div style="margin-top:2px; padding:2px 6px; background:#fff8ec; border:1px solid #d4a843; border-radius:2px; font-size:7.5pt; line-height:1.5;">
+                                <span style="font-weight:700; color:#7a4500; margin-right:8px;">WHT EXEMPTION DETAILS</span>
+                                <span style="margin-right:8px;"><b>Tax Year:</b> <t t-esc="exc.tax_year or '—'"/></span>
+                                <span style="margin-right:8px;"><b>Period:</b>
+                                    <t t-esc="exc.period_from.strftime('%d/%m/%Y') if exc.period_from else '—'"/>&#160;–&#160;<t t-esc="exc.period_to.strftime('%d/%m/%Y') if exc.period_to else '—'"/>
+                                </span>
+                                <span style="margin-right:8px; color:#7a4500; font-weight:700;"><b style="color:#555; font-weight:400;">Rate:</b> <t t-esc="'{:.2f}%'.format(exc.rate) if exc.rate else '—'"/></span>
+                                <t t-if="exc.barcode_number">
+                                    <span style="margin-right:8px;"><b>Barcode:</b> <t t-esc="exc.barcode_number"/></span>
+                                </t>
+                                <t t-if="exc.description">
+                                    <span><b>Desc:</b> <t t-esc="exc.description"/></span>
+                                </t>
+                            </div>
+                        </t>
                     </td>
                     <!-- No amount on this descriptor row when FBR bank row follows -->
                     <t t-if="fbr_posted or wht_companion">
-                        <td style="padding:7px 8px; border:1px solid #ccc; border-bottom:0; text-align:right; color:#aaa; vertical-align:top;">—</td>
-                        <td style="padding:7px 8px; border:1px solid #ccc; border-bottom:0; text-align:right; color:#bbb; font-style:italic; vertical-align:top; font-size:9.5pt;">see below</td>
+                        <td style="padding:2px 4px; border:1px solid #ccc; border-bottom:0; text-align:right; color:#aaa; vertical-align:top;">—</td>
+                        <td style="padding:2px 4px; border:1px solid #ccc; border-bottom:0; text-align:right; color:#bbb; font-style:italic; vertical-align:top; font-size:8.5pt;">see below</td>
                     </t>
                     <!-- Fallback: no companion — show amount here -->
                     <t t-else="">
-                        <td style="padding:7px 8px; border:1px solid #ccc; border-bottom:0; text-align:right; color:#aaa; vertical-align:top;">—</td>
-                        <td style="padding:7px 8px; border:1px solid #ccc; border-bottom:0; text-align:right; font-weight:600; color:#7a4500; vertical-align:top;">
+                        <td style="padding:2px 4px; border:1px solid #ccc; border-bottom:0; text-align:right; color:#aaa; vertical-align:top;">—</td>
+                        <td style="padding:2px 4px; border:1px solid #ccc; border-bottom:0; text-align:right; font-weight:600; color:#7a4500; vertical-align:top;">
                             <t t-esc="'{:,.2f}'.format(wht_total)"/>
                         </td>
                     </t>
@@ -317,38 +364,35 @@
                 <!-- ROW 3b: FBR Bank — separate payment row (like vendor bank) -->
                 <t t-if="wht_companion">
                     <tr style="border-bottom:1px solid #dee2e6; background:#fffbf2;">
-                        <td style="padding:7px 8px; border:1px solid #ccc; border-top:1px dashed #e0c070; font-family:monospace; font-size:10pt; vertical-align:top; color:#7a4500;">
+                        <td style="padding:2px 4px; border:1px solid #ccc; border-top:1px dashed #e0c070; font-family:monospace; font-size:9pt; vertical-align:top; color:#7a4500;">
                             <t t-esc="wht_companion.journal_id.default_account_id.code or '—'"/>
                         </td>
-                        <td style="padding:7px 8px; border:1px solid #ccc; border-top:1px dashed #e0c070; vertical-align:top;">
+                        <td style="padding:2px 4px; border:1px solid #ccc; border-top:1px dashed #e0c070; vertical-align:top;">
                             <div style="font-weight:600; color:#7a4500;">
                                 <t t-esc="wht_companion.journal_id.name or '—'"/>
-                                <span style="font-size:8.5pt; font-weight:400; color:#999; margin-left:8px;">(FBR WHT Cheque)</span>
+                                <span style="font-size:8pt; font-weight:400; color:#999; margin-left:6px;">(FBR WHT Cheque)</span>
                             </div>
-                            <table style="margin-top:6px; font-size:9.5pt; border-collapse:collapse; width:auto;">
+                            <table style="margin-top:3px; font-size:8pt; border-collapse:collapse; width:auto;">
                                 <tr>
-                                    <td style="border:1px solid #dbb86c; padding:3px 10px; background:#fffbf0; font-weight:600;">Account Title</td>
-                                    <td style="border:1px solid #dbb86c; padding:3px 14px; min-width:130px;">
+                                    <td style="border:1px solid #aaa; padding:2px 5px; background:#f8f8f8; font-weight:600; color:#7a4500;">Account Title</td>
+                                    <td style="border:1px solid #aaa; padding:2px 7px; min-width:110px; color:#7a4500;">
                                         <t t-esc="(fbr_alloc.x_account_title if fbr_alloc else False) or wht_companion.x_account_title or (wht_companion.partner_id.name if wht_companion.partner_id else 'FBR')"/>
                                     </td>
-                                    <td style="border:1px solid #dbb86c; padding:3px 10px; background:#fffbf0; font-weight:600; padding-left:16px;">Cheque No</td>
-                                    <td style="border:1px solid #dbb86c; padding:3px 14px; min-width:110px;">
+                                    <td style="border:1px solid #aaa; padding:2px 5px; background:#f8f8f8; font-weight:600; color:#7a4500;">Cheque No</td>
+                                    <td style="border:1px solid #aaa; padding:2px 7px; min-width:90px; color:#7a4500;">
                                         <t t-esc="(fbr_alloc.x_cheque_number if fbr_alloc else False) or '—'"/>
                                     </td>
-                                </tr>
-                                <t t-if="wht_companion.partner_id">
-                                    <tr>
-                                        <td style="border:1px solid #dbb86c; padding:3px 10px; background:#fffbf0; font-weight:600;">Payee</td>
-                                        <td colspan="3" style="border:1px solid #dbb86c; padding:3px 14px; color:#555;">
+                                    <t t-if="wht_companion.partner_id">
+                                        <td style="border:1px solid #aaa; padding:2px 5px; background:#f8f8f8; font-weight:600; color:#7a4500;">Payee</td>
+                                        <td style="border:1px solid #aaa; padding:2px 7px; min-width:90px; color:#7a4500;">
                                             <t t-esc="wht_companion.partner_id.name"/>
-                                            &#160;(Federal Board of Revenue)
                                         </td>
-                                    </tr>
-                                </t>
+                                    </t>
+                                </tr>
                             </table>
                         </td>
-                        <td style="padding:7px 8px; border:1px solid #ccc; border-top:1px dashed #e0c070; text-align:right; color:#aaa; vertical-align:top;">—</td>
-                        <td style="padding:7px 8px; border:1px solid #ccc; border-top:1px dashed #e0c070; text-align:right; font-weight:600; color:#7a4500; vertical-align:top;">
+                        <td style="padding:2px 4px; border:1px solid #ccc; border-top:1px dashed #e0c070; text-align:right; color:#aaa; vertical-align:top;">—</td>
+                        <td style="padding:2px 4px; border:1px solid #ccc; border-top:1px dashed #e0c070; text-align:right; font-weight:600; color:#7a4500; vertical-align:top;">
                             <t t-esc="'{:,.2f}'.format(wht_total)"/>
                         </td>
                     </tr>
@@ -363,26 +407,26 @@
             ════════════════════════════════════════════════════ -->
             <t t-if="ret_total > 0">
                 <tr style="border-bottom:1px solid #dee2e6; background:#f3f8ff;">
-                    <td style="padding:7px 8px; border:1px solid #ccc; font-family:monospace; font-size:10pt; vertical-align:top; color:#0a4275;">
+                    <td style="padding:2px 4px; border:1px solid #ccc; font-family:monospace; font-size:9pt; vertical-align:top; color:#0a4275;">
                         <t t-esc="ret_credit_line.account_id.code if ret_credit_line else '—'"/>
                     </td>
-                    <td style="padding:7px 8px; border:1px solid #ccc; vertical-align:top;">
+                    <td style="padding:2px 4px; border:1px solid #ccc; vertical-align:top;">
                         <div style="font-weight:600; color:#0a4275;">
                             <t t-esc="ret_credit_line.account_id.name if ret_credit_line else 'Retention Payable'"/>
-                            &#160;<span style="font-size:8.5pt; background:#d0e8ff; color:#0a4275; padding:1px 6px; border-radius:3px; font-weight:700;">RETENTION</span>
+                            &#160;<span style="font-size:8pt; background:#d0e8ff; color:#0a4275; padding:1px 5px; border-radius:3px; font-weight:700;">RETENTION</span>
                         </div>
                         <t t-foreach="ret_ded_lines" t-as="rl">
-                            <div style="font-size:9.5pt; color:#555; margin-top:2px;">
+                            <div style="font-size:8.5pt; color:#555; margin-top:1px;">
                                 <t t-esc="rl.name or 'Retention Money'"/>
                                 — Rs.&#160;<t t-esc="'{:,.2f}'.format(rl.amount)"/>
                             </div>
                         </t>
-                        <div style="font-size:9pt; color:#666; margin-top:4px;">
+                        <div style="font-size:8pt; color:#666; margin-top:1px;">
                             Withheld — payable back to <b><t t-esc="o.partner_id.name"/></b> on contract completion.
                         </div>
                     </td>
-                    <td style="padding:7px 8px; border:1px solid #ccc; text-align:right; color:#aaa; vertical-align:top;">—</td>
-                    <td style="padding:7px 8px; border:1px solid #ccc; text-align:right; font-weight:600; color:#0a4275; vertical-align:top;">
+                    <td style="padding:2px 4px; border:1px solid #ccc; text-align:right; color:#aaa; vertical-align:top;">—</td>
+                    <td style="padding:2px 4px; border:1px solid #ccc; text-align:right; font-weight:600; color:#0a4275; vertical-align:top;">
                         <t t-esc="'{:,.2f}'.format(ret_total)"/>
                     </td>
                 </tr>
@@ -391,27 +435,27 @@
             <!-- ── Other deductions ────────────────────────────────────── -->
             <t t-foreach="other_ded_lines" t-as="od">
                 <tr style="border-bottom:1px solid #dee2e6;">
-                    <td style="padding:7px 8px; border:1px solid #ccc; font-family:monospace; font-size:10pt; vertical-align:top;">—</td>
-                    <td style="padding:7px 8px; border:1px solid #ccc; vertical-align:top;">
+                    <td style="padding:2px 4px; border:1px solid #ccc; font-family:monospace; font-size:9pt; vertical-align:top;">—</td>
+                    <td style="padding:2px 4px; border:1px solid #ccc; vertical-align:top;">
                         <div style="font-weight:600;">
                             <t t-esc="od.name or 'Other Deduction'"/>
-                            &#160;<span style="font-size:8.5pt; background:#f0f0f0; padding:1px 6px; border-radius:3px;">DEDUCTION</span>
+                            &#160;<span style="font-size:8pt; background:#f0f0f0; padding:1px 5px; border-radius:3px;">DEDUCTION</span>
                         </div>
                     </td>
-                    <td style="padding:7px 8px; border:1px solid #ccc; text-align:right; color:#aaa; vertical-align:top;">—</td>
-                    <td style="padding:7px 8px; border:1px solid #ccc; text-align:right; font-weight:600; vertical-align:top;">
+                    <td style="padding:2px 4px; border:1px solid #ccc; text-align:right; color:#aaa; vertical-align:top;">—</td>
+                    <td style="padding:2px 4px; border:1px solid #ccc; text-align:right; font-weight:600; vertical-align:top;">
                         <t t-esc="'{:,.2f}'.format(od.amount)"/>
                     </td>
                 </tr>
             </t>
 
             <!-- ── TOTAL ROW ── -->
-            <tr style="background:#f0f0f0; font-weight:700; font-size:11pt;">
-                <td style="padding:7px 8px; border:1.5px solid #888;" colspan="2">Total</td>
-                <td style="padding:7px 8px; border:1.5px solid #888; text-align:right;">
+            <tr style="background:#f0f0f0; font-weight:700; font-size:10pt;">
+                <td style="padding:2px 5px; border:1.5px solid #888;" colspan="2">Total</td>
+                <td style="padding:2px 5px; border:1.5px solid #888; text-align:right;">
                     <t t-esc="'{:,.2f}'.format(gross_amount)"/>
                 </td>
-                <td style="padding:7px 8px; border:1.5px solid #888; text-align:right;">
+                <td style="padding:2px 5px; border:1.5px solid #888; text-align:right;">
                     <t t-esc="'{:,.2f}'.format(gross_amount)"/>
                 </td>
             </tr>
@@ -423,36 +467,67 @@
          AMOUNT IN WORDS
          Net to vendor + WHT to FBR on separate lines when applicable.
     ═══════════════════════════════════════════════════════════════ -->
-    <div style="margin-top:14px; border:1px solid #ccc; border-radius:3px; overflow:hidden;">
-        <div style="padding:8px 12px; background:#fafafa; font-size:10.5pt;">
-            <span style="font-weight:700; margin-right:8px;">
+    <div style="margin-top:4px; border:1px solid #ccc; border-radius:3px; overflow:hidden;">
+        <div style="padding:3px 8px; background:#fafafa; font-size:8.5pt;">
+            <span style="font-weight:700; margin-right:6px;">
                 <t t-if="has_deductions">Net to Vendor:</t>
                 <t t-else="">Amount in Words:</t>
             </span>
             <t t-esc="o.currency_id.amount_to_text(o.amount)"/>
         </div>
         <t t-if="wht_total > 0">
-            <div style="padding:8px 12px; background:#fffbf0; font-size:10.5pt; border-top:1px solid #e8d9b0;">
-                <span style="font-weight:700; margin-right:8px; color:#7a4500;">WHT to FBR:</span>
+            <div style="padding:3px 8px; background:#fffbf0; font-size:8.5pt; border-top:1px solid #e8d9b0;">
+                <span style="font-weight:700; margin-right:6px; color:#7a4500;">WHT to FBR:</span>
                 <t t-esc="o.currency_id.amount_to_text(wht_total)"/>
             </div>
         </t>
         <t t-if="ret_total > 0">
-            <div style="padding:8px 12px; background:#f3f8ff; font-size:10.5pt; border-top:1px solid #b0cce8;">
-                <span style="font-weight:700; margin-right:8px; color:#0a4275;">Retention Held:</span>
+            <div style="padding:3px 8px; background:#f3f8ff; font-size:8.5pt; border-top:1px solid #b0cce8;">
+                <span style="font-weight:700; margin-right:6px; color:#0a4275;">Retention Held:</span>
                 <t t-esc="o.currency_id.amount_to_text(ret_total)"/>
             </div>
         </t>
     </div>
 
     <!-- ════════════════════════════════════════════════════════════
-         SIGNATURE BLOCK
-         50px top margin gives signatories space to sign above each line.
+         SIGNATURE BLOCK — 4 columns side by side
     ═══════════════════════════════════════════════════════════════ -->
-    <div style="margin-top:50px;">
-        <t t-call="site_operations.report_sig_4col_labels">
-            <t t-set="extra_label">Received By</t>
-        </t>
+    <div style="margin-top:18mm; page-break-inside:avoid;">
+        <table style="width:100%; border-collapse:collapse; font-size:9pt;">
+            <tr>
+                <!-- Prepared By -->
+                <td style="width:25%; padding:0 10px 0 0; text-align:center; vertical-align:top;">
+                    <div style="height:44px;"></div>
+                    <div style="border-top:1.5px solid #000; padding-top:4px; font-weight:700;">
+                        Prepared By
+                    </div>
+                </td>
+                <!-- Checked By -->
+                <td style="width:25%; padding:0 10px; text-align:center; vertical-align:top;">
+                    <div style="height:44px;"></div>
+                    <div style="border-top:1.5px solid #000; padding-top:4px; font-weight:700;">
+                        Checked By
+                    </div>
+                </td>
+                <!-- Approved By -->
+                <td style="width:25%; padding:0 10px; text-align:center; vertical-align:top;">
+                    <div style="height:44px;"></div>
+                    <div style="border-top:1.5px solid #000; padding-top:4px; font-weight:700;">
+                        Approved By
+                    </div>
+                </td>
+                <!-- Received By — only this one gets Name line -->
+                <td style="width:25%; padding:0 0 0 10px; text-align:center; vertical-align:top;">
+                    <div style="height:44px;"></div>
+                    <div style="border-top:1.5px solid #000; padding-top:4px; font-weight:700;">
+                        Received By
+                    </div>
+                    <div style="font-size:8.5pt; color:#6c757d; margin-top:4px; text-align:left; padding-left:4px;">
+                        Name: _______________________
+                    </div>
+                </td>
+            </tr>
+        </table>
     </div>
 
 </div>

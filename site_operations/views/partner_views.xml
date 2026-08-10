@@ -38,6 +38,45 @@
                 </button>
             </xpath>
 
+            <!-- ── WHT Exemption tab ── -->
+            <xpath expr="//notebook" position="inside">
+                <page string="WHT Exemption" name="wht_exemption"
+                      groups="site_operations.group_finance_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin">
+                    <field name="x_wht_exemption_ids" widget="one2many">
+                        <list string="WHT Exemption Certificates" editable="bottom">
+                            <field name="tax_year" string="Tax Year"/>
+                            <field name="period_from" string="Period From"/>
+                            <field name="period_to" string="Period To"/>
+                            <field name="barcode_number" string="Barcode No."/>
+                            <field name="description" string="Description"/>
+                            <field name="rate" string="Rate %" digits="[5,2]"/>
+                            <field name="x_wht_payable_account_id" string="WHT Payable Account"/>
+                            <field name="is_active_today" string="Active" readonly="1" widget="boolean_toggle"/>
+                            <field name="attachment_ids" widget="many2many_binary" string="Attachment"/>
+                        </list>
+                        <form string="WHT Exemption Certificate">
+                            <group>
+                                <group string="Certificate Details">
+                                    <field name="tax_year" string="Tax Year"/>
+                                    <field name="period_from" string="Period From"/>
+                                    <field name="period_to" string="Period To"/>
+                                    <field name="barcode_number" string="Barcode Number"/>
+                                    <field name="description" string="Description"/>
+                                    <field name="rate" string="Rate %" digits="[5,2]"/>
+                                    <field name="is_active_today" string="Currently Active" readonly="1"/>
+                                </group>
+                                <group string="Payment Defaults">
+                                    <field name="x_wht_payable_account_id" string="WHT Payable Account"/>
+                                </group>
+                            </group>
+                            <group string="Attachments">
+                                <field name="attachment_ids" widget="many2many_binary" nolabel="1"/>
+                            </group>
+                        </form>
+                    </field>
+                </page>
+            </xpath>
+
         </field>
     </record>
 </odoo>

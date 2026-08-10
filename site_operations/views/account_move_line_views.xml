@@ -14,8 +14,15 @@
             <!-- Insert after the Label (name) column so it is logically grouped
                  with the description columns. -->
             <field name="name" position="after">
+                <!-- Cheque series dropdown: HO / Finance HO / Admin only -->
+                <field name="x_cheque_leaf_id"
+                       string="Cheque No. (Series)"
+                       optional="show"
+                       options="{'no_create': True, 'no_open': True}"
+                       groups="purchase_demand_raise.group_head_office,site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"/>
+                <!-- Manual cheque number: all users -->
                 <field name="x_cheque_number"
-                       string="Cheque / Ref No."
+                       string="Cheque No. (Manual)"
                        optional="show"
                        readonly="1"/>
                 <field name="x_account_title"

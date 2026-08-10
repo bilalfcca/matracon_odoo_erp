@@ -710,11 +710,37 @@ def fix_account_move_rules(env):
         )
 
 
+def generate_cheque_leaves_for_existing_series(env):
+    """Generate x.cheque.leaf records for all existing series that have none.
+
+    Safe to re-run — skips numbers that already have a leaf record.
+    Called from post_migrate_hook so existing compliance series are populated
+    automatically on the first upgrade after this feature is deployed.
+    """
+    import logging
+    _log = logging.getLogger(__name__)
+    series_all = env['x.cheque.series'].search([])
+    for series in series_all:
+        if series.leaf_ids:
+            # Already has leaves — call the idempotent sync helper
+            series.generate_leaves_for_existing()
+        else:
+            series._generate_leaves()
+        _log.info('cheque_leaves: generated leaves for series "%s" (bank: %s)',
+                  series.name, series.bank_journal_id.name)
+
+
 def post_migrate_hook(env):
     set_pkr_decimal_places(env)
     set_date_format(env)
     set_pakistan_fiscal_year(env)
     deduplicate_partner_tags(env)
+    try:
+        generate_cheque_leaves_for_existing_series(env)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(
+            'post_migrate_hook: generate_cheque_leaves failed: %s', e)
     reprocess_existing_payments(env)
     # Restrict Odoo's built-in 'see all' account.move rules to group_account_manager
     # so site accountants are properly scoped to their own project.

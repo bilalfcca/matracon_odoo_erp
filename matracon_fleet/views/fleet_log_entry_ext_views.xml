@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ── Extend fleet service log form ─────────────────────────────────── -->
+    <record id="view_fleet_log_services_matracon" model="ir.ui.view">
+        <field name="name">fleet.vehicle.log.services.form.matracon</field>
+        <field name="model">fleet.vehicle.log.services</field>
+        <field name="inherit_id" ref="fleet.fleet_vehicle_log_services_view_form"/>
+        <field name="arch" type="xml">
+
+            <!-- GL action buttons in the header -->
+            <xpath expr="//header" position="inside">
+                <button name="action_post_gl" type="object"
+                        string="Post GL"
+                        class="btn-primary"
+                        invisible="x_gl_posted or not amount"
+                        help="Link or create the accounting journal entry for this log entry."/>
+                <button name="action_view_journal_entry" type="object"
+                        string="View Journal Entry"
+                        class="btn-secondary"
+                        invisible="not x_gl_posted"/>
+                <button name="action_unlink_gl" type="object"
+                        string="Unlink GL"
+                        class="btn-danger"
+                        invisible="not x_account_move_id"
+                        groups="purchase_demand_raise.group_matracon_admin,base.group_system"
+                        confirm="This will detach the GL journal entry link (the JE itself is NOT reversed). Continue?"/>
+                <!-- Invisible helper fields for button visibility -->
+                <field name="x_gl_posted" invisible="1"/>
+                <field name="x_account_move_id" invisible="1"/>
+            </xpath>
+
+            <!-- Log category before service type -->
+            <field name="service_type_id" position="before">
+                <field name="x_log_category" string="Log Category" required="1"/>
+            </field>
+
+            <!-- Meter readings after date -->
+            <field name="date" position="after">
+                <field name="x_prev_meter" string="Previous Meter" readonly="1"/>
+                <field name="x_curr_meter" string="Current Meter"/>
+                <field name="x_meter_delta" string="Consumption / Interval" readonly="1"/>
+                <field name="x_meter_unit" readonly="1"/>
+            </field>
+
+            <!-- Quantity + unit cost before total amount -->
+            <field name="amount" position="before">
+                <field name="x_quantity" string="Quantity"/>
+                <field name="x_unit_cost" string="Unit Cost (PKR)"/>
+            </field>
+
+            <!-- Employee driver after purchaser -->
+            <field name="purchaser_id" position="after">
+                <field name="x_driver_employee_id" string="Driver (Employee)"/>
+            </field>
+
+            <!-- Notes: required when category is "Other Consumable" -->
+            <field name="notes" position="attributes">
+                <attribute name="required">x_log_category == 'other'</attribute>
+                <attribute name="placeholder">Required for Other Consumable — describe what was done</attribute>
+            </field>
+
+            <!-- Payment source + GL link before notes -->
+            <field name="notes" position="before">
+                <field name="x_analytic_account_id" string="Project Site" readonly="1"/>
+                <separator string="Payment &amp; GL"/>
+                <field name="x_payment_source" string="Payment Source"/>
+                <field name="x_petty_cash_expense_id" string="Petty Cash Expense"
+                       invisible="x_payment_source != 'petty_cash'"
+                       options="{'no_create': True}"/>
+                <field name="x_vendor_bill_id" string="Vendor Bill"
+                       invisible="x_payment_source != 'vendor_bill'"
+                       options="{'no_create': True}"/>
+                <field name="x_account_move_id" string="Journal Entry" readonly="1"/>
+                <field name="x_gl_posted" string="GL Posted" readonly="1"/>
+            </field>
+
+        </field>
+    </record>
+
+    <!-- ── Extend log services list view ─────────────────────────────────── -->
+    <record id="view_fleet_log_services_list_matracon" model="ir.ui.view">
+        <field name="name">fleet.vehicle.log.services.list.matracon</field>
+        <field name="model">fleet.vehicle.log.services</field>
+        <field name="inherit_id" ref="fleet.fleet_vehicle_log_services_view_tree"/>
+        <field name="arch" type="xml">
+            <field name="amount" position="before">
+                <field name="x_log_category" string="Category" optional="show"/>
+                <field name="x_analytic_account_id" string="Site" optional="show"/>
+                <field name="x_curr_meter" string="Current Meter" optional="show"/>
+            </field>
+            <field name="amount" position="after">
+                <field name="x_gl_posted" string="GL Posted" optional="show"/>
+            </field>
+        </field>
+    </record>
+
+    <!-- ── Standalone Log Entries action ─────────────────────────────────── -->
+    <record id="action_fleet_log_entries" model="ir.actions.act_window">
+        <field name="name">Log Entries</field>
+        <field name="res_model">fleet.vehicle.log.services</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[]</field>
+        <field name="context">{}</field>
+    </record>
+
+    <!-- ── Graph: Monthly Cost Trend (bar) ───────────────────────────────── -->
+    <record id="view_fleet_log_entry_graph_monthly" model="ir.ui.view">
+        <field name="name">fleet.vehicle.log.services.graph.monthly</field>
+        <field name="model">fleet.vehicle.log.services</field>
+        <field name="arch" type="xml">
+            <graph string="Fleet Cost Trend" type="bar" sample="1">
+                <field name="date" interval="month" type="row"/>
+                <field name="amount" type="measure"/>
+            </graph>
+        </field>
+    </record>
+
+    <!-- ── Graph: Cost by Category (pie) ─────────────────────────────────── -->
+    <record id="view_fleet_log_entry_graph_category" model="ir.ui.view">
+        <field name="name">fleet.vehicle.log.services.graph.category</field>
+        <field name="model">fleet.vehicle.log.services</field>
+        <field name="arch" type="xml">
+            <graph string="Fleet Cost by Category" type="pie" sample="1">
+                <field name="x_log_category" type="row"/>
+                <field name="amount" type="measure"/>
+            </graph>
+        </field>
+    </record>
+
+    <!-- ── Fleet Cost Analysis action (graph first, then list) ───────────── -->
+    <record id="action_fleet_cost_analysis" model="ir.actions.act_window">
+        <field name="name">Fleet Cost Analysis</field>
+        <field name="res_model">fleet.vehicle.log.services</field>
+        <field name="view_mode">graph,list</field>
+        <field name="context">{'search_default_group_month': 1}</field>
+    </record>
+</odoo>

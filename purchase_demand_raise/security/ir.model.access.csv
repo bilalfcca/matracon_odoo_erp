@@ -57,7 +57,7 @@ access_project_site_config_site_store,x.project.site.config site store,model_x_p
 access_res_partner_site_store,res.partner site store,base.model_res_partner,purchase_demand_raise.group_site_store,1,0,0,0
 access_res_partner_category_site_store,res.partner.category site store,base.model_res_partner_category,purchase_demand_raise.group_site_store,1,0,0,0
 access_po_terms_template_site_store,x.po.terms.template site store,model_x_po_terms_template,purchase_demand_raise.group_site_store,1,0,0,0
-access_po_terms_template_procurement_ho,x.po.terms.template procurement ho,model_x_po_terms_template,purchase_demand_raise.group_procurement_ho,1,0,0,0
+access_po_terms_template_procurement_ho,x.po.terms.template procurement ho,model_x_po_terms_template,purchase_demand_raise.group_procurement_ho,1,1,1,0
 access_po_terms_template_ceo,x.po.terms.template ceo,model_x_po_terms_template,purchase_demand_raise.group_ceo_approval,1,0,0,0
 access_po_terms_template_ho,x.po.terms.template ho,model_x_po_terms_template,purchase_demand_raise.group_head_office,1,1,1,1
 access_po_terms_template_matracon_admin,x.po.terms.template matracon admin,model_x_po_terms_template,purchase_demand_raise.group_matracon_admin,1,1,1,1

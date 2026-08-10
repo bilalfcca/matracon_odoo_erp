@@ -73,9 +73,8 @@
                         </t>
 
                         <!-- ── Signatures ── -->
-                        <t t-call="site_operations.report_sig_3col"/>
-                        <p class="text-muted small mt-3">System-generated — Matracon Pakistan Pvt. Ltd. · Printed: <t t-esc="context_timestamp(datetime.datetime.now()).strftime('%d/%m/%Y')"/></p>
-                    </div>
+                                                <t t-set="sig_prepared_user" t-value="ipt.sudo().create_uid"/>
+                        <t t-call="site_operations.report_sig_3col"/>                    </div>
                 </t>
             </t>
         </t>

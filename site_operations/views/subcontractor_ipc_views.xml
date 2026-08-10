@@ -42,6 +42,12 @@
                             string="Submit IPC"
                             class="btn-primary"
                             invisible="state != 'draft'"/>
+                    <button name="action_reset_to_draft" type="object"
+                            string="Reset to Draft"
+                            class="btn-warning"
+                            invisible="state != 'submitted'"
+                            groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"
+                            confirm="This will reverse the accounting journal entry and restore back charges to Pending. Are you sure?"/>
                     <button name="action_mark_paid" type="object"
                             string="Mark as Paid"
                             class="btn-success"
@@ -74,6 +80,14 @@
                             <div class="o_stat_info">
                                 <span class="o_stat_text">Liability</span>
                                 <span class="o_stat_text">Sheet</span>
+                            </div>
+                        </button>
+                        <button type="object" name="action_view_ipc_journal_entry"
+                                class="oe_stat_button" icon="fa-book"
+                                invisible="not x_account_move_id">
+                            <div class="o_stat_info">
+                                <span class="o_stat_text">Journal</span>
+                                <span class="o_stat_text">Entry</span>
                             </div>
                         </button>
                         <!-- Payments tracked via GL — see "Payments Made" section below -->
@@ -266,6 +280,41 @@
                                    readonly="1"
                                    class="fw-bold text-success"
                                    style="font-size:1.1em;"/>
+                        </group>
+                    </group>
+
+                    <!-- ════════════════════════════════════════════════════
+                         SECTION 4 — Accounting
+                         Visible in draft so SA fills accounts before submitting.
+                         Readonly after submission (JE already posted).
+                    ════════════════════════════════════════════════════ -->
+                    <group string="Accounting">
+                        <group string="Journal Entry Accounts">
+                            <field name="x_expense_account_id"
+                                   string="Work Expense Account (Dr)"
+                                   readonly="state != 'draft'"
+                                   required="state == 'draft'"
+                                   options="{'no_create': True}"
+                                   help="Account debited for the certified work done cost (e.g. Subcontract Work Expense)."/>
+                            <field name="x_payable_account_id"
+                                   string="Subcontractor Payable Account (Cr)"
+                                   readonly="state != 'draft'"
+                                   required="state == 'draft'"
+                                   options="{'no_create': True}"
+                                   help="Account credited — this is what appears in the Partner Ledger and Liability Sheet."/>
+                        </group>
+                        <group string="Posted Entry">
+                            <field name="x_account_move_id"
+                                   string="Journal Entry"
+                                   readonly="1"
+                                   invisible="not x_account_move_id"/>
+                            <div class="text-muted" invisible="x_account_move_id or state == 'draft'">
+                                <i>Entry will be posted on submission.</i>
+                            </div>
+                            <div class="text-muted" invisible="state != 'draft'">
+                                <i>A journal entry will be created automatically on submission
+                                   and will appear in the Partner Ledger and Liability Sheet.</i>
+                            </div>
                         </group>
                     </group>
 

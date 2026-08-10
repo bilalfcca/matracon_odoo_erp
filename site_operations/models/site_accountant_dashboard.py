@@ -64,6 +64,7 @@ class SiteAccountantDashboard(models.TransientModel):
             or user.has_group('site_operations.group_site_accountant')
             or user.has_group('site_operations.group_finance_ho')
             or user.has_group('purchase_demand_raise.group_ceo_approval')
+            or user.has_group('purchase_demand_raise.group_procurement_ho')
         )
 
     def _is_subcontractor(self, partner):
@@ -309,7 +310,7 @@ class SiteAccountantDashboard(models.TransientModel):
     def action_open_site_dashboard(self):
         if not self._can_open():
             raise UserError(_(
-                'This dashboard is available to Site Accountants, Finance Officers, and Admins.'
+                'This dashboard is available to Site Accountants, Finance HO, CEO, Procurement HO, and Admins.'
             ))
         user = self.env.user
         # Determine the analytic account to show

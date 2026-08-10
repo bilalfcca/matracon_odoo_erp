@@ -40,6 +40,15 @@ class PurchaseOrderLine(models.Model):
                 line.analytic_distribution = {acc_id: 100.0}
         return lines
 
+    # ── Per-line Currency (for multi-currency POs) ───────────────────────────
+    x_line_currency_id = fields.Many2one(
+        'res.currency',
+        string='Quote Currency',
+        help='Currency the vendor quoted in for this line. '
+             'Informational — does not affect Odoo price calculations.',
+        default=lambda self: self.env.company.currency_id,
+    )
+
     # ── Quantity Fields ───────────────────────────────────────────────────────
     x_requested_qty = fields.Float(
         string='Requested Qty', digits='Product Unit of Measure', default=0.0,

@@ -31,6 +31,7 @@ from . import liability_sheet
 from . import project_project
 from . import project_site_config
 from . import account_move
+from . import res_partner_wht_exemption
 from . import res_partner
 from . import res_users
 from . import site_store_dashboard
@@ -49,3 +50,4 @@ from . import account_move_line  # suppress customer-invoice due-date constraint
 from . import employee_backcharge
 from . import account_report_ext  # lock analytic filter for site accountants
 from . import uom_ext  # UoM alternative name search aliases
+from . import product_category_ext  # x_add_to_dashboard flag on product category

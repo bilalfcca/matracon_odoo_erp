@@ -1,6 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
+    <!-- Narrow-margin A4 — same as BPV so content starts near the top -->
+    <record id="paperformat_jev" model="report.paperformat">
+        <field name="name">JEV A4 Narrow</field>
+        <field name="default">False</field>
+        <field name="format">A4</field>
+        <field name="orientation">Portrait</field>
+        <field name="margin_top">5</field>
+        <field name="margin_bottom">10</field>
+        <field name="margin_left">5</field>
+        <field name="margin_right">5</field>
+        <field name="header_line">False</field>
+        <field name="header_spacing">3</field>
+        <field name="dpi">90</field>
+    </record>
+
     <record id="action_report_journal_entry_voucher" model="ir.actions.report">
         <field name="name">Journal Entry Voucher</field>
         <field name="model">account.move</field>
@@ -8,6 +23,7 @@
         <field name="report_name">site_operations.report_journal_entry_document</field>
         <field name="report_file">site_operations.report_journal_entry_document</field>
         <field name="print_report_name">'JEV-' + (object.name or 'Voucher')</field>
+        <field name="paperformat_id" ref="paperformat_jev"/>
     </record>
 
 </odoo>

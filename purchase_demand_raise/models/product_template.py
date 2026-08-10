@@ -12,11 +12,24 @@ Three mechanisms ensure this:
                   is_storable get True automatically
 3. Retroactive SQL run once (see shell command in commit notes)
 """
-from odoo import models, api
+from odoo import models, fields, api
 
 
 class ProductTemplateSiteOps(models.Model):
     _inherit = 'product.template'
+
+    x_add_to_dashboard = fields.Boolean(
+        string='Show on Inventory Dashboard',
+        default=False,
+        help='When enabled, this product will appear on the HO Inventory Dashboard '
+             'with on-hand quantity and PO-based valuation.',
+    )
+    x_show_zero_qty = fields.Boolean(
+        string='Show even if quantity is 0',
+        default=False,
+        help='When enabled, this product will appear on the Inventory Dashboard '
+             'even when its on-hand quantity is zero.',
+    )
 
     @api.model
     def default_get(self, fields_list):

@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        Gate the Fleet app root menu behind group_mtr_app_fleet.
+        Only Matracon roles with this group in implied_ids will see the Fleet app.
+        Fleet root menu ID in Odoo 19 is fleet.menu_root.
+    -->
+    <record id="fleet.menu_root" model="ir.ui.menu">
+        <field name="group_ids" eval="[
+            (4, ref('matracon_fleet.group_mtr_app_fleet')),
+        ]"/>
+    </record>
+
+    <!-- ── Fleet → Vehicles → Log Entries ───────────────────────────────── -->
+    <menuitem id="menu_fleet_log_entries"
+              name="Log Entries"
+              parent="fleet.fleet_vehicles"
+              action="action_fleet_log_entries"
+              sequence="15"
+              groups="fleet.fleet_group_user"/>
+
+    <!-- ── Fleet → Vehicles → Spare Parts Log ───────────────────────────── -->
+    <menuitem id="menu_fleet_spare_parts"
+              name="Spare Parts Log"
+              parent="fleet.fleet_vehicles"
+              action="action_fleet_spare_part_all"
+              sequence="20"
+              groups="fleet.fleet_group_user"/>
+
+    <!-- ── Fleet → Vehicles → Vehicle Ledger ────────────────────────────── -->
+    <menuitem id="menu_fleet_vehicle_ledger"
+              name="Vehicle Ledger"
+              parent="fleet.fleet_vehicles"
+              action="action_fleet_vehicle_ledger"
+              sequence="25"
+              groups="fleet.fleet_group_user"/>
+
+    <!-- ── Fleet → Vehicles → Trip Records ──────────────────────────────── -->
+    <menuitem id="menu_fleet_trip_records"
+              name="Trip Records"
+              parent="fleet.fleet_vehicles"
+              action="action_fleet_vehicle_trip_all"
+              sequence="30"
+              groups="fleet.fleet_group_user"/>
+
+    <!-- ── Make standard Fleet Reporting menu visible to all fleet users ─── -->
+    <record id="fleet.menu_fleet_reporting" model="ir.ui.menu">
+        <field name="group_ids" eval="[
+            (4, ref('fleet.fleet_group_user')),
+            (4, ref('matracon_fleet.group_mtr_app_fleet')),
+        ]"/>
+    </record>
+
+    <!-- ── Fleet → Reporting → Fleet Cost Analysis (bar + pie charts) ───── -->
+    <menuitem id="menu_fleet_cost_analysis"
+              name="Fleet Cost Analysis"
+              parent="fleet.menu_fleet_reporting"
+              action="action_fleet_cost_analysis"
+              sequence="5"
+              groups="fleet.fleet_group_user"/>
+
+    <!-- ── Fleet → Reporting → Spare Parts Analysis (pie chart) ─────────── -->
+    <menuitem id="menu_fleet_spare_analysis"
+              name="Spare Parts Analysis"
+              parent="fleet.menu_fleet_reporting"
+              action="action_fleet_spare_part_analysis"
+              sequence="10"
+              groups="fleet.fleet_group_user"/>
+
+    <!-- ── Fleet → Configuration → Fleet Settings ───────────────────────── -->
+    <menuitem id="menu_fleet_settings"
+              name="Fleet Settings"
+              parent="fleet.fleet_configuration"
+              action="action_fleet_settings"
+              sequence="5"
+              groups="purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
+    <!-- ── Fleet → Configuration → MPPL Prefix Codes ────────────────────── -->
+    <menuitem id="menu_fleet_mppl_prefix"
+              name="MPPL Prefix Codes"
+              parent="fleet.fleet_configuration"
+              action="action_fleet_mppl_prefix"
+              sequence="10"
+              groups="purchase_demand_raise.group_matracon_admin,base.group_system"/>
+</odoo>

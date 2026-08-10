@@ -174,6 +174,7 @@ class BatchPayment(models.Model):
                 line._create_and_post_payment()
 
             batch.state = 'posted'
+            matracon_notify.close_activities(batch)
             batch.message_post(
                 body=_(
                     'Batch posted. <b>%d</b> payment(s) created.'
@@ -239,6 +240,8 @@ class BatchPayment(models.Model):
                 raise UserError(_('Only draft batches can be approved.'))
 
             batch.x_ceo_approval_state = 'approved'
+            # Close the CEO activity that was scheduled on submission
+            matracon_notify.close_activities(batch, summary_contains='Approve Batch Payment')
             total_str = '{:,.2f}'.format(batch.total_net)
             currency_sym = batch.currency_id.symbol or ''
             batch.message_post(
@@ -283,6 +286,8 @@ class BatchPayment(models.Model):
                     'Cancel the batch first if needed.'
                 ))
             batch.x_ceo_approval_state = 'pending'
+            # Close any FO 'Post batch payment' activity that was created on CEO approval
+            matracon_notify.close_activities(batch, summary_contains='Post batch payment')
             batch.message_post(
                 body=_('CEO reversed approval — batch returned to Pending status. '
                        'Finance HO must re-submit for a fresh approval.')
@@ -293,10 +298,51 @@ class BatchPayment(models.Model):
             if batch.state == 'posted':
                 raise UserError(_(
                     'A posted batch cannot be cancelled here. '
-                    'Cancel the individual payments directly if needed.'
+                    'Use "Reverse Batch" to unwind all accounting entries.'
                 ))
             batch.state = 'cancelled'
+            matracon_notify.close_activities(batch)
             batch.message_post(body=_('Batch cancelled.'))
+
+    def action_matracon_reverse_batch(self):
+        """Finance HO: fully reverse a posted batch payment.
+
+        Reverses every individual payment in the batch (including WHT
+        companions, tax deduction JEs, auto-clear JEs, and bank entries),
+        then cancels the batch.  Each payment returns to Draft state so
+        Finance HO can edit and re-post individually if needed.
+        """
+        _POSTED = frozenset(('in_process', 'paid', 'partial', 'posted'))
+        for batch in self:
+            user = self.env.user
+            if not (user.has_group('site_operations.group_finance_ho')
+                    or user._matracon_is_admin()):
+                raise UserError(_(
+                    'Only Finance HO or Administrator can reverse batches.'
+                ))
+            if batch.state != 'posted':
+                raise UserError(_('Only posted batches can be reversed.'))
+
+            posted_lines = batch.line_ids.filtered(
+                lambda l: l.payment_id and l.payment_id.state in _POSTED
+            )
+            if not posted_lines:
+                raise UserError(_(
+                    'No posted payments found in this batch to reverse.'
+                ))
+
+            reversed_count = 0
+            for line in posted_lines:
+                line.payment_id.action_matracon_reverse_payment()
+                reversed_count += 1
+
+            batch.state = 'cancelled'
+            matracon_notify.close_activities(batch)
+            batch.message_post(body=_(
+                'Batch reversed by <b>%(user)s</b>. '
+                '<b>%(count)d</b> payment(s) reversed and reset to Draft. '
+                'All journal entries, WHT deductions, and bank entries cancelled.'
+            ) % {'user': self.env.user.name, 'count': reversed_count})
 
     def action_reset_to_draft(self):
         for batch in self:
@@ -463,6 +509,33 @@ class BatchPaymentLine(models.Model):
         compute='_compute_has_wht', store=True,
         help='True when at least one WHT deduction tax line is present.',
     )
+    # Exemption certificate linked to the first WHT deduction line (if any).
+    # Computed so the view can display exemption details as a styled card.
+    # NOTE: stored=True so Odoo 19 can track reverse dependencies for the
+    # x_exc_* related fields below. Uses its own compute method (separate from
+    # x_has_wht) to satisfy Odoo 19's consistent-store requirement.
+    x_active_exemption_id = fields.Many2one(
+        'x.partner.wht.exemption', string='WHT Exemption',
+        compute='_compute_active_exemption_id', store=True,
+        help='Auto-filled from the WHT tax line when vendor has an exemption certificate.',
+    )
+    x_exc_tax_year = fields.Char(related='x_active_exemption_id.tax_year', string='Tax Year', store=False)
+    x_exc_period_from = fields.Date(related='x_active_exemption_id.period_from', string='Period From', store=False)
+    x_exc_period_to = fields.Date(related='x_active_exemption_id.period_to', string='Period To', store=False)
+    x_exc_barcode = fields.Char(related='x_active_exemption_id.barcode_number', string='Barcode No.', store=False)
+    x_exc_description = fields.Char(related='x_active_exemption_id.description', string='Description', store=False)
+    x_exc_rate = fields.Float(related='x_active_exemption_id.rate', string='Rate %', digits=(5, 2), store=False)
+    x_exc_period_display = fields.Char(
+        string='Period', compute='_compute_exc_period_display', store=False,
+        help='Formatted period range for compact display in the payment dialog.',
+    )
+
+    @api.depends('x_exc_period_from', 'x_exc_period_to')
+    def _compute_exc_period_display(self):
+        for line in self:
+            frm = line.x_exc_period_from.strftime('%d %b %Y') if line.x_exc_period_from else '—'
+            to = line.x_exc_period_to.strftime('%d %b %Y') if line.x_exc_period_to else '—'
+            line.x_exc_period_display = '%s – %s' % (frm, to)
     x_fbr_partner_id = fields.Many2one(
         'res.partner', string='FBR Payee',
         help='Payee for the WHT cheque — usually "Federal Board of Revenue (FBR)". '
@@ -473,7 +546,13 @@ class BatchPaymentLine(models.Model):
         domain="[('type', 'in', ('bank', 'cash'))]",
         help='Bank journal from which the FBR WHT cheque will be issued.',
     )
-    x_fbr_cheque_number = fields.Char(string='Cheque No. (FBR)')
+    x_fbr_cheque_leaf_id = fields.Many2one(
+        'x.cheque.leaf', string='Cheque No. (FBR)',
+        domain="[('bank_journal_id', '=', x_fbr_journal_id), ('state', '=', 'available')]",
+        ondelete='set null',
+    )
+    # Char kept for companion payment creation / BPV; auto-filled from leaf
+    x_fbr_cheque_number = fields.Char(string='Cheque No. (FBR ref)')
     x_fbr_account_title = fields.Char(
         string='Account Title (FBR)',
         help='Account holder name on the FBR cheque.',
@@ -482,6 +561,12 @@ class BatchPaymentLine(models.Model):
         'account.account', string='WHT Payable Account',
         help='GL account to debit on the FBR payment JE (clears WHT Payable liability). '
              'Auto-filled from the WHT Payable account configured in Chart of Accounts.',
+    )
+    x_fbr_destination_project_id = fields.Many2one(
+        'account.analytic.account',
+        string='Tax Source Project',
+        help='Project charged for the WHT payment to FBR. '
+             'Auto-filled from the vendor payment project but can be changed independently.',
     )
     x_fbr_payment_id = fields.Many2one(
         'account.payment', string='WHT Payment (FBR)',
@@ -518,11 +603,23 @@ class BatchPaymentLine(models.Model):
 
     @api.depends('tax_line_ids.tax_type', 'tax_line_ids.effect')
     def _compute_has_wht(self):
+        """Stored Boolean — True when at least one WHT deduction tax line exists."""
         for line in self:
             line.x_has_wht = any(
                 t.tax_type == 'wht' and t.effect == 'deduct'
                 for t in line.tax_line_ids
             )
+
+    @api.depends('tax_line_ids.tax_type', 'tax_line_ids.effect', 'tax_line_ids.x_exemption_id')
+    def _compute_active_exemption_id(self):
+        """Non-stored Many2one — picks the first WHT deduction line with an exemption cert."""
+        for line in self:
+            wht_lines = [
+                t for t in line.tax_line_ids
+                if t.tax_type == 'wht' and t.effect == 'deduct'
+            ]
+            exc_line = next((t for t in wht_lines if t.x_exemption_id), None)
+            line.x_active_exemption_id = exc_line.x_exemption_id.id if exc_line else False
 
     @api.depends(
         'tax_line_ids.amount', 'tax_line_ids.effect', 'gross_amount',
@@ -540,10 +637,52 @@ class BatchPaymentLine(models.Model):
 
     # ── Onchange helpers ──────────────────────────────────────────────────────
 
+    @api.onchange('partner_id')
+    def _onchange_partner_id_wht_exemption(self):
+        """When vendor changes, replace WHT exemption tax lines for the new vendor.
+
+        Always clears old exemption-driven lines first (even when new vendor has none).
+        Looks for an exemption whose period covers today; falls back to the latest row.
+        """
+        # ── Step 1: always clear old exemption-driven lines on partner change ──
+        to_remove = self.tax_line_ids.filtered(lambda t: t.x_exemption_id)
+        self.tax_line_ids -= to_remove
+
+        if not self.partner_id:
+            return
+
+        # ── Step 2: find active exemption for new partner ──
+        today = fields.Date.today()
+        exemption = self.env['x.partner.wht.exemption'].search([
+            ('partner_id', '=', self.partner_id.id),
+            '|', ('period_from', '=', False), ('period_from', '<=', today),
+            '|', ('period_to', '=', False), ('period_to', '>=', today),
+        ], order='period_to desc, id desc', limit=1)
+        if not exemption:
+            # Fallback: latest record regardless of period
+            exemption = self.env['x.partner.wht.exemption'].search([
+                ('partner_id', '=', self.partner_id.id),
+            ], order='period_to desc, id desc', limit=1)
+        if not exemption:
+            return
+
+        # ── Step 3: add new WHT line from the exemption ──
+        self.tax_line_ids = [(0, 0, {
+            'tax_type': 'wht',
+            'effect': 'deduct',
+            'name': exemption.description or ('WHT %.2f%%' % exemption.rate),
+            'x_exemption_id': exemption.id,
+            'x_exemption_rate': exemption.rate,
+            'sequence': 10,
+        })]
+
+        # ── Step 4: auto-fill WHT Payable Account from exemption ──
+        if exemption.x_wht_payable_account_id and not self.x_fbr_expense_account_id:
+            self.x_fbr_expense_account_id = exemption.x_wht_payable_account_id
+
     @api.onchange('tax_line_ids')
     def _onchange_tax_lines_autofill_fbr(self):
-        """When a WHT line is added, pre-fill FBR partner only.
-        WHT Payable Account is intentionally left for manual selection."""
+        """When a WHT line is added, pre-fill FBR partner and tax source project."""
         has_wht = any(
             t.tax_type == 'wht' and t.effect == 'deduct'
             for t in self.tax_line_ids
@@ -560,22 +699,186 @@ class BatchPaymentLine(models.Model):
                 self.x_fbr_partner_id = fbr
                 if not self.x_fbr_account_title:
                     self.x_fbr_account_title = fbr.name
+        # Auto-fill tax source project: prefer fund allocation project, fall back to destination
+        if not self.x_fbr_destination_project_id:
+            alloc_project = (
+                self.x_allocation_ids[0].project_analytic_account_id
+                if self.x_allocation_ids else False
+            )
+            self.x_fbr_destination_project_id = alloc_project or self.x_destination_project_id
 
-    def action_assign_fbr_cheque(self):
-        """Auto-assign next cheque number from the active series for the FBR bank."""
+    @api.onchange('x_destination_project_id')
+    def _onchange_vendor_project_sync_fbr(self):
+        """Keep tax source project in sync with fund allocation project unless already overridden."""
+        if self.x_has_wht and not self.x_fbr_destination_project_id:
+            alloc_project = (
+                self.x_allocation_ids[0].project_analytic_account_id
+                if self.x_allocation_ids else False
+            )
+            self.x_fbr_destination_project_id = alloc_project or self.x_destination_project_id
+
+    def _compute_net_for_onchange(self):
+        """Compute net payable inline — safe to call in onchange context.
+
+        ``t.amount`` is a *stored computed* field on child records. In Odoo's
+        onchange context, newly-added virtual child records (e.g. a WHT line
+        added by ``_onchange_partner_id_wht_exemption``) may not have their
+        stored computed ``amount`` evaluated yet — the value reads as 0.
+
+        We therefore mirror ``x.batch.payment.line.tax._compute_amount`` here,
+        computing directly from the raw rate fields, so the correct WHT amount
+        is always available immediately after the tax line is added.
+        """
+        gross = self.gross_amount or 0.0
+        deductions = 0.0
+        additions = 0.0
+        for t in self.tax_line_ids:
+            # Inline mirror of _compute_amount on x.batch.payment.line.tax
+            if t.x_fixed_amount:
+                line_amount = t.x_fixed_amount
+            elif t.x_exemption_rate:
+                line_amount = gross * (t.x_exemption_rate / 100.0)
+            elif t.tax_id and gross:
+                line_amount = self._matracon_tax_amount(t.tax_id, gross)
+            else:
+                # Fallback: use stored value (may be 0 for brand-new virtual lines)
+                line_amount = t.amount or 0.0
+            if t.effect == 'deduct':
+                deductions += line_amount
+            else:
+                additions += line_amount
+        return max(gross - deductions + additions, 0.0)
+
+    @api.onchange('tax_line_ids', 'gross_amount')
+    def _onchange_sync_allocations_to_net(self):
+        """Auto-scale bank and fund allocations to match the net payable.
+
+        When WHT (or any deduction) changes the amount the vendor actually
+        receives, both the bank allocation lines (which bank / how much) and
+        the fund allocation lines (which project funds / how much) must total
+        the NET amount — not the gross.  If they don't, ``_validate()`` will
+        refuse to post with "bank allocation total must equal net payable".
+
+        Scaling strategy:
+          • 1 line  → set directly to net.
+          • N lines → distribute proportionally, fix rounding on the last line.
+        """
+        net = self._compute_net_for_onchange()
+
+        def _scale_lines(lines, amount_attr):
+            """Scale a list of allocation records to sum to ``net``."""
+            current_total = sum(getattr(l, amount_attr) or 0.0 for l in lines)
+            if not lines or abs(current_total - net) < 0.01:
+                return  # already in sync — nothing to do
+            if current_total <= 0:
+                # All-zero split: divide evenly
+                share = round(net / len(lines), 2)
+                for line in lines[:-1]:
+                    setattr(line, amount_attr, share)
+                setattr(lines[-1], amount_attr,
+                        round(net - share * (len(lines) - 1), 2))
+                return
+            # Proportional rescale — preserves the user's bank/project split ratio
+            distributed = 0.0
+            for line in lines[:-1]:
+                new_val = round(
+                    (getattr(line, amount_attr) or 0.0) / current_total * net, 2)
+                setattr(line, amount_attr, new_val)
+                distributed += new_val
+            # Last line absorbs rounding error
+            setattr(lines[-1], amount_attr, round(net - distributed, 2))
+
+        _scale_lines(list(self.bank_line_ids), 'allocation_amount')
+        _scale_lines(list(self.x_allocation_ids), 'allocation_amount')
+
+    @api.onchange('bank_line_ids')
+    def _onchange_bank_lines_autofill(self):
+        """Auto-fill amount on newly added (zero-amount) bank allocation lines.
+
+        Scenario: vendor selected → WHT auto-loaded → user enters gross →
+        then clicks ＋ to add a bank line.  At that point gross + WHT are
+        already set, but ``_onchange_sync_allocations_to_net`` only runs on
+        ``tax_line_ids`` / ``gross_amount`` changes — it does nothing when
+        there are no existing lines yet.
+
+        Here we detect new blank lines (allocation_amount == 0) and fill
+        each one with an equal share of the unallocated net balance so the
+        user never has to enter the net figure manually.
+        """
+        net = self._compute_net_for_onchange()
+        all_lines = list(self.bank_line_ids)
+        blank = [l for l in all_lines if not (l.allocation_amount or 0.0)]
+        if not blank:
+            return
+        already = sum(
+            l.allocation_amount or 0.0
+            for l in all_lines
+            if (l.allocation_amount or 0.0)
+        )
+        remaining = max(net - already, 0.0)
+        if remaining < 0.01:
+            return  # fully allocated — leave the new line at 0
+        share = round(remaining / len(blank), 2)
+        for line in blank[:-1]:
+            line.allocation_amount = share
+        blank[-1].allocation_amount = round(
+            remaining - share * (len(blank) - 1), 2)
+
+    @api.onchange('x_allocation_ids')
+    def _onchange_fund_lines_autofill(self):
+        """Auto-fill amount on newly added (zero-amount) fund/project allocation lines.
+
+        Same logic as ``_onchange_bank_lines_autofill`` — see that method's
+        docstring.  Operates on ``x_allocation_ids`` (source-project funding
+        lines) independently from the bank side.
+        """
+        net = self._compute_net_for_onchange()
+        all_lines = list(self.x_allocation_ids)
+        blank = [l for l in all_lines if not (l.allocation_amount or 0.0)]
+        if not blank:
+            return
+        already = sum(
+            l.allocation_amount or 0.0
+            for l in all_lines
+            if (l.allocation_amount or 0.0)
+        )
+        remaining = max(net - already, 0.0)
+        if remaining < 0.01:
+            return
+        share = round(remaining / len(blank), 2)
+        for line in blank[:-1]:
+            line.allocation_amount = share
+        blank[-1].allocation_amount = round(
+            remaining - share * (len(blank) - 1), 2)
+
+    @api.onchange('x_fbr_cheque_leaf_id')
+    def _onchange_fbr_cheque_leaf_id(self):
+        if self.x_fbr_cheque_leaf_id:
+            self.x_fbr_cheque_number = self.x_fbr_cheque_leaf_id.cheque_number
+        else:
+            self.x_fbr_cheque_number = False
+
+    @api.onchange('x_fbr_journal_id')
+    def _onchange_fbr_journal_clear_leaf(self):
+        if self.x_fbr_cheque_leaf_id and (
+                self.x_fbr_cheque_leaf_id.bank_journal_id != self.x_fbr_journal_id):
+            old_leaf = self.x_fbr_cheque_leaf_id
+            self.x_fbr_cheque_leaf_id = False
+            self.x_fbr_cheque_number = False
+            if old_leaf:
+                old_leaf.sudo().write({'state': 'available'})
+
+    def action_discard_fbr_leaf(self):
+        """Discard the assigned FBR cheque (spoiled/faulty)."""
         self.ensure_one()
-        if not self.x_fbr_journal_id:
-            raise UserError(_('Select a Bank / Journal for the FBR payment first.'))
-        series = self.env['x.cheque.series'].search([
-            ('bank_journal_id', '=', self.x_fbr_journal_id.id),
-            ('state', '=', 'active'),
-        ], limit=1)
-        if not series:
-            raise UserError(_(
-                'No active cheque series found for bank "%s". '
-                'Set one up under Accounting → Configuration → Cheque Series.'
-            ) % self.x_fbr_journal_id.name)
-        self.x_fbr_cheque_number = series.get_next_cheque_number()
+        if not self.x_fbr_cheque_leaf_id:
+            raise UserError(_('No FBR cheque assigned — nothing to discard.'))
+        leaf = self.x_fbr_cheque_leaf_id
+        self.write({'x_fbr_cheque_leaf_id': False, 'x_fbr_cheque_number': False})
+        leaf.sudo().write({
+            'state': 'discarded',
+            'discarded_date': fields.Date.today(),
+        })
         return False
 
     def action_view_fbr_payment(self):
@@ -757,6 +1060,7 @@ class BatchPaymentLine(models.Model):
                 'payment_id': payment.id,
                 'journal_id': bl.journal_id.id,
                 'allocation_amount': bl.allocation_amount,
+                'x_cheque_leaf_id': bl.x_cheque_leaf_id.id or False,
                 'x_cheque_number': bl.x_cheque_number or False,
                 'x_account_title': bl.x_account_title or False,
                 'available_balance': bl.available_balance,
@@ -776,12 +1080,25 @@ class BatchPaymentLine(models.Model):
                 # Stamp the computed amount as a fixed amount so it does not
                 # re-derive from the payment base after we set x_gross_approved_amount.
                 'x_fixed_amount': tl.amount,
+                # Carry exemption tracking fields onto the payment tax line
+                # so the BPV report can print exemption certificate details.
+                'x_exemption_id': tl.x_exemption_id.id if tl.x_exemption_id else False,
+                'x_exemption_rate': tl.x_exemption_rate or 0.0,
             })
 
         # ── Post the payment (all Matracon hooks fire here) ──────────────────
         # This also fires _create_wht_payment_if_needed() which auto-creates a
         # DRAFT WHT companion to FBR when WHT deduction lines are present.
         payment.action_post()
+
+        # ── Auto-advance main vendor payment to 'paid' ────────────────────
+        # Tier 1: reconcile AP debit lines (payment + WHT deduction JE) with
+        #   outstanding invoice AP credits → vendor balance cleared in ledger.
+        # Tier 2: clear the outstanding-payment transit (Cr) via a synthetic
+        #   JE — this is what bank-statement reconciliation normally does.
+        # Together they give payment.state = 'paid' immediately after posting
+        # without any manual bank-reconciliation step.
+        self._matracon_auto_pay_vendor_payment(payment)
 
         # ── Link back ────────────────────────────────────────────────────────
         self.payment_id = payment.id
@@ -804,6 +1121,14 @@ class BatchPaymentLine(models.Model):
                 companion_vals['x_expense_account_id'] = self.x_fbr_expense_account_id.id
             if self.x_fbr_account_title:
                 companion_vals['x_account_title'] = self.x_fbr_account_title
+            # Use the FBR-specific project if set; prefer fund allocation project; fall back to vendor project
+            fbr_project = (
+                self.x_fbr_destination_project_id
+                or (self.x_allocation_ids[0].project_analytic_account_id if self.x_allocation_ids else False)
+                or self.x_destination_project_id
+            )
+            if fbr_project:
+                companion_vals['x_destination_project_id'] = fbr_project.id
             wht_companion.write(companion_vals)
 
             # Create one bank allocation line carrying the cheque details for BPV
@@ -811,12 +1136,18 @@ class BatchPaymentLine(models.Model):
                 'payment_id': wht_companion.id,
                 'journal_id': self.x_fbr_journal_id.id,
                 'allocation_amount': wht_companion.amount,
+                'x_cheque_leaf_id': self.x_fbr_cheque_leaf_id.id or False,
                 'x_cheque_number': self.x_fbr_cheque_number or False,
                 'x_account_title': (
                     self.x_fbr_account_title
                     or (self.x_fbr_partner_id.name if self.x_fbr_partner_id else 'FBR')
                 ),
             })
+            # Mark FBR leaf's payment for audit trail
+            if self.x_fbr_cheque_leaf_id:
+                self.x_fbr_cheque_leaf_id.sudo().write({
+                    'payment_id': wht_companion.id,
+                })
 
             # Post the WHT companion — BPV ref is auto-assigned inside action_post.
             # The companion has x_origin_payment_id set (auto-approved) and no tax
@@ -824,6 +1155,251 @@ class BatchPaymentLine(models.Model):
             # both return early without side effects.
             wht_companion.action_post()
             self.x_fbr_payment_id = wht_companion.id
+
+            # ── Auto-advance FBR companion to 'paid' ─────────────────────────
+            # WHT is deducted at source — the FBR cheque goes out at the same
+            # time as the vendor cheque.  There is no separate bank-statement
+            # event to trigger reconciliation, so we reconcile programmatically.
+            #
+            # The WHT account (x_expense_account_id, e.g. 420402) has:
+            #   Credit from the tax-deduction JE  (liability created)
+            #   Debit  from the companion payment JE  (liability cleared)
+            #
+            # Tier 1: reconcile those two lines directly (works when the account
+            #   has reconcile=True — standard for any payable/tax account).
+            # Tier 2: if Tier 1 didn't make the payment 'paid', clear the
+            #   companion's outstanding-payment transit line via a synthetic JE
+            #   (mirrors what bank-statement reconciliation does automatically).
+            self._matracon_auto_pay_wht_companion(payment, wht_companion)
+
+    def _matracon_auto_pay_vendor_payment(self, payment):
+        """Auto-advance the main vendor payment from 'in_process' to 'paid'.
+
+        Posting a batch creates ``account.payment`` records in state
+        ``in_process`` (outstanding bank transit unreconciled). Finance HO
+        would otherwise have to manually clear each payment via bank-statement
+        reconciliation.  This method does that automatically in two tiers.
+
+        **Tier 1 — Reconcile AP lines with open invoices**
+        The payment JE debits the vendor's AP account (reduces payable balance).
+        The WHT tax-deduction JE also debits AP for the WHT portion.
+        Together they equal the gross bill amount.  We reconcile those Dr AP
+        lines against all outstanding Cr AP lines (posted vendor bills / MISC
+        JEs) for the same partner.
+        • Vendor bills are marked as ``paid`` in Odoo ✓
+        • Vendor's AP balance is zeroed for the paid amount ✓
+        • Payment itself still ``in_process`` (outstanding transit intact) — fixed by Tier 2.
+
+        **Tier 2 — Clear the outstanding-payment transit**
+        ``payment_state = 'paid'`` on the underlying ``account.move`` is
+        triggered by the outstanding-payment account line (Cr) being
+        reconciled — identical to what bank-statement matching does.  We create
+        one clearing JE: ``Dr Outstanding-Payments / Cr Bank`` and immediately
+        reconcile it against the companion's Cr transit line.
+        • ``payment_state → 'paid'`` → ``payment.state → 'paid'`` ✓
+        • Bank account reduced by the net payment amount ✓
+        • Outstanding-payments account zeroed ✓
+
+        Both tiers together produce complete, correct accounting — no manual
+        steps needed after the batch is posted.
+        """
+        # ── Tier 1: reconcile all AP Dr lines with outstanding invoice Cr lines ─
+        try:
+            # Payment's own AP Dr line (net amount)
+            ap_dr_lines = payment.move_id.line_ids.filtered(
+                lambda l: l.account_id.account_type == 'liability_payable'
+                and l.debit > 0 and not l.reconciled
+            )
+            # WHT / retention deduction JE AP Dr lines (WHT + retention amounts)
+            if payment.x_tax_deduction_move_id:
+                ap_dr_lines |= payment.x_tax_deduction_move_id.line_ids.filtered(
+                    lambda l: l.account_id.account_type == 'liability_payable'
+                    and l.debit > 0 and not l.reconciled
+                )
+
+            if ap_dr_lines:
+                # Find all unreconciled AP credit lines (posted bills / MISC JEs)
+                # for this partner in the same payable account(s).
+                ap_account_ids = ap_dr_lines.mapped('account_id').ids
+                invoice_cr_lines = self.env['account.move.line'].search([
+                    ('account_id', 'in', ap_account_ids),
+                    ('partner_id', '=', payment.partner_id.id),
+                    ('reconciled', '=', False),
+                    ('credit', '>', 0),
+                    ('move_id.state', '=', 'posted'),
+                ], order='date asc')
+                if invoice_cr_lines:
+                    (ap_dr_lines | invoice_cr_lines).reconcile()
+        except Exception:
+            pass  # Non-fatal — fall through to Tier 2
+
+        # ── Tier 2: clear the outstanding-payment transit line ────────────────
+        # This is what bank-statement reconciliation would do; we do it now.
+        payment.invalidate_recordset()
+        if payment.state == 'paid':
+            return  # Both tiers done — nothing left to do
+
+        try:
+            outstanding_account = payment.journal_id.payment_credit_account_id
+            if not outstanding_account or not outstanding_account.reconcile:
+                return
+
+            outstanding_line = payment.move_id.line_ids.filtered(
+                lambda l: l.account_id == outstanding_account
+                and not l.reconciled
+            )[:1]
+            if not outstanding_line:
+                return
+
+            bank_account = payment.journal_id.default_account_id
+            if not bank_account:
+                return
+
+            # Create: Dr Outstanding-Payments / Cr Bank
+            clearing_move = self.env['account.move'].sudo().create({
+                'move_type': 'entry',
+                'journal_id': payment.journal_id.id,
+                'date': payment.date,
+                'ref': _('Auto-clear outstanding — %s') % payment.name,
+                'company_id': payment.company_id.id,
+                'line_ids': [
+                    (0, 0, {
+                        'account_id': outstanding_account.id,
+                        'partner_id': payment.partner_id.id or False,
+                        'debit': outstanding_line.credit,
+                        'credit': 0.0,
+                    }),
+                    (0, 0, {
+                        'account_id': bank_account.id,
+                        'partner_id': payment.partner_id.id or False,
+                        'debit': 0.0,
+                        'credit': outstanding_line.credit,
+                    }),
+                ],
+            })
+            clearing_move.action_post()
+            clearing_dr = clearing_move.line_ids.filtered(
+                lambda l: l.account_id == outstanding_account
+            )[:1]
+            if clearing_dr:
+                (outstanding_line | clearing_dr).reconcile()
+        except Exception:
+            pass  # Absolute safety — never fail the batch post
+
+    def _matracon_auto_pay_wht_companion(self, payment, wht_companion):
+        """Advance the FBR WHT companion payment to 'paid' automatically.
+
+        Called immediately after ``wht_companion.action_post()`` in
+        ``_create_and_post_payment()``.  WHT is deducted at source, so no
+        bank-statement event will ever arrive to trigger reconciliation.
+        We do it in two tiers:
+
+        **Tier 1 — reconcile the WHT account lines**
+        The tax-deduction JE credits the WHT account (e.g. 420402).
+        The companion payment debits the same account.
+        When the account has ``reconcile=True`` (standard for payable accounts)
+        reconciling those two lines:
+          • zeroes the WHT account balance cleanly
+          • marks the companion's payable/receivable line as reconciled
+          → Odoo computes ``payment_state = 'paid'`` → ``state = 'paid'`` ✓
+
+        **Tier 2 — clear the outstanding-payment transit line**
+        If Tier 1 did not push the companion to 'paid' (e.g. the WHT account
+        is an expense-type account that isn't reconcilable), we look for the
+        outstanding-payment transit credit on the companion's JE and create a
+        balancing debit + bank credit JE — exactly what bank-statement
+        reconciliation would do.  This leaves no unmatched transit lines and
+        ensures the companion always reaches 'paid' even if the chart of accounts
+        is not configured for reconciliation on the WHT account.
+        """
+        # ── Tier 1: reconcile WHT account Cr (deduction JE) ↔ Dr (companion) ──
+        wht_account = wht_companion.x_expense_account_id
+        deduction_move = payment.x_tax_deduction_move_id
+
+        if wht_account and deduction_move and wht_account.reconcile:
+            deduction_cr = deduction_move.line_ids.filtered(
+                lambda l: l.account_id == wht_account
+                and l.credit > 0 and not l.reconciled
+            )[:1]
+            companion_dr = wht_companion.move_id.line_ids.filtered(
+                lambda l: l.account_id == wht_account
+                and l.debit > 0 and not l.reconciled
+            )[:1]
+            if deduction_cr and companion_dr:
+                try:
+                    (deduction_cr | companion_dr).reconcile()
+                except Exception:
+                    pass  # Non-fatal — fall through to Tier 2
+
+        # ── Tier 2: clear outstanding-payment transit line if still in_process ──
+        wht_companion.invalidate_recordset()
+        if wht_companion.state == 'paid':
+            return  # Tier 1 succeeded
+
+        outstanding_account = wht_companion.journal_id.payment_credit_account_id
+        outstanding_line = wht_companion.move_id.line_ids.filtered(
+            lambda l: l.account_id == outstanding_account and not l.reconciled
+        )[:1]
+
+        if not outstanding_line or not outstanding_account:
+            return  # Nothing to clear — nothing we can do
+        # Outstanding-payment accounts are reconcilable in standard Odoo setups;
+        # if somehow not, skip gracefully.
+        if not outstanding_account.reconcile:
+            wht_companion.message_post(body=_(
+                'WHT payment posted but could not be auto-marked as Paid. '
+                'Please reconcile manually, or set "Allow Reconciliation = True" '
+                'on account <b>%s</b> and/or account <b>%s</b>.'
+            ) % (
+                wht_account.display_name if wht_account else '—',
+                outstanding_account.display_name,
+            ))
+            return
+
+        bank_account = wht_companion.journal_id.default_account_id
+        if not bank_account:
+            return
+
+        try:
+            # Create a clearing JE: Dr Outstanding-Payments / Cr Bank
+            # This mirrors the bank-statement reconciliation that would
+            # normally happen when the FBR cheque clears the bank.
+            clearing_move = self.env['account.move'].sudo().create({
+                'move_type': 'entry',
+                'journal_id': wht_companion.journal_id.id,
+                'date': wht_companion.date,
+                'ref': _('Auto-clear WHT outstanding — %s') % wht_companion.name,
+                'company_id': wht_companion.company_id.id,
+                'line_ids': [
+                    (0, 0, {
+                        'account_id': outstanding_account.id,
+                        'partner_id': wht_companion.partner_id.id or False,
+                        'debit': outstanding_line.credit,
+                        'credit': 0.0,
+                    }),
+                    (0, 0, {
+                        'account_id': bank_account.id,
+                        'partner_id': wht_companion.partner_id.id or False,
+                        'debit': 0.0,
+                        'credit': outstanding_line.credit,
+                    }),
+                ],
+            })
+            clearing_move.action_post()
+            clearing_dr = clearing_move.line_ids.filtered(
+                lambda l: l.account_id == outstanding_account
+            )[:1]
+            if clearing_dr:
+                (outstanding_line | clearing_dr).reconcile()
+            wht_companion.message_post(body=_(
+                'Outstanding WHT transit auto-cleared via JE <b>%s</b>.'
+            ) % clearing_move.name)
+        except Exception:
+            # Absolute safety net — log and continue; never fail the batch post
+            wht_companion.message_post(body=_(
+                'WHT payment posted (in process). Could not auto-clear outstanding '
+                'transit — please reconcile manually with a bank statement.'
+            ))
 
     def action_view_payment(self):
         self.ensure_one()
@@ -883,7 +1459,13 @@ class BatchPaymentLineBank(models.Model):
         string='Amount', currency_field='currency_id',
     )
 
-    x_cheque_number = fields.Char(string='Cheque No.')
+    x_cheque_leaf_id = fields.Many2one(
+        'x.cheque.leaf', string='Cheque No.',
+        domain="[('bank_journal_id', '=', journal_id), ('state', '=', 'available')]",
+        ondelete='set null',
+    )
+    # Char kept for BPV / legacy; auto-filled from leaf
+    x_cheque_number = fields.Char(string='Cheque No. (ref)')
     x_account_title = fields.Char(string='Account Title')
 
     currency_id = fields.Many2one(
@@ -898,35 +1480,86 @@ class BatchPaymentLineBank(models.Model):
     @api.onchange('journal_id')
     def _onchange_journal_id(self):
         self.available_balance = self._get_journal_balance(self.journal_id)
+        if self.x_cheque_leaf_id and (
+                self.x_cheque_leaf_id.bank_journal_id != self.journal_id):
+            old_leaf = self.x_cheque_leaf_id
+            self.x_cheque_leaf_id = False
+            self.x_cheque_number = False
+            if old_leaf:
+                old_leaf.sudo().write({'state': 'available'})
+
+    @api.onchange('x_cheque_leaf_id')
+    def _onchange_cheque_leaf_id(self):
+        if self.x_cheque_leaf_id:
+            self.x_cheque_number = self.x_cheque_leaf_id.cheque_number
+        else:
+            self.x_cheque_number = False
 
     @api.model
     def _get_journal_balance(self, journal):
+        """Return the current posted balance of the bank GL account for this journal.
+
+        Queries journal.default_account_id (e.g. account 112606 BankIslami) directly
+        so the balance matches exactly what the Chart of Accounts shows.
+
+        The previous approach (sum all non-AP/non-payable journal lines) incorrectly
+        included outstanding-payment transit account lines, which are also booked in
+        the bank journal and carry large negative balances for unreconciled payments —
+        producing a wildly different figure from the real bank balance.
+        """
         if not journal or journal.type not in ('bank', 'cash'):
             return 0.0
+        account = journal.default_account_id
+        if not account:
+            return 0.0
         lines = self.env['account.move.line'].sudo().search([
-            ('journal_id', '=', journal.id),
+            ('account_id', '=', account.id),
             ('parent_state', '=', 'posted'),
-            ('account_id.account_type', 'not in', [
-                'asset_receivable', 'liability_payable', 'off_balance',
-            ]),
         ])
         return sum(lines.mapped('balance'))
 
-    def action_assign_cheque_number(self):
-        """Auto-assign the next cheque number from the active series for this bank."""
+    @api.model_create_multi
+    def create(self, vals_list):
+        records = super().create(vals_list)
+        for rec in records:
+            if rec.x_cheque_leaf_id:
+                rec.x_cheque_leaf_id.sudo().write({'state': 'used'})
+                if not rec.x_cheque_number:
+                    rec.x_cheque_number = rec.x_cheque_leaf_id.cheque_number
+        return records
+
+    def write(self, vals):
+        if 'x_cheque_leaf_id' in vals:
+            old_leaves = {rec.id: rec.x_cheque_leaf_id for rec in self}
+        res = super().write(vals)
+        if 'x_cheque_leaf_id' in vals:
+            for rec in self:
+                old_leaf = old_leaves.get(rec.id)
+                if old_leaf and old_leaf != rec.x_cheque_leaf_id:
+                    old_leaf.sudo().write({'state': 'available'})
+                if rec.x_cheque_leaf_id:
+                    rec.x_cheque_leaf_id.sudo().write({'state': 'used'})
+                    if not rec.x_cheque_number:
+                        rec.x_cheque_number = rec.x_cheque_leaf_id.cheque_number
+        return res
+
+    def unlink(self):
+        for rec in self:
+            if rec.x_cheque_leaf_id and not rec.x_cheque_leaf_id.payment_id:
+                rec.x_cheque_leaf_id.sudo().write({'state': 'available'})
+        return super().unlink()
+
+    def action_discard_leaf(self):
+        """Discard the assigned cheque (spoiled/faulty) and clear the field."""
         self.ensure_one()
-        if not self.journal_id:
-            raise UserError(_('Select a bank / journal first.'))
-        series = self.env['x.cheque.series'].search([
-            ('bank_journal_id', '=', self.journal_id.id),
-            ('state', '=', 'active'),
-        ], limit=1)
-        if not series:
-            raise UserError(_(
-                'No active cheque series found for bank "%s". '
-                'Set one up under Accounting → Configuration → Cheque Series.'
-            ) % self.journal_id.name)
-        self.x_cheque_number = series.get_next_cheque_number()
+        if not self.x_cheque_leaf_id:
+            raise UserError(_('No cheque assigned — nothing to discard.'))
+        leaf = self.x_cheque_leaf_id
+        self.write({'x_cheque_leaf_id': False, 'x_cheque_number': False})
+        leaf.sudo().write({
+            'state': 'discarded',
+            'discarded_date': fields.Date.today(),
+        })
         return False
 
 
@@ -967,6 +1600,17 @@ class BatchPaymentLineTax(models.Model):
         string='Fixed Amount', currency_field='currency_id',
         help='When set, overrides the tax-rate computation.',
     )
+    x_exemption_id = fields.Many2one(
+        'x.partner.wht.exemption', string='WHT Exemption',
+        ondelete='set null',
+        help='Exemption certificate that drove this WHT rate.',
+    )
+    x_exemption_rate = fields.Float(
+        string='Exemption Rate %',
+        digits=(5, 2),
+        help='WHT rate from the exemption certificate. '
+             'When set, overrides tax_id rate computation. Editable.',
+    )
     amount = fields.Monetary(
         string='Amount',
         compute='_compute_amount', store=True,
@@ -977,13 +1621,16 @@ class BatchPaymentLineTax(models.Model):
     )
 
     @api.depends(
-        'tax_id', 'x_fixed_amount',
+        'tax_id', 'x_fixed_amount', 'x_exemption_rate',
         'batch_line_id.gross_amount', 'effect',
     )
     def _compute_amount(self):
         for line in self:
             if line.x_fixed_amount:
                 line.amount = line.x_fixed_amount
+            elif line.x_exemption_rate:
+                base = line.batch_line_id.gross_amount or 0.0
+                line.amount = base * line.x_exemption_rate / 100.0
             elif line.tax_id and line.batch_line_id.gross_amount:
                 line.amount = line.batch_line_id._matracon_tax_amount(
                     line.tax_id, line.batch_line_id.gross_amount,

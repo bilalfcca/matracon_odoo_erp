@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ── Vehicle Ledger list view ──────────────────────────────────────────── -->
+    <record id="view_fleet_vehicle_ledger_list" model="ir.ui.view">
+        <field name="name">x.fleet.vehicle.ledger.list</field>
+        <field name="model">x.fleet.vehicle.ledger</field>
+        <field name="arch" type="xml">
+            <list string="Fleet Vehicle Ledger" create="false" edit="false" delete="false"
+                  decoration-info="entry_type == 'Log Entry'"
+                  decoration-success="entry_type == 'Spare Part'">
+                <field name="date"/>
+                <field name="mppl_code" string="MPPL Code"/>
+                <field name="license_plate" string="Reg. No." optional="show"/>
+                <field name="vehicle_id" string="Vehicle"/>
+                <field name="analytic_account_id" string="Project Site" optional="show"/>
+                <field name="entry_type" string="Type"/>
+                <field name="category_label" string="Category"/>
+                <field name="sub_category_label" string="Sub-Category" optional="show"/>
+                <field name="prev_meter" string="Prev. Meter" optional="show"/>
+                <field name="curr_meter" string="Curr. Meter" optional="show"/>
+                <field name="meter_delta" string="Consumption" optional="show"/>
+                <field name="quantity" string="Qty" optional="show"/>
+                <field name="unit_cost" string="Unit Cost (PKR)" optional="show"/>
+                <field name="total_cost" string="Cost (PKR)" sum="Total"/>
+                <field name="driver_name" string="Driver" optional="show"/>
+                <field name="description" string="Notes" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ── Search view ───────────────────────────────────────────────────────── -->
+    <record id="view_fleet_vehicle_ledger_search" model="ir.ui.view">
+        <field name="name">x.fleet.vehicle.ledger.search</field>
+        <field name="model">x.fleet.vehicle.ledger</field>
+        <field name="arch" type="xml">
+            <search string="Fleet Ledger">
+                <field name="vehicle_id"/>
+                <field name="mppl_code" string="MPPL Code"/>
+                <field name="license_plate" string="Reg. No."/>
+                <field name="analytic_account_id" string="Project Site"/>
+                <field name="category_label" string="Category"/>
+                <field name="sub_category_label" string="Sub-Category"/>
+                <field name="driver_name" string="Driver"/>
+                <field name="description"/>
+                <separator/>
+                <filter string="Log Entries" name="filter_logs"
+                        domain="[('entry_type', '=', 'Log Entry')]"/>
+                <filter string="Spare Parts" name="filter_spare"
+                        domain="[('entry_type', '=', 'Spare Part')]"/>
+                <filter string="Fuel" name="filter_fuel"
+                        domain="[('category_label', '=', 'Fuel')]"/>
+                <filter string="Filters / Oils" name="filter_filters"
+                        domain="[('category_label', 'in', ['Filters', 'Oil Change'])]"/>
+                <separator/>
+                <filter string="By Vehicle" name="group_by_vehicle"
+                        context="{'group_by': 'vehicle_id'}"/>
+                <filter string="By Project Site" name="group_by_site"
+                        context="{'group_by': 'analytic_account_id'}"/>
+                <filter string="By Month" name="group_by_month"
+                        context="{'group_by': 'date:month'}"/>
+                <filter string="By Type" name="group_by_entry_type"
+                        context="{'group_by': 'entry_type'}"/>
+                <filter string="By Category" name="group_by_category"
+                        context="{'group_by': 'category_label'}"/>
+            </search>
+        </field>
+    </record>
+
+    <!-- ── Standalone window action ──────────────────────────────────────────── -->
+    <record id="action_fleet_vehicle_ledger" model="ir.actions.act_window">
+        <field name="name">Fleet Vehicle Ledger</field>
+        <field name="res_model">x.fleet.vehicle.ledger</field>
+        <field name="view_mode">list</field>
+        <field name="context">{}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No fleet ledger entries found.
+            </p>
+            <p>
+                Fleet ledger combines all <b>Log Entries</b> (fuel, oil, filters)
+                and <b>Spare Parts</b> (posted) for all vehicles.
+                Use the search bar to filter by vehicle, MPPL code, site, or date.
+            </p>
+        </field>
+    </record>
+</odoo>

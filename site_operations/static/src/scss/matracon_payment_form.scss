@@ -37,40 +37,50 @@
     }
 }
 
-.o_form_view .matracon-liability-stats {
+// ── Liability sheet ─────────────────────────────────────────────────────────
+// The class is placed on the <form> arch element which Odoo renders as a div
+// directly inside .o_form_sheet.  We intentionally do NOT prefix with
+// .o_form_view because Odoo 19's OWL renderer may add intermediate wrappers
+// that break the ancestor selector.  The unique class name is specific enough.
+// ─────────────────────────────────────────────────────────────────────────────
+.matracon-liability-stats {
     .oe_button_box {
         flex-wrap: wrap;
         max-width: 100%;
     }
 
-    // Inner-scroll for liability lines
-    // ─────────────────────────────────────────────────────────────────────────
-    // Problem: Odoo's form header (<header> → .o_form_statusbar) is itself
-    // position:sticky; top:0 with z-index:1020.  Our <thead> would also be
-    // sticky at top:0 but slide *behind* the statusbar and disappear.
+    // ── Sticky column headers for the liability lines one2many ────────────────
     //
-    // Fix: give .o_list_renderer its own overflow-y:auto scroll container.
-    // Odoo's core CSS already makes <thead> position:sticky inside
-    // .o_list_renderer; with a local scroll container that sticky resolves
-    // correctly to top:0 of the table area — no z-index hacks needed.
+    // Strategy: make the list-renderer div into its own overflow-y:auto scroll
+    // container.  Odoo 19 core CSS already sets  position:sticky; top:0  on
+    // .o_list_table thead  inside .o_list_renderer.  With a local scroll
+    // container the sticky resolves to the top of the scrollable area, so the
+    // column headers remain visible as the user scrolls through rows — without
+    // any conflict with the form statusbar (which uses z-index:1020 and is
+    // already above this layer).
+    //
+    // Targets both class variants (Odoo 17+ uses o_field_x2many_list;
+    // older builds may still emit o_field_one2many).
     // ─────────────────────────────────────────────────────────────────────────
-    // NOTE: In Odoo 19, the one2many wrapper class is o_field_x2many_list
-    //       (not o_field_one2many which was removed in Odoo 17+).
-    // Target both standalone one2many (new compact layout, no notebook) and
-    // the legacy notebook-wrapped one2many in case of partial upgrades.
     .o_field_x2many_list .o_list_renderer,
+    .o_field_x2many .o_list_renderer,
     .o_field_one2many .o_list_renderer {
-        max-height: 60vh;   // most of the viewport so rows are visible
-        min-height: 200px;  // never collapse below ~4 rows
-        overflow-y: auto;
+        max-height: 60vh !important;  // cap so form doesn't grow to thousands of px
+        min-height: 200px;            // never collapse below ~4 rows
+        overflow-y: auto !important;  // activate scroll — thead becomes sticky within
 
-        // Reinforce the bg so rows scrolling underneath don't bleed through
+        // Override Odoo's height:100% which would make the element inherit its
+        // parent height (often 0/auto) instead of being bounded by max-height.
+        height: auto !important;
+
+        // Reinforce background so rows scrolling under the header don't bleed
         .o_list_table thead th {
-            background: var(--ListRenderer-thead-bg-color, var(--o-view-background-color, #fff));
+            background: var(--ListRenderer-thead-bg-color,
+                         var(--o-view-background-color, #fff)) !important;
         }
     }
 
-    // Metadata row: fields rendered inline next to their labels
+    // Metadata row: inline fields sit next to their labels
     .d-inline .o_field_widget {
         display: inline !important;
     }

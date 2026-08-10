@@ -27,7 +27,9 @@ class AccountMoveSiteOps(models.Model):
                 ADD COLUMN IF NOT EXISTS x_source_picking_id             INTEGER,
                 ADD COLUMN IF NOT EXISTS x_bill_copy_filename            VARCHAR,
                 ADD COLUMN IF NOT EXISTS x_cheque_number                 VARCHAR,
-                ADD COLUMN IF NOT EXISTS x_account_title                 VARCHAR
+                ADD COLUMN IF NOT EXISTS x_account_title                 VARCHAR,
+                ADD COLUMN IF NOT EXISTS x_ho_source_project_id         INTEGER,
+                ADD COLUMN IF NOT EXISTS x_ho_dest_project_id           INTEGER
         """)
         return super()._register_hook()
 
@@ -72,6 +74,17 @@ class AccountMoveSiteOps(models.Model):
         for move in self:
             move.x_user_is_ho = is_ho
 
+    # Filtered One2many used in the Journal Items tab on vendor bills /
+    # customer invoices.  Excludes 'payment_term' display_type lines —
+    # those are the AP/AR counterpart lines Odoo auto-generates to balance
+    # the entry.  Users cannot delete them (ValidationError) and should not
+    # see them; only the lines they explicitly added should appear.
+    x_journal_item_ids = fields.One2many(
+        'account.move.line', 'move_id',
+        string='Journal Items',
+        domain=[('display_type', '!=', 'payment_term')],
+    )
+
     x_purchase_order_id = fields.Many2one(
         'purchase.order', string='Purchase Order', tracking=True, copy=False,
         domain=[('state', 'in', ('purchase', 'done'))],
@@ -108,10 +121,134 @@ class AccountMoveSiteOps(models.Model):
         tracking=True,
         help='Cheque or RTGS/NEFT reference number for this journal entry.',
     )
+    x_bank_journal_id = fields.Many2one(
+        'account.journal',
+        string='Bank',
+        domain="[('type', 'in', ('bank', 'cash'))]",
+        tracking=True,
+        help='Bank / cash journal for this journal entry payment. '
+             'Determines which cheque series is available in the dropdown below.',
+    )
+    x_cheque_leaf_id = fields.Many2one(
+        'x.cheque.leaf',
+        string='Cheque No. (Series)',
+        domain="[('bank_journal_id', '=', x_bank_journal_id), ('state', '=', 'available')]",
+        ondelete='set null',
+        tracking=True,
+        help='Select from active cheque series for the chosen bank. '
+             'Auto-fills Cheque No. and marks the leaf as used on posting.',
+    )
     x_account_title = fields.Char(
         string='Account Title',
         help='Bank account title / beneficiary name for this journal entry payment.',
     )
+
+    # ── Finance HO journal entry: Source / Destination project ──────────────
+    # When Finance HO posts a payment via a manual journal entry (instead of
+    # the Vendor Payment wizard), these two fields capture which project's
+    # funds are going out (source / credit side) and which site project's
+    # payable is being settled (destination / debit side).
+    #
+    # Auto-fill logic:
+    #   credit lines (bank going down)   → source project analytic
+    #   debit lines  (payable settled)   → destination project analytic
+    #
+    # x_project_analytic_account_id is also set = destination project so that
+    # existing GL / dashboard queries that filter on the move header field
+    # continue to work without modification.
+    x_ho_source_project_id = fields.Many2one(
+        'account.analytic.account',
+        string='Source Project',
+        tracking=True,
+        help='HO payment (JE): project whose funds cover this payment — '
+             'credit-side lines (bank going down) receive this analytic. '
+             'Finance HO only, journal entries only.',
+    )
+    x_ho_dest_project_id = fields.Many2one(
+        'account.analytic.account',
+        string='Destination Project',
+        tracking=True,
+        help='HO payment (JE): site project whose vendor payable is being settled — '
+             'debit-side lines (payable going down) receive this analytic. '
+             'Also synced to x_project_analytic_account_id for dashboard queries. '
+             'Finance HO only, journal entries only.',
+    )
+
+    @api.onchange('x_ho_source_project_id', 'x_ho_dest_project_id')
+    def _onchange_ho_payment_projects_fill_lines(self):
+        """Finance HO journal entry payment: fill analytic on ALL existing lines.
+
+        Rule:
+          credit lines (bank / fund going down)     → source project analytic
+          debit  lines (payable / expense settled)  → destination project analytic
+
+        Lines with no debit or credit amount yet are left alone — they will be
+        filled by _onchange_line_ids_fill_analytic_for_entry when amounts are set.
+
+        Also mirrors the destination to x_project_analytic_account_id so that
+        existing GL / dashboard queries (which read the move-header field) pick
+        up this JE for the destination site project automatically.
+        """
+        if self.move_type != 'entry':
+            return
+        if not self.env.user.has_group('site_operations.group_finance_ho'):
+            return
+
+        source = self.x_ho_source_project_id
+        dest = self.x_ho_dest_project_id
+
+        # Keep move-header analytic in sync with destination for existing queries.
+        if dest:
+            self.x_project_analytic_account_id = dest
+        elif source:
+            self.x_project_analytic_account_id = source
+
+        source_dist = {str(source.id): 100.0} if source else {}
+        dest_dist = {str(dest.id): 100.0} if dest else {}
+
+        for line in self.line_ids:
+            if line.credit > 0 and source_dist:
+                line.analytic_distribution = source_dist
+            elif line.debit > 0 and dest_dist:
+                line.analytic_distribution = dest_dist
+
+    @api.onchange('x_bank_journal_id')
+    def _onchange_je_bank_journal(self):
+        """Clear cheque leaf when bank journal changes — leaf is bank-specific."""
+        if self.x_cheque_leaf_id and (
+            self.x_cheque_leaf_id.bank_journal_id != self.x_bank_journal_id
+        ):
+            leaf = self.x_cheque_leaf_id
+            self.x_cheque_leaf_id = False
+            self.x_cheque_number = False
+            leaf.sudo().write({'state': 'available'})
+
+    @api.onchange('x_cheque_leaf_id')
+    def _onchange_je_cheque_leaf(self):
+        if self.x_cheque_leaf_id:
+            self.x_cheque_number = self.x_cheque_leaf_id.cheque_number
+
+    @api.onchange('journal_id')
+    def _onchange_je_journal_clear_leaf(self):
+        """When main journal changes to a bank type, sync x_bank_journal_id."""
+        if self.journal_id and self.journal_id.type in ('bank', 'cash'):
+            if not self.x_bank_journal_id:
+                self.x_bank_journal_id = self.journal_id
+        # Clear leaf if bank no longer matches
+        if self.x_cheque_leaf_id and (
+            self.x_cheque_leaf_id.bank_journal_id != self.x_bank_journal_id
+        ):
+            leaf = self.x_cheque_leaf_id
+            self.x_cheque_leaf_id = False
+            self.x_cheque_number = False
+            leaf.sudo().write({'state': 'available'})
+
+    def action_discard_je_cheque_leaf(self):
+        """Discard the assigned cheque leaf — marks it unusable and clears it from the JE."""
+        self.ensure_one()
+        if self.x_cheque_leaf_id:
+            self.x_cheque_leaf_id.sudo().action_discard()
+            self.x_cheque_leaf_id = False
 
     def write(self, vals):
         res = super().write(vals)
@@ -257,23 +394,49 @@ class AccountMoveSiteOps(models.Model):
 
     @api.onchange('line_ids')
     def _onchange_line_ids_fill_analytic_for_entry(self):
-        """For site-accountant journal entries (move_type='entry'): fill
-        analytic_distribution on every new line immediately so the read-only
-        Analytic column shows the project without requiring a manual save.
+        """For journal entries (move_type='entry'): auto-fill analytic on new lines.
+
+        Site Accountant path:
+          All lines get the same single project analytic from
+          x_project_analytic_account_id (the user's site default).
+
+        Finance HO path:
+          Credit lines (bank going down) → x_ho_source_project_id analytic.
+          Debit  lines (payable settled) → x_ho_dest_project_id analytic.
+          Lines with zero debit and credit are skipped until an amount is entered.
 
         invoice_line_ids does not apply to MISC entries — we use line_ids
         directly here.  The DB-level create() hook below handles the same
         for server-side and programmatic record creation."""
-        if (
-            self.move_type != 'entry'
-            or not self.x_project_analytic_account_id
-            or not self.env.user.has_group('site_operations.group_site_accountant')
-        ):
+        if self.move_type != 'entry':
             return
-        dist = {str(self.x_project_analytic_account_id.id): 100.0}
-        for line in self.line_ids:
-            if not line.analytic_distribution:
-                line.analytic_distribution = dist
+
+        is_sa = self.env.user.has_group('site_operations.group_site_accountant')
+        is_fo = self.env.user.has_group('site_operations.group_finance_ho')
+
+        if is_sa:
+            if not self.x_project_analytic_account_id:
+                return
+            dist = {str(self.x_project_analytic_account_id.id): 100.0}
+            for line in self.line_ids:
+                if not line.analytic_distribution:
+                    line.analytic_distribution = dist
+
+        elif is_fo:
+            source = self.x_ho_source_project_id
+            dest = self.x_ho_dest_project_id
+            if not source and not dest:
+                return
+            source_dist = {str(source.id): 100.0} if source else {}
+            dest_dist = {str(dest.id): 100.0} if dest else {}
+            for line in self.line_ids:
+                if line.analytic_distribution:
+                    continue  # already tagged — don't overwrite
+                if line.credit > 0 and source_dist:
+                    line.analytic_distribution = source_dist
+                elif line.debit > 0 and dest_dist:
+                    line.analytic_distribution = dest_dist
+                # zero-amount lines left alone; they'll be filled on next change
 
     def _matracon_update_project_billed_amount(self, extra_analytic_ids=()):
         """Recompute x_billed_to_client on every project linked to a customer
@@ -303,19 +466,52 @@ class AccountMoveSiteOps(models.Model):
             projects._compute_financial_completion_pct()
 
     def action_post(self):
-        # ── Auto-fill invoice_date_due so payment-term lines always carry a date ──
-        # Due dates are hidden in the UI for both site accountants (vendor bills)
-        # and all users (customer invoices).  Ensure the field is always populated
-        # before posting so Odoo's posting flow can set date_maturity on the
-        # payment_term line correctly.
-        for move in self.filtered(lambda m: m.is_invoice() and not m.invoice_date_due):
+        # ── 1. Identify pre-balanced invoices BEFORE any writes ──────────────────
+        # When a site accountant manually enters ALL lines on a vendor bill or
+        # customer invoice — including one or more payable/receivable accounts
+        # on both sides (e.g. backcharge pattern: Dr Expense / Cr Payable NAEEM,
+        # Dr Payable SHAHZAD / Cr Expense) — the entry is already balanced.
+        #
+        # Odoo's payment_term sync (_sync_dynamic_lines) fires during write() and
+        # tries to delete/recreate the auto-managed payable line.  This causes:
+        #   • "You cannot delete a payable/receivable line" — if it tries to remove
+        #     the existing payment_term line while recreating it
+        #   • "The entry is not balanced" — if it adds an EXTRA payable line on
+        #     top of the manually-added ones, doubling the credit
+        #
+        # The fix: for pre-balanced invoices that have manually-added payable/
+        # receivable lines (display_type != 'payment_term'), post using
+        # _post(soft=False) with skip_invoice_sync=True.  This bypasses the
+        # payment_term sync entirely, preserving the manually-balanced lines.
+        def _has_manual_payable(move):
+            return any(
+                l.account_id.account_type in ('liability_payable', 'asset_receivable')
+                and l.display_type != 'payment_term'
+                for l in move.line_ids
+            )
+
+        pre_balanced = self.env['account.move']
+        for move in self.filtered(
+            lambda m: m.is_invoice(include_receipts=True) and m.state != 'posted'
+        ):
+            dr = sum(move.line_ids.mapped('debit'))
+            cr = sum(move.line_ids.mapped('credit'))
+            if abs(dr - cr) < 0.01 and dr > 0.01 and _has_manual_payable(move):
+                pre_balanced |= move
+
+        normal_moves = self - pre_balanced
+
+        # ── 2. invoice_date_due pre-fill (normal moves only) ─────────────────────
+        # Due dates are hidden in the UI.  Ensure the field is populated before
+        # posting so Odoo can set date_maturity on the payment_term line correctly.
+        # Skip pre_balanced moves — their payment_term line is NOT touched by the
+        # sync, so stamping invoice_date_due would needlessly trigger the sync.
+        for move in normal_moves.filtered(lambda m: m.is_invoice() and not m.invoice_date_due):
             move.invoice_date_due = move.invoice_date or fields.Date.context_today(self)
 
-        # ── For customer invoices: also stamp date_maturity on any existing
-        #    payment_term lines that still have no due date (draft state can
-        #    create these when invoice_payment_term_id is cleared) so the
-        #    Odoo posting flow does not encounter a NULL date_maturity. ──────
-        for move in self.filtered(lambda m: m.move_type == 'out_invoice'):
+        # For customer invoices: also stamp date_maturity on any existing
+        # payment_term lines that still have no due date.
+        for move in normal_moves.filtered(lambda m: m.move_type == 'out_invoice'):
             due = (
                 move.invoice_date_due
                 or move.invoice_date
@@ -327,37 +523,64 @@ class AccountMoveSiteOps(models.Model):
             if pt_lines:
                 pt_lines.write({'date_maturity': due})
 
-        # ── Bill Copy mandatory for vendor bills (not system-generated backcharges) ──
-        # Skip during module installation / demo-data loading so that Odoo's own
-        # demo fixtures (account_demo.py) are not blocked by this custom check.
-        # registry._init covers the install phase; install_mode=True in context
-        # covers _post_load_demo_data which is called after _init is cleared.
+        # ── 3. Bill Copy mandatory for vendor bills ───────────────────────────────
+        # Skip during module installation / demo-data loading.
         if not self.env.registry._init and not self.env.context.get('install_mode'):
             missing_attachment = self.filtered(
                 lambda m: (
                     m.move_type == 'in_invoice'
                     and m.state != 'posted'
-                    and not m.x_source_picking_id   # skip auto-generated backcharge bills
+                    and not m.x_source_picking_id
                     and not m.x_bill_copy
                 )
             )
         else:
-            missing_attachment = self.browse()  # empty recordset — no check during init
+            missing_attachment = self.browse()
         if missing_attachment:
-            names = ', '.join(
-                m.name or _('New') for m in missing_attachment
-            )
+            names = ', '.join(m.name or _('New') for m in missing_attachment)
             raise UserError(_(
                 'Bill Copy attachment is mandatory before posting a Vendor Bill.\n\n'
                 'Please upload the physical bill document for: %s'
             ) % names)
 
-        # ── HO/Finance JE validation: payable lines must carry an analytic ──────
-        # Without analytic_distribution on the payable line, a Head Office or
-        # Finance journal entry cannot be attributed to any project, so it would
-        # be invisible in dashboards and IPC calculations.
-        # SA JEs are auto-filled by _onchange_line_ids_fill_analytic_for_entry;
-        # this check is a safety net specifically for HO/Finance users.
+        # ── 3b. Validate payable-account type for vendor bills ───────────────────
+        # A vendor whose property_account_payable_id points to a non-payable-type
+        # account (e.g. an expense account that has reconcile=False) causes Odoo's
+        # _sync_dynamic_lines to create the payment_term line on that account.
+        # Because non-reconcilable accounts always have amount_residual=0, the move's
+        # amount_residual is 0 immediately on posting → payment_state='paid'
+        # instantly — even though no payment has been made.
+        # Catch the misconfiguration HERE so the user can correct it before posting.
+        if not self.env.registry._init and not self.env.context.get('install_mode'):
+            for move in self.filtered(
+                lambda m: m.move_type == 'in_invoice' and m.state != 'posted'
+            ):
+                if not move.partner_id:
+                    continue
+                payable_acc = (
+                    move.partner_id
+                    .with_company(move.company_id)
+                    .property_account_payable_id
+                )
+                if payable_acc and payable_acc.account_type not in ('liability_payable',):
+                    raise UserError(_(
+                        'Vendor "%s" has an incorrect Payable Account: '
+                        '"%s" (type: %s).\n\n'
+                        'The Payable Account must be of type "Payable" '
+                        '(liability_payable). Posting with a non-payable account '
+                        'causes the bill to immediately show as "Paid" because '
+                        'Odoo cannot track the outstanding amount on a '
+                        'non-reconcilable account.\n\n'
+                        'To fix: open the vendor\'s contact form → '
+                        'Accounting tab → set the correct Payable Account, '
+                        'then try posting again.'
+                    ) % (
+                        move.partner_id.display_name,
+                        payable_acc.name,
+                        payable_acc.account_type,
+                    ))
+
+        # ── 4. HO/Finance JE validation: payable lines must carry an analytic ────
         ho_or_finance = (
             self.env.user.has_group('purchase_demand_raise.group_head_office')
             or self.env.user.has_group('site_operations.group_finance_ho')
@@ -384,28 +607,34 @@ class AccountMoveSiteOps(models.Model):
                         'Missing analytic on lines for: %s'
                     ) % partner_names)
 
-        # Site accountants have group_account_readonly (for Partner Ledger /
-        # reporting menus) but Odoo's action_post() hard-checks group_account_invoice.
-        # These are mutually exclusive Odoo 19 privilege levels; we cannot grant both.
-        # Run the parent call via sudo() for site accountants — our bill copy check
-        # above already validated business rules; sudo() only bypasses the group gate.
-        if self.env.user.has_group('site_operations.group_site_accountant'):
-            res = super(AccountMoveSiteOps, self.sudo()).action_post()
-        else:
-            res = super().action_post()
+        # ── 5. Post pre-balanced invoices bypassing invoice sync ─────────────────
+        # skip_invoice_sync=True causes _sync_dynamic_lines to yield immediately
+        # (disabled=True via _disable_recursion), so the payment_term sync never
+        # runs and the manually-balanced lines are preserved as-is.
+        is_sa = self.env.user.has_group('site_operations.group_site_accountant')
+        if pre_balanced:
+            target = pre_balanced.sudo() if is_sa else pre_balanced
+            target.with_context(skip_invoice_sync=True)._post(soft=False)
+
+        # ── 6. Post normal moves through the standard Odoo flow ──────────────────
+        # Site accountants need sudo() because group_account_readonly ≠
+        # group_account_invoice (mutually exclusive Odoo 19 privilege levels).
+        if normal_moves:
+            if is_sa:
+                super(AccountMoveSiteOps, normal_moves.sudo()).action_post()
+            else:
+                super(AccountMoveSiteOps, normal_moves).action_post()
+
+        # ── 7. Post-processing for ALL posted moves (pre_balanced + normal) ──────
         for move in self.filtered(
             lambda m: m.move_type == 'in_invoice' and m.state == 'posted'
         ):
-            # Apply project analytic AFTER posting so Odoo's own line recompute
-            # (tax lines, payment-term lines) cannot overwrite the distribution.
-            # Backcharge-generated bills are excluded — their picking sets analytics.
+            # Close "Review vendor bill" activity (auto-created on stock receipt).
+            matracon_notify.close_activities(move, summary_contains='Review vendor bill')
+            # Apply project analytic AFTER posting so Odoo's line recompute
+            # (tax lines, payment_term lines) cannot overwrite the distribution.
             if not move.x_source_picking_id:
-                # Last-chance analytic auto-fill: if the bill was created or
-                # imported without a project analytic (e.g. Excel import, or
-                # created by a user with no default), stamp it from the current
-                # (posting) user's default BEFORE applying analytics to lines.
-                # We use direct SQL here because the move is already 'posted'
-                # and Odoo's write lock would otherwise block a normal ORM write.
+                # Last-chance analytic auto-fill (Excel import / no-default-user).
                 if not move.x_project_analytic_account_id:
                     user_analytic = self.env.user.x_default_analytic_account_id
                     if user_analytic:
@@ -421,12 +650,47 @@ class AccountMoveSiteOps(models.Model):
                 move._update_project_balance_from_bill()
             if move.x_wht_tax_id:
                 move._create_fbr_wht_payment_draft()
-        # Recompute project billed amount for any customer invoices just posted
+
+            # ── Guard: detect wrong-payable-account "instant-paid" ───────────
+            # If the bill shows payment_state='paid' right after posting but
+            # has NO reconciled payments, the payment_term line landed on a
+            # non-reconcilable account (amount_residual=0 forever → Odoo marks
+            # the bill as paid even though no money was ever received).
+            # Post a visible chatter warning so the user knows what to fix.
+            if move.payment_state == 'paid' and not move.reconciled_payment_ids:
+                payable_acc = (
+                    move.partner_id
+                    .with_company(move.company_id)
+                    .property_account_payable_id
+                )
+                move.message_post(
+                    body=_(
+                        '<strong>⚠ Warning — Bill shows as "Paid" with no payment registered</strong><br/>'
+                        'This bill is marked <em>Paid</em> immediately after posting, '
+                        'but no payment has been registered.<br/><br/>'
+                        'Cause: the Payable Account for vendor <strong>%s</strong> '
+                        'is set to <em>%s</em>, which is not a Payable-type '
+                        '(reconcilable) account. Odoo cannot track the outstanding '
+                        'amount, so the bill appears fully paid.<br/><br/>'
+                        '<strong>How to fix:</strong><ol>'
+                        '<li>Open the vendor\'s contact form → <em>Accounting</em> tab → '
+                        'set a proper <em>Payable Account</em> '
+                        '(account type must be "Payable").</li>'
+                        '<li>Reset this bill to Draft.</li>'
+                        '<li>Re-post the bill.</li>'
+                        '</ol>'
+                    ) % (
+                        move.partner_id.display_name,
+                        payable_acc.name if payable_acc else 'unknown',
+                    ),
+                    message_type='comment',
+                    subtype_xmlid='mail.mt_note',
+                )
+
+        # Recompute project billed amount for any customer invoices just posted.
         self._matracon_update_project_billed_amount()
 
-        # Auto-sync liability sheets for direct journal entries (MISC etc.) that
-        # carry payable lines with analytic distribution.  Vendor bills are already
-        # handled above; backcharge-generated entries are excluded via x_source_picking_id.
+        # Auto-sync liability sheets for journal entries with payable lines.
         for move in self.filtered(
             lambda m: m.move_type == 'entry'
             and m.state == 'posted'
@@ -434,7 +698,16 @@ class AccountMoveSiteOps(models.Model):
         ):
             move._ensure_liability_from_journal_entry()
 
-        return res
+        # Mark cheque leaves as used for posted journal entries.
+        for move in self.filtered(
+            lambda m: m.move_type == 'entry'
+            and m.state == 'posted'
+            and m.x_cheque_leaf_id
+            and m.x_cheque_leaf_id.state == 'available'
+        ):
+            move.x_cheque_leaf_id.sudo().write({'state': 'used'})
+
+        return False
 
     def button_draft(self):
         # Capture customer-invoice analytics BEFORE state changes to draft so
@@ -451,6 +724,13 @@ class AccountMoveSiteOps(models.Model):
         ):
             move._reverse_liability_sheet_from_bill()
         res = super().button_draft()
+        # Release cheque leaves back to available when JE is reset to draft
+        for move in self.filtered(
+            lambda m: m.move_type == 'entry'
+            and m.x_cheque_leaf_id
+            and m.x_cheque_leaf_id.state == 'used'
+        ):
+            move.x_cheque_leaf_id.sudo().write({'state': 'available'})
         # Recompute after draft: pass pre-reset analytics so the compute runs
         # even though the invoices are no longer 'posted'.
         self._matracon_update_project_billed_amount(extra_analytic_ids=pre_analytics)
@@ -934,7 +1214,8 @@ class AccountMoveLineSiteOps(models.Model):
         self.env.cr.execute("""
             ALTER TABLE account_move_line
                 ADD COLUMN IF NOT EXISTS x_cheque_number VARCHAR,
-                ADD COLUMN IF NOT EXISTS x_account_title VARCHAR
+                ADD COLUMN IF NOT EXISTS x_account_title VARCHAR,
+                ADD COLUMN IF NOT EXISTS x_cheque_leaf_id INTEGER
         """)
         return super()._register_hook()
 
@@ -952,20 +1233,83 @@ class AccountMoveLineSiteOps(models.Model):
         store=True,
         copy=False,
     )
+    x_cheque_leaf_id = fields.Many2one(
+        'x.cheque.leaf',
+        string='Cheque No. (Series)',
+        # Domain kept broad at model level; view narrows it by bank journal.
+        # '|' lets the dropdown show leaves from either the explicit header bank
+        # (x_bank_journal_id) or the entry's own journal (when the journal IS a
+        # bank journal, e.g. BankIslami).  Both are tested against the leaf's
+        # stored bank_journal_id.  If neither is a bank journal the filter still
+        # returns nothing — which is correct (no cheques for MISC entries).
+        domain="[('state', '=', 'available'), '|', ('bank_journal_id', '=', parent.x_bank_journal_id), ('bank_journal_id', '=', parent.journal_id)]",
+        ondelete='set null',
+        store=True,
+        copy=False,
+        help='Select from the active cheque series filtered by the journal entry bank.',
+    )
+
+    @api.onchange('x_cheque_leaf_id')
+    def _onchange_line_cheque_leaf(self):
+        if self.x_cheque_leaf_id:
+            self.x_cheque_number = self.x_cheque_leaf_id.cheque_number
+
+    def action_discard_je_line_cheque_leaf(self):
+        """Discard the cheque leaf assigned to this journal entry line.
+
+        Marks the leaf as discarded (spoiled/faulty), clears the reference
+        on the line, and returns the leaf to the series as unusable.
+        Mirrors the same action on x.payment.bank.allocation.
+        """
+        self.ensure_one()
+        if not self.x_cheque_leaf_id:
+            raise UserError(_('No cheque assigned to this line — nothing to discard.'))
+        leaf = self.x_cheque_leaf_id
+        self.write({
+            'x_cheque_leaf_id': False,
+            'x_cheque_number': False,
+        })
+        leaf.sudo().write({
+            'state': 'discarded',
+            'discarded_date': fields.Date.today(),
+        })
+        return False
+
+    def _fix_direct_debit_credit(self, vals):
+        """If the caller supplied debit/credit directly (without price_unit) on
+        an invoice line that has no product, back-fill price_unit so that
+        Odoo's _compute_totals → _sync_dynamic_lines chain produces the correct
+        price_subtotal and therefore the correct AP/AR counterpart balance.
+
+        Without this, price_unit stays 0 → price_subtotal = 0 → needed_terms = 0
+        → the AP line carries 0 → the entry stores balance = 0 for the user line.
+        """
+        debit = vals.get('debit') or 0
+        credit = vals.get('credit') or 0
+        if (debit or credit) and not vals.get('product_id') and 'price_unit' not in vals:
+            vals['price_unit'] = debit - credit        # sign preserved
+            vals.setdefault('quantity', 1.0)
 
     @api.model_create_multi
     def create(self, vals_list):
         # Cache move objects to avoid repeated browses for the same move.
         move_cache = {}
         for vals in vals_list:
+            # ── Fix 1: back-fill price_unit from debit/credit so invoice line
+            #    amounts are not zeroed by _compute_totals.
+            move_id = vals.get('move_id')
+            if move_id:
+                if move_id not in move_cache:
+                    move_cache[move_id] = self.env['account.move'].browse(move_id)
+                if move_cache[move_id].is_invoice(include_receipts=True):
+                    self._fix_direct_debit_credit(vals)
+
+            # ── Fix 2: auto-fill analytic_distribution on draft invoice / entry lines.
             if vals.get('analytic_distribution'):
                 continue  # already set — respect explicit caller value
-            move_id = vals.get('move_id')
             if not move_id:
                 continue
-            if move_id not in move_cache:
-                move_cache[move_id] = self.env['account.move'].browse(move_id)
-            move = move_cache[move_id]
+            move = move_cache.setdefault(move_id, self.env['account.move'].browse(move_id))
             is_sa_entry = (
                 move.move_type == 'entry'
                 and self.env.user.has_group('site_operations.group_site_accountant')
@@ -978,4 +1322,62 @@ class AccountMoveLineSiteOps(models.Model):
                 vals['analytic_distribution'] = {
                     str(move.x_project_analytic_account_id.id): 100.0
                 }
-        return super().create(vals_list)
+
+        records = super().create(vals_list)
+
+        # ── Fix 3: site cash-account fallback for entry lines still missing analytic.
+        #
+        # Covers the case where an admin (not a site accountant) creates a journal
+        # entry — e.g. an Opening Balance entry — that includes a line on a site's
+        # petty cash account.  Fix 2 above skips that path (it requires is_sa_entry).
+        # Here we look up the site's analytic from the account itself so the OB
+        # and similar entries appear in the site-filtered General Ledger.
+        lines_no_analytic = records.filtered(
+            lambda l: l.move_id.move_type == 'entry' and not l.analytic_distribution
+        )
+        if lines_no_analytic and 'x.project.site.config' in self.env.registry:
+            site_configs = self.env['x.project.site.config'].sudo().search([
+                ('x_petty_cash_account_id', '!=', False),
+                ('analytic_account_id', '!=', False),
+            ])
+            cash_to_analytic = {
+                sc.x_petty_cash_account_id.id: sc.analytic_account_id
+                for sc in site_configs
+            }
+            for line in lines_no_analytic:
+                analytic = cash_to_analytic.get(line.account_id.id)
+                if analytic:
+                    line.sudo().write(
+                        {'analytic_distribution': {str(analytic.id): 100.0}}
+                    )
+                    # Also tag the move header so record rules let site SAs see it.
+                    if not line.move_id.x_project_analytic_account_id:
+                        line.move_id.sudo().write(
+                            {'x_project_analytic_account_id': analytic.id}
+                        )
+
+        return records
+
+    def write(self, vals):
+        """When the user edits debit/credit directly on an existing invoice line
+        (through the Journal Items tab), keep price_unit in sync so
+        _compute_totals → needed_terms produces the right AP/AR balance.
+        """
+        if ('debit' in vals or 'credit' in vals) and 'price_unit' not in vals:
+            # Identify lines that have no product and are on invoices
+            invoice_lines = self.filtered(
+                lambda l: not l.product_id and l.move_id.is_invoice(include_receipts=True)
+            )
+            if invoice_lines:
+                debit = vals.get('debit') or 0
+                credit = vals.get('credit') or 0
+                balance = debit - credit
+                # Write with price_unit for the no-product invoice lines
+                super(AccountMoveLineSiteOps, invoice_lines).write(
+                    dict(vals, price_unit=balance, quantity=vals.get('quantity') or 1.0)
+                )
+                other_lines = self - invoice_lines
+                if other_lines:
+                    return super(AccountMoveLineSiteOps, other_lines).write(vals)
+                return True
+        return super().write(vals)

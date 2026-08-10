@@ -8,7 +8,9 @@
              groups AND our custom group_mtr_app_* visibility gates.
         ──────────────────────────────────────────────────────────────────────── -->
 
-        <!-- Site Store: Purchase + Inventory only -->
+        <!-- Site Store: Purchase + Inventory + Fleet -->
+        <!-- NOTE: group_mtr_app_fleet is added by matracon_fleet/security/app_visibility_fleet.xml
+             via Command.link — it cannot be referenced here because matracon_fleet loads after site_operations. -->
         <record id="purchase_demand_raise.group_site_store" model="res.groups">
             <field name="implied_ids" eval="[
                 (6, 0, [
@@ -22,33 +24,62 @@
             ]"/>
         </record>
 
-        <!-- Procurement Officer: Purchase + Inventory (admin) + Contacts -->
+        <!-- Procurement Officer: Purchase + Inventory (admin) + Contacts + Accounting (manager) + Dashboard -->
+        <!-- Full admin on all 5 apps: read/write/edit/delete any record.
+             stock.group_stock_multi_locations + stock.group_stock_multi_warehouses
+             allow seeing all site warehouses and locations in the Inventory app.
+             account.group_account_manager gives complete Accounting access — standard Odoo
+             ACLs for that group cover all existing and future accounting models automatically.
+             Custom model ACLs for Accounting are granted via group_head_office (which all HO
+             users hold alongside their role group) — see ir.model.access.csv additions below. -->
         <record id="purchase_demand_raise.group_procurement_ho" model="res.groups">
             <field name="implied_ids" eval="[
                 (6, 0, [
+                    ref('purchase_demand_raise.group_head_office'),
                     ref('purchase.group_purchase_user'),
                     ref('purchase.group_purchase_manager'),
+                    ref('stock.group_stock_user'),
                     ref('stock.group_stock_manager'),
+                    ref('stock.group_stock_multi_locations'),
+                    ref('stock.group_stock_multi_warehouses'),
                     ref('uom.group_uom'),
+                    ref('account.group_account_manager'),
                     ref('base.group_partner_manager'),
                     ref('base.group_allow_export'),
                     ref('group_mtr_app_purchase'),
                     ref('group_mtr_app_inventory'),
+                    ref('group_mtr_app_accounting'),
                     ref('group_mtr_app_contacts'),
                 ])
             ]"/>
         </record>
 
-        <!-- CEO: Purchase + Accounting + Compliance only (NO Project) -->
+        <!-- CEO: Purchase + Inventory + Contacts + Accounting (manager) + Attendance + Compliance + Fleet -->
+        <!-- NOTE: group_mtr_app_fleet added by matracon_fleet/security/app_visibility_fleet.xml -->
+        <!-- account.group_account_manager replaces the previous readonly+invoice pair — CEO needs
+             full accounting authority (create payments, manage journals, etc.).
+             stock groups give complete Inventory access; base.group_partner_manager gives Contacts;
+             hr_attendance.group_hr_attendance_officer gives Attendance.
+             All HO roles follow the "no site drafts" record rules defined in record_rules.xml —
+             CEO sees only confirmed/posted records, which is correct. -->
         <record id="purchase_demand_raise.group_ceo_approval" model="res.groups">
             <field name="implied_ids" eval="[
                 (6, 0, [
                     ref('purchase.group_purchase_manager'),
-                    ref('account.group_account_readonly'),
-                    ref('account.group_account_invoice'),
+                    ref('stock.group_stock_user'),
+                    ref('stock.group_stock_manager'),
+                    ref('stock.group_stock_multi_locations'),
+                    ref('stock.group_stock_multi_warehouses'),
+                    ref('uom.group_uom'),
+                    ref('account.group_account_manager'),
+                    ref('base.group_partner_manager'),
+                    ref('hr_attendance.group_hr_attendance_officer'),
                     ref('base.group_allow_export'),
                     ref('group_mtr_app_purchase'),
+                    ref('group_mtr_app_inventory'),
                     ref('group_mtr_app_accounting'),
+                    ref('group_mtr_app_contacts'),
+                    ref('group_mtr_app_attendance'),
                     ref('group_mtr_app_compliance'),
                 ])
             ]"/>
@@ -65,6 +96,7 @@
              Bookkeeper (group_account_user) implies Read-only + Invoicing & Banks,
              which in turn implies Invoicing — so all billing + reporting access is covered.
              ir.rule record rules still scope the actual data to this site's analytic account. -->
+        <!-- NOTE: group_mtr_app_fleet added by matracon_fleet/security/app_visibility_fleet.xml -->
         <record id="group_site_accountant" model="res.groups">
             <field name="implied_ids" eval="[
                 (6, 0, [
@@ -77,7 +109,8 @@
             ]"/>
         </record>
 
-        <!-- Finance HO: Accounting + Employees + Payroll + Attendance + Compliance + Contacts -->
+        <!-- Finance HO: Accounting + Employees + Payroll + Attendance + Compliance + Contacts + Fleet -->
+        <!-- NOTE: group_mtr_app_fleet added by matracon_fleet/security/app_visibility_fleet.xml -->
         <record id="group_finance_ho" model="res.groups">
             <field name="implied_ids" eval="[
                 (6, 0, [
@@ -102,6 +135,7 @@
                - ACL rows that only grant base.group_system access are covered
                - Settings → Technical menus are accessible
                - Odoo treats this role as a true superadmin across every installed app -->
+        <!-- NOTE: group_mtr_app_fleet added by matracon_fleet/security/app_visibility_fleet.xml -->
         <record id="purchase_demand_raise.group_matracon_admin" model="res.groups">
             <field name="implied_ids" eval="[
                 (6, 0, [

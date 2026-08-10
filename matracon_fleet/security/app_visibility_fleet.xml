@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- App visibility group for Fleet app — mirrors pattern in site_operations/security/app_visibility_groups.xml -->
+    <record id="group_mtr_app_fleet" model="res.groups">
+        <field name="name">App: Fleet</field>
+        <field name="privilege_id" ref="purchase_demand_raise.res_groups_privilege_demand_raise"/>
+        <field name="comment">Show Fleet app in the home menu.</field>
+    </record>
+
+    <!-- Grant Fleet app visibility to all roles.
+         These records live here (not in site_operations/role_app_groups.xml) because
+         matracon_fleet loads AFTER site_operations; a ref() from site_operations would
+         raise "External ID not found" at install time.
+         Command.link(id) adds without removing other implied groups, so these run safely
+         after site_operations' (6, 0, [...]) REPLACE records. -->
+
+    <record id="purchase_demand_raise.group_head_office" model="res.groups">
+        <field name="implied_ids" eval="[Command.link(ref('matracon_fleet.group_mtr_app_fleet'))]"/>
+    </record>
+
+    <record id="purchase_demand_raise.group_site_store" model="res.groups">
+        <field name="implied_ids" eval="[Command.link(ref('matracon_fleet.group_mtr_app_fleet'))]"/>
+    </record>
+
+    <record id="purchase_demand_raise.group_ceo_approval" model="res.groups">
+        <field name="implied_ids" eval="[Command.link(ref('matracon_fleet.group_mtr_app_fleet'))]"/>
+    </record>
+
+    <record id="site_operations.group_site_accountant" model="res.groups">
+        <field name="implied_ids" eval="[Command.link(ref('matracon_fleet.group_mtr_app_fleet'))]"/>
+    </record>
+
+    <record id="site_operations.group_finance_ho" model="res.groups">
+        <field name="implied_ids" eval="[Command.link(ref('matracon_fleet.group_mtr_app_fleet'))]"/>
+    </record>
+
+    <record id="purchase_demand_raise.group_matracon_admin" model="res.groups">
+        <field name="implied_ids" eval="[Command.link(ref('matracon_fleet.group_mtr_app_fleet'))]"/>
+    </record>
+</odoo>
