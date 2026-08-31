@@ -7,6 +7,19 @@ class ResPartnerSiteOps(models.Model):
 
     x_cnic = fields.Char(string='CNIC', tracking=True)
 
+    x_bank_name = fields.Char(
+        string='Bank Name',
+        help='Bank name for cheque/payment purposes (e.g. HBL, UBL, MCB).'
+    )
+    x_account_title = fields.Char(
+        string='Account Title',
+        help='Name of the bank account holder — printed on BPV / cheque.'
+    )
+    x_iban = fields.Char(
+        string='IBAN / Account No',
+        help='Bank account number or IBAN for this vendor/subcontractor.'
+    )
+
     x_description = fields.Char(
         string='Description',
         help='Brief description of this contact (e.g. "Cement Supplier", "Labour Contractor"). '
