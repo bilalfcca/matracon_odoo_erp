@@ -420,6 +420,8 @@ class LiabilitySheet(models.Model):
                 (0, 0, {
                     'partner_id': line.partner_id.id,
                     'gross_amount': line.approved_amount,
+                    'memo': line.description or '',
+                    'x_account_title': line.x_account_title or '',
                     'x_destination_project_id': (
                         self.project_analytic_account_id.id or False
                     ),
@@ -485,6 +487,9 @@ class LiabilitySheet(models.Model):
             (0, 0, {
                 'partner_id': line.partner_id.id,
                 'description': line.description,
+                'x_bank_name': line.x_bank_name or '',
+                'x_account_title': line.x_account_title or '',
+                'x_iban': line.x_iban or '',
                 'opening_balance': 0.0,
                 'new_liability': 0.0,
                 'recommended_amount': 0.0,
@@ -769,17 +774,22 @@ class LiabilitySheet(models.Model):
                 )
                 new_liab = sum(l.credit - l.debit for l in period_lines)
 
-                # Always sync description from the contact's x_description so
-                # liability sheet lines stay labelled correctly without manual effort.
                 partner_desc = (
                     line.partner_id.x_description
                     or line.partner_id.name
                     or ''
                 ).strip()
+                p = line.partner_id
                 line.write({
                     'opening_balance': round(opening, 2),
                     'new_liability': round(new_liab, 2),
-                    'description': partner_desc,
+                    # Preserve any description the SA has manually typed.
+                    # Only fill from the partner if the field is still empty.
+                    'description': line.description or partner_desc,
+                    # Auto-fill bank details from partner if not yet set on this line.
+                    'x_bank_name': line.x_bank_name or (p.x_bank_name or ''),
+                    'x_account_title': line.x_account_title or (p.x_account_title or ''),
+                    'x_iban': line.x_iban or (p.x_iban or ''),
                 })
 
             # ── 2. Auto-discover partners in the ledger not yet on the sheet ──
@@ -830,6 +840,9 @@ class LiabilitySheet(models.Model):
                             'description': (
                                 partner.x_description or partner.name or ''
                             ).strip(),
+                            'x_bank_name': partner.x_bank_name or '',
+                            'x_account_title': partner.x_account_title or '',
+                            'x_iban': partner.x_iban or '',
                             'opening_balance': round(opening, 2),
                             'new_liability': round(new_liab, 2),
                         })]})
@@ -880,6 +893,13 @@ class LiabilitySheetLine(models.Model):
     )
 
     description = fields.Char(string='Description')
+
+    # Banking details — editable by site accountant, auto-filled from partner,
+    # flow through to batch payment line for BPV / cheque printing.
+    x_bank_name = fields.Char(string='Bank Name')
+    x_account_title = fields.Char(string='Account Title')
+    x_iban = fields.Char(string='IBAN / Account No')
+
     partner_id = fields.Many2one(
         'res.partner', string='Vendor/Partner', required=True,
         domain="[('category_id.name', 'in', ['Vendor', 'Subcontractor'])]",
@@ -932,7 +952,7 @@ class LiabilitySheetLine(models.Model):
 
     @api.onchange('partner_id')
     def _onchange_partner_description(self):
-        """Auto-fill description as 'Tag (partner description)' when partner is selected."""
+        """Auto-fill description and bank details when partner is selected."""
         if not self.partner_id:
             return
         tags = self.partner_id.category_id
@@ -944,6 +964,10 @@ class LiabilitySheetLine(models.Model):
             self.description = tag_name
         elif partner_desc:
             self.description = partner_desc
+        # Auto-fill bank details from partner
+        self.x_bank_name = self.partner_id.x_bank_name or ''
+        self.x_account_title = self.partner_id.x_account_title or ''
+        self.x_iban = self.partner_id.x_iban or ''
 
     def write(self, vals):
         # self.env.su is True when called via sudo() — allow system-driven pre-fills

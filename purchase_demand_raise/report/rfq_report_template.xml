@@ -27,7 +27,7 @@
                 <!-- Supply ref + date to the layout header BEFORE t-call -->
                 <t t-set="po_ref_number" t-value="o.name"/>
                 <t t-set="po_ref_date"
-                   t-value="context_timestamp(datetime.datetime.now()).strftime('%B %d, %Y')"/>
+                   t-value="context_timestamp(o.date_approve or o.date_order).strftime('%B %d, %Y')"/>
 
                 <t t-call="purchase_demand_raise.matracon_po_layout">
 
