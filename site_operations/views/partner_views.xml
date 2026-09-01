@@ -26,6 +26,21 @@
                        help="Required. Brief description of this contact. Appears on Liability Sheet lines as Tag (Description)."/>
             </field>
 
+            <!-- ── Banking details (for cheque / BPV / Liability Sheet) ── -->
+            <field name="x_description" position="after">
+                <group string="Banking Details" name="banking_details" col="2">
+                    <field name="x_bank_name"
+                           string="Bank Name"
+                           placeholder="e.g. HBL, UBL, MCB"/>
+                    <field name="x_account_title"
+                           string="Account Title"
+                           placeholder="Account holder name (for cheque)"/>
+                    <field name="x_iban"
+                           string="IBAN / Account No"
+                           placeholder="e.g. PK36SCBL0000001123456702"/>
+                </group>
+            </field>
+
             <xpath expr="//div[@name='button_box']" position="inside">
                 <button name="action_view_material_issuances"
                         type="object"
