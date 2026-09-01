@@ -55,6 +55,17 @@ class AccountAccountSiteOps(models.Model):
              'Head Office and Finance HO users always see all accounts.',
     )
 
+    x_allow_posting = fields.Boolean(
+        string='Allow Posting',
+        default=True,
+        help='When unchecked this account acts as a grouping/header account.\n'
+             'It will NOT appear in any account picker dropdown (journal entries,\n'
+             'vendor bills, petty cash, etc.) and cannot be selected by users.\n'
+             'It remains visible in the Chart of Accounts management screen.\n'
+             'Tip: uncheck for main/parent accounts like "101000 Current Assets"\n'
+             'that are only used for reporting grouping, not direct posting.',
+    )
+
     # ─── Site-scoped balance ─────────────────────────────────────────────────
     # For site accountants: sum of posted move lines on their project only.
     # For HO / admin: falls back to the standard global balance field.
@@ -154,6 +165,25 @@ class AccountAccountSiteOps(models.Model):
             },
         }
 
+    def name_search(self, name='', domain=None, operator='ilike', limit=100):
+        """Exclude non-posting (header/view) accounts from all Many2one pickers.
+
+        Accounts with x_allow_posting = False are purely for COA grouping and must
+        never appear in dropdown selectors — journal entries, vendor bills, petty
+        cash, batch payments, etc.  The COA management list is not affected because
+        it loads records via search() / ORM, not via name_search.
+
+        The filter is bypassed when context key 'show_all_accounts' is True, in
+        case any admin screen needs the full list inside a Many2one widget.
+        """
+        domain = list(domain or [])
+        if not self.env.context.get('show_all_accounts'):
+            # '!= False' matches True AND NULL (unset), excludes only explicit False.
+            # This means all existing accounts (NULL) remain visible; only accounts
+            # explicitly unchecked ("Allow Posting" = False) are hidden from pickers.
+            domain = [('x_allow_posting', '!=', False)] + domain
+        return super().name_search(name=name, domain=domain, operator=operator, limit=limit)
+
     @api.model_create_multi
     def create(self, vals_list):
         records = super().create(vals_list)
@@ -219,10 +249,12 @@ class AccountAccountSiteOps(models.Model):
             if len(prefix) < 2:
                 continue                        # Skip over-broad prefixes like '4'
 
-            # Step 2 — collect all accounts sharing this prefix
+            # Step 2 — collect posting accounts sharing this prefix
+            # x_allow_posting = TRUE excludes header/view accounts from the result
             self.env.cr.execute("""
                 SELECT id FROM account_account
                 WHERE  active = TRUE
+                  AND  COALESCE(x_allow_posting, TRUE) = TRUE
                   AND  code_store->>%s LIKE %s
             """, [company_root_id, prefix + '%'])
             child_ids.extend(row[0] for row in self.env.cr.fetchall())
