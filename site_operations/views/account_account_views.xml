@@ -100,7 +100,12 @@
 
             <!-- Add Site Visibility section inside the Accounting tab -->
             <xpath expr="//page[@name='accounting']//group[last()]" position="after">
-                <group string="Site Visibility" groups="account.group_account_manager">
+                <group string="Posting &amp; Visibility" groups="account.group_account_manager">
+                    <!-- Allow Posting — uncheck for header/grouping accounts like
+                         "101000 Current Assets". Non-posting accounts are hidden
+                         from all account picker dropdowns system-wide. -->
+                    <field name="x_allow_posting" string="Allow Posting"
+                           help="Uncheck to make this a header/grouping account. It will not appear in any account selector dropdown."/>
                     <!-- Head Office Only flag — when checked, no site accountant
                          can see this account regardless of x_site_ids below. -->
                     <field name="x_ho_only" string="Head Office Only"/>
@@ -211,6 +216,11 @@ action = {
         <field name="inherit_id" ref="account.view_account_list"/>
         <field name="arch" type="xml">
             <xpath expr="//list" position="inside">
+                <field name="x_allow_posting"
+                       string="Allow Posting"
+                       optional="show"
+                       groups="account.group_account_manager"
+                       widget="boolean_toggle"/>
                 <field name="x_ho_only"
                        string="HO Only"
                        optional="hide"

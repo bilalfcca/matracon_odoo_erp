@@ -13,6 +13,7 @@ account.account since that would break account picker access in bills):
   project so they (and HO) can immediately find and use it.
 """
 from odoo import models, fields, api
+from odoo.fields import Domain
 
 
 class AccountJournalSiteOps(models.Model):
@@ -52,6 +53,17 @@ class AccountAccountSiteOps(models.Model):
              'in their Chart of Accounts — even if their site is listed in '
              '"Visible to Sites".\n'
              'Head Office and Finance HO users always see all accounts.',
+    )
+
+    x_allow_posting = fields.Boolean(
+        string='Allow Posting',
+        default=True,
+        help='When unchecked this account acts as a grouping/header account.\n'
+             'It will NOT appear in any account picker dropdown (journal entries,\n'
+             'vendor bills, petty cash, etc.) and cannot be selected by users.\n'
+             'It remains visible in the Chart of Accounts management screen.\n'
+             'Tip: uncheck for main/parent accounts like "101000 Current Assets"\n'
+             'that are only used for reporting grouping, not direct posting.',
     )
 
     # ─── Site-scoped balance ─────────────────────────────────────────────────
@@ -153,6 +165,25 @@ class AccountAccountSiteOps(models.Model):
             },
         }
 
+    def name_search(self, name='', domain=None, operator='ilike', limit=100):
+        """Exclude non-posting (header/view) accounts from all Many2one pickers.
+
+        Accounts with x_allow_posting = False are purely for COA grouping and must
+        never appear in dropdown selectors — journal entries, vendor bills, petty
+        cash, batch payments, etc.  The COA management list is not affected because
+        it loads records via search() / ORM, not via name_search.
+
+        The filter is bypassed when context key 'show_all_accounts' is True, in
+        case any admin screen needs the full list inside a Many2one widget.
+        """
+        domain = list(domain or [])
+        if not self.env.context.get('show_all_accounts'):
+            # '!= False' matches True AND NULL (unset), excludes only explicit False.
+            # This means all existing accounts (NULL) remain visible; only accounts
+            # explicitly unchecked ("Allow Posting" = False) are hidden from pickers.
+            domain = [('x_allow_posting', '!=', False)] + domain
+        return super().name_search(name=name, domain=domain, operator=operator, limit=limit)
+
     @api.model_create_multi
     def create(self, vals_list):
         records = super().create(vals_list)
@@ -163,3 +194,72 @@ class AccountAccountSiteOps(models.Model):
             if analytic and analytic.id not in rec.x_site_ids.ids:
                 rec.sudo().x_site_ids = [(4, analytic.id)]
         return records
+
+    @api.model
+    def _search_display_name(self, operator, value):
+        """Extend account name search to include children of matched main accounts.
+
+        Odoo's standard _search_display_name matches only against the account's
+        own code and name fields.  This extension adds a second pass: when the
+        search term matches a *main* account (identified by its code ending in one
+        or more trailing zeros, e.g. "101000 Current Assets"), all accounts that
+        share the same meaningful code prefix are also returned.
+
+        Example:
+            Search "Current Assets" → finds 101000 directly (standard match)
+            Extension → detects prefix "101", returns 101300, 101401-406, 101701
+
+        The prefix is derived by stripping trailing zeros:
+            101000 → "101"   (3 chars, fine)
+            230000 → "23"    (2 chars, fine)
+            400000 → "4"     (1 char, skipped — too broad)
+
+        Prefixes shorter than 2 characters are skipped to avoid returning every
+        income or expense account when a top-level category is matched.
+        """
+        base_result = super()._search_display_name(operator, value)
+
+        # Only extend for positive string similarity operators
+        if operator not in ('ilike', 'like', '=ilike', '=like', '=') \
+                or not isinstance(value, str) or not value:
+            return base_result
+
+        # company_root_id is the JSON key used in code_store — e.g. "1" for
+        # the root/single company.  str(int_id) converts it to match the key.
+        company_root_id = str(self.env.company.root_id.id)
+
+        # Step 1 — find codes of main accounts (ending in at least one '0')
+        # whose name matches the search term in ANY installed language.
+        self.env.cr.execute("""
+            SELECT DISTINCT code_store->>%s AS code
+            FROM   account_account
+            WHERE  active = TRUE
+              AND  code_store->>%s LIKE '%%0'
+              AND  EXISTS (
+                       SELECT 1 FROM jsonb_each_text(name) jt
+                       WHERE  jt.value ILIKE %s
+                   )
+        """, [company_root_id, company_root_id, f'%{value}%'])
+
+        child_ids = []
+        for (code,) in self.env.cr.fetchall():
+            if not code:
+                continue
+            prefix = code.rstrip('0')          # '101000' → '101', '230000' → '23'
+            if len(prefix) < 2:
+                continue                        # Skip over-broad prefixes like '4'
+
+            # Step 2 — collect posting accounts sharing this prefix
+            # x_allow_posting = TRUE excludes header/view accounts from the result
+            self.env.cr.execute("""
+                SELECT id FROM account_account
+                WHERE  active = TRUE
+                  AND  COALESCE(x_allow_posting, TRUE) = TRUE
+                  AND  code_store->>%s LIKE %s
+            """, [company_root_id, prefix + '%'])
+            child_ids.extend(row[0] for row in self.env.cr.fetchall())
+
+        if child_ids:
+            return Domain(base_result) | Domain([('id', 'in', child_ids)])
+
+        return base_result

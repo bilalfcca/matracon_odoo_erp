@@ -707,6 +707,22 @@ class AccountMoveSiteOps(models.Model):
         ):
             move.x_cheque_leaf_id.sudo().write({'state': 'used'})
 
+        # ── Inter-project entries for Finance-HO journal entries ─────────────
+        # When a JE has a Fund Allocation tab with source projects and the
+        # destination project (x_ho_dest_project_id) differs from any source,
+        # create DR Inter-Project Receivable (source) / CR Inter-Project
+        # Payable (destination) entries automatically.
+        for move in self.filtered(
+            lambda m: (
+                m.move_type == 'entry'
+                and m.state == 'posted'
+                and m.x_je_allocation_ids
+                and m.x_ho_dest_project_id
+                and not m.x_je_interproject_move_ids  # idempotent
+            )
+        ):
+            move._create_je_interproject_entries()
+
         return False
 
     def button_draft(self):

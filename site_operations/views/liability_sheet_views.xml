@@ -223,6 +223,9 @@
                                    readonly="parent.state != 'draft'"
                                    optional="show"/>
                             <field name="description"/>
+                            <field name="x_account_title" string="Account Title" optional="show"/>
+                            <field name="x_bank_name" string="Bank Name" optional="hide"/>
+                            <field name="x_iban" string="IBAN / Account No" optional="hide"/>
                             <field name="partner_id" readonly="is_locked"/>
                             <field name="opening_balance" readonly="is_locked"/>
                             <field name="new_liability" readonly="is_locked"/>
@@ -248,6 +251,7 @@
                             <field name="sequence" widget="handle"/>
                             <field name="x_is_ceo" column_invisible="1"/>
                             <field name="description"/>
+                            <field name="x_account_title" string="Account Title" readonly="1" optional="show"/>
                             <field name="partner_id" readonly="is_locked"/>
                             <field name="opening_balance" readonly="1"/>
                             <field name="new_liability" readonly="1"/>

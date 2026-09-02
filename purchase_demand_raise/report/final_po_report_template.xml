@@ -185,7 +185,7 @@
                 <!-- Supply ref + date to the layout header BEFORE t-call -->
                 <t t-set="po_ref_number" t-value="o.name"/>
                 <t t-set="po_ref_date"
-                   t-value="context_timestamp(datetime.datetime.now()).strftime('%B %d, %Y')"/>
+                   t-value="context_timestamp(o.date_approve or o.date_order).strftime('%B %d, %Y')"/>
 
                 <t t-call="purchase_demand_raise.matracon_po_layout">
 
@@ -361,7 +361,7 @@
                         <!-- Fall back: find a user in CEO Approval group who has drawn their signature -->
                         <t t-set="_ceo_grp" t-value="env['res.groups'].sudo().search([('name','=','CEO Approval')], limit=1)"/>
                         <t t-if="_ceo_grp">
-                            <t t-set="_po_ceo_user" t-value="_ceo_grp.users.filtered(lambda u: u.x_sign_signature)[:1]"/>
+                            <t t-set="_po_ceo_user" t-value="env['res.users'].sudo().search([('group_ids', 'in', [_ceo_grp.id]), ('x_sign_signature', '!=', False)], limit=1)"/>
                         </t>
                     </t>
 
