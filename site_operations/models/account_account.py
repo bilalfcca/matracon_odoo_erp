@@ -13,7 +13,7 @@ account.account since that would break account picker access in bills):
   project so they (and HO) can immediately find and use it.
 """
 from odoo import models, fields, api
-from odoo.osv import expression
+from odoo.fields import Domain
 
 
 class AccountJournalSiteOps(models.Model):
@@ -260,6 +260,6 @@ class AccountAccountSiteOps(models.Model):
             child_ids.extend(row[0] for row in self.env.cr.fetchall())
 
         if child_ids:
-            return expression.OR([base_result, [('id', 'in', child_ids)]])
+            return Domain(base_result) | Domain([('id', 'in', child_ids)])
 
         return base_result

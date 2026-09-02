@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ═══════════════════════════════════════════════════════════════════════
+         Midnight Draft Cleanup — daily at 00:00 server time
+         Deletes accounting-related draft records created before today.
+         Excluded: purchase requisitions, purchase orders, liability sheets,
+                   comparative statements, stock pickings, and any payment
+                   already submitted to the CEO for approval.
+    ═══════════════════════════════════════════════════════════════════════════ -->
+    <record id="cron_draft_cleanup" model="ir.cron">
+        <field name="name">Accounting: Delete Stale Draft Records (Midnight)</field>
+        <field name="model_id" ref="model_x_draft_cleanup"/>
+        <field name="state">code</field>
+        <field name="code">model.action_cleanup_drafts()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+        <field name="active" eval="True"/>
+        <!-- Run at midnight: nextcall = tomorrow 00:00 UTC -->
+        <field name="nextcall" eval="(DateTime.now().replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)).strftime('%Y-%m-%d %H:%M:%S')"/>
+        <field name="priority">10</field>
+    </record>
+</odoo>
