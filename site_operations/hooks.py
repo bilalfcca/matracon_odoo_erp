@@ -320,6 +320,30 @@ def set_pkr_decimal_places(env):
         env['res.currency'].invalidate_model(['decimal_places'])
 
 
+def set_analytic_percentage_precision(env):
+    """
+    Raise 'Percentage Analytic' decimal precision from 2 → 6.
+
+    The analytic_distribution widget rounds the stored percentage ratio to
+    (analytic_precision + 2) decimal places before saving to the JSON field.
+    With the default of 2 the ratio has only 4 dp:
+        4,001 / 40,000 = 0.10002500 → 0.1000 (4 dp) → back-calc 4,000  ← wrong
+    With 6 the ratio has 8 dp:
+        4,001 / 40,000 = 0.10002500 → 0.10002500 (8 dp) → back-calc 4,001 ✓
+
+    Uses raw SQL because the analytic.decimal_percentage_analytic record has
+    noupdate=True in ir.model.data and cannot be overridden from a data file.
+    """
+    import logging
+    _logger = logging.getLogger(__name__)
+    env.cr.execute(
+        "UPDATE decimal_precision SET digits = 6 WHERE name = 'Percentage Analytic' AND digits < 6"
+    )
+    if env.cr.rowcount:
+        _logger.info('set_analytic_percentage_precision: raised Percentage Analytic precision to 6')
+        env['decimal.precision'].invalidate_model(['digits'])
+
+
 def set_date_format(env):
     """
     Set DD/MM/YYYY date format on every installed language so the format
@@ -377,6 +401,7 @@ def set_pakistan_fiscal_year(env):
 
 def post_init_hook(env):
     set_pkr_decimal_places(env)
+    set_analytic_percentage_precision(env)
     set_date_format(env)
     set_pakistan_fiscal_year(env)
     deduplicate_partner_tags(env)
@@ -732,6 +757,7 @@ def generate_cheque_leaves_for_existing_series(env):
 
 def post_migrate_hook(env):
     set_pkr_decimal_places(env)
+    set_analytic_percentage_precision(env)
     set_date_format(env)
     set_pakistan_fiscal_year(env)
     deduplicate_partner_tags(env)
