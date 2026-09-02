@@ -7,6 +7,10 @@ from odoo import models, fields, api, _
 from odoo.exceptions import UserError
 
 from . import matracon_notifications as matracon_notify
+from .interproject_accounting import (
+    _get_or_create_interproject_journal as _ipr_journal,
+    _get_or_create_interproject_account as _ipr_account,
+)
 
 
 class StockPickingSiteOps(models.Model):
@@ -1990,41 +1994,12 @@ class StockPickingSiteOps(models.Model):
         return account
 
     def _get_or_create_interproject_journal(self):
-        Journal = self.env['account.journal'].sudo()
-        journal = Journal.search(
-            [('name', '=', 'Inter-Project Transfers'),
-             ('type', '=', 'general')], limit=1)
-        if not journal:
-            journal = Journal.create({
-                'name': 'Inter-Project Transfers',
-                'type': 'general',
-                'code': 'IPTR',
-            })
-        return journal
+        """Delegate to the shared helper in interproject_accounting.py."""
+        return _ipr_journal(self.env)
 
     def _get_or_create_interproject_account(self, account_type):
-        Account = self.env['account.account'].sudo()
-        if account_type == 'receivable':
-            account = Account.search(
-                [('name', 'ilike', 'Inter-Project Receivable')], limit=1)
-            if not account:
-                account = Account.create({
-                    'name': 'Inter-Project Receivables',
-                    'code': '13100',
-                    'account_type': 'asset_receivable',
-                    'reconcile': True,
-                })
-        else:
-            account = Account.search(
-                [('name', 'ilike', 'Inter-Project Payable')], limit=1)
-            if not account:
-                account = Account.create({
-                    'name': 'Inter-Project Payables',
-                    'code': '21100',
-                    'account_type': 'liability_payable',
-                    'reconcile': True,
-                })
-        return account
+        """Delegate to the shared helper in interproject_accounting.py."""
+        return _ipr_account(self.env, account_type)
 
     # ─────────────────────────────────────────────────────────────────────────
     # ACTIONS

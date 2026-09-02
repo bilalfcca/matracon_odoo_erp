@@ -320,3 +320,6 @@ access_site_dash_expense_line_head_office,x.site.dashboard.expense.line.head.off
 access_wht_certificate_head_office,wht.certificate.head.office,model_x_wht_certificate,purchase_demand_raise.group_head_office,1,1,1,1
 access_postdated_cheque_head_office,postdated.cheque.head.office,model_x_postdated_cheque,purchase_demand_raise.group_head_office,1,1,1,1
 access_cheque_series_head_office,cheque.series.head.office,model_x_cheque_series,purchase_demand_raise.group_head_office,1,1,1,1
+access_je_project_allocation_finance_ho,je.project.allocation.finance.ho,model_x_je_project_allocation,site_operations.group_finance_ho,1,1,1,1
+access_je_project_allocation_admin,je.project.allocation.admin,model_x_je_project_allocation,purchase_demand_raise.group_matracon_admin,1,1,1,1
+access_je_project_allocation_head_office,je.project.allocation.head.office,model_x_je_project_allocation,purchase_demand_raise.group_head_office,1,0,0,0
