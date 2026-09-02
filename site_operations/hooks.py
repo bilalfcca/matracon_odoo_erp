@@ -940,4 +940,5 @@ def cleanup_stale_views(env):
             _logger.info('cleanup_stale_views: deactivated %s (ids: %s)', name, views.ids)
 
 
-//nothing just committtng
+ # Views with stale arch_db containing removed fields (x_parent_account_id etc.)
+    # Reset arch_db to force recompute from the current XML file on next load
