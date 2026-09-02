@@ -17,12 +17,12 @@ from . import bg_facility_amendment_import
 from . import tax_notice
 from . import matracon_notifications
 from . import app_visibility
+from . import interproject_accounting  # must load before stock_picking (imported at module level)
 from . import stock_picking
 from . import purchase_order
 from . import stock_move
 from . import stock_return_picking
 from . import analytic_distribution_mixin
-from . import interproject_accounting
 from . import interproject_transfer
 from . import account_payment
 from . import payment_tax_line
