@@ -424,6 +424,8 @@ def post_init_hook(env):
             'site_operations post_init_hook: skipped user configuration '
             '(not a production DB or users not yet created): %s', e
         )
+    ensure_deduction_accounts(env)
+    cleanup_stale_views(env)
     reprocess_existing_payments(env)
     # Restrict Odoo's built-in 'see all' account.move rules to group_account_manager
     # so site accountants are properly scoped to their own project.
@@ -867,3 +869,72 @@ def backfill_payment_cheque_numbers(env):
     """)
     line_rows = env.cr.rowcount
     _log.info('backfill_payment_cheque_numbers: updated %d account_move_line rows', line_rows)
+
+
+def ensure_deduction_accounts(env):
+    """Ensure WHT Payable (252100) and Retention Payable (211200) accounts
+    exist and are linked to their XML IDs. Safe on any DB state."""
+    import logging
+    _logger = logging.getLogger(__name__)
+    Account = env['account.account'].sudo()
+    IMD = env['ir.model.data'].sudo()
+
+    accounts_to_ensure = [
+        ('account_wht_payable', '252100', 'WHT Payable', 'liability_current'),
+        ('account_retention_payable', '211200', 'Retention Payable', 'liability_payable'),
+    ]
+
+    for xml_id, code, name, account_type in accounts_to_ensure:
+        existing_ref = env.ref(f'site_operations.{xml_id}', raise_if_not_found=False)
+        if existing_ref:
+            continue
+        account = Account.search([('code', '=', code)], limit=1)
+        if not account:
+            account = Account.create({
+                'code': code,
+                'name': name,
+                'account_type': account_type,
+            })
+            _logger.info('ensure_deduction_accounts: created %s (%s)', name, code)
+        IMD.search([
+            ('module', '=', 'site_operations'),
+            ('name', '=', xml_id),
+        ]).unlink()
+        IMD.create({
+            'name': xml_id,
+            'module': 'site_operations',
+            'model': 'account.account',
+            'res_id': account.id,
+            'noupdate': True,
+        })
+        _logger.info('ensure_deduction_accounts: linked %s -> account #%s', xml_id, account.id)
+
+
+def cleanup_stale_views(env):
+    """Deactivate known orphaned/stale views left in the database from earlier
+    Studio customizations or removed features. Safe to run multiple times."""
+    import logging
+    _logger = logging.getLogger(__name__)
+    View = env['ir.ui.view'].sudo()
+
+    stale_view_names = [
+        'account.move.vendor.bill.backcharge.section',
+    ]
+
+    # Views with stale arch_db containing removed fields (x_parent_account_id etc.)
+    # Reset arch_db to force recompute from the current XML file on next load.
+    stale_arch_view_names = [
+        'account.account.form.site.ops',
+        'account.account.list.site.ops',
+    ]
+    for name in stale_arch_view_names:
+        views = View.search([('name', '=', name)])
+        if views:
+            views.write({'arch_db': False})
+            _logger.info('cleanup_stale_views: reset arch_db for %s (ids: %s)', name, views.ids)
+
+    for name in stale_view_names:
+        views = View.search([('name', '=', name), ('active', '=', True)])
+        if views:
+            views.write({'active': False})
+            _logger.info('cleanup_stale_views: deactivated %s (ids: %s)', name, views.ids)
