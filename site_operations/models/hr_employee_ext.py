@@ -10,23 +10,14 @@ ONLINE_THRESHOLD_SECONDS = 600
 class HrEmployeeMatracon(models.Model):
     _inherit = 'hr.employee'
 
-    # ── Rename native 'Absent' label → 'Offline' ────────────────────────────
-    # Redefine the selection to change the displayed label in the status badge
-    # and kanban dot tooltip. The value 'presence_absent' is unchanged so that
-    # Odoo's JS widget and CSS class (o_icon_employee_absent = amber) still work.
-    hr_icon_display = fields.Selection(
-        selection=[
-            ('presence_present', 'Present'),
-            ('presence_out_of_working_hour', 'Off-Hours'),
-            ('presence_absent', 'Offline'),
-            ('presence_archive', 'Archived'),
-            ('presence_undetermined', 'Undetermined'),
-        ],
-        compute='_compute_presence_icon',
-        store=False,
-    )
-
     # ── Presence fields ──────────────────────────────────────────────────────
+    # Note: hr_icon_display (native field) is intentionally NOT redeclared here.
+    # _compute_presence_icon below overrides Odoo's compute via normal Python
+    # method resolution — no field redeclaration needed.  Redeclaring with
+    # selection=[...] triggers "overrides existing selection" on every registry
+    # build (Odoo 19 ORM warning).  The selection labels on the native field
+    # ('Absent' vs 'Offline') are immaterial because our custom kanban cards
+    # use x_is_currently_online / x_last_online for display.
     # x_is_currently_online — True only when last_poll in mail_presence is
     #   within ONLINE_THRESHOLD_SECONDS.  This is the same check Odoo's own
     #   frontend bus uses; reading mail.presence.status is unreliable because

@@ -1,4 +1,5 @@
 from . import base_backdate  # per-user default entry date (backdate preference)
+from . import draft_cleanup  # midnight cron: delete stale accounting drafts
 from . import x_employee_presence_log
 from . import mail_presence_ext
 from . import hr_employee_ext
