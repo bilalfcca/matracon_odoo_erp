@@ -2,9 +2,7 @@ from datetime import timedelta
 
 from odoo import models, fields, api, _
 
-# A user is considered online while their last browser heartbeat is within this window.
-# 600 s = 10 minutes — user stays green until 10 min of inactivity.
-ONLINE_THRESHOLD_SECONDS = 600
+from .constants import ONLINE_THRESHOLD_SECONDS  # shared with mail_presence_ext.py
 
 
 class HrEmployeeMatracon(models.Model):

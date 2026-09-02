@@ -1,6 +1,10 @@
+import logging
+
 from markupsafe import Markup
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
+
+_logger = logging.getLogger(__name__)
 
 from . import matracon_notifications as matracon_notify
 
@@ -397,8 +401,16 @@ class AccountPaymentSiteOps(models.Model):
             if payment.x_ceo_submitted:
                 continue
 
-            fo_group = self.env.ref('site_operations.group_finance_ho')
-            fo_users = self.env['res.users'].sudo().search([('all_group_ids', 'in', fo_group.id)])
+            fo_group = self.env.ref('site_operations.group_finance_ho', raise_if_not_found=False)
+            if not fo_group:
+                _logger.warning(
+                    'Matracon: site_operations.group_finance_ho not found; '
+                    'CEO direct-payment notification skipped for payment %s.', payment.name
+                )
+            fo_users = (
+                self.env['res.users'].sudo().search([('all_group_ids', 'in', fo_group.id)])
+                if fo_group else self.env['res.users'].browse()
+            )
 
             # Post human-readable HTML message and notify FO via chatter
             body = Markup(
