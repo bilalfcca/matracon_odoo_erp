@@ -938,3 +938,6 @@ def cleanup_stale_views(env):
         if views:
             views.write({'active': False})
             _logger.info('cleanup_stale_views: deactivated %s (ids: %s)', name, views.ids)
+
+
+//nothing just committtng
