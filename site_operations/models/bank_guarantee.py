@@ -674,16 +674,24 @@ class BankGuarantee(models.Model):
         """Return set of all email addresses for BG expiry notifications."""
         config = self.env['x.bg.expiry.config'].sudo()._get_config()
         emails = set()
-        for gid in [
-            'site_operations.group_finance_ho',
-            'purchase_demand_raise.group_ceo_approval',
-            'purchase_demand_raise.group_matracon_admin',
-        ]:
-            grp = self.env.ref(gid, raise_if_not_found=False)
-            if grp:
-                for u in grp.sudo().users.filtered('active'):
-                    if u.email:
-                        emails.add(u.email)
+        # res.groups no longer has a .users field in Odoo 19 — query res.users directly
+        grp_ids = [
+            g.id
+            for xmlid in (
+                'site_operations.group_finance_ho',
+                'purchase_demand_raise.group_ceo_approval',
+                'purchase_demand_raise.group_matracon_admin',
+            )
+            for g in [self.env.ref(xmlid, raise_if_not_found=False)]
+            if g
+        ]
+        if grp_ids:
+            for u in self.env['res.users'].sudo().search([
+                ('active', '=', True),
+                ('group_ids', 'in', grp_ids),
+            ]):
+                if u.email:
+                    emails.add(u.email)
         for p in config.recipient_partner_ids:
             if p.email:
                 emails.add(p.email)

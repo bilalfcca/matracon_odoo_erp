@@ -408,9 +408,16 @@ class PettyCashRequest(models.Model):
                 'CEO approved petty cash: <b>%s %.2f</b>'
             )) % (self.currency_id.symbol, self.ceo_approved_amount)
         )
-        fo_users = self.env['res.users'].search([
-            ('group_ids', 'in', self.env.ref('site_operations.group_finance_ho').id),
-        ])
+        _fo_grp = self.env.ref('site_operations.group_finance_ho', raise_if_not_found=False)
+        if not _fo_grp:
+            _logger.warning(
+                'Matracon: site_operations.group_finance_ho not found; '
+                'FO notification skipped for petty cash CEO approval.'
+            )
+        fo_users = (
+            self.env['res.users'].search([('group_ids', 'in', _fo_grp.id)])
+            if _fo_grp else self.env['res.users'].browse()
+        )
         matracon_notify.notify_users(
             self, fo_users,
             _('Petty cash <b>%s</b> CEO-approved — release required.') % self.name,
@@ -476,10 +483,16 @@ class PettyCashRequest(models.Model):
                 ))
             req.state = 'submitted'
             req.message_post(body=_('Petty cash request submitted to Finance HO.'))
-            fo_users = self.env['res.users'].search([
-                ('group_ids', 'in', self.env.ref(
-                    'site_operations.group_finance_ho').id),
-            ])
+            _fo_grp2 = self.env.ref('site_operations.group_finance_ho', raise_if_not_found=False)
+            if not _fo_grp2:
+                _logger.warning(
+                    'Matracon: site_operations.group_finance_ho not found; '
+                    'FO notification skipped for petty cash submit %s.', req.name
+                )
+            fo_users = (
+                self.env['res.users'].search([('group_ids', 'in', _fo_grp2.id)])
+                if _fo_grp2 else self.env['res.users'].browse()
+            )
             matracon_notify.notify_users(
                 req, fo_users,
                 _('Petty cash request <b>%s</b> — release required.') % req.name,
@@ -487,9 +500,17 @@ class PettyCashRequest(models.Model):
             )
             matracon_notify.schedule_activity(
                 req, fo_users, _('Release petty cash %s') % req.name)
-            ceo_users = self.env['res.users'].search([
-                ('group_ids', 'in', self.env.ref('purchase_demand_raise.group_ceo_approval').id),
-            ])
+            _ceo_grp = self.env.ref(
+                'purchase_demand_raise.group_ceo_approval', raise_if_not_found=False)
+            if not _ceo_grp:
+                _logger.warning(
+                    'Matracon: purchase_demand_raise.group_ceo_approval not found; '
+                    'CEO notification skipped for petty cash submit %s.', req.name
+                )
+            ceo_users = (
+                self.env['res.users'].search([('group_ids', 'in', _ceo_grp.id)])
+                if _ceo_grp else self.env['res.users'].browse()
+            )
             matracon_notify.notify_users(
                 req, ceo_users,
                 _('Petty cash request <b>%s</b> — CEO approval required.') % req.name,

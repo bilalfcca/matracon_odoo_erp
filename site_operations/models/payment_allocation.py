@@ -71,6 +71,62 @@ class PaymentProjectAllocation(models.Model):
             self.project_analytic_account_id)
 
 
+class JEProjectAllocation(models.Model):
+    """Fund allocation lines for a Finance-HO Journal Entry.
+
+    Mirrors x.payment.project.allocation for account.payment — each line
+    names one source project (whose fund pool is debited) and the amount it
+    contributes to the JE.  When the JE is posted:
+
+    1. Available balance for every source project decreases (tracked via this table).
+    2. If source ≠ destination project → an inter-project receivable/payable
+       GL entry is automatically created (DR Inter-Project Receivable in source,
+       CR Inter-Project Payable in destination).
+    """
+    _name = 'x.je.project.allocation'
+    _description = 'Journal Entry Fund Allocation by Project'
+    _order = 'move_id, id'
+
+    move_id = fields.Many2one(
+        'account.move', ondelete='cascade', required=True, index=True)
+
+    project_analytic_account_id = fields.Many2one(
+        'account.analytic.account',
+        string='Source Project',
+        required=True,
+    )
+
+    available_balance = fields.Monetary(
+        string='Available Balance',
+        compute='_compute_available_balance',
+        currency_field='currency_id',
+        store=True,
+    )
+
+    allocation_amount = fields.Monetary(
+        string='Allocation Amount',
+        currency_field='currency_id',
+    )
+
+    currency_id = fields.Many2one(
+        related='move_id.currency_id',
+        string='Currency',
+    )
+
+    @api.depends('project_analytic_account_id')
+    def _compute_available_balance(self):
+        Project = self.env['project.project']
+        for alloc in self:
+            alloc.available_balance = Project.get_available_balance_for_analytic(
+                alloc.project_analytic_account_id)
+
+    @api.onchange('project_analytic_account_id')
+    def _onchange_project_analytic_account_id(self):
+        """Real-time update when project is selected directly in the list row."""
+        self.available_balance = self.env['project.project'].get_available_balance_for_analytic(
+            self.project_analytic_account_id)
+
+
 class PaymentBankAllocation(models.Model):
     """Per-bank fund allocation for a vendor payment.
 
