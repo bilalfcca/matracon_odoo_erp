@@ -1,9 +1,12 @@
+import logging
 from dateutil.relativedelta import relativedelta
 
 from markupsafe import Markup
 
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError, ValidationError
+
+_logger = logging.getLogger(__name__)
 
 from . import matracon_notifications as matracon_notify
 
@@ -275,10 +278,17 @@ class LiabilitySheet(models.Model):
                 body=Markup(_(
                     'Liability Sheet submitted for CEO approval by <b>%s</b>.'
                 )) % self.env.user.name)
-            ceo_users = self.env['res.users'].search([
-                ('group_ids', 'in', self.env.ref(
-                    'purchase_demand_raise.group_ceo_approval').id),
-            ])
+            _ceo_grp = self.env.ref(
+                'purchase_demand_raise.group_ceo_approval', raise_if_not_found=False)
+            if not _ceo_grp:
+                _logger.warning(
+                    'Matracon: purchase_demand_raise.group_ceo_approval not found; '
+                    'CEO notification skipped for liability sheet %s.', sheet.name
+                )
+            ceo_users = (
+                self.env['res.users'].search([('group_ids', 'in', _ceo_grp.id)])
+                if _ceo_grp else self.env['res.users'].browse()
+            )
             matracon_notify.notify_users(
                 sheet,
                 ceo_users,
@@ -374,10 +384,16 @@ class LiabilitySheet(models.Model):
                     'to': sheet.date_to,
                 })
 
-            fo_users = self.env['res.users'].search([
-                ('group_ids', 'in', self.env.ref(
-                    'site_operations.group_finance_ho').id),
-            ])
+            _fo_grp = self.env.ref('site_operations.group_finance_ho', raise_if_not_found=False)
+            if not _fo_grp:
+                _logger.warning(
+                    'Matracon: site_operations.group_finance_ho not found; '
+                    'FO notification skipped for liability sheet %s.', sheet.name
+                )
+            fo_users = (
+                self.env['res.users'].search([('group_ids', 'in', _fo_grp.id)])
+                if _fo_grp else self.env['res.users'].browse()
+            )
             matracon_notify.notify_users(
                 sheet,
                 fo_users,
