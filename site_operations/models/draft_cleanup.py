@@ -41,8 +41,15 @@ class DraftCleanup(models.AbstractModel):
         def _delete(model, domain_extra=None):
             """Search draft records older than today and unlink them.
 
-            Returns the count of records deleted.
+            Returns the count of records deleted.  If the model is not
+            registered in the current database (e.g. Studio models absent
+            from this environment) the call is silently skipped.
             """
+            if model not in self.env:
+                _logger.warning(
+                    'Draft cleanup: model %s not in registry, skipping', model
+                )
+                return 0
             domain = [
                 ('state', '=', 'draft'),
                 ('create_date', '<', today),
