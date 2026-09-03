@@ -1,4 +1,4 @@
-{
+{ 
     'name': 'Site Operations',
     'version': '1.9.0',
     'summary': 'Material Issuance, Finance HO, Compliance (BG & Tax Notices), Attendance & Petty Cash',
