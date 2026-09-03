@@ -12,7 +12,7 @@
 # SITE USERS (one project each via Site Project Configuration):
 #   MCH:      accountant 12, store 13
 #   RWASA:    accountant  6, store  7
-#   STP:      accountant  9, store  8
+#   STP:      accountant  9, store  8         
 # ═══════════════════════════════════════════════════════════════════════════
 
 from odoo import fields, _
