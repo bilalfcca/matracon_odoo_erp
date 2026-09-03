@@ -940,5 +940,32 @@ def cleanup_stale_views(env):
             _logger.info('cleanup_stale_views: deactivated %s (ids: %s)', name, views.ids)
 
 
- # Views with stale arch_db containing removed fields (x_parent_account_id etc.)
-    # Reset arch_db to force recompute from the current XML file on next load
+
+def pre_init_hook(env):
+    """Runs BEFORE any module data/views are loaded — cleans up known stale
+    Studio-created database records that would otherwise crash view
+    validation during module install/update on any fresh database snapshot
+    (since post_init_hook runs too late for view-loading-time crashes).
+    Uses raw SQL only — registry may not be fully ready at this stage."""
+    cr = env.cr
+    # Deactivate stale Studio view referencing a removed action
+    cr.execute("""
+        UPDATE ir_ui_view SET active = false
+        WHERE name = 'account.move.vendor.bill.backcharge.section'
+          AND active = true
+    """)
+    cr.execute("""
+        DELETE FROM ir_model_data
+        WHERE model = 'ir.ui.view'
+          AND res_id IN (
+              SELECT id FROM ir_ui_view
+              WHERE name = 'account.move.vendor.bill.backcharge.section'
+          )
+    """)
+    # Reset stale arch_db on views with removed field references
+    # (x_parent_account_id etc.) so they recompute cleanly from current XML
+    cr.execute("""
+        UPDATE ir_ui_view SET arch_db = NULL
+        WHERE name IN ('account.account.form.site.ops', 'account.account.list.site.ops')
+    """)
+

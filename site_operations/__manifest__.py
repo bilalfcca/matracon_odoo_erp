@@ -1,4 +1,4 @@
-{
+{ 
     'name': 'Site Operations',
     'version': '1.9.0',
     'summary': 'Material Issuance, Finance HO, Compliance (BG & Tax Notices), Attendance & Petty Cash',
@@ -110,6 +110,7 @@
         'report/journal_entry_report.xml',
         'report/journal_entry_template.xml',
     ],
+        'pre_init_hook': 'pre_init_hook',
     'post_init_hook': 'post_init_hook',
     'post_migrate_hook': 'post_migrate_hook',
     'assets': {
