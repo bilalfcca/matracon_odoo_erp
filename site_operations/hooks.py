@@ -941,12 +941,13 @@ def cleanup_stale_views(env):
 
 
 
-def pre_init_hook(cr):
+def pre_init_hook(env):
     """Runs BEFORE any module data/views are loaded — cleans up known stale
     Studio-created database records that would otherwise crash view
     validation during module install/update on any fresh database snapshot
     (since post_init_hook runs too late for view-loading-time crashes).
-    Uses raw SQL only — no registry/env available at this stage."""
+    Uses raw SQL only — registry may not be fully ready at this stage."""
+    cr = env.cr
     # Deactivate stale Studio view referencing a removed action
     cr.execute("""
         UPDATE ir_ui_view SET active = false
