@@ -157,6 +157,40 @@ class PurchaseOrder(models.Model):
                 or order.x_procurement_type == 'site_procurement'   # Site Procurement type selected
             )
 
+    # ── PO Fulfillment / Delivery Status ─────────────────────────────────────
+    # Only meaningful for POs in po_locked state (CEO-approved and dispatched).
+    # Uses the native `receipt_status` from purchase_stock (pending/partial/full).
+    # 'open'    — ordered, nothing received yet
+    # 'partial' — some lines received, backorders still pending
+    # 'closed'  — all pickings done/cancelled OR PO force-locked to 'done'
+    x_fulfillment_status = fields.Selection([
+        ('open', 'Open'),
+        ('partial', 'Partially Received'),
+        ('closed', 'Closed'),
+    ], string='PO Delivery Status',
+       compute='_compute_fulfillment_status',
+       store=True,
+       help='Open: dispatched but no material received.\n'
+            'Partially Received: some received, backorders pending.\n'
+            'Closed: fully received, backorders cancelled, or PO locked to done.\n'
+            'Blank: PR not yet dispatched as a PO.')
+
+    @api.depends('state', 'x_pr_state', 'receipt_status')
+    def _compute_fulfillment_status(self):
+        for order in self:
+            if order.x_pr_state != 'po_locked' or order.state not in ('purchase', 'done'):
+                order.x_fulfillment_status = False
+                continue
+            rs = order.receipt_status
+            if order.state == 'done' or rs == 'full':
+                # Force-closed OR all pickings done/backorders cancelled
+                order.x_fulfillment_status = 'closed'
+            elif rs == 'partial':
+                order.x_fulfillment_status = 'partial'
+            else:
+                # receipt_status is 'pending' or False — nothing received yet
+                order.x_fulfillment_status = 'open'
+
     # ── Role flags (used in view expressions — Odoo 19 forbids groups() in attrs) ──
     x_is_site_store = fields.Boolean(compute='_compute_role_flags')
     x_is_ho = fields.Boolean(compute='_compute_role_flags')
