@@ -145,6 +145,10 @@
                 .po-table tbody tr,
                 .rfq-table tbody tr { page-break-inside: avoid; }
 
+                /* Totals tbody — keep all summary rows together on the same page */
+                .po-totals { page-break-inside: avoid; }
+                .po-total-sep td { padding: 0 !important; }
+
                 /* T&amp;C HTML formatting — preserve bullets, numbering, indentation */
                 .po-tnc ol, .po-tnc ul { padding-left: 22px; margin: 4px 0; }
                 .po-tnc li { margin-bottom: 3px; }
@@ -322,17 +326,72 @@
                                 </t>
                             </t>
                         </tbody>
-                        <tfoot>
+                        <!-- ── Totals block — kept in <tbody> deliberately.
+                             wkhtmltopdf repeats <tfoot> on every page (same as
+                             <thead>), so using <tfoot> causes the grand-total row
+                             to appear at the bottom of every page.  Plain <tbody>
+                             rows only appear once, at the actual position in the
+                             document flow. ── -->
+                        <tbody class="po-totals">
+                            <!-- Separator row -->
+                            <tr class="po-total-sep">
+                                <td t-att-colspan="6 + (1 if _po_has_multi_currency else 0)"
+                                    style="padding:0; height:0; border-top:2px solid #1a3a5c !important; background:#eef1f7;"/>
+                            </tr>
+
+                            <!-- ① Untaxed Amount — show always -->
                             <tr>
                                 <td t-att-colspan="5 + (1 if _po_has_multi_currency else 0)"
-                                    style="text-align:right; padding:7px 8px;">
-                                    Total Amount (<t t-esc="o.currency_id.name or 'PKR'"/>)
+                                    style="text-align:right; padding:6px 8px; background:#eef1f7; border:1px solid #cccccc !important;">
+                                    Untaxed Amount (<t t-esc="o.currency_id.name or 'PKR'"/>)
                                 </td>
-                                <td style="text-align:right; padding:7px 8px; font-weight:bold;">
-                                    <t t-esc="'{:,.2f}'.format(po_grand_total)"/>
+                                <td style="text-align:right; padding:6px 8px; font-weight:bold; background:#eef1f7; border:1px solid #cccccc !important;">
+                                    <t t-esc="'{:,.2f}'.format(o.amount_untaxed)"/>
                                 </td>
                             </tr>
-                        </tfoot>
+
+                            <!-- ② Tax groups — show only when tax is present -->
+                            <t t-if="o.amount_tax">
+                                <t t-if="o.tax_totals and o.tax_totals.get('subtotals')">
+                                    <t t-foreach="o.tax_totals['subtotals']" t-as="subtotal">
+                                        <t t-foreach="subtotal.get('tax_groups', [])" t-as="tg">
+                                            <tr>
+                                                <td t-att-colspan="5 + (1 if _po_has_multi_currency else 0)"
+                                                    style="text-align:right; padding:5px 8px; background:#eef1f7; border:1px solid #cccccc !important;">
+                                                    <t t-esc="tg.get('group_name', 'Tax')"/>
+                                                </td>
+                                                <td style="text-align:right; padding:5px 8px; background:#eef1f7; border:1px solid #cccccc !important;">
+                                                    <t t-esc="'{:,.2f}'.format(tg.get('tax_amount_currency', 0.0))"/>
+                                                </td>
+                                            </tr>
+                                        </t>
+                                    </t>
+                                </t>
+                                <t t-else="">
+                                    <!-- Fallback: no subtotal groups — show single Tax row -->
+                                    <tr>
+                                        <td t-att-colspan="5 + (1 if _po_has_multi_currency else 0)"
+                                            style="text-align:right; padding:5px 8px; background:#eef1f7; border:1px solid #cccccc !important;">
+                                            Tax
+                                        </td>
+                                        <td style="text-align:right; padding:5px 8px; background:#eef1f7; border:1px solid #cccccc !important;">
+                                            <t t-esc="'{:,.2f}'.format(o.amount_tax)"/>
+                                        </td>
+                                    </tr>
+                                </t>
+                            </t>
+
+                            <!-- ③ Grand Total — always last -->
+                            <tr>
+                                <td t-att-colspan="5 + (1 if _po_has_multi_currency else 0)"
+                                    style="text-align:right; padding:7px 8px; font-weight:bold; font-size:13px; background:#d4daf0; border:1px solid #1a3a5c !important;">
+                                    Total Amount (<t t-esc="o.currency_id.name or 'PKR'"/>)
+                                </td>
+                                <td style="text-align:right; padding:7px 8px; font-weight:bold; font-size:13px; background:#d4daf0; border:1px solid #1a3a5c !important;">
+                                    <t t-esc="'{:,.2f}'.format(o.amount_total)"/>
+                                </td>
+                            </tr>
+                        </tbody>
                     </table>
 
                     <!-- Terms &amp; Conditions (always rendered) -->
