@@ -1,12 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <!--
-        Accounts below are linked to existing records by the pre-migrate
-        script (see migrations/19.0.2.1.0/pre-migrate.py) BEFORE this file
-        loads, so these <record> tags perform a safe UPDATE, never a
-        colliding CREATE — avoids duplicate-code crashes on databases
-        restored from production (e.g. after a CoA reformat).
+        _link_site_ops_accounts() runs BEFORE the <record> entries below.
+        It maps each XML ID to the existing account (by code) so Odoo performs
+        a safe UPDATE instead of a colliding CREATE.  This is idempotent and
+        fires on every upgrade regardless of which module version the DB is at
+        (covers the case where pre-migrate.py was skipped because the DB was
+        already at the target version, e.g. a staging clone from a dev snapshot).
     -->
+    <function model="account.account" name="_link_site_ops_accounts"/>
 
     <record id="account_wht_payable" model="account.account">
         <field name="code">252100</field>

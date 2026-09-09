@@ -42,32 +42,54 @@ def _get_or_create_interproject_journal(env):
 
 
 def _get_or_create_interproject_account(env, account_type):
-    """Inter-project accounts: asset_receivable (13100) / liability_payable (21100)."""
+    """Inter-project accounts: asset_receivable (13100) / liability_payable (21100).
+
+    Search order:
+      1. By code — fastest, unique, survives chart-of-account renames.
+      2. By name (ilike) — fallback for installs where the code was manually changed.
+      3. Create — only when neither lookup succeeds.
+
+    Using code as the primary key avoids a ValidationError on production databases
+    that already have an account with the same code but a different name: a
+    name-only lookup would find nothing → try to create → Odoo 19's
+    _ensure_code_is_unique detects the existing record → raises "Account codes must
+    be unique: XXXXX".
+    """
     Account = env['account.account'].sudo()
     if account_type == 'receivable':
-        account = Account.search(
-            [('name', 'ilike', 'Inter-Project Receivable')], limit=1)
-        if not account:
-            account = Account.create({
-                'name': 'Inter-Project Receivables',
-                'code': '13100',
-                'account_type': 'asset_receivable',
-                'reconcile': True,
-            })
-        elif account.account_type != 'asset_receivable':
-            account.write({'account_type': 'asset_receivable', 'reconcile': True})
+        code, name, acct_type = '13100', 'Inter-Project Receivables', 'asset_receivable'
     else:
-        account = Account.search(
-            [('name', 'ilike', 'Inter-Project Payable')], limit=1)
+        code, name, acct_type = '21100', 'Inter-Project Payables', 'liability_payable'
+
+    # 1. Look up by code (authoritative — code is unique per company in Odoo 19).
+    account = Account.search([('code', '=', code)], limit=1)
+
+    # 2. Fallback: name search for installs where the code may differ.
+    if not account:
+        account = Account.search([('name', 'ilike', name[:20])], limit=1)
+
+    if account:
+        # Ensure correct account_type and reconcile flag regardless of how we found it.
+        if account.account_type != acct_type or not account.reconcile:
+            account.write({'account_type': acct_type, 'reconcile': True})
+        return account
+
+    # 3. Create the account — it doesn't exist yet.
+    from odoo.exceptions import ValidationError as OdooValidationError
+    try:
+        account = Account.create({
+            'name': name,
+            'code': code,
+            'account_type': acct_type,
+            'reconcile': True,
+        })
+    except OdooValidationError:
+        # Another concurrent call in the same batch may have just created this
+        # account.  Invalidate caches and retry the code lookup.
+        Account.invalidate_model(['code', 'code_store'])
+        account = Account.search([('code', '=', code)], limit=1)
         if not account:
-            account = Account.create({
-                'name': 'Inter-Project Payables',
-                'code': '21100',
-                'account_type': 'liability_payable',
-                'reconcile': True,
-            })
-        elif account.account_type != 'liability_payable':
-            account.write({'account_type': 'liability_payable', 'reconcile': True})
+            raise
     return account
 
 

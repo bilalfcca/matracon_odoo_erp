@@ -184,6 +184,52 @@ class AccountAccountSiteOps(models.Model):
             domain = [('x_allow_posting', '!=', False)] + domain
         return super().name_search(name=name, domain=domain, operator=operator, limit=limit)
 
+    @api.model
+    def _link_site_ops_accounts(self):
+        """Pre-link known XML IDs to existing accounts by code.
+
+        Called from account_configuration_data.xml via <function> BEFORE the
+        <record> entries that update those accounts.  Running here (in document
+        order) means the XML ID → res_id mapping is always in place when Odoo
+        processes the subsequent records — so it performs a safe UPDATE instead
+        of a colliding CREATE.
+
+        Idempotent: safe to call on every upgrade regardless of module version.
+        Works even when the pre-migrate.py script was skipped because the DB
+        was already at the target version (e.g. staging restored from a dev
+        snapshot).
+        """
+        accounts_to_link = [
+            ('account_wht_payable', '252100'),
+            ('account_retention_payable', '211200'),
+        ]
+        IrModelData = self.env['ir.model.data'].sudo()
+        company_root_id = str(self.env.company.root_id.id)
+
+        for xml_id, code in accounts_to_link:
+            self.env.cr.execute(
+                "SELECT id FROM account_account WHERE code_store->>%s = %s LIMIT 1",
+                (company_root_id, code),
+            )
+            row = self.env.cr.fetchone()
+            if not row:
+                continue
+            account_id = row[0]
+
+            # Remove any stale mapping (wrong res_id or leftover from a prior run)
+            IrModelData.search([
+                ('module', '=', 'site_operations'),
+                ('name', '=', xml_id),
+            ]).unlink()
+            # Write the correct mapping
+            IrModelData.create({
+                'name': xml_id,
+                'module': 'site_operations',
+                'model': 'account.account',
+                'res_id': account_id,
+                'noupdate': False,
+            })
+
     @api.model_create_multi
     def create(self, vals_list):
         records = super().create(vals_list)
