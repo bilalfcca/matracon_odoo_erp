@@ -165,6 +165,7 @@ class AccountAccountSiteOps(models.Model):
             },
         }
 
+    @api.model
     def name_search(self, name='', domain=None, operator='ilike', limit=100):
         """Exclude non-posting (header/view) accounts from all Many2one pickers.
 
