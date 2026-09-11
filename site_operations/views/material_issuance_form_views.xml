@@ -233,7 +233,7 @@
                 <!-- hidden flag used by contact domain below -->
                 <field name="x_is_site_store" invisible="1"/>
 
-                <!-- ─ Contact — hidden for site-to-site ─ -->
+                <!-- ─ Contact — hidden for site-to-site and vehicle issues ─ -->
                 <!-- Employee mode: contacts must already exist in HR — no create allowed.
                      Context employee_contact_search=True activates:
                        • _name_search  → also matches department, phone, email
@@ -261,9 +261,15 @@
                        context="{'third_party_create': True}"
                        invisible="x_issue_type != '3rd_party' or x_transfer_purpose != 'material_issuance'"/>
 
-                <!-- ─ Outstanding materials HTML summary ─ -->
+                <!-- ─ Vehicle mode: fuel / diesel issued to vehicle not a person ─ -->
+                <field name="x_fleet_vehicle_id"
+                       string="Vehicle"
+                       options="{'no_create': True}"
+                       invisible="x_issue_type != 'vehicle' or x_transfer_purpose != 'material_issuance'"/>
+
+                <!-- ─ Outstanding materials HTML summary (contact only, not vehicle) ─ -->
                 <div name="outstanding_materials_section"
-                     invisible="not x_contact_id or x_transfer_purpose not in ['material_issuance']"
+                     invisible="not x_contact_id or x_issue_type == 'vehicle' or x_transfer_purpose not in ['material_issuance']"
                      style="margin: 8px 0;">
                     <div class="o_form_label" style="font-weight:bold;">Outstanding Materials for this Contact:</div>
                     <field name="x_outstanding_materials_html" widget="html" readonly="1"/>
