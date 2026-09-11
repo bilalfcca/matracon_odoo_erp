@@ -1,5 +1,9 @@
+import logging
+
 from odoo import models, _
 from odoo.exceptions import UserError
+
+_logger = logging.getLogger(__name__)
 
 # ── Account type display labels ─────────────────────────────────────────────
 _ACCOUNT_TYPE_LABELS = {
@@ -66,12 +70,10 @@ class PartnerLedgerReportHandler(models.AbstractModel):
         crash the entire report.  Pre-populate missing labels with None so the
         standard handler outputs an empty cell instead.
         """
-        import logging
-        _log = logging.getLogger(__name__)
         for col in options.get('columns', []):
             label = col['expression_label']
             if label not in aml_query_result:
-                _log.warning(
+                _logger.warning(
                     'Partner Ledger: column %r not in query result — rendering empty. '
                     'Remove this column from the report definition.',
                     label,
