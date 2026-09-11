@@ -671,21 +671,25 @@ class AccountPaymentSiteOps(models.Model):
                     elif is_fo:
                         vals['x_ceo_approval_state'] = 'pending'
                 elif category == 'vendor':
-                    # Vendor payments require EXPLICIT CEO approval in all cases
-                    # except:
-                    #   • CEO direct payment flag → self-authorised by CEO
-                    #   • WHT companion (x_origin_payment_id) → auto-created during posting
-                    #   • Liability sheet already carries CEO approval at sheet level
-                    # NOTE: CEO and Admin creating normal vendor payments must also
-                    # click "Approve (CEO)" explicitly — prevents "CEO Approved" badge
-                    # from appearing before actual approval action is taken.
-                    is_ceo_direct = bool(vals.get('x_ceo_direct_payment'))
-                    has_liability_sheet = bool(vals.get('x_liability_sheet_id'))
-                    is_wht_companion = bool(vals.get('x_origin_payment_id'))
-                    if is_ceo_direct or is_wht_companion:
-                        vals['x_ceo_approval_state'] = 'approved'
-                    elif not has_liability_sheet:
-                        vals['x_ceo_approval_state'] = 'pending'
+                    # Inbound receipts (customer payments) never need CEO approval.
+                    if vals.get('payment_type') == 'inbound':
+                        vals['x_ceo_approval_state'] = 'not_required'
+                    else:
+                        # Vendor payments require EXPLICIT CEO approval in all cases
+                        # except:
+                        #   • CEO direct payment flag → self-authorised by CEO
+                        #   • WHT companion (x_origin_payment_id) → auto-created during posting
+                        #   • Liability sheet already carries CEO approval at sheet level
+                        # NOTE: CEO and Admin creating normal vendor payments must also
+                        # click "Approve (CEO)" explicitly — prevents "CEO Approved" badge
+                        # from appearing before actual approval action is taken.
+                        is_ceo_direct = bool(vals.get('x_ceo_direct_payment'))
+                        has_liability_sheet = bool(vals.get('x_liability_sheet_id'))
+                        is_wht_companion = bool(vals.get('x_origin_payment_id'))
+                        if is_ceo_direct or is_wht_companion:
+                            vals['x_ceo_approval_state'] = 'approved'
+                        elif not has_liability_sheet:
+                            vals['x_ceo_approval_state'] = 'pending'
         payments = super().create(vals_list)
         payments._matracon_fix_salary_ceo_state()
         payments._matracon_notify_ceo_on_payment_create()
@@ -1245,8 +1249,11 @@ class AccountPaymentSiteOps(models.Model):
                         'Payment "%s" has not been approved by the CEO. '
                         'The CEO must click "Approve (CEO)" before Finance HO can proceed.'
                     ) % (payment.name or _('Draft')))
-            elif payment.x_ceo_approval_state in ('pending', 'submitted'):
-                # Catch remaining pending/submitted payments (salary/petty-cash without a sheet link).
+            elif (payment.payment_type == 'outbound'
+                    and payment.x_ceo_approval_state in ('pending', 'submitted')):
+                # Catch remaining pending/submitted outbound payments
+                # (salary/petty-cash without a sheet link).
+                # Inbound receipts are explicitly excluded — no CEO approval needed.
                 raise UserError(_(
                     'CEO approval is required before posting this payment.\n\n'
                     'Payment "%s" is awaiting CEO approval. '
