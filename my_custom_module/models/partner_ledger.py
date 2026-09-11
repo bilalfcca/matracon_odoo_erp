@@ -1,5 +1,9 @@
+import logging
+
 from odoo import models, _
 from odoo.exceptions import UserError
+
+_logger = logging.getLogger(__name__)
 
 # ── Account type display labels ─────────────────────────────────────────────
 _ACCOUNT_TYPE_LABELS = {
@@ -56,6 +60,29 @@ class PartnerLedgerReportHandler(models.AbstractModel):
             col for col in options['columns']
             if col['expression_label'] not in ('date_maturity', 'matching_number')
         ]
+
+    def _get_report_line_move_line(self, options, aml_query_result, partner_line_id, init_bal_by_col_group, level_shift=0):
+        """Gracefully handle columns whose expression_label is not in the SQL result.
+
+        The standard handler raises UserError for any column label not present in
+        the aml_query_result dict.  Orphaned report columns (e.g. added via the
+        UI and never backed by a SQL expression — like 'ipc_mob_amount') would
+        crash the entire report.  Pre-populate missing labels with None so the
+        standard handler outputs an empty cell instead.
+        """
+        for col in options.get('columns', []):
+            label = col['expression_label']
+            if label not in aml_query_result:
+                _logger.warning(
+                    'Partner Ledger: column %r not in query result — rendering empty. '
+                    'Remove this column from the report definition.',
+                    label,
+                )
+                aml_query_result[label] = None
+        return super()._get_report_line_move_line(
+            options, aml_query_result, partner_line_id,
+            init_bal_by_col_group, level_shift=level_shift,
+        )
 
     # ── Tax amount helpers ────────────────────────────────────────────────────
 
