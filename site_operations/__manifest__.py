@@ -1,6 +1,6 @@
 { 
     'name': 'Site Operations',
-            'version': '19.0.2.1.1',
+            'version': '19.0.2.1.2',
     'summary': 'Material Issuance, Finance HO, Compliance (BG & Tax Notices), Attendance & Petty Cash',
     'author': 'Matracon Pakistan',
     'depends': [
@@ -16,6 +16,7 @@
         'contacts',
         'hr',
         'hr_attendance',
+        'fleet',
     ],
     'data': [
         'security/app_visibility_groups.xml',
