@@ -1,24 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <!-- ═══════════════════════════════════════════════════════════════════════
-         Weekly Draft Cleanup — every Sunday at 00:00 server time
+         Daily Draft Cleanup — every night at 00:00 server time
          Deletes accounting-related draft records created more than 7 days ago.
+         Running daily (not weekly) guarantees every record survives at least
+         7 full days from its creation date — no record is deleted earlier than
+         its 7-day birthday regardless of which day of the week it was created.
          Excluded: purchase requisitions, purchase orders, liability sheets,
                    comparative statements, stock pickings, and any payment
                    already submitted to the CEO for approval.
     ═══════════════════════════════════════════════════════════════════════════ -->
     <record id="cron_draft_cleanup" model="ir.cron">
-        <field name="name">Accounting: Delete Stale Draft Records (Weekly Sunday)</field>
+        <field name="name">Accounting: Delete Stale Draft Records (Daily)</field>
         <field name="model_id" ref="model_x_draft_cleanup"/>
         <field name="state">code</field>
         <field name="code">model.action_cleanup_drafts()</field>
         <field name="interval_number">1</field>
-        <field name="interval_type">weeks</field>
+        <field name="interval_type">days</field>
         <field name="active" eval="True"/>
-        <!-- Run at midnight this coming Sunday (weekday 6) -->
+        <!-- Run at midnight tomorrow (first fire), then every 24 h -->
         <field name="nextcall" eval="
-            (lambda d: d + timedelta(days=(6 - d.weekday()) % 7))(
-                DateTime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+            (DateTime.now() + timedelta(days=1)).replace(
+                hour=0, minute=0, second=0, microsecond=0
             ).strftime('%Y-%m-%d %H:%M:%S')
         "/>
         <field name="priority">10</field>

@@ -1,5 +1,12 @@
-"""Weekly Draft Cleanup — deletes accounting-related draft records
+"""Daily Draft Cleanup — deletes accounting-related draft records
 older than 7 days.
+
+Running daily ensures every record survives at least 7 full days from its
+creation date.  A weekly Sunday cron would delete records on Sunday regardless
+of which day they were created — a record created on Monday would be checked
+the following Sunday (6-13 days later) and a record created the same Sunday
+could be only hours old at midnight.  Daily cadence removes that uncertainty:
+each record is deleted within 24 h of its 7-day birthday.
 
 Excluded by design:
   • purchase.requisition / purchase.order  — procurement workflow
@@ -9,7 +16,7 @@ Excluded by design:
   • account.payment where x_ceo_approval_state = 'submitted'
                                            — already sent to CEO; keep it
 
-Runs every Sunday at midnight via ir.cron defined in
+Runs every night at 00:00 via ir.cron defined in
 data/draft_cleanup_cron.xml.
 """
 
@@ -25,7 +32,7 @@ _DRAFT_AGE_DAYS = 7
 
 class DraftCleanup(models.AbstractModel):
     _name = 'x.draft.cleanup'
-    _description = 'Accounting Draft Cleanup (weekly Sunday cron)'
+    _description = 'Accounting Draft Cleanup (daily cron)'
 
     # ─────────────────────────────────────────────────────────────────────────
     # CRON ENTRY POINT
@@ -35,9 +42,10 @@ class DraftCleanup(models.AbstractModel):
     def action_cleanup_drafts(self):
         """Delete accounting-related draft records older than 7 days.
 
-        Called by the weekly Sunday ir.cron at 00:00.  Each model is
-        processed independently so a failure on one model does not abort
-        the rest.
+        Called by the daily ir.cron at 00:00.  Running daily guarantees
+        every record survives at least 7 full days from creation.  Each
+        model is processed independently so a failure on one model does
+        not abort the rest.
         """
         cutoff = fields.Datetime.now() - timedelta(days=_DRAFT_AGE_DAYS)
         results = {}
