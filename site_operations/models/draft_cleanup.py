@@ -1,5 +1,5 @@
-"""Midnight Draft Cleanup — deletes all accounting-related draft records
-created before today.
+"""Weekly Draft Cleanup — deletes accounting-related draft records
+older than 7 days.
 
 Excluded by design:
   • purchase.requisition / purchase.order  — procurement workflow
@@ -9,18 +9,23 @@ Excluded by design:
   • account.payment where x_ceo_approval_state = 'submitted'
                                            — already sent to CEO; keep it
 
-Runs daily at midnight via ir.cron defined in data/draft_cleanup_cron.xml.
+Runs every Sunday at midnight via ir.cron defined in
+data/draft_cleanup_cron.xml.
 """
 
 import logging
+from datetime import timedelta
 from odoo import models, api, fields
 
 _logger = logging.getLogger(__name__)
 
+# Records must be at least this many days old before they are deleted.
+_DRAFT_AGE_DAYS = 7
+
 
 class DraftCleanup(models.AbstractModel):
     _name = 'x.draft.cleanup'
-    _description = 'Accounting Draft Cleanup (midnight cron)'
+    _description = 'Accounting Draft Cleanup (weekly Sunday cron)'
 
     # ─────────────────────────────────────────────────────────────────────────
     # CRON ENTRY POINT
@@ -28,18 +33,19 @@ class DraftCleanup(models.AbstractModel):
 
     @api.model
     def action_cleanup_drafts(self):
-        """Delete all accounting-related draft records created before today.
+        """Delete accounting-related draft records older than 7 days.
 
-        Called by the nightly ir.cron at 00:00.  Each model is processed
-        independently so a failure on one model does not abort the rest.
+        Called by the weekly Sunday ir.cron at 00:00.  Each model is
+        processed independently so a failure on one model does not abort
+        the rest.
         """
-        today = fields.Date.today()          # date object — ORM coerces to midnight
+        cutoff = fields.Datetime.now() - timedelta(days=_DRAFT_AGE_DAYS)
         results = {}
 
         # ── helpers ────────────────────────────────────────────────────────
 
         def _delete(model, domain_extra=None):
-            """Search draft records older than today and unlink them.
+            """Search draft records older than the cutoff and unlink them.
 
             Returns the count of records deleted.  If the model is not
             registered in the current database (e.g. Studio models absent
@@ -52,7 +58,7 @@ class DraftCleanup(models.AbstractModel):
                 return 0
             domain = [
                 ('state', '=', 'draft'),
-                ('create_date', '<', today),
+                ('create_date', '<', cutoff),
             ]
             if domain_extra:
                 domain += domain_extra
@@ -110,7 +116,10 @@ class DraftCleanup(models.AbstractModel):
             if count
         )
         _logger.info(
-            'Draft cleanup complete — %d records deleted. Breakdown: %s',
+            'Draft cleanup complete (cutoff: %s, age >= %d days) — '
+            '%d records deleted. Breakdown: %s',
+            cutoff.strftime('%Y-%m-%d %H:%M'),
+            _DRAFT_AGE_DAYS,
             total,
             detail or 'nothing to delete',
         )

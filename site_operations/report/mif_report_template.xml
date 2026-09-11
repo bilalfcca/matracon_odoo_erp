@@ -88,11 +88,23 @@
                             </div>
                         </div>
 
-                        <!-- ── Contact / Subcontractor ── -->
-                        <div class="row mb-3" t-if="picking.x_contact_id">
+                        <!-- ── Contact / Subcontractor / Vehicle ── -->
+                        <div class="row mb-3" t-if="picking.x_contact_id or picking.x_fleet_vehicle_id">
                             <div class="col-12">
                                 <table class="table table-borderless table-sm" style="font-size:13px; border-top:1px solid #dee2e6; border-bottom:1px solid #dee2e6;">
-                                    <tr>
+                                    <!-- Vehicle issuance -->
+                                    <tr t-if="picking.x_issue_type == 'vehicle' and picking.x_fleet_vehicle_id">
+                                        <td style="font-weight:bold; width:180px;">Vehicle (MPPL Code):</td>
+                                        <td>
+                                            <t t-if="picking.x_fleet_vehicle_id.x_mppl_code">
+                                                <strong><t t-esc="picking.x_fleet_vehicle_id.x_mppl_code"/></strong>
+                                                —
+                                            </t>
+                                            <t t-esc="picking.x_fleet_vehicle_id.name"/>
+                                        </td>
+                                    </tr>
+                                    <!-- Contact issuance (employee / subcontractor / 3rd party) -->
+                                    <tr t-if="picking.x_issue_type != 'vehicle' and picking.x_contact_id">
                                         <td style="font-weight:bold; width:180px;">
                                             <t t-if="picking.x_issue_type == 'subcontractor'">Subcontractor:</t>
                                             <t t-else="">Received By (Employee):</t>

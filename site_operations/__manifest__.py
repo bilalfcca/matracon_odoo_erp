@@ -128,6 +128,8 @@
             # Lock analytic filter to site accountant's own project
             'site_operations/static/src/js/account_report_analytic_lock.js',
             'site_operations/static/src/xml/account_report_analytic_lock.xml',
+            # "All Dates" option in every accounting-report date filter
+            'site_operations/static/src/xml/account_report_all_dates.xml',
         ],
     },
     'demo': [
