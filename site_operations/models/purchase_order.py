@@ -51,6 +51,16 @@ class PurchaseOrderSiteOps(models.Model):
             'context': {'default_move_type': 'in_invoice', 'default_x_purchase_order_id': self.id},
         }
 
+    def _add_supplier_to_product(self):
+        """Disable automatic vendor-pricelist recording on PO confirmation.
+
+        Standard Odoo writes a product.supplierinfo entry for every new vendor
+        encountered on a confirmed PO (Inventory → product Purchasing tab →
+        "Last Purchase Vendors").  Matracon does not want this history created
+        at all, so we override the method with a no-op.
+        """
+        return
+
     def action_view_liability_sheets(self):
         self.ensure_one()
         self.env['x.liability.sheet'].check_access_rights('read')
