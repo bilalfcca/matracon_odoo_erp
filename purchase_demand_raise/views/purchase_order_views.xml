@@ -370,16 +370,28 @@
 
             <!-- ── 6. LINE ITEMS — custom columns ── -->
 
-            <!-- Lock entire order_line list when PR is rejected/cancelled/dispatched -->
+            <!-- Lock entire order_line list when PR is rejected/cancelled/dispatched/CEO-approved -->
             <xpath expr="//field[@name='order_line']" position="attributes">
-                <attribute name="readonly">state == 'cancel' or locked or (x_is_pr_document and x_pr_state in ('rejected', 'cancelled'))</attribute>
+                <attribute name="readonly">state == 'cancel' or locked or (x_is_pr_document and x_pr_state in ('rejected', 'cancelled', 'po_locked'))</attribute>
             </xpath>
 
             <!-- Role flags on lines (for readonly/invisible within lines) -->
+            <!-- Sr. # is last in this block so it renders as first VISIBLE column -->
             <field name="product_id" position="before">
                 <field name="x_is_site_store" column_invisible="1"/>
                 <field name="x_is_ho" column_invisible="1"/>
                 <field name="x_is_ceo" column_invisible="1"/>
+                <field name="x_line_number"
+                       string="Sr. #"
+                       readonly="1"/>
+            </field>
+
+            <!-- Internal Reference: optional column (hidden by default; user toggles via ⊞ selector) -->
+            <field name="product_id" position="after">
+                <field name="x_default_code"
+                       string="Internal Ref."
+                       optional="hide"
+                       readonly="1"/>
             </field>
 
             <!-- Standard Qty (product_qty):
@@ -487,6 +499,13 @@
             <field name="currency_id" position="attributes">
                 <attribute name="groups">!purchase_demand_raise.group_site_store</attribute>
             </field>
+
+            <!-- ── 11. OTHER INFORMATION TAB: Print Product Reference checkbox ── -->
+            <xpath expr="//page[@name='purchase_delivery_invoice']//group[@name='other_info']" position="inside">
+                <field name="x_show_product_ref"
+                       string="Print Product Reference"
+                       help="When ticked, a separate 'Ref.' column with the product's Internal Reference appears in the printed PDF."/>
+            </xpath>
 
         </field>
     </record>

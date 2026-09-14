@@ -244,64 +244,75 @@
                                    options="{'currency_field': 'currency_id'}"
                                    force_save="1"/>
                         </group>
-                        <group string="Expense Details">
-                            <!-- Reference: auto-filled from source (e.g. Site Procurement — MCH|N00003) -->
+                        <group string="Voucher">
+                            <!-- Reference: auto-filled from source doc or entered manually -->
                             <field name="x_ref"
                                    string="Reference"
-                                   placeholder="e.g. Site Procurement — MCH|N00003"
+                                   placeholder="e.g. MCH|N00003"
                                    readonly="state == 'posted'"/>
                             <field name="expense_date" readonly="state == 'posted'"/>
-                            <!-- Description: what the expense is for (user enters this) -->
-                            <field name="name" string="Description"
-                                   placeholder="What is this expense for?"
+                            <field name="name" string="Voucher Title"
+                                   placeholder="e.g. July fuel + worker advances"
                                    readonly="state == 'posted'"/>
-                            <field name="amount" readonly="state == 'posted'"/>
-                            <field name="category" readonly="state == 'posted'"/>
+                            <field name="category" readonly="state == 'posted'"
+                                   help="Used as fallback expense account when a line has no account set."/>
                             <field name="currency_id" invisible="1"/>
-                            <field name="is_employee_advance" readonly="state == 'posted'"/>
-                            <field name="employee_id"
-                                   readonly="state == 'posted'"
-                                   invisible="not is_employee_advance"
-                                   required="is_employee_advance"/>
-                            <field name="employee_advance_balance"
-                                   readonly="1"
-                                   invisible="not is_employee_advance"
-                                   string="Current Outstanding Balance"/>
-                            <field name="is_subcontractor_advance" readonly="state == 'posted'"/>
-                            <field name="advance_subcontractor_id"
-                                   readonly="state == 'posted'"
-                                   invisible="not is_subcontractor_advance"
-                                   required="is_subcontractor_advance"
-                                   options="{'no_quick_create': True}"
-                                   context="{'subcontractor_create': True}"/>
-                            <!-- advance_payable_account_id removed: now use Expense Account (Debit) below -->
+                            <!-- journal_id is used internally only; not shown to users -->
+                            <field name="journal_id" invisible="1"/>
                         </group>
                     </group>
 
-                    <group string="Accounting">
-                        <group string="Credit (Cash Out)">
-                            <!-- Always readonly for ALL users — the credit account is determined
-                                 by the site configuration and must never be changed manually.
-                                 force_save="1" ensures the value reaches the DB even though the
-                                 field is readonly (Odoo normally skips readonly fields on save). -->
+                    <!-- ── Expense Lines ────────────────────────────────────── -->
+                    <field name="line_ids" readonly="state == 'posted'">
+                        <list editable="bottom" optional="show">
+                            <field name="sequence" widget="handle"/>
+                            <field name="name" string="Description"
+                                   placeholder="What is this for?"/>
+                            <field name="amount" string="Amount"
+                                   widget="monetary"
+                                   options="{'currency_field': 'currency_id'}"/>
+                            <field name="expense_account_id"
+                                   string="Account (Debit)"
+                                   options="{'no_create': True}"
+                                   domain="is_subcontractor_advance and [('account_type', '=', 'liability_payable')] or (parent.project_analytic_account_id and [('x_ho_only', '=', False), '|', ('x_site_ids', '=', False), ('x_site_ids', 'in', [parent.project_analytic_account_id])] or [])"
+                                   placeholder="Leave blank for category default"/>
+                            <field name="is_employee_advance" string="Emp. Adv."/>
+                            <!-- Employee column: always visible; cell hidden when flag is off -->
+                            <field name="employee_id"
+                                   string="Employee"
+                                   invisible="not is_employee_advance"
+                                   required="is_employee_advance"/>
+                            <field name="is_subcontractor_advance" string="SC Adv."/>
+                            <!-- Subcontractor column: always visible; cell hidden when flag is off -->
+                            <field name="advance_subcontractor_id"
+                                   string="Subcontractor"
+                                   invisible="not is_subcontractor_advance"
+                                   required="is_subcontractor_advance"
+                                   options="{'no_quick_create': True}"/>
+                            <field name="currency_id" column_invisible="True"/>
+                            <field name="project_analytic_account_id" column_invisible="True"/>
+                        </list>
+                    </field>
+
+                    <!-- Total (read-only computed from lines) -->
+                    <group>
+                        <group/>
+                        <group>
+                            <field name="amount" readonly="1" string="Total Amount"
+                                   widget="monetary"
+                                   options="{'currency_field': 'currency_id'}"/>
+                        </group>
+                    </group>
+
+                    <!-- ── Credit account ──────────────────────────────────── -->
+                    <group string="Credit (Cash Out)">
+                        <group>
                             <field name="x_petty_cash_account_id"
                                    string="Petty Cash Account (Credit)"
                                    readonly="1"
                                    force_save="1"
                                    options="{'no_create': True}"
                                    help="Cash in Hand account — auto-configured from the site project. Always readonly."/>
-                            <!-- journal_id is used internally only; not shown to users -->
-                            <field name="journal_id" invisible="1"/>
-                        </group>
-                        <group string="Debit (Expense)">
-                            <!-- When is_subcontractor_advance: domain opens to all liability_payable
-                                 accounts. Auto-filled from the subcontractor's payable account.
-                                 Otherwise: standard site-scoped expense-account filter. -->
-                            <field name="expense_account_id" readonly="state == 'posted'"
-                                   string="Expense Account (Debit)"
-                                   options="{'no_create': True}"
-                                   domain="is_subcontractor_advance and [('account_type', '=', 'liability_payable')] or (project_analytic_account_id and [('x_ho_only', '=', False), '|', ('x_site_ids', '=', False), ('x_site_ids', 'in', [project_analytic_account_id])] or [])"
-                                   help="For subcontractor advances: auto-filled from the subcontractor's payable account; can be changed manually. For regular expenses: the GL account to debit; leave blank to use the category default."/>
                         </group>
                     </group>
 

@@ -110,6 +110,7 @@
         'report/interproject_transfer_report.xml',
         'report/journal_entry_report.xml',
         'report/journal_entry_template.xml',
+        'views/uom_change_wizard_views.xml',
     ],
         'pre_init_hook': 'pre_init_hook',
     'post_init_hook': 'post_init_hook',

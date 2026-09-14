@@ -21,6 +21,7 @@ access_payment_bank_allocation_finance_ho,payment.bank.allocation.finance.ho,mod
 access_payment_bank_allocation_head_office,payment.bank.allocation.head_office,model_x_payment_bank_allocation,purchase_demand_raise.group_head_office,1,1,1,1
 access_payment_bank_allocation_site_accountant,payment.bank.allocation.site.accountant,model_x_payment_bank_allocation,site_operations.group_site_accountant,1,0,0,0
 access_payment_bank_allocation_matracon_admin,payment.bank.allocation.matracon.admin,model_x_payment_bank_allocation,purchase_demand_raise.group_matracon_admin,1,1,1,1
+access_payment_bank_allocation_ceo,payment.bank.allocation.ceo,model_x_payment_bank_allocation,purchase_demand_raise.group_ceo_approval,1,1,1,1
 access_payment_tax_line_finance_ho,payment.tax.line.finance.ho,model_x_payment_tax_line,site_operations.group_finance_ho,1,1,1,1
 access_payment_tax_line_head_office,payment.tax.line.head_office,model_x_payment_tax_line,purchase_demand_raise.group_head_office,1,1,1,1
 access_payment_tax_line_matracon_admin,payment.tax.line.matracon.admin,model_x_payment_tax_line,purchase_demand_raise.group_matracon_admin,1,1,1,1
@@ -28,6 +29,7 @@ access_attendance_sheet_site_accountant,attendance.sheet.site.accountant,model_x
 access_attendance_sheet_finance_ho,attendance.sheet.finance.ho,model_x_attendance_sheet,site_operations.group_finance_ho,1,1,1,1
 access_attendance_sheet_head_office,attendance.sheet.head_office,model_x_attendance_sheet,purchase_demand_raise.group_head_office,1,1,1,1
 access_attendance_sheet_matracon_admin,attendance.sheet.matracon.admin,model_x_attendance_sheet,purchase_demand_raise.group_matracon_admin,1,1,1,1
+access_attendance_sheet_ceo,attendance.sheet.ceo,model_x_attendance_sheet,purchase_demand_raise.group_ceo_approval,1,1,1,1
 access_attendance_line_site_accountant,attendance.line.site.accountant,model_x_attendance_line,site_operations.group_site_accountant,1,1,1,0
 access_attendance_line_finance_ho,attendance.line.finance.ho,model_x_attendance_line,site_operations.group_finance_ho,1,1,1,1
 access_salary_sheet_site_accountant,salary.sheet.site.accountant,model_x_salary_sheet,site_operations.group_site_accountant,1,1,1,1
@@ -197,6 +199,11 @@ access_petty_cash_request_matracon_admin,petty.cash.request.matracon.admin,model
 access_petty_cash_expense_ceo,petty.cash.expense.ceo,model_x_petty_cash_expense,purchase_demand_raise.group_ceo_approval,1,1,1,1
 access_petty_cash_expense_head_office,petty.cash.expense.head.office,model_x_petty_cash_expense,purchase_demand_raise.group_head_office,1,1,1,1
 access_petty_cash_expense_matracon_admin,petty.cash.expense.matracon.admin,model_x_petty_cash_expense,purchase_demand_raise.group_matracon_admin,1,1,1,1
+access_petty_cash_expense_line_site_accountant,petty.cash.expense.line.site.accountant,model_x_petty_cash_expense_line,site_operations.group_site_accountant,1,1,1,1
+access_petty_cash_expense_line_finance_ho,petty.cash.expense.line.finance.ho,model_x_petty_cash_expense_line,site_operations.group_finance_ho,1,1,1,1
+access_petty_cash_expense_line_ceo,petty.cash.expense.line.ceo,model_x_petty_cash_expense_line,purchase_demand_raise.group_ceo_approval,1,1,1,1
+access_petty_cash_expense_line_head_office,petty.cash.expense.line.head.office,model_x_petty_cash_expense_line,purchase_demand_raise.group_head_office,1,1,1,1
+access_petty_cash_expense_line_matracon_admin,petty.cash.expense.line.matracon.admin,model_x_petty_cash_expense_line,purchase_demand_raise.group_matracon_admin,1,1,1,1
 access_wht_certificate_site_accountant,wht.certificate.site.accountant,model_x_wht_certificate,site_operations.group_site_accountant,1,0,0,0
 access_postdated_cheque_site_accountant,postdated.cheque.site.accountant,model_x_postdated_cheque,site_operations.group_site_accountant,1,0,0,0
 access_material_cost_report_head_office,material.cost.report.head.office,model_x_material_cost_report,purchase_demand_raise.group_head_office,1,0,0,0
@@ -236,6 +243,7 @@ access_subcontractor_ho_advance_admin,subcontractor.ho.advance.admin,model_x_sub
 access_employee_presence_log_admin,employee.presence.log.admin,model_x_employee_presence_log,purchase_demand_raise.group_matracon_admin,1,0,0,0
 access_employee_presence_log_head_office,employee.presence.log.head.office,model_x_employee_presence_log,purchase_demand_raise.group_head_office,1,0,0,0
 access_employee_presence_log_fo,employee.presence.log.fo,model_x_employee_presence_log,site_operations.group_finance_ho,1,0,0,0
+access_employee_presence_log_ceo,employee.presence.log.ceo,model_x_employee_presence_log,purchase_demand_raise.group_ceo_approval,1,0,0,0
 access_stock_warehouse_site_store,stock.warehouse site store,stock.model_stock_warehouse,purchase_demand_raise.group_site_store,1,0,0,0
 access_stock_move_site_store_unlink,stock.move site store unlink,model_stock_move,purchase_demand_raise.group_site_store,0,0,0,1
 access_stock_move_procurement_unlink,stock.move procurement unlink,model_stock_move,purchase_demand_raise.group_procurement_ho,0,0,0,1
@@ -249,6 +257,7 @@ access_salary_sheet_import_site_accountant,salary.sheet.import.site.accountant,m
 access_salary_sheet_import_finance_ho,salary.sheet.import.finance.ho,model_x_salary_sheet_import,site_operations.group_finance_ho,1,1,1,1
 access_salary_sheet_import_head_office,salary.sheet.import.head.office,model_x_salary_sheet_import,purchase_demand_raise.group_head_office,1,1,1,1
 access_salary_sheet_import_admin,salary.sheet.import.admin,model_x_salary_sheet_import,purchase_demand_raise.group_matracon_admin,1,1,1,1
+access_salary_sheet_import_ceo,salary.sheet.import.ceo,model_x_salary_sheet_import,purchase_demand_raise.group_ceo_approval,1,1,1,1
 access_project_eot_fo,project.eot.fo,model_x_project_eot,site_operations.group_finance_ho,1,1,1,1
 access_project_eot_ceo,project.eot.ceo,model_x_project_eot,purchase_demand_raise.group_ceo_approval,1,1,1,1
 access_project_eot_admin,project.eot.admin,model_x_project_eot,purchase_demand_raise.group_matracon_admin,1,1,1,1
@@ -258,6 +267,8 @@ access_bg_facility_import_wizard_all,bg.facility.import.wizard.all,model_x_bg_fa
 access_bg_amendment_import_wizard_all,bg.amendment.import.wizard.all,model_x_bg_amendment_import_wizard,base.group_user,1,1,1,1
 access_petty_cash_admin_wizard_admin,petty.cash.admin.wizard.admin,model_x_petty_cash_admin_wizard,purchase_demand_raise.group_matracon_admin,1,1,1,1
 access_petty_cash_admin_wizard_system,petty.cash.admin.wizard.system,model_x_petty_cash_admin_wizard,base.group_system,1,1,1,1
+access_uom_change_wizard_admin,uom.change.wizard.admin,model_x_uom_change_wizard,purchase_demand_raise.group_matracon_admin,1,1,1,1
+access_uom_change_wizard_system,uom.change.wizard.system,model_x_uom_change_wizard,base.group_system,1,1,1,1
 access_stock_picking_site_accountant,stock.picking.sa,stock.model_stock_picking,site_operations.group_site_accountant,1,1,0,0
 access_stock_move_site_accountant,stock.move.sa,stock.model_stock_move,site_operations.group_site_accountant,1,1,1,0
 access_stock_move_line_site_accountant,stock.move.line.sa,stock.model_stock_move_line,site_operations.group_site_accountant,1,1,1,0
@@ -323,3 +334,5 @@ access_cheque_series_head_office,cheque.series.head.office,model_x_cheque_series
 access_je_project_allocation_finance_ho,je.project.allocation.finance.ho,model_x_je_project_allocation,site_operations.group_finance_ho,1,1,1,1
 access_je_project_allocation_admin,je.project.allocation.admin,model_x_je_project_allocation,purchase_demand_raise.group_matracon_admin,1,1,1,1
 access_je_project_allocation_head_office,je.project.allocation.head.office,model_x_je_project_allocation,purchase_demand_raise.group_head_office,1,0,0,0
+access_je_project_allocation_site_accountant,je.project.allocation.site.accountant,model_x_je_project_allocation,site_operations.group_site_accountant,1,0,0,0
+access_je_project_allocation_ceo,je.project.allocation.ceo,model_x_je_project_allocation,purchase_demand_raise.group_ceo_approval,1,1,1,1

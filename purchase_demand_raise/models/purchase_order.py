@@ -240,6 +240,13 @@ class PurchaseOrder(models.Model):
         help='Set when CEO approves directly from Submitted without HO review.',
     )
 
+    x_show_product_ref = fields.Boolean(
+        string='Print Product Reference',
+        default=False,
+        help='When ticked, a separate "Ref." column showing the product\'s '
+             'Internal Reference is printed on the Purchase Order PDF.',
+    )
+
     x_pr_origin = fields.Selection([
         ('site_store', 'Site Store'),
         ('procurement_ho', 'Procurement Officer'),
