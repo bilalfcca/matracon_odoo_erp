@@ -151,12 +151,13 @@ class ProjectSiteConfigProjectLink(models.Model):
 
         # Find the old hardcoded inter-project account IDs by code
         # (13100 = receivable side, 21100 = payable side)
-        cr.execute("""
-            SELECT id FROM account_account
-             WHERE code IN ('13100', '21100')
-               AND id != %s
-        """, (new_account_id,))
-        old_ids = [row[0] for row in cr.fetchall()]
+        # Use ORM search — in Odoo 19 account.code is stored as JSONB
+        # (code_store column) so raw SQL `WHERE code IN (...)` won't work.
+        old_accounts = self.env['account.account'].search([
+            ('code', 'in', ['13100', '21100']),
+            ('id', '!=', new_account_id),
+        ])
+        old_ids = old_accounts.ids
 
         if not old_ids:
             return {
