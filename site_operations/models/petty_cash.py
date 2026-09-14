@@ -844,6 +844,82 @@ class PettyCashRequest(models.Model):
         return self.fund_id._get_petty_cash_account()
 
 
+class PettyCashExpenseLine(models.Model):
+    """One debit line inside a petty cash expense voucher.
+
+    A single voucher can have many lines (one per payee / account).
+    The parent's ``amount`` field is kept in sync via create/write/unlink.
+    The JE created on posting has one debit entry per line and a single
+    consolidated credit entry to the Cash-in-Hand account.
+    """
+    _name = 'x.petty.cash.expense.line'
+    _description = 'Petty Cash Expense Line'
+    _order = 'sequence, id'
+
+    expense_id = fields.Many2one(
+        'x.petty.cash.expense', required=True, ondelete='cascade', index=True)
+    sequence = fields.Integer(default=10)
+
+    name = fields.Char(string='Description', required=True)
+    amount = fields.Monetary(required=True, currency_field='currency_id')
+    currency_id = fields.Many2one(
+        related='expense_id.currency_id', store=False, readonly=True)
+    project_analytic_account_id = fields.Many2one(
+        related='expense_id.project_analytic_account_id', store=False, readonly=True)
+
+    # ── Debit account ─────────────────────────────────────────────────────────
+    expense_account_id = fields.Many2one(
+        'account.account',
+        string='Account (Debit)',
+        options="{'no_create': True}",
+        help='GL account to debit. Leave blank to use the expense category default.',
+    )
+
+    # ── Employee Advance ──────────────────────────────────────────────────────
+    is_employee_advance = fields.Boolean(
+        string='Emp. Advance', default=False,
+        help='Tick to record this line as an advance to an employee.')
+    employee_id = fields.Many2one(
+        'hr.employee', string='Employee',
+        domain="[('x_project_analytic_account_id', '=', project_analytic_account_id)]",
+        help='Employee receiving this advance.')
+
+    # ── Subcontractor Advance ─────────────────────────────────────────────────
+    is_subcontractor_advance = fields.Boolean(
+        string='SC Advance', default=False,
+        help='Tick to record this line as an advance to a subcontractor.')
+    advance_subcontractor_id = fields.Many2one(
+        'res.partner', string='Subcontractor',
+        domain="[('category_id.name', '=', 'Subcontractor')]",
+        help='Subcontractor receiving this advance.')
+
+    # ── Sync parent total on every change ─────────────────────────────────────
+    def _sync_parent_amount(self):
+        """Recompute and store the parent expense's total from all its lines."""
+        expenses = self.mapped('expense_id').filtered(lambda e: e.id)
+        for exp in expenses:
+            exp.amount = sum(exp.line_ids.mapped('amount'))
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        lines = super().create(vals_list)
+        lines._sync_parent_amount()
+        return lines
+
+    def write(self, vals):
+        res = super().write(vals)
+        if 'amount' in vals or 'expense_id' in vals:
+            self._sync_parent_amount()
+        return res
+
+    def unlink(self):
+        expenses = self.mapped('expense_id').filtered(lambda e: e.id)
+        res = super().unlink()
+        for exp in expenses:
+            exp.amount = sum(exp.line_ids.mapped('amount'))
+        return res
+
+
 class PettyCashExpense(models.Model):
     _name = 'x.petty.cash.expense'
     _description = 'Petty Cash Expense'
@@ -852,15 +928,22 @@ class PettyCashExpense(models.Model):
 
     # ── Identity ─────────────────────────────────────────────────────────────
     name = fields.Char(
-        string='Description',
+        string='Voucher Title',
         required=True,
-        help='What this expense is for (user-entered).',
+        help='Short title / memo for this expense voucher (used in JE reference and PDF heading).',
     )
     x_ref = fields.Char(
         string='Reference',
         copy=False,
         help='System reference — auto-filled from source document (e.g. Site Procurement receipt). '
              'Enter manually for expenses created directly.',
+    )
+
+    # ── Lines ─────────────────────────────────────────────────────────────────
+    line_ids = fields.One2many(
+        'x.petty.cash.expense.line', 'expense_id',
+        string='Expense Lines',
+        copy=True,
     )
 
     # ── Fund / Project ────────────────────────────────────────────────────────
@@ -1085,20 +1168,27 @@ class PettyCashExpense(models.Model):
 
     def action_post(self):
         for expense in self:
+            if not expense.line_ids:
+                raise UserError(_('Please add at least one expense line before posting.'))
             if expense.amount <= 0:
-                raise UserError(_('Expense amount must be positive.'))
-            if expense.is_employee_advance and not expense.employee_id:
-                raise UserError(_(
-                    'Please select an Employee before posting this advance.'
-                ))
-            if expense.is_subcontractor_advance and not expense.advance_subcontractor_id:
-                raise UserError(_(
-                    'Please select a Subcontractor before posting this advance.'
-                ))
-            if expense.is_subcontractor_advance and not expense.expense_account_id:
-                raise UserError(_(
-                    'Please select an Expense Account for this subcontractor advance.'
-                ))
+                raise UserError(_('Total expense amount must be positive.'))
+            for line in expense.line_ids:
+                if line.amount <= 0:
+                    raise UserError(_(
+                        'Line "%s": amount must be positive.'
+                    ) % line.name)
+                if line.is_employee_advance and not line.employee_id:
+                    raise UserError(_(
+                        'Line "%s": please select an Employee for the Employee Advance.'
+                    ) % line.name)
+                if line.is_subcontractor_advance and not line.advance_subcontractor_id:
+                    raise UserError(_(
+                        'Line "%s": please select a Subcontractor for the Subcontractor Advance.'
+                    ) % line.name)
+                if line.is_subcontractor_advance and not line.expense_account_id:
+                    raise UserError(_(
+                        'Line "%s": please select an Account for the Subcontractor Advance.'
+                    ) % line.name)
             if not expense.x_signed_voucher:
                 raise UserError(_(
                     'A signed voucher is required before posting.\n\n'
@@ -1144,45 +1234,46 @@ class PettyCashExpense(models.Model):
                 'x_balance_after': balance_after,
             })
 
-            # Update employee outstanding advance balance
-            if expense.is_employee_advance and expense.employee_id:
-                emp = expense.employee_id.sudo()
-                prev_balance = emp.x_advance_balance or 0.0
-                emp.x_advance_balance = prev_balance + expense.amount
-                expense.message_post(body=Markup(_(
-                    'Employee Advance posted for <b>%(emp)s</b>: '
-                    '<b>+%(sym)s %(amount)s</b>. '
-                    'Outstanding balance: %(sym)s %(prev)s → '
-                    '<b>%(sym)s %(new)s</b>'
-                )) % {
-                    'emp': emp.name,
-                    'sym': expense.currency_id.symbol,
-                    'amount': f'{expense.amount:,.2f}',
-                    'prev': f'{prev_balance:,.2f}',
-                    'new': f'{emp.x_advance_balance:,.2f}',
-                })
+            # Update employee outstanding advance balance for each advance line
+            for line in expense.line_ids:
+                if line.is_employee_advance and line.employee_id:
+                    emp = line.employee_id.sudo()
+                    prev_balance = emp.x_advance_balance or 0.0
+                    emp.x_advance_balance = prev_balance + line.amount
+                    expense.message_post(body=Markup(_(
+                        'Employee Advance posted for <b>%(emp)s</b>: '
+                        '<b>+%(sym)s %(amount)s</b>. '
+                        'Outstanding balance: %(sym)s %(prev)s → '
+                        '<b>%(sym)s %(new)s</b>'
+                    )) % {
+                        'emp': emp.name,
+                        'sym': expense.currency_id.symbol,
+                        'amount': f'{line.amount:,.2f}',
+                        'prev': f'{prev_balance:,.2f}',
+                        'new': f'{emp.x_advance_balance:,.2f}',
+                    })
 
             sym = expense.currency_id.symbol
-            advance_note = ''
-            if expense.is_employee_advance and expense.employee_id:
-                advance_note = f'<br/><b>Employee Advance:</b> {expense.employee_id.name}'
-            elif expense.is_subcontractor_advance and expense.advance_subcontractor_id:
-                advance_note = (
-                    f'<br/><b>Subcontractor Advance:</b> {expense.advance_subcontractor_id.name}'
-                    + (f' ({expense.expense_account_id.display_name})' if expense.expense_account_id else '')
-                )
+            # Build a short summary of lines for the chatter
+            lines_html = ''.join(
+                f'<li>{line.name}: <b>{sym} {line.amount:,.2f}</b>'
+                + (f' — Employee: {line.employee_id.name}' if line.is_employee_advance and line.employee_id else '')
+                + (f' — SC: {line.advance_subcontractor_id.name}' if line.is_subcontractor_advance and line.advance_subcontractor_id else '')
+                + '</li>'
+                for line in expense.line_ids
+            )
             body = Markup(
                 '<b>Expense Posted</b><br/>'
                 '<b>Reference:</b> {ref}<br/>'
-                '<b>Description:</b> {name}'
-                '{advance_note}<br/>'
-                '<b>Amount:</b> {sym} {amount}<br/>'
+                '<b>Voucher:</b> {name}<br/>'
+                '<b>Lines:</b><ul>{lines}</ul>'
+                '<b>Total:</b> {sym} {amount}<br/>'
                 '<b>Balance Before:</b> {sym} {before}<br/>'
                 '<b>Balance After:</b> {sym} {after}'
             ).format(
                 ref=expense.x_ref or '—',
                 name=expense.name,
-                advance_note=advance_note,
+                lines=Markup(lines_html),
                 sym=sym,
                 amount=f'{expense.amount:,.2f}',
                 before=f'{balance_before:,.2f}',
@@ -1267,38 +1358,54 @@ class PettyCashExpense(models.Model):
                 ('company_id', '=', self.env.company.id),
             ], limit=1)
 
-        # ── Debit: subcontractor advance → expense_account_id (payable) + partner ─
-        # Stamping the subcontractor as partner on the debit line makes the entry
-        # appear in the partner ledger AND ensures the IPC "Payments Made" query
-        # (which aggregates x_petty_cash_expense by advance_subcontractor_id) picks
-        # it up — regardless of which payable account is selected.
-        debit_partner_id = False
-        if self.is_subcontractor_advance and self.advance_subcontractor_id and self.expense_account_id:
-            debit_account = self.expense_account_id
-            debit_partner_id = self.advance_subcontractor_id.id
-        else:
-            debit_account = self.expense_account_id
-            if not debit_account:
-                CATEGORY_ACCOUNT_MAP = {
-                    'travel': '6270',
-                    'supplies': '6280',
-                    'utilities': '6300',
-                    'meals': '6290',
-                    'other': '6290',
-                }
-                code = CATEGORY_ACCOUNT_MAP.get(self.category, '6290')
-                debit_account = self.env['account.account'].search([
-                    ('code', 'like', code),
-                    ('company_id', '=', self.env.company.id),
-                ], limit=1)
-            if not debit_account:
-                debit_account = credit_account
-
         analytic_distribution = {}
         if self.project_analytic_account_id:
             analytic_distribution = {
                 str(self.project_analytic_account_id.id): 100
             }
+
+        # Safety: if migration didn't run yet (no lines), skip silently.
+        # action_post() validates line_ids before calling this, so this path
+        # is only hit from fix_petty_cash_expense_accounts (hook fallback).
+        if not self.line_ids:
+            return
+
+        # ── Debit lines: one per expense line ─────────────────────────────────
+        # For subcontractor advances: stamp the subcontractor as partner so the
+        # entry appears in the partner ledger and IPC "Payments Made" query.
+        CATEGORY_ACCOUNT_MAP = {
+            'travel': '6270',
+            'supplies': '6280',
+            'utilities': '6300',
+            'meals': '6290',
+            'other': '6290',
+        }
+
+        je_debit_lines = []
+        for line in self.line_ids:
+            if line.is_subcontractor_advance and line.advance_subcontractor_id and line.expense_account_id:
+                debit_account = line.expense_account_id
+                debit_partner_id = line.advance_subcontractor_id.id
+            else:
+                debit_account = line.expense_account_id
+                if not debit_account:
+                    code = CATEGORY_ACCOUNT_MAP.get(self.category, '6290')
+                    debit_account = self.env['account.account'].search([
+                        ('code', 'like', code),
+                        ('company_id', '=', self.env.company.id),
+                    ], limit=1)
+                if not debit_account:
+                    debit_account = credit_account
+                debit_partner_id = False
+
+            je_debit_lines.append((0, 0, {
+                'name': line.name,
+                'account_id': debit_account.id,
+                'partner_id': debit_partner_id or False,
+                'debit': line.amount,
+                'credit': 0.0,
+                'analytic_distribution': analytic_distribution or False,
+            }))
 
         ref_label = self.x_ref or self.name
         move_vals = {
@@ -1306,15 +1413,7 @@ class PettyCashExpense(models.Model):
             'journal_id': cash_journal.id if cash_journal else False,
             'date': self.expense_date,
             'ref': _('Petty Cash: %s') % ref_label,
-            'line_ids': [
-                (0, 0, {
-                    'name': self.name,
-                    'account_id': debit_account.id,
-                    'partner_id': debit_partner_id or False,
-                    'debit': self.amount,
-                    'credit': 0.0,
-                    'analytic_distribution': analytic_distribution or False,
-                }),
+            'line_ids': je_debit_lines + [
                 (0, 0, {
                     'name': _('Cash in Hand — %s') % (
                         self.project_analytic_account_id.name or _('Petty Cash')),
@@ -1375,19 +1474,20 @@ class PettyCashExpense(models.Model):
                 # Draft JE — just unlink it
                 move.unlink()
 
-            # ── 2. Reverse employee advance balance ───────────────────────────
-            if expense.is_employee_advance and expense.employee_id:
-                emp = expense.employee_id.sudo()
-                new_balance = (emp.x_advance_balance or 0.0) - expense.amount
-                emp.x_advance_balance = max(new_balance, 0.0)
-                expense.message_post(body=Markup(_(
-                    'Reset to Draft: employee advance for <b>%(emp)s</b> reversed. '
-                    'Outstanding balance adjusted by <b>−%(sym)s %(amount)s</b>.'
-                )) % {
-                    'emp': emp.name,
-                    'sym': expense.currency_id.symbol,
-                    'amount': f'{expense.amount:,.2f}',
-                })
+            # ── 2. Reverse employee advance balance for each advance line ─────
+            for line in expense.line_ids:
+                if line.is_employee_advance and line.employee_id:
+                    emp = line.employee_id.sudo()
+                    new_balance = (emp.x_advance_balance or 0.0) - line.amount
+                    emp.x_advance_balance = max(new_balance, 0.0)
+                    expense.message_post(body=Markup(_(
+                        'Reset to Draft: employee advance for <b>%(emp)s</b> reversed. '
+                        'Outstanding balance adjusted by <b>−%(sym)s %(amount)s</b>.'
+                    )) % {
+                        'emp': emp.name,
+                        'sym': expense.currency_id.symbol,
+                        'amount': f'{line.amount:,.2f}',
+                    })
 
             # ── 3. Clear snapshot & JE link ───────────────────────────────────
             expense.write({

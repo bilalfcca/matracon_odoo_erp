@@ -1,6 +1,7 @@
 from dateutil.relativedelta import relativedelta
 
 from odoo import models, fields, api, _
+from odoo.exceptions import UserError
 
 # Demo / default site warehouses — one per Matracon project (code, display name).
 _SITE_WAREHOUSE_DEFAULTS = {
@@ -48,6 +49,206 @@ class ProjectSiteConfigProjectLink(models.Model):
              'Set once here and it auto-fills on all petty cash expenses, '
              'fund releases, and site cash-out entries for this project.',
     )
+
+    # ── Material Issue Account ────────────────────────────────────────────────
+    x_material_issue_account_id = fields.Many2one(
+        'account.account',
+        string='Material Issue Account',
+        help='GL account debited when materials are issued from this site '
+             '(normal or subcontractor issuance). '
+             'Setting this account also configures both the Employee and '
+             'Subcontractor issue locations so future issuances hit it automatically. '
+             'Use the "Fix Old Issuances" button to retroactively apply it to all '
+             'previously posted issuance entries for this site.',
+    )
+
+    # ── Inter-Project Clearing Account ───────────────────────────────────────
+    x_inter_project_account_id = fields.Many2one(
+        'account.account',
+        string='Inter-Project Account',
+        help='Single GL account used for ALL inter-project transactions '
+             '(one account, shared across all sites). When Site A pays on '
+             'behalf of Site B, this account is debited with Site B\'s '
+             'analytic (Site B owes) and credited with Site A\'s analytic '
+             '(Site A is owed). The analytic distribution is what separates '
+             'each project\'s position — no hardcoded accounts needed.',
+    )
+
+    # Computed stats — live from GL (non-stored)
+    x_inter_project_receivable = fields.Float(
+        string='Receivable from Other Projects',
+        compute='_compute_inter_project_stats',
+        help='Total credit balance on the inter-project account for this '
+             'site — amount other projects owe TO this project.',
+    )
+    x_inter_project_payable = fields.Float(
+        string='Payable to Other Projects',
+        compute='_compute_inter_project_stats',
+        help='Total debit balance on the inter-project account for this '
+             'site — amount this project owes TO other projects.',
+    )
+    x_inter_project_line_count = fields.Integer(
+        string='Inter-Project Transactions',
+        compute='_compute_inter_project_stats',
+    )
+
+    def _compute_inter_project_stats(self):
+        """Batch SQL: sum debit/credit on the inter-project account filtered
+        by this site's analytic via JSONB ? operator."""
+        # Initialise all to zero
+        for config in self:
+            config.x_inter_project_receivable = 0.0
+            config.x_inter_project_payable = 0.0
+            config.x_inter_project_line_count = 0
+
+        active = self.filtered(
+            lambda c: c.x_inter_project_account_id and c.analytic_account_id
+        )
+        if not active:
+            return
+
+        cr = self.env.cr
+        for config in active:
+            cr.execute("""
+                SELECT
+                    COUNT(*)                         AS line_count,
+                    COALESCE(SUM(aml.credit), 0.0)  AS receivable,
+                    COALESCE(SUM(aml.debit),  0.0)  AS payable
+                FROM account_move_line aml
+                JOIN account_move am ON am.id = aml.move_id
+               WHERE aml.account_id = %s
+                 AND am.state       = 'posted'
+                 AND aml.analytic_distribution IS NOT NULL
+                 AND (aml.analytic_distribution)::jsonb ? %s
+            """, (
+                config.x_inter_project_account_id.id,
+                str(config.analytic_account_id.id),
+            ))
+            row = cr.fetchone()
+            if row:
+                config.x_inter_project_line_count = row[0]
+                config.x_inter_project_receivable = float(row[1])
+                config.x_inter_project_payable    = float(row[2])
+
+    def action_fix_old_interproject_entries(self):
+        """Retroactively merge the two old hardcoded inter-project accounts
+        (13100 Inter-Project Receivables + 21100 Inter-Project Payables) into
+        the single x_inter_project_account_id configured on this site.
+
+        Since all sites share the same inter-project account, this runs
+        GLOBALLY across every site in one pass — not just for this site.
+        Safe to run multiple times (idempotent: skips lines already on the
+        new account).
+        """
+        self.ensure_one()
+        if not self.x_inter_project_account_id:
+            raise UserError(_(
+                'Please set the Inter-Project Account first, then run this fix.'
+            ))
+
+        new_account_id = self.x_inter_project_account_id.id
+        cr = self.env.cr
+
+        # Find the old hardcoded inter-project account IDs by code
+        # (13100 = receivable side, 21100 = payable side)
+        cr.execute("""
+            SELECT id FROM account_account
+             WHERE code IN ('13100', '21100')
+               AND id != %s
+        """, (new_account_id,))
+        old_ids = [row[0] for row in cr.fetchall()]
+
+        if not old_ids:
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': _('Nothing to Fix'),
+                    'message': _(
+                        'No old inter-project accounts (13100 / 21100) found. '
+                        'All entries are already on the correct account.'
+                    ),
+                    'type': 'info',
+                    'sticky': False,
+                },
+            }
+
+        # Update ALL lines across ALL sites hitting those old accounts
+        cr.execute("""
+            UPDATE account_move_line
+               SET account_id = %s
+             WHERE account_id = ANY(%s)
+        """, (new_account_id, old_ids))
+
+        updated_lines = cr.rowcount
+
+        # Invalidate ORM cache
+        self.env['account.move.line'].invalidate_model(['account_id'])
+
+        # Also recompute x_site_analytic_ids on affected moves so record
+        # rules pick up any newly visible entries
+        if updated_lines:
+            cr.execute("""
+                SELECT DISTINCT aml.move_id
+                  FROM account_move_line aml
+                 WHERE aml.account_id = %s
+            """, (new_account_id,))
+            move_ids = [row[0] for row in cr.fetchall()]
+            if move_ids:
+                moves = self.env['account.move'].browse(move_ids)
+                moves._compute_x_site_analytic_ids()
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Inter-Project Entries Fixed'),
+                'message': _(
+                    '%(lines)d journal line(s) updated from old accounts '
+                    '(13100/21100) to "%(account)s". '
+                    'All sites\' inter-project balances now reflect the '
+                    'new account.',
+                    lines=updated_lines,
+                    account=self.x_inter_project_account_id.display_name,
+                ),
+                'type': 'success',
+                'sticky': True,
+            },
+        }
+
+    def action_view_inter_project_lines(self):
+        """Open the filtered account.move.line list for inter-project
+        transactions of this site — both what we are owed (credit) and
+        what we owe (debit)."""
+        self.ensure_one()
+        if not self.x_inter_project_account_id or not self.analytic_account_id:
+            raise UserError(_(
+                'Please set the Inter-Project Account on this site '
+                'configuration before viewing transactions.'
+            ))
+        # JSONB key search: matches {"<id>": ...} exactly, no false positives
+        analytic_key = '"' + str(self.analytic_account_id.id) + '"'
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Inter-Project Transactions — %s') % self.name,
+            'res_model': 'account.move.line',
+            'view_mode': 'list,form',
+            'views': [
+                (self.env.ref(
+                    'site_operations.view_inter_project_aml_list'
+                ).id, 'list'),
+                (False, 'form'),
+            ],
+            'domain': [
+                ('account_id', '=', self.x_inter_project_account_id.id),
+                ('move_id.state', '=', 'posted'),
+                ('analytic_distribution', 'ilike', analytic_key),
+            ],
+            'context': {
+                'default_account_id': self.x_inter_project_account_id.id,
+                'no_create': True,
+            },
+        }
 
     x_site_accountant_ids = fields.Many2many(
         'res.users',
@@ -140,6 +341,8 @@ class ProjectSiteConfigProjectLink(models.Model):
             'warehouse_id', 'site_user_ids', 'x_site_accountant_ids',
         )):
             self._matracon_sync_user_operational_warehouse()
+        if 'x_material_issue_account_id' in vals:
+            self._sync_material_issue_location_accounts()
         return res
 
     def _matracon_sync_name_to_linked_records(self):
@@ -247,6 +450,214 @@ class ProjectSiteConfigProjectLink(models.Model):
                 user.sudo().write(unwrite_vals)
                 if accountant_group:
                     Users._matracon_remove_group(user, accountant_group)
+
+    # ── Material Issue Account helpers ────────────────────────────────────────
+
+    def _sync_material_issue_location_accounts(self):
+        """Push x_material_issue_account_id down to both issue locations'
+        valuation_account_id.  This is what causes standard Odoo's stock
+        accounting to debit that account on every issuance."""
+        for config in self:
+            locs = (
+                config.x_employee_location_id
+                | config.x_subcontractor_location_id
+            ).filtered(bool)
+            if locs:
+                locs.sudo().write({
+                    'valuation_account_id': (
+                        config.x_material_issue_account_id.id
+                        if config.x_material_issue_account_id else False
+                    ),
+                })
+
+    def action_fix_analytic_visibility(self):
+        """Server action: retroactively ensure every posted accounting entry
+        that carries this site's analytic on its lines is visible to this
+        site's accountant.
+
+        Three steps per site:
+        1. Repopulate x_site_analytic_ids M2M junction table from the current
+           line-level analytic_distribution data (SQL — fast for large tables).
+        2. For posted moves where x_project_analytic_account_id is set but
+           some lines are still missing analytic_distribution, fill them in.
+        3. For posted journal entries (entry type) that have this site's
+           analytic on lines but x_project_analytic_account_id is NOT set,
+           auto-stamp the header field so the move also appears in
+           dashboard/liability queries that rely on the header field.
+        """
+        self.ensure_one()
+        analytic = self.analytic_account_id
+        if not analytic:
+            raise UserError(_('This site configuration has no analytic account set.'))
+
+        analytic_id = analytic.id
+        analytic_str = str(analytic_id)
+        cr = self.env.cr
+
+        # ── Step 1: Repopulate M2M junction from existing line analytic data ──
+        # Delete stale rows for moves that belong to this site (where at least
+        # one line references our analytic) so we get a clean rebuild.
+        cr.execute("""
+            DELETE FROM x_account_move_site_analytic_rel
+             WHERE analytic_id = %s
+        """, (analytic_id,))
+
+        cr.execute("""
+            INSERT INTO x_account_move_site_analytic_rel (move_id, analytic_id)
+            SELECT DISTINCT aml.move_id, %s
+              FROM account_move_line aml
+             WHERE aml.analytic_distribution IS NOT NULL
+               AND aml.analytic_distribution != '{}'
+               AND (aml.analytic_distribution)::jsonb ? %s
+            ON CONFLICT DO NOTHING
+        """, (analytic_id, analytic_str))
+
+        junction_count = cr.rowcount
+
+        # ── Step 2: Fill blank analytic_distribution on lines of posted moves
+        #    that already have x_project_analytic_account_id = this site ─────
+        dist_json = '{"' + analytic_str + '": 100.0}'
+        cr.execute("""
+            UPDATE account_move_line aml
+               SET analytic_distribution = %s::jsonb
+              FROM account_move am
+             WHERE am.id = aml.move_id
+               AND am.state = 'posted'
+               AND am.x_project_analytic_account_id = %s
+               AND (aml.analytic_distribution IS NULL
+                    OR aml.analytic_distribution = '{}'
+                    OR aml.analytic_distribution::text = 'null')
+        """, (dist_json, analytic_id))
+
+        filled_lines_count = cr.rowcount
+
+        # ── Step 3: Auto-stamp x_project_analytic_account_id on posted JEs
+        #    that have this site's analytic on lines but no header value ──────
+        cr.execute("""
+            UPDATE account_move am
+               SET x_project_analytic_account_id = %s
+              FROM (
+                  SELECT DISTINCT aml.move_id
+                    FROM account_move_line aml
+                    JOIN account_move m ON m.id = aml.move_id
+                   WHERE m.state = 'posted'
+                     AND m.move_type = 'entry'
+                     AND (m.x_project_analytic_account_id IS NULL
+                          OR m.x_project_analytic_account_id != %s)
+                     AND (aml.analytic_distribution)::jsonb ? %s
+              ) sub
+             WHERE am.id = sub.move_id
+        """, (analytic_id, analytic_id, analytic_str))
+
+        header_stamped_count = cr.rowcount
+
+        # Invalidate cache so ORM picks up the SQL changes
+        self.env['account.move'].invalidate_model(
+            ['x_project_analytic_account_id', 'x_site_analytic_ids']
+        )
+        self.env['account.move.line'].invalidate_model(['analytic_distribution'])
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Analytic Visibility Fixed — %s') % self.name,
+                'message': _(
+                    '%(junc)d move(s) linked to this site via line analytics. '
+                    '%(lines)d line(s) had missing analytic filled. '
+                    '%(hdr)d journal entr(ies) had header stamped.',
+                    junc=junction_count,
+                    lines=filled_lines_count,
+                    hdr=header_stamped_count,
+                ),
+                'type': 'success',
+                'sticky': True,
+            },
+        }
+
+    def action_fix_material_issue_accounts(self):
+        """Server action: retroactively apply x_material_issue_account_id to
+        all done material-issuance stock moves for this site.
+
+        Two cases:
+        - Move already has a posted JE → update the debit line's account_id
+          via SQL (bypasses ORM lock on posted entries).
+        - Move has no JE yet (locations had no valuation_account_id at the
+          time of validation) → call _create_account_move() now that the
+          location account is set.
+        """
+        self.ensure_one()
+
+        if not self.x_material_issue_account_id:
+            raise UserError(_(
+                'Please set the Material Issue Account on this site '
+                'configuration before running the fix.'
+            ))
+
+        new_account_id = self.x_material_issue_account_id.id
+        analytic_id = self.analytic_account_id.id
+
+        # Step 1 — make sure both locations have the right valuation account
+        self._sync_material_issue_location_accounts()
+
+        # Step 2 — find all done issuance pickings for this site
+        pickings = self.env['stock.picking'].sudo().search([
+            ('x_transfer_purpose', '=', 'material_issuance'),
+            ('x_issuance_project_id', '=', analytic_id),
+            ('state', '=', 'done'),
+        ])
+
+        moves = pickings.sudo().mapped('move_ids').filtered(
+            lambda m: m.state == 'done'
+        )
+
+        fixed_jе_count = 0
+        created_je_count = 0
+
+        for move in moves:
+            if move.account_move_id:
+                # ── Update existing posted JE debit line ──────────────────
+                self.env.cr.execute(
+                    """
+                    UPDATE account_move_line
+                       SET account_id = %s
+                     WHERE move_id = %s
+                       AND debit > 0
+                       AND account_id != %s
+                    """,
+                    (new_account_id, move.account_move_id.id, new_account_id),
+                )
+                if self.env.cr.rowcount:
+                    fixed_jе_count += 1
+            else:
+                # ── No JE yet — create one now ────────────────────────────
+                # _should_create_account_move() now returns True because the
+                # destination location has valuation_account_id set.
+                if move._should_create_account_move():
+                    # Date JE to the actual move date for historical accuracy
+                    move_date = (
+                        move.date.date() if move.date else fields.Date.today()
+                    )
+                    move.with_context(
+                        force_period_date=move_date
+                    ).sudo()._create_account_move()
+                    created_je_count += 1
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Material Issue Accounts Fixed'),
+                'message': _(
+                    '%(fixed)d existing entries updated. '
+                    '%(created)d new journal entries created.',
+                    fixed=fixed_jе_count,
+                    created=created_je_count,
+                ),
+                'type': 'success',
+                'sticky': True,
+            },
+        }
 
     def action_open_project(self):
         self.ensure_one()
@@ -387,20 +798,28 @@ class ProjectSiteConfigProjectLink(models.Model):
         Location = self.env['stock.location'].sudo()
         write_vals = {}
 
+        issue_account_id = self.x_material_issue_account_id.id or False
+
         # ── Employee location ─────────────────────────────────────────────────
         if not self.x_employee_location_id:
             emp_loc = Location.with_context(active_test=False).search([
                 ('name', '=', 'Employees'),
                 ('location_id', '=', view_loc.id),
             ], limit=1)
+            loc_vals = {
+                'name': 'Employees',
+                'location_id': view_loc.id,
+                'usage': 'internal',
+            }
+            if issue_account_id:
+                loc_vals['valuation_account_id'] = issue_account_id
             if not emp_loc:
-                emp_loc = Location.create({
-                    'name': 'Employees',
-                    'location_id': view_loc.id,
-                    'usage': 'internal',
-                })
-            elif not emp_loc.active:
-                emp_loc.write({'active': True})
+                emp_loc = Location.create(loc_vals)
+            else:
+                if not emp_loc.active:
+                    emp_loc.write({'active': True})
+                if issue_account_id:
+                    emp_loc.write({'valuation_account_id': issue_account_id})
             write_vals['x_employee_location_id'] = emp_loc.id
 
         # ── Subcontractor location ────────────────────────────────────────────
@@ -409,14 +828,20 @@ class ProjectSiteConfigProjectLink(models.Model):
                 ('name', '=', 'Subcontractor'),
                 ('location_id', '=', view_loc.id),
             ], limit=1)
+            loc_vals = {
+                'name': 'Subcontractor',
+                'location_id': view_loc.id,
+                'usage': 'internal',
+            }
+            if issue_account_id:
+                loc_vals['valuation_account_id'] = issue_account_id
             if not sub_loc:
-                sub_loc = Location.create({
-                    'name': 'Subcontractor',
-                    'location_id': view_loc.id,
-                    'usage': 'internal',
-                })
-            elif not sub_loc.active:
-                sub_loc.write({'active': True})
+                sub_loc = Location.create(loc_vals)
+            else:
+                if not sub_loc.active:
+                    sub_loc.write({'active': True})
+                if issue_account_id:
+                    sub_loc.write({'valuation_account_id': issue_account_id})
             write_vals['x_subcontractor_location_id'] = sub_loc.id
 
         if write_vals:

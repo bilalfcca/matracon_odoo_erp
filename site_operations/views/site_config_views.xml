@@ -1,5 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
+    <!-- ── Inter-Project AML list view ──────────────────────────────────────
+         Opened by action_view_inter_project_lines().  Shows only the columns
+         relevant for inter-project transactions: date, JE ref, partner,
+         description, debit (this project owes) and credit (this project is owed). -->
+    <record id="view_inter_project_aml_list" model="ir.ui.view">
+        <field name="name">account.move.line.inter.project.list</field>
+        <field name="model">account.move.line</field>
+        <field name="arch" type="xml">
+            <list string="Inter-Project Transactions" create="false" delete="false"
+                  decoration-danger="debit > 0"
+                  decoration-success="credit > 0">
+                <field name="date" string="Date"/>
+                <field name="move_id" string="Journal Entry"/>
+                <field name="ref" string="Reference" optional="show"/>
+                <field name="partner_id" string="Partner" optional="show"/>
+                <field name="name" string="Description"/>
+                <field name="debit" string="Payable (We Owe)"
+                       decoration-danger="debit > 0" sum="Total Payable"/>
+                <field name="credit" string="Receivable (Owed to Us)"
+                       decoration-success="credit > 0" sum="Total Receivable"/>
+                <field name="analytic_distribution" widget="analytic_distribution"
+                       string="Analytic" optional="show"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ── Site Config form — site_operations additions ─────────────────── -->
     <record id="view_project_site_config_form_site_ops" model="ir.ui.view">
         <field name="name">x.project.site.config.form.site_ops</field>
         <field name="model">x.project.site.config</field>
@@ -10,14 +38,47 @@
                 <field name="project_id" readonly="1"/>
             </field>
 
-            <!-- Petty Cash Account — added by site_operations after the field is defined -->
+            <!-- Petty Cash, Material Issue, and Inter-Project Accounts -->
             <field name="warehouse_id" position="after">
                 <field name="x_petty_cash_account_id"
                        string="Petty Cash Account (Cash in Hand)"
                        options="{'no_create': True}"
                        help="The GL account for this site's petty cash (e.g. Cash in Hand — RWASA). Once set here, it auto-fills on all petty cash expenses, HO fund releases, and site cash-out entries for this project."/>
+                <field name="x_material_issue_account_id"
+                       string="Material Issue Account"
+                       options="{'no_create': True}"
+                       help="GL account debited when materials are issued from this site (normal or subcontractor). Saving this immediately updates both the Employee and Subcontractor issue locations so new issuances hit it automatically. Use 'Fix Old Issuances' to retroactively correct already-posted entries."/>
+                <field name="x_inter_project_account_id"
+                       string="Inter-Project Account"
+                       options="{'no_create': True}"
+                       help="Single GL account for all inter-project transactions (one account shared across all sites). When this site pays on behalf of another, this account is credited here (we are owed) and debited at the other site (they owe). Differentiated by analytic account — no hardcoded values."/>
+                <div class="mt-1" invisible="not x_inter_project_account_id">
+                    <button name="action_fix_old_interproject_entries"
+                            type="object"
+                            string="Fix Old Inter-Project Entries"
+                            class="btn btn-warning btn-sm"
+                            confirm="This will update ALL previously posted inter-project journal lines (across all sites) from the old hardcoded accounts (13100/21100) to the selected Inter-Project Account. Run this once after setting the account. Continue?"
+                            groups="purchase_demand_raise.group_matracon_admin,base.group_system"/>
+                </div>
+                <div class="mt-1" invisible="not x_material_issue_account_id">
+                    <button name="action_fix_material_issue_accounts"
+                            type="object"
+                            string="Fix Old Issuances"
+                            class="btn btn-warning btn-sm"
+                            confirm="This will update all previously posted material issuance journal entries for this site to use the configured Material Issue Account. Continue?"
+                            groups="purchase_demand_raise.group_matracon_admin,base.group_system"/>
+                </div>
+                <div class="mt-2">
+                    <button name="action_fix_analytic_visibility"
+                            type="object"
+                            string="Fix Analytic Visibility"
+                            class="btn btn-warning btn-sm"
+                            confirm="This will scan all posted accounting entries for this site's analytic account and ensure they are visible to the site accountant and appear correctly in all accounting reports. Continue?"
+                            groups="purchase_demand_raise.group_matracon_admin,base.group_system"/>
+                </div>
             </field>
 
+            <!-- Smart button: Inter-Project Transactions -->
             <button name="action_view_users" position="after">
                 <button name="action_open_project"
                         type="object"
@@ -31,6 +92,14 @@
                         class="oe_stat_button"
                         icon="fa-calculator">
                     <field name="x_accountant_count" widget="statinfo" string="Accountants"/>
+                </button>
+                <button name="action_view_inter_project_lines"
+                        type="object"
+                        class="oe_stat_button"
+                        icon="fa-exchange"
+                        invisible="not x_inter_project_account_id or not analytic_account_id">
+                    <field name="x_inter_project_line_count" widget="statinfo"
+                           string="Inter-Project"/>
                 </button>
             </button>
 
@@ -52,6 +121,43 @@
                             <field name="x_site_config_id" readonly="1" string="Site Config"/>
                         </list>
                     </field>
+                </page>
+
+                <!-- Inter-Project Balance Summary tab -->
+                <page string="Inter-Project Balance" name="inter_project_balance"
+                      invisible="not x_inter_project_account_id">
+                    <div class="alert alert-info" role="alert">
+                        <i class="fa fa-info-circle me-2"/>
+                        <strong>How inter-project balances work:</strong>
+                        When this site pays on behalf of another site, the
+                        <strong>Inter-Project Account</strong> is
+                        <em>credited</em> here (others owe us) and
+                        <em>debited</em> at the other site (they owe us).
+                        Click the <strong>Inter-Project</strong> smart button
+                        to see all individual transactions.
+                    </div>
+                    <group string="Net Position for this Site" col="2">
+                        <group>
+                            <field name="x_inter_project_receivable"
+                                   string="Receivable from Other Projects"
+                                   readonly="1"
+                                   decoration-success="x_inter_project_receivable > 0"
+                                   class="fw-bold"/>
+                            <div class="text-muted small">
+                                Other projects owe TO this project (credit balance)
+                            </div>
+                        </group>
+                        <group>
+                            <field name="x_inter_project_payable"
+                                   string="Payable to Other Projects"
+                                   readonly="1"
+                                   decoration-danger="x_inter_project_payable > 0"
+                                   class="fw-bold"/>
+                            <div class="text-muted small">
+                                This project owes TO other projects (debit balance)
+                            </div>
+                        </group>
+                    </group>
                 </page>
 
                 <page string="Project Details" name="project_details">

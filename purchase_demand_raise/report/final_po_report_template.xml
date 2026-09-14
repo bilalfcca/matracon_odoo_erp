@@ -261,6 +261,9 @@
                            l.x_line_currency_id and l.x_line_currency_id != _po_order_currency
                            for l in o.order_line if not l.display_type
                        )"/>
+                    <!-- Product column width: shrinks by 8% when Ref. column is shown -->
+                    <t t-set="_po_prod_col_width"
+                       t-value="('27%' if _po_has_multi_currency else '30%') if o.x_show_product_ref else ('35%' if _po_has_multi_currency else '38%')"/>
 
                     <!-- Line items table
                          Qty = x_approved_qty if set and > 0, else product_qty -->
@@ -270,7 +273,10 @@
                         <thead>
                             <tr>
                                 <th style="width:4%;">#</th>
-                                <th t-attf-style="width:#{_po_has_multi_currency and '35%' or '38%'}; text-align:left;">Product / Description</th>
+                                <t t-if="o.x_show_product_ref">
+                                    <th style="width:8%; text-align:left;">Ref.</th>
+                                </t>
+                                <th t-attf-style="width:#{_po_prod_col_width}; text-align:left;">Product / Description</th>
                                 <th style="width:9%;">UoM</th>
                                 <th style="width:10%;">Qty</th>
                                 <t t-if="_po_has_multi_currency">
@@ -297,9 +303,14 @@
                                             <t t-esc="line_no"/>
                                             <t t-set="line_no" t-value="line_no + 1"/>
                                         </td>
+                                        <t t-if="o.x_show_product_ref">
+                                            <td style="text-align:left; font-size:11px; color:#555;">
+                                                <t t-esc="line.product_id.default_code or ''"/>
+                                            </td>
+                                        </t>
                                         <td style="text-align:left;">
-                                            <t t-esc="line.product_id.display_name or line.name"/>
-                                            <t t-if="line.name and line.name != (line.product_id.display_name or '')">
+                                            <t t-esc="line.product_id.name or line.name"/>
+                                            <t t-if="line.name and line.name != (line.product_id.name or '')">
                                                 <br/><span style="font-size:11px; color:#666;">
                                                     <t t-esc="line.name"/>
                                                 </span>
@@ -335,13 +346,13 @@
                         <tbody class="po-totals">
                             <!-- Separator row -->
                             <tr class="po-total-sep">
-                                <td t-att-colspan="6 + (1 if _po_has_multi_currency else 0)"
+                                <td t-att-colspan="6 + (1 if _po_has_multi_currency else 0) + (1 if o.x_show_product_ref else 0)"
                                     style="padding:0; height:0; border-top:2px solid #1a3a5c !important; background:#eef1f7;"/>
                             </tr>
 
                             <!-- ① Untaxed Amount — show always -->
                             <tr>
-                                <td t-att-colspan="5 + (1 if _po_has_multi_currency else 0)"
+                                <td t-att-colspan="5 + (1 if _po_has_multi_currency else 0) + (1 if o.x_show_product_ref else 0)"
                                     style="text-align:right; padding:6px 8px; background:#eef1f7; border:1px solid #cccccc !important;">
                                     Untaxed Amount (<t t-esc="o.currency_id.name or 'PKR'"/>)
                                 </td>
@@ -356,7 +367,7 @@
                                     <t t-foreach="o.tax_totals['subtotals']" t-as="subtotal">
                                         <t t-foreach="subtotal.get('tax_groups', [])" t-as="tg">
                                             <tr>
-                                                <td t-att-colspan="5 + (1 if _po_has_multi_currency else 0)"
+                                                <td t-att-colspan="5 + (1 if _po_has_multi_currency else 0) + (1 if o.x_show_product_ref else 0)"
                                                     style="text-align:right; padding:5px 8px; background:#eef1f7; border:1px solid #cccccc !important;">
                                                     <t t-esc="tg.get('group_name', 'Tax')"/>
                                                 </td>
@@ -370,7 +381,7 @@
                                 <t t-else="">
                                     <!-- Fallback: no subtotal groups — show single Tax row -->
                                     <tr>
-                                        <td t-att-colspan="5 + (1 if _po_has_multi_currency else 0)"
+                                        <td t-att-colspan="5 + (1 if _po_has_multi_currency else 0) + (1 if o.x_show_product_ref else 0)"
                                             style="text-align:right; padding:5px 8px; background:#eef1f7; border:1px solid #cccccc !important;">
                                             Tax
                                         </td>
@@ -383,7 +394,7 @@
 
                             <!-- ③ Grand Total — always last -->
                             <tr>
-                                <td t-att-colspan="5 + (1 if _po_has_multi_currency else 0)"
+                                <td t-att-colspan="5 + (1 if _po_has_multi_currency else 0) + (1 if o.x_show_product_ref else 0)"
                                     style="text-align:right; padding:7px 8px; font-weight:bold; font-size:13px; background:#d4daf0; border:1px solid #1a3a5c !important;">
                                     Total Amount (<t t-esc="o.currency_id.name or 'PKR'"/>)
                                 </td>

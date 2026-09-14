@@ -344,15 +344,17 @@ class SubcontractorIPC(models.Model):
                 """, (partner_id, cutoff_date, analytic_id))
                 vendor_pay = cr.fetchone()[0]
 
-                # Petty cash subcontractor advances
+                # Petty cash subcontractor advances — read from lines table
+                # (supports both legacy single-line and new multi-line expenses)
                 cr.execute("""
-                    SELECT COALESCE(SUM(pce.amount), 0)
-                    FROM   x_petty_cash_expense pce
-                    WHERE  pce.advance_subcontractor_id    = %s
-                      AND  pce.is_subcontractor_advance    = true
-                      AND  pce.state                       = 'posted'
-                      AND  pce.expense_date               <= %s
-                      AND  pce.project_analytic_account_id = %s
+                    SELECT COALESCE(SUM(pcel.amount), 0)
+                    FROM   x_petty_cash_expense_line pcel
+                    JOIN   x_petty_cash_expense pce ON pce.id = pcel.expense_id
+                    WHERE  pcel.advance_subcontractor_id    = %s
+                      AND  pcel.is_subcontractor_advance    = true
+                      AND  pce.state                        = 'posted'
+                      AND  pce.expense_date                <= %s
+                      AND  pce.project_analytic_account_id  = %s
                 """, (partner_id, cutoff_date, analytic_id))
                 petty_cash = cr.fetchone()[0]
 
@@ -517,14 +519,16 @@ class SubcontractorIPC(models.Model):
             """, (partner_id, cutoff_date, analytic_id))
             vendor_pay = cr.fetchone()[0]
 
+            # Petty cash subcontractor advances — read from lines table
             cr.execute("""
-                SELECT COALESCE(SUM(pce.amount), 0)
-                FROM   x_petty_cash_expense pce
-                WHERE  pce.advance_subcontractor_id    = %s
-                  AND  pce.is_subcontractor_advance    = true
-                  AND  pce.state                       = 'posted'
-                  AND  pce.expense_date               <= %s
-                  AND  pce.project_analytic_account_id = %s
+                SELECT COALESCE(SUM(pcel.amount), 0)
+                FROM   x_petty_cash_expense_line pcel
+                JOIN   x_petty_cash_expense pce ON pce.id = pcel.expense_id
+                WHERE  pcel.advance_subcontractor_id    = %s
+                  AND  pcel.is_subcontractor_advance    = true
+                  AND  pce.state                        = 'posted'
+                  AND  pce.expense_date                <= %s
+                  AND  pce.project_analytic_account_id  = %s
             """, (partner_id, cutoff_date, analytic_id))
             petty_cash = cr.fetchone()[0]
 
@@ -819,8 +823,17 @@ class SubcontractorIPC(models.Model):
                 body=_('IPC %s marked as paid.') % ipc.name)
 
     def _update_liability_sheet(self):
-        """Add this IPC's net payable to the current month's liability sheet
-        for the project. Creates the sheet if one does not yet exist."""
+        """Add this IPC's net payable to the appropriate liability sheet for
+        the project.  Sheet lookup order (all scoped to draft/submitted):
+
+        1. Sheet starting exactly on the calendar month_start  (fast path).
+        2. Any sheet whose date range already covers bill_date  (handles
+           non-standard date ranges such as Sep-06 → Oct-05).
+        3. No sheet covers bill_date → create one, but start it the day
+           AFTER the latest existing sheet ends to avoid any overlap with
+           previously created sheets (instead of rigidly using month_start
+           which could land inside an existing sheet's range).
+        """
         self.ensure_one()
         if not self.project_analytic_account_id or not self.subcontractor_id:
             return
@@ -831,16 +844,39 @@ class SubcontractorIPC(models.Model):
             month_start + relativedelta(months=1)) - relativedelta(days=1)
 
         LiabilitySheet = self.env['x.liability.sheet'].sudo()
+        analytic_id = self.project_analytic_account_id.id
+
+        # ── Step 1: exact calendar-month match ───────────────────────────────
         sheet = LiabilitySheet.search([
-            ('project_analytic_account_id', '=',
-             self.project_analytic_account_id.id),
+            ('project_analytic_account_id', '=', analytic_id),
             ('date_from', '=', month_start),
             ('state', 'in', ('draft', 'submitted')),
         ], limit=1)
+
+        # ── Step 2: any sheet that already covers the IPC date ────────────────
         if not sheet:
+            sheet = LiabilitySheet.search([
+                ('project_analytic_account_id', '=', analytic_id),
+                ('date_from', '<=', bill_date),
+                ('date_to',   '>=', bill_date),
+                ('state', 'in', ('draft', 'submitted')),
+            ], limit=1)
+
+        # ── Step 3: create a new sheet, avoiding overlap ──────────────────────
+        if not sheet:
+            # Find the latest sheet that ends before the IPC date and start
+            # the new sheet the day after it — so no overlap can occur.
+            latest = LiabilitySheet.search([
+                ('project_analytic_account_id', '=', analytic_id),
+                ('date_to', '<', bill_date),
+            ], order='date_to desc', limit=1)
+            start_date = (
+                latest.date_to + relativedelta(days=1)
+                if latest else month_start
+            )
             sheet = LiabilitySheet.create({
-                'project_analytic_account_id': self.project_analytic_account_id.id,
-                'date_from': month_start,
+                'project_analytic_account_id': analytic_id,
+                'date_from': start_date,
                 'date_to': month_end,
             })
 
