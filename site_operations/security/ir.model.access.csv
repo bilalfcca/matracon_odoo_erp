@@ -323,3 +323,4 @@ access_cheque_series_head_office,cheque.series.head.office,model_x_cheque_series
 access_je_project_allocation_finance_ho,je.project.allocation.finance.ho,model_x_je_project_allocation,site_operations.group_finance_ho,1,1,1,1
 access_je_project_allocation_admin,je.project.allocation.admin,model_x_je_project_allocation,purchase_demand_raise.group_matracon_admin,1,1,1,1
 access_je_project_allocation_head_office,je.project.allocation.head.office,model_x_je_project_allocation,purchase_demand_raise.group_head_office,1,0,0,0
+access_je_project_allocation_site_accountant,je.project.allocation.site.accountant,model_x_je_project_allocation,site_operations.group_site_accountant,1,0,0,0
