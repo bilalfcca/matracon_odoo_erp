@@ -282,6 +282,111 @@ class ProjectSiteConfigProjectLink(models.Model):
                     ),
                 })
 
+    def action_fix_analytic_visibility(self):
+        """Server action: retroactively ensure every posted accounting entry
+        that carries this site's analytic on its lines is visible to this
+        site's accountant.
+
+        Three steps per site:
+        1. Repopulate x_site_analytic_ids M2M junction table from the current
+           line-level analytic_distribution data (SQL — fast for large tables).
+        2. For posted moves where x_project_analytic_account_id is set but
+           some lines are still missing analytic_distribution, fill them in.
+        3. For posted journal entries (entry type) that have this site's
+           analytic on lines but x_project_analytic_account_id is NOT set,
+           auto-stamp the header field so the move also appears in
+           dashboard/liability queries that rely on the header field.
+        """
+        self.ensure_one()
+        analytic = self.analytic_account_id
+        if not analytic:
+            raise UserError(_('This site configuration has no analytic account set.'))
+
+        analytic_id = analytic.id
+        analytic_str = str(analytic_id)
+        cr = self.env.cr
+
+        # ── Step 1: Repopulate M2M junction from existing line analytic data ──
+        # Delete stale rows for moves that belong to this site (where at least
+        # one line references our analytic) so we get a clean rebuild.
+        cr.execute("""
+            DELETE FROM x_account_move_site_analytic_rel
+             WHERE analytic_id = %s
+        """, (analytic_id,))
+
+        cr.execute("""
+            INSERT INTO x_account_move_site_analytic_rel (move_id, analytic_id)
+            SELECT DISTINCT aml.move_id, %s
+              FROM account_move_line aml
+             WHERE aml.analytic_distribution IS NOT NULL
+               AND aml.analytic_distribution != '{}'
+               AND (aml.analytic_distribution)::jsonb ? %s
+            ON CONFLICT DO NOTHING
+        """, (analytic_id, analytic_str))
+
+        junction_count = cr.rowcount
+
+        # ── Step 2: Fill blank analytic_distribution on lines of posted moves
+        #    that already have x_project_analytic_account_id = this site ─────
+        dist_json = '{"' + analytic_str + '": 100.0}'
+        cr.execute("""
+            UPDATE account_move_line aml
+               SET analytic_distribution = %s::jsonb
+              FROM account_move am
+             WHERE am.id = aml.move_id
+               AND am.state = 'posted'
+               AND am.x_project_analytic_account_id = %s
+               AND (aml.analytic_distribution IS NULL
+                    OR aml.analytic_distribution = '{}'
+                    OR aml.analytic_distribution::text = 'null')
+        """, (dist_json, analytic_id))
+
+        filled_lines_count = cr.rowcount
+
+        # ── Step 3: Auto-stamp x_project_analytic_account_id on posted JEs
+        #    that have this site's analytic on lines but no header value ──────
+        cr.execute("""
+            UPDATE account_move am
+               SET x_project_analytic_account_id = %s
+              FROM (
+                  SELECT DISTINCT aml.move_id
+                    FROM account_move_line aml
+                    JOIN account_move m ON m.id = aml.move_id
+                   WHERE m.state = 'posted'
+                     AND m.move_type = 'entry'
+                     AND (m.x_project_analytic_account_id IS NULL
+                          OR m.x_project_analytic_account_id != %s)
+                     AND (aml.analytic_distribution)::jsonb ? %s
+              ) sub
+             WHERE am.id = sub.move_id
+        """, (analytic_id, analytic_id, analytic_str))
+
+        header_stamped_count = cr.rowcount
+
+        # Invalidate cache so ORM picks up the SQL changes
+        self.env['account.move'].invalidate_model(
+            ['x_project_analytic_account_id', 'x_site_analytic_ids']
+        )
+        self.env['account.move.line'].invalidate_model(['analytic_distribution'])
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Analytic Visibility Fixed — %s') % self.name,
+                'message': _(
+                    '%(junc)d move(s) linked to this site via line analytics. '
+                    '%(lines)d line(s) had missing analytic filled. '
+                    '%(hdr)d journal entr(ies) had header stamped.',
+                    junc=junction_count,
+                    lines=filled_lines_count,
+                    hdr=header_stamped_count,
+                ),
+                'type': 'success',
+                'sticky': True,
+            },
+        }
+
     def action_fix_material_issue_accounts(self):
         """Server action: retroactively apply x_material_issue_account_id to
         all done material-issuance stock moves for this site.

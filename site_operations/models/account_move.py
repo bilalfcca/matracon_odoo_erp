@@ -1,7 +1,7 @@
 from dateutil.relativedelta import relativedelta
 from markupsafe import Markup
 
-from odoo import models, fields, api, _
+from odoo import models, fields, api, Command, _
 from odoo.exceptions import UserError
 
 from . import matracon_notifications as matracon_notify
@@ -73,6 +73,37 @@ class AccountMoveSiteOps(models.Model):
         )
         for move in self:
             move.x_user_is_ho = is_ho
+
+    # ── Site Analytics (from line-level analytic_distribution) ───────────────
+    # Stored Many2many that collects ALL analytic accounts referenced in any
+    # line of this move.  Used by the site-accountant record rules so that a
+    # move created by HO with only line-level analytic tags (and no header
+    # x_project_analytic_account_id) is still visible to the relevant site
+    # accountant.  Automatically handles multi-site JEs: if a JE has lines
+    # for both STP and MCH, both site accountants can see the move.
+    x_site_analytic_ids = fields.Many2many(
+        'account.analytic.account',
+        'x_account_move_site_analytic_rel',
+        'move_id', 'analytic_id',
+        string='Site Analytics (from lines)',
+        compute='_compute_x_site_analytic_ids',
+        store=True,
+        help='All analytic accounts referenced on any journal line of this '
+             'move.  Drives site-accountant record-rule visibility.',
+    )
+
+    @api.depends('line_ids.analytic_distribution')
+    def _compute_x_site_analytic_ids(self):
+        for move in self:
+            analytic_ids = set()
+            for line in move.line_ids:
+                if line.analytic_distribution:
+                    for key in line.analytic_distribution:
+                        try:
+                            analytic_ids.add(int(key))
+                        except (ValueError, TypeError):
+                            pass
+            move.x_site_analytic_ids = [Command.set(list(analytic_ids))]
 
     # Filtered One2many used in the Journal Items tab on vendor bills /
     # customer invoices.  Excludes 'payment_term' display_type lines —
@@ -687,6 +718,19 @@ class AccountMoveSiteOps(models.Model):
                     subtype_xmlid='mail.mt_note',
                 )
 
+        # ── 8. Fill missing analytic_distribution on ALL line types ─────────────
+        # Covers entry + out_invoice + any move type where lines may be
+        # missing analytic (payable line, tax line, bank line).  Does NOT
+        # overwrite existing distributions so multi-site JEs are preserved.
+        # in_invoice lines are already overwritten by _matracon_apply_bill_analytic
+        # above; this step adds the same safety net for every other type.
+        for move in self.filtered(
+            lambda m: m.state == 'posted'
+            and m.move_type != 'in_invoice'
+            and m.x_project_analytic_account_id
+        ):
+            move.sudo()._matracon_fill_missing_line_analytics()
+
         # Recompute project billed amount for any customer invoices just posted.
         self._matracon_update_project_billed_amount()
 
@@ -921,6 +965,24 @@ class AccountMoveSiteOps(models.Model):
             'x_liability_registered': False,
             'x_liability_amount_registered': 0.0,
         })
+
+    def _matracon_fill_missing_line_analytics(self):
+        """For any posted move, fill analytic_distribution on lines that are
+        still empty, using the move's x_project_analytic_account_id as the
+        source.  Does NOT overwrite lines that already carry a distribution
+        (preserves multi-site / per-line setups on JEs).
+
+        Called at action_post() for ALL move types so that payable, tax, and
+        bank lines always carry the project analytic → balance sheet / P&L /
+        partner-ledger filters work correctly for the site."""
+        self.ensure_one()
+        analytic = self.x_project_analytic_account_id
+        if not analytic:
+            return
+        dist = {str(analytic.id): 100.0}
+        blank_lines = self.line_ids.filtered(lambda l: not l.analytic_distribution)
+        if blank_lines:
+            blank_lines.write({'analytic_distribution': dist})
 
     def _matracon_apply_bill_analytic(self):
         """Tag ALL vendor bill move lines (expense + payable) with project analytic.

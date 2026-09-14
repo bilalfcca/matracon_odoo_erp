@@ -28,6 +28,14 @@
                             confirm="This will update all previously posted material issuance journal entries for this site to use the configured Material Issue Account. Continue?"
                             groups="purchase_demand_raise.group_matracon_admin,base.group_system"/>
                 </div>
+                <div class="mt-2">
+                    <button name="action_fix_analytic_visibility"
+                            type="object"
+                            string="Fix Analytic Visibility"
+                            class="btn btn-warning btn-sm"
+                            confirm="This will scan all posted accounting entries for this site's analytic account and ensure they are visible to the site accountant and appear correctly in all accounting reports. Continue?"
+                            groups="purchase_demand_raise.group_matracon_admin,base.group_system"/>
+                </div>
             </field>
 
             <button name="action_view_users" position="after">
