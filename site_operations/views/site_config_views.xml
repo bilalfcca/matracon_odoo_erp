@@ -10,12 +10,24 @@
                 <field name="project_id" readonly="1"/>
             </field>
 
-            <!-- Petty Cash Account — added by site_operations after the field is defined -->
+            <!-- Petty Cash + Material Issue Accounts — added by site_operations -->
             <field name="warehouse_id" position="after">
                 <field name="x_petty_cash_account_id"
                        string="Petty Cash Account (Cash in Hand)"
                        options="{'no_create': True}"
                        help="The GL account for this site's petty cash (e.g. Cash in Hand — RWASA). Once set here, it auto-fills on all petty cash expenses, HO fund releases, and site cash-out entries for this project."/>
+                <field name="x_material_issue_account_id"
+                       string="Material Issue Account"
+                       options="{'no_create': True}"
+                       help="GL account debited when materials are issued from this site (normal or subcontractor). Saving this immediately updates both the Employee and Subcontractor issue locations so new issuances hit it automatically. Use 'Fix Old Issuances' to retroactively correct already-posted entries."/>
+                <div class="mt-1" invisible="not x_material_issue_account_id">
+                    <button name="action_fix_material_issue_accounts"
+                            type="object"
+                            string="Fix Old Issuances"
+                            class="btn btn-warning btn-sm"
+                            confirm="This will update all previously posted material issuance journal entries for this site to use the configured Material Issue Account. Continue?"
+                            groups="purchase_demand_raise.group_matracon_admin,base.group_system"/>
+                </div>
             </field>
 
             <button name="action_view_users" position="after">

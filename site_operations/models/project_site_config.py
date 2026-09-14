@@ -1,6 +1,7 @@
 from dateutil.relativedelta import relativedelta
 
 from odoo import models, fields, api, _
+from odoo.exceptions import UserError
 
 # Demo / default site warehouses — one per Matracon project (code, display name).
 _SITE_WAREHOUSE_DEFAULTS = {
@@ -47,6 +48,18 @@ class ProjectSiteConfigProjectLink(models.Model):
              '(e.g. Cash in Hand — RWASA). '
              'Set once here and it auto-fills on all petty cash expenses, '
              'fund releases, and site cash-out entries for this project.',
+    )
+
+    # ── Material Issue Account ────────────────────────────────────────────────
+    x_material_issue_account_id = fields.Many2one(
+        'account.account',
+        string='Material Issue Account',
+        help='GL account debited when materials are issued from this site '
+             '(normal or subcontractor issuance). '
+             'Setting this account also configures both the Employee and '
+             'Subcontractor issue locations so future issuances hit it automatically. '
+             'Use the "Fix Old Issuances" button to retroactively apply it to all '
+             'previously posted issuance entries for this site.',
     )
 
     x_site_accountant_ids = fields.Many2many(
@@ -140,6 +153,8 @@ class ProjectSiteConfigProjectLink(models.Model):
             'warehouse_id', 'site_user_ids', 'x_site_accountant_ids',
         )):
             self._matracon_sync_user_operational_warehouse()
+        if 'x_material_issue_account_id' in vals:
+            self._sync_material_issue_location_accounts()
         return res
 
     def _matracon_sync_name_to_linked_records(self):
@@ -247,6 +262,109 @@ class ProjectSiteConfigProjectLink(models.Model):
                 user.sudo().write(unwrite_vals)
                 if accountant_group:
                     Users._matracon_remove_group(user, accountant_group)
+
+    # ── Material Issue Account helpers ────────────────────────────────────────
+
+    def _sync_material_issue_location_accounts(self):
+        """Push x_material_issue_account_id down to both issue locations'
+        valuation_account_id.  This is what causes standard Odoo's stock
+        accounting to debit that account on every issuance."""
+        for config in self:
+            locs = (
+                config.x_employee_location_id
+                | config.x_subcontractor_location_id
+            ).filtered(bool)
+            if locs:
+                locs.sudo().write({
+                    'valuation_account_id': (
+                        config.x_material_issue_account_id.id
+                        if config.x_material_issue_account_id else False
+                    ),
+                })
+
+    def action_fix_material_issue_accounts(self):
+        """Server action: retroactively apply x_material_issue_account_id to
+        all done material-issuance stock moves for this site.
+
+        Two cases:
+        - Move already has a posted JE → update the debit line's account_id
+          via SQL (bypasses ORM lock on posted entries).
+        - Move has no JE yet (locations had no valuation_account_id at the
+          time of validation) → call _create_account_move() now that the
+          location account is set.
+        """
+        self.ensure_one()
+
+        if not self.x_material_issue_account_id:
+            raise UserError(_(
+                'Please set the Material Issue Account on this site '
+                'configuration before running the fix.'
+            ))
+
+        new_account_id = self.x_material_issue_account_id.id
+        analytic_id = self.analytic_account_id.id
+
+        # Step 1 — make sure both locations have the right valuation account
+        self._sync_material_issue_location_accounts()
+
+        # Step 2 — find all done issuance pickings for this site
+        pickings = self.env['stock.picking'].sudo().search([
+            ('x_transfer_purpose', '=', 'material_issuance'),
+            ('x_issuance_project_id', '=', analytic_id),
+            ('state', '=', 'done'),
+        ])
+
+        moves = pickings.sudo().mapped('move_ids').filtered(
+            lambda m: m.state == 'done'
+        )
+
+        fixed_jе_count = 0
+        created_je_count = 0
+
+        for move in moves:
+            if move.account_move_id:
+                # ── Update existing posted JE debit line ──────────────────
+                self.env.cr.execute(
+                    """
+                    UPDATE account_move_line
+                       SET account_id = %s
+                     WHERE move_id = %s
+                       AND debit > 0
+                       AND account_id != %s
+                    """,
+                    (new_account_id, move.account_move_id.id, new_account_id),
+                )
+                if self.env.cr.rowcount:
+                    fixed_jе_count += 1
+            else:
+                # ── No JE yet — create one now ────────────────────────────
+                # _should_create_account_move() now returns True because the
+                # destination location has valuation_account_id set.
+                if move._should_create_account_move():
+                    # Date JE to the actual move date for historical accuracy
+                    move_date = (
+                        move.date.date() if move.date else fields.Date.today()
+                    )
+                    move.with_context(
+                        force_period_date=move_date
+                    ).sudo()._create_account_move()
+                    created_je_count += 1
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Material Issue Accounts Fixed'),
+                'message': _(
+                    '%(fixed)d existing entries updated. '
+                    '%(created)d new journal entries created.',
+                    fixed=fixed_jе_count,
+                    created=created_je_count,
+                ),
+                'type': 'success',
+                'sticky': True,
+            },
+        }
 
     def action_open_project(self):
         self.ensure_one()
@@ -387,20 +505,28 @@ class ProjectSiteConfigProjectLink(models.Model):
         Location = self.env['stock.location'].sudo()
         write_vals = {}
 
+        issue_account_id = self.x_material_issue_account_id.id or False
+
         # ── Employee location ─────────────────────────────────────────────────
         if not self.x_employee_location_id:
             emp_loc = Location.with_context(active_test=False).search([
                 ('name', '=', 'Employees'),
                 ('location_id', '=', view_loc.id),
             ], limit=1)
+            loc_vals = {
+                'name': 'Employees',
+                'location_id': view_loc.id,
+                'usage': 'internal',
+            }
+            if issue_account_id:
+                loc_vals['valuation_account_id'] = issue_account_id
             if not emp_loc:
-                emp_loc = Location.create({
-                    'name': 'Employees',
-                    'location_id': view_loc.id,
-                    'usage': 'internal',
-                })
-            elif not emp_loc.active:
-                emp_loc.write({'active': True})
+                emp_loc = Location.create(loc_vals)
+            else:
+                if not emp_loc.active:
+                    emp_loc.write({'active': True})
+                if issue_account_id:
+                    emp_loc.write({'valuation_account_id': issue_account_id})
             write_vals['x_employee_location_id'] = emp_loc.id
 
         # ── Subcontractor location ────────────────────────────────────────────
@@ -409,14 +535,20 @@ class ProjectSiteConfigProjectLink(models.Model):
                 ('name', '=', 'Subcontractor'),
                 ('location_id', '=', view_loc.id),
             ], limit=1)
+            loc_vals = {
+                'name': 'Subcontractor',
+                'location_id': view_loc.id,
+                'usage': 'internal',
+            }
+            if issue_account_id:
+                loc_vals['valuation_account_id'] = issue_account_id
             if not sub_loc:
-                sub_loc = Location.create({
-                    'name': 'Subcontractor',
-                    'location_id': view_loc.id,
-                    'usage': 'internal',
-                })
-            elif not sub_loc.active:
-                sub_loc.write({'active': True})
+                sub_loc = Location.create(loc_vals)
+            else:
+                if not sub_loc.active:
+                    sub_loc.write({'active': True})
+                if issue_account_id:
+                    sub_loc.write({'valuation_account_id': issue_account_id})
             write_vals['x_subcontractor_location_id'] = sub_loc.id
 
         if write_vals:
