@@ -40,6 +40,14 @@ class PurchaseOrderLine(models.Model):
                 line.analytic_distribution = {acc_id: 100.0}
         return lines
 
+    # ── Internal Reference (read-only, for optional list column) ────────────
+    x_default_code = fields.Char(
+        related='product_id.default_code',
+        string='Internal Ref.',
+        store=False,
+        readonly=True,
+    )
+
     # ── Per-line Currency (for multi-currency POs) ───────────────────────────
     x_line_currency_id = fields.Many2one(
         'res.currency',

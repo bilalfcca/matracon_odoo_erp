@@ -95,7 +95,10 @@
                         <thead>
                             <tr>
                                 <th style="width:4%;">#</th>
-                                <th style="width:31%; text-align:left;">Product / Description</th>
+                                <t t-if="o.x_show_product_ref">
+                                    <th style="width:8%; text-align:left;">Ref.</th>
+                                </t>
+                                <th t-attf-style="width:#{o.x_show_product_ref and '23%' or '31%'}; text-align:left;">Product / Description</th>
                                 <th style="width:9%;">UoM</th>
                                 <th style="width:11%;">Quantity</th>
                                 <th style="width:16%;">Unit Price (PKR)</th>
@@ -117,9 +120,14 @@
                                             <t t-esc="line_no"/>
                                             <t t-set="line_no" t-value="line_no + 1"/>
                                         </td>
+                                        <t t-if="o.x_show_product_ref">
+                                            <td style="text-align:left; font-size:11px; color:#555;">
+                                                <t t-esc="line.product_id.default_code or ''"/>
+                                            </td>
+                                        </t>
                                         <td style="text-align:left; color:#222;">
-                                            <t t-esc="line.product_id.display_name or line.name"/>
-                                            <t t-if="line.name and line.name != (line.product_id.display_name or '')">
+                                            <t t-esc="line.product_id.name or line.name"/>
+                                            <t t-if="line.name and line.name != (line.product_id.name or '')">
                                                 <br/><span style="font-size:11px; color:#666;">
                                                     <t t-esc="line.name"/>
                                                 </span>
