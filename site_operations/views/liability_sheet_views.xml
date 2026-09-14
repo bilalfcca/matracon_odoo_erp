@@ -212,7 +212,7 @@
                     <!-- SA sees all lines at all times; non-SA see only selected lines -->
                     <!-- Domain is set dynamically by _onchange_x_filter_partner_id -->
                     <field name="line_ids" widget="one2many"
-                           readonly="state == 'paid'"
+                           readonly="state in ('approved', 'paid')"
                            invisible="not x_is_site_accountant">
                         <list string="Liability Lines" editable="bottom">
                             <field name="sequence" widget="handle"/>

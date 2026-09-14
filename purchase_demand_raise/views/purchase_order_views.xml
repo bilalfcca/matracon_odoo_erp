@@ -370,9 +370,9 @@
 
             <!-- ── 6. LINE ITEMS — custom columns ── -->
 
-            <!-- Lock entire order_line list when PR is rejected/cancelled/dispatched -->
+            <!-- Lock entire order_line list when PR is rejected/cancelled/dispatched/CEO-approved -->
             <xpath expr="//field[@name='order_line']" position="attributes">
-                <attribute name="readonly">state == 'cancel' or locked or (x_is_pr_document and x_pr_state in ('rejected', 'cancelled'))</attribute>
+                <attribute name="readonly">state == 'cancel' or locked or (x_is_pr_document and x_pr_state in ('rejected', 'cancelled', 'po_locked'))</attribute>
             </xpath>
 
             <!-- Role flags on lines (for readonly/invisible within lines) -->
