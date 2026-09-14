@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_uom_change_wizard_form" model="ir.ui.view">
+        <field name="name">x.uom.change.wizard.form</field>
+        <field name="model">x.uom.change.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Change Product Unit of Measure">
+                <sheet>
+
+                    <!-- Warning banner -->
+                    <div class="alert alert-warning" role="alert">
+                        <i class="fa fa-exclamation-triangle me-2" title="Warning"/>
+                        <strong>Important:</strong>
+                        This wizard converts quantities in all open stock moves,
+                        on-hand balances, and draft purchase orders.
+                        Historical (posted/done) records are preserved as-is.
+                        <strong>This action cannot be undone automatically.</strong>
+                    </div>
+
+                    <!-- Product + Units -->
+                    <group string="Product &amp; Units">
+                        <group>
+                            <field name="product_tmpl_id"
+                                   options="{'no_create': True}"
+                                   placeholder="Select a product…"/>
+                            <field name="old_uom_id" readonly="1"/>
+                            <field name="new_uom_id"
+                                   options="{'no_create': True}"
+                                   placeholder="Select new unit…"/>
+                        </group>
+                        <group>
+                            <field name="conversion_factor"
+                                   widget="float"
+                                   help="How many [Current Unit] = 1 [New Unit]?&#10;&#10;Examples:&#10;  KG → Ton    : 1000&#10;  Piece → Dozen: 12&#10;  Meter → KM  : 1000"/>
+                            <label for="conversion_factor" string="Factor"/>
+                            <div class="text-muted small" colspan="2"
+                                 invisible="not old_uom_id or not new_uom_id">
+                                <i class="fa fa-info-circle me-1" title="Info"/>
+                                <field name="old_uom_id" readonly="1" nolabel="1"
+                                       class="d-inline fw-bold"/>
+                                → new_qty = old_qty ÷
+                                <field name="conversion_factor" readonly="1" nolabel="1"
+                                       class="d-inline fw-bold"/>
+                                <field name="new_uom_id" readonly="1" nolabel="1"
+                                       class="d-inline fw-bold"/>
+                            </div>
+                        </group>
+                    </group>
+
+                    <!-- Preview -->
+                    <group string="Preview (after conversion)"
+                           invisible="not product_tmpl_id">
+                        <group>
+                            <field name="current_on_hand" readonly="1"
+                                   string="Current On-Hand"/>
+                            <field name="converted_on_hand" readonly="1"
+                                   string="On-Hand After"
+                                   class="fw-bold text-success"/>
+                        </group>
+                        <group>
+                            <field name="open_moves_count" readonly="1"
+                                   string="Open Stock Moves to Update"/>
+                            <field name="open_po_lines_count" readonly="1"
+                                   string="Draft PO Lines to Update"/>
+                        </group>
+                    </group>
+
+                    <!-- Scope reminder -->
+                    <div class="alert alert-info mt-2" role="alert"
+                         invisible="not product_tmpl_id">
+                        <strong>What will be updated:</strong>
+                        <ul class="mb-0 mt-1">
+                            <li>Product's internal unit of measure</li>
+                            <li>All on-hand stock quantities (stock.quant)</li>
+                            <li>All open (non-done) stock moves and move lines</li>
+                            <li>All draft / sent purchase order lines</li>
+                        </ul>
+                        <strong>What will NOT change:</strong>
+                        <ul class="mb-0 mt-1">
+                            <li>Done / cancelled stock moves (historical audit trail)</li>
+                            <li>Confirmed PO lines already in progress</li>
+                            <li>Posted journal entries and accounting valuations</li>
+                        </ul>
+                    </div>
+
+                </sheet>
+                <footer>
+                    <button name="action_apply"
+                            type="object"
+                            string="Apply Conversion"
+                            class="btn-primary"
+                            confirm="This will convert ALL quantities for this product from the current unit to the new unit using the factor you entered. Are you sure?"
+                            invisible="not product_tmpl_id or not new_uom_id or conversion_factor &lt;= 0"/>
+                    <button string="Cancel" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- Window action -->
+    <record id="action_uom_change_wizard" model="ir.actions.act_window">
+        <field name="name">Change Product Unit of Measure</field>
+        <field name="res_model">x.uom.change.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+    <!-- Menu: Inventory → Configuration → Change Product UoM -->
+    <menuitem id="menu_uom_change_wizard"
+              name="Change Product UoM"
+              parent="stock.menu_stock_config_settings"
+              action="action_uom_change_wizard"
+              sequence="99"
+              groups="purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
+</odoo>
