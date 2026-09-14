@@ -52,6 +52,14 @@
                        string="Inter-Project Account"
                        options="{'no_create': True}"
                        help="Single GL account for all inter-project transactions (one account shared across all sites). When this site pays on behalf of another, this account is credited here (we are owed) and debited at the other site (they owe). Differentiated by analytic account — no hardcoded values."/>
+                <div class="mt-1" invisible="not x_inter_project_account_id">
+                    <button name="action_fix_old_interproject_entries"
+                            type="object"
+                            string="Fix Old Inter-Project Entries"
+                            class="btn btn-warning btn-sm"
+                            confirm="This will update ALL previously posted inter-project journal lines (across all sites) from the old hardcoded accounts (13100/21100) to the selected Inter-Project Account. Run this once after setting the account. Continue?"
+                            groups="purchase_demand_raise.group_matracon_admin,base.group_system"/>
+                </div>
                 <div class="mt-1" invisible="not x_material_issue_account_id">
                     <button name="action_fix_material_issue_accounts"
                             type="object"

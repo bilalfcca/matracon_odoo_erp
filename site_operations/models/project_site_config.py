@@ -130,6 +130,92 @@ class ProjectSiteConfigProjectLink(models.Model):
                 config.x_inter_project_receivable = float(row[1])
                 config.x_inter_project_payable    = float(row[2])
 
+    def action_fix_old_interproject_entries(self):
+        """Retroactively merge the two old hardcoded inter-project accounts
+        (13100 Inter-Project Receivables + 21100 Inter-Project Payables) into
+        the single x_inter_project_account_id configured on this site.
+
+        Since all sites share the same inter-project account, this runs
+        GLOBALLY across every site in one pass — not just for this site.
+        Safe to run multiple times (idempotent: skips lines already on the
+        new account).
+        """
+        self.ensure_one()
+        if not self.x_inter_project_account_id:
+            raise UserError(_(
+                'Please set the Inter-Project Account first, then run this fix.'
+            ))
+
+        new_account_id = self.x_inter_project_account_id.id
+        cr = self.env.cr
+
+        # Find the old hardcoded inter-project account IDs by code
+        # (13100 = receivable side, 21100 = payable side)
+        cr.execute("""
+            SELECT id FROM account_account
+             WHERE code IN ('13100', '21100')
+               AND id != %s
+        """, (new_account_id,))
+        old_ids = [row[0] for row in cr.fetchall()]
+
+        if not old_ids:
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': _('Nothing to Fix'),
+                    'message': _(
+                        'No old inter-project accounts (13100 / 21100) found. '
+                        'All entries are already on the correct account.'
+                    ),
+                    'type': 'info',
+                    'sticky': False,
+                },
+            }
+
+        # Update ALL lines across ALL sites hitting those old accounts
+        cr.execute("""
+            UPDATE account_move_line
+               SET account_id = %s
+             WHERE account_id = ANY(%s)
+        """, (new_account_id, old_ids))
+
+        updated_lines = cr.rowcount
+
+        # Invalidate ORM cache
+        self.env['account.move.line'].invalidate_model(['account_id'])
+
+        # Also recompute x_site_analytic_ids on affected moves so record
+        # rules pick up any newly visible entries
+        if updated_lines:
+            cr.execute("""
+                SELECT DISTINCT aml.move_id
+                  FROM account_move_line aml
+                 WHERE aml.account_id = %s
+            """, (new_account_id,))
+            move_ids = [row[0] for row in cr.fetchall()]
+            if move_ids:
+                moves = self.env['account.move'].browse(move_ids)
+                moves._compute_x_site_analytic_ids()
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Inter-Project Entries Fixed'),
+                'message': _(
+                    '%(lines)d journal line(s) updated from old accounts '
+                    '(13100/21100) to "%(account)s". '
+                    'All sites\' inter-project balances now reflect the '
+                    'new account.',
+                    lines=updated_lines,
+                    account=self.x_inter_project_account_id.display_name,
+                ),
+                'type': 'success',
+                'sticky': True,
+            },
+        }
+
     def action_view_inter_project_lines(self):
         """Open the filtered account.move.line list for inter-project
         transactions of this site — both what we are owed (credit) and
