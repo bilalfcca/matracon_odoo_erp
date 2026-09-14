@@ -62,6 +62,108 @@ class ProjectSiteConfigProjectLink(models.Model):
              'previously posted issuance entries for this site.',
     )
 
+    # ── Inter-Project Clearing Account ───────────────────────────────────────
+    x_inter_project_account_id = fields.Many2one(
+        'account.account',
+        string='Inter-Project Account',
+        help='Single GL account used for ALL inter-project transactions '
+             '(one account, shared across all sites). When Site A pays on '
+             'behalf of Site B, this account is debited with Site B\'s '
+             'analytic (Site B owes) and credited with Site A\'s analytic '
+             '(Site A is owed). The analytic distribution is what separates '
+             'each project\'s position — no hardcoded accounts needed.',
+    )
+
+    # Computed stats — live from GL (non-stored)
+    x_inter_project_receivable = fields.Float(
+        string='Receivable from Other Projects',
+        compute='_compute_inter_project_stats',
+        help='Total credit balance on the inter-project account for this '
+             'site — amount other projects owe TO this project.',
+    )
+    x_inter_project_payable = fields.Float(
+        string='Payable to Other Projects',
+        compute='_compute_inter_project_stats',
+        help='Total debit balance on the inter-project account for this '
+             'site — amount this project owes TO other projects.',
+    )
+    x_inter_project_line_count = fields.Integer(
+        string='Inter-Project Transactions',
+        compute='_compute_inter_project_stats',
+    )
+
+    def _compute_inter_project_stats(self):
+        """Batch SQL: sum debit/credit on the inter-project account filtered
+        by this site's analytic via JSONB ? operator."""
+        # Initialise all to zero
+        for config in self:
+            config.x_inter_project_receivable = 0.0
+            config.x_inter_project_payable = 0.0
+            config.x_inter_project_line_count = 0
+
+        active = self.filtered(
+            lambda c: c.x_inter_project_account_id and c.analytic_account_id
+        )
+        if not active:
+            return
+
+        cr = self.env.cr
+        for config in active:
+            cr.execute("""
+                SELECT
+                    COUNT(*)                         AS line_count,
+                    COALESCE(SUM(aml.credit), 0.0)  AS receivable,
+                    COALESCE(SUM(aml.debit),  0.0)  AS payable
+                FROM account_move_line aml
+                JOIN account_move am ON am.id = aml.move_id
+               WHERE aml.account_id = %s
+                 AND am.state       = 'posted'
+                 AND aml.analytic_distribution IS NOT NULL
+                 AND (aml.analytic_distribution)::jsonb ? %s
+            """, (
+                config.x_inter_project_account_id.id,
+                str(config.analytic_account_id.id),
+            ))
+            row = cr.fetchone()
+            if row:
+                config.x_inter_project_line_count = row[0]
+                config.x_inter_project_receivable = float(row[1])
+                config.x_inter_project_payable    = float(row[2])
+
+    def action_view_inter_project_lines(self):
+        """Open the filtered account.move.line list for inter-project
+        transactions of this site — both what we are owed (credit) and
+        what we owe (debit)."""
+        self.ensure_one()
+        if not self.x_inter_project_account_id or not self.analytic_account_id:
+            raise UserError(_(
+                'Please set the Inter-Project Account on this site '
+                'configuration before viewing transactions.'
+            ))
+        # JSONB key search: matches {"<id>": ...} exactly, no false positives
+        analytic_key = '"' + str(self.analytic_account_id.id) + '"'
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Inter-Project Transactions — %s') % self.name,
+            'res_model': 'account.move.line',
+            'view_mode': 'list,form',
+            'views': [
+                (self.env.ref(
+                    'site_operations.view_inter_project_aml_list'
+                ).id, 'list'),
+                (False, 'form'),
+            ],
+            'domain': [
+                ('account_id', '=', self.x_inter_project_account_id.id),
+                ('move_id.state', '=', 'posted'),
+                ('analytic_distribution', 'ilike', analytic_key),
+            ],
+            'context': {
+                'default_account_id': self.x_inter_project_account_id.id,
+                'no_create': True,
+            },
+        }
+
     x_site_accountant_ids = fields.Many2many(
         'res.users',
         'x_project_site_accountant_rel',
