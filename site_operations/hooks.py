@@ -434,11 +434,69 @@ def post_init_hook(env):
     # On a fresh install into a DB with existing data (e.g. a restored production dump),
     # post_migrate_hook does NOT run — only post_init_hook runs.
     try:
+        migrate_petty_cash_expense_lines(env)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(
+            'post_init_hook: migrate_petty_cash_expense_lines failed: %s', e)
+    try:
         fix_petty_cash_expense_accounts(env)
     except Exception as e:
         import logging
         logging.getLogger(__name__).warning(
             'post_init_hook: fix_petty_cash_expense_accounts failed: %s', e)
+
+
+def migrate_petty_cash_expense_lines(env):
+    """One-time migration: create x.petty.cash.expense.line for every existing
+    flat expense that has no lines yet.
+
+    Reads the legacy flat columns directly via SQL (bypassing the ORM) so that
+    the values are available even when the ``amount`` field is later driven by
+    line totals.  Safe to run multiple times — skips expenses that already have lines.
+    """
+    import logging
+    _log = logging.getLogger(__name__)
+
+    env.cr.execute("""
+        SELECT
+            e.id,
+            e.name,
+            e.amount,
+            e.expense_account_id,
+            e.is_employee_advance,
+            e.employee_id,
+            e.is_subcontractor_advance,
+            e.advance_subcontractor_id
+        FROM x_petty_cash_expense e
+        WHERE NOT EXISTS (
+            SELECT 1 FROM x_petty_cash_expense_line l WHERE l.expense_id = e.id
+        )
+        AND e.amount IS NOT NULL AND e.amount > 0
+    """)
+    rows = env.cr.fetchall()
+    if not rows:
+        _log.info('migrate_petty_cash_expense_lines: all expenses already have lines, nothing to do.')
+        return
+
+    _log.info('migrate_petty_cash_expense_lines: migrating %d flat expense(s) → lines', len(rows))
+    Line = env['x.petty.cash.expense.line'].sudo()
+    for (exp_id, name, amount, acct_id, is_emp, emp_id, is_sc, sc_id) in rows:
+        try:
+            Line.create({
+                'expense_id': exp_id,
+                'name': name or 'Expense',
+                'amount': amount,
+                'expense_account_id': acct_id or False,
+                'is_employee_advance': is_emp or False,
+                'employee_id': emp_id or False,
+                'is_subcontractor_advance': is_sc or False,
+                'advance_subcontractor_id': sc_id or False,
+            })
+        except Exception as e:
+            _log.warning(
+                'migrate_petty_cash_expense_lines: expense id=%s skipped (%s)', exp_id, e)
+    _log.info('migrate_petty_cash_expense_lines: done.')
 
 
 def fix_petty_cash_expense_accounts(env):
@@ -773,6 +831,12 @@ def post_migrate_hook(env):
     # Restrict Odoo's built-in 'see all' account.move rules to group_account_manager
     # so site accountants are properly scoped to their own project.
     fix_account_move_rules(env)
+    try:
+        migrate_petty_cash_expense_lines(env)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(
+            'post_migrate_hook: migrate_petty_cash_expense_lines failed: %s', e)
     try:
         fix_petty_cash_expense_accounts(env)
     except Exception as e:
