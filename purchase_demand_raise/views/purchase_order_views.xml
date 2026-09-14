@@ -376,10 +376,14 @@
             </xpath>
 
             <!-- Role flags on lines (for readonly/invisible within lines) -->
+            <!-- Sr. # is last in this block so it renders as first VISIBLE column -->
             <field name="product_id" position="before">
                 <field name="x_is_site_store" column_invisible="1"/>
                 <field name="x_is_ho" column_invisible="1"/>
                 <field name="x_is_ceo" column_invisible="1"/>
+                <field name="x_line_number"
+                       string="Sr. #"
+                       readonly="1"/>
             </field>
 
             <!-- Internal Reference: optional column (hidden by default; user toggles via ⊞ selector) -->
