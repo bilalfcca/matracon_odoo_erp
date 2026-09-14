@@ -277,19 +277,17 @@
                                    domain="is_subcontractor_advance and [('account_type', '=', 'liability_payable')] or (parent.project_analytic_account_id and [('x_ho_only', '=', False), '|', ('x_site_ids', '=', False), ('x_site_ids', 'in', [parent.project_analytic_account_id])] or [])"
                                    placeholder="Leave blank for category default"/>
                             <field name="is_employee_advance" string="Emp. Adv."/>
+                            <!-- Employee column: always visible; cell hidden when flag is off -->
                             <field name="employee_id"
                                    string="Employee"
-                                   column_invisible="True"
                                    invisible="not is_employee_advance"
-                                   required="is_employee_advance"
-                                   optional="show"/>
+                                   required="is_employee_advance"/>
                             <field name="is_subcontractor_advance" string="SC Adv."/>
+                            <!-- Subcontractor column: always visible; cell hidden when flag is off -->
                             <field name="advance_subcontractor_id"
                                    string="Subcontractor"
-                                   column_invisible="True"
                                    invisible="not is_subcontractor_advance"
                                    required="is_subcontractor_advance"
-                                   optional="show"
                                    options="{'no_quick_create': True}"/>
                             <field name="currency_id" column_invisible="True"/>
                             <field name="project_analytic_account_id" column_invisible="True"/>

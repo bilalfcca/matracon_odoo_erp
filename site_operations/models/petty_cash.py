@@ -1364,6 +1364,12 @@ class PettyCashExpense(models.Model):
                 str(self.project_analytic_account_id.id): 100
             }
 
+        # Safety: if migration didn't run yet (no lines), skip silently.
+        # action_post() validates line_ids before calling this, so this path
+        # is only hit from fix_petty_cash_expense_accounts (hook fallback).
+        if not self.line_ids:
+            return
+
         # ── Debit lines: one per expense line ─────────────────────────────────
         # For subcontractor advances: stamp the subcontractor as partner so the
         # entry appears in the partner ledger and IPC "Payments Made" query.

@@ -344,15 +344,17 @@ class SubcontractorIPC(models.Model):
                 """, (partner_id, cutoff_date, analytic_id))
                 vendor_pay = cr.fetchone()[0]
 
-                # Petty cash subcontractor advances
+                # Petty cash subcontractor advances — read from lines table
+                # (supports both legacy single-line and new multi-line expenses)
                 cr.execute("""
-                    SELECT COALESCE(SUM(pce.amount), 0)
-                    FROM   x_petty_cash_expense pce
-                    WHERE  pce.advance_subcontractor_id    = %s
-                      AND  pce.is_subcontractor_advance    = true
-                      AND  pce.state                       = 'posted'
-                      AND  pce.expense_date               <= %s
-                      AND  pce.project_analytic_account_id = %s
+                    SELECT COALESCE(SUM(pcel.amount), 0)
+                    FROM   x_petty_cash_expense_line pcel
+                    JOIN   x_petty_cash_expense pce ON pce.id = pcel.expense_id
+                    WHERE  pcel.advance_subcontractor_id    = %s
+                      AND  pcel.is_subcontractor_advance    = true
+                      AND  pce.state                        = 'posted'
+                      AND  pce.expense_date                <= %s
+                      AND  pce.project_analytic_account_id  = %s
                 """, (partner_id, cutoff_date, analytic_id))
                 petty_cash = cr.fetchone()[0]
 
@@ -517,14 +519,16 @@ class SubcontractorIPC(models.Model):
             """, (partner_id, cutoff_date, analytic_id))
             vendor_pay = cr.fetchone()[0]
 
+            # Petty cash subcontractor advances — read from lines table
             cr.execute("""
-                SELECT COALESCE(SUM(pce.amount), 0)
-                FROM   x_petty_cash_expense pce
-                WHERE  pce.advance_subcontractor_id    = %s
-                  AND  pce.is_subcontractor_advance    = true
-                  AND  pce.state                       = 'posted'
-                  AND  pce.expense_date               <= %s
-                  AND  pce.project_analytic_account_id = %s
+                SELECT COALESCE(SUM(pcel.amount), 0)
+                FROM   x_petty_cash_expense_line pcel
+                JOIN   x_petty_cash_expense pce ON pce.id = pcel.expense_id
+                WHERE  pcel.advance_subcontractor_id    = %s
+                  AND  pcel.is_subcontractor_advance    = true
+                  AND  pce.state                        = 'posted'
+                  AND  pce.expense_date                <= %s
+                  AND  pce.project_analytic_account_id  = %s
             """, (partner_id, cutoff_date, analytic_id))
             petty_cash = cr.fetchone()[0]
 
