@@ -331,18 +331,6 @@ class LiabilitySheet(models.Model):
             # Close the CEO activity that was created on submission
             matracon_notify.close_activities(sheet, summary_contains='Approve Liability Sheet')
 
-            # ── Auto-create next period sheet ─────────────────────────────────
-            # Runs on approval (not on paid) so SA can start filling the next
-            # period immediately while Finance HO is still processing payments.
-            next_sheet = None
-            try:
-                next_sheet = sheet._create_next_period_sheet()
-            except Exception as e:
-                # Never let auto-creation failure block the CEO approval
-                sheet.message_post(body=Markup(_(
-                    '⚠️ Could not auto-create the next period sheet: %s'
-                )) % str(e))
-
             msg = Markup(_(
                 'Liability Sheet approved by CEO <b>%(ceo)s</b>. '
                 'Total Approved: <b>%(total)s</b>.<br/>'
@@ -356,33 +344,6 @@ class LiabilitySheet(models.Model):
                 'batch_name': batch.name,
             }
             sheet.message_post(body=msg)
-
-            # Post a chatter note on both sheets about the auto-created next period
-            if next_sheet:
-                sheet.message_post(body=Markup(_(
-                    'Next period sheet '
-                    '<a href="#" data-oe-model="x.liability.sheet" '
-                    'data-oe-id="%(id)s"><b>%(name)s</b></a> '
-                    'auto-created for <b>%(from)s → %(to)s</b>. '
-                    'Site Accountant: run "↻ Refresh from Ledger" to populate balances.'
-                )) % {
-                    'id': next_sheet.id,
-                    'name': next_sheet.name,
-                    'from': next_sheet.date_from,
-                    'to': next_sheet.date_to,
-                })
-                next_sheet.message_post(body=Markup(_(
-                    'Sheet auto-created on CEO approval of '
-                    '<a href="#" data-oe-model="x.liability.sheet" '
-                    'data-oe-id="%(id)s"><b>%(name)s</b></a> '
-                    '(period: %(from)s → %(to)s).<br/>'
-                    'Run <b>↻ Refresh from Ledger</b> to pull current vendor balances from GL.'
-                )) % {
-                    'id': sheet.id,
-                    'name': sheet.name,
-                    'from': sheet.date_from,
-                    'to': sheet.date_to,
-                })
 
             _fo_grp = self.env.ref('site_operations.group_finance_ho', raise_if_not_found=False)
             if not _fo_grp:
@@ -551,29 +512,6 @@ class LiabilitySheet(models.Model):
             matracon_notify.close_activities(sheet)
             sheet.message_post(body=_(
                 'All approved payments completed — sheet closed by Finance HO.'))
-            # Next period sheet is normally created on CEO approval.
-            # _create_next_period_sheet() is idempotent — returns the existing sheet
-            # if one was already auto-created at approval time; only creates a new one
-            # if somehow it was missed (e.g. sheets approved before this feature).
-            next_sheet = sheet._create_next_period_sheet()
-            if next_sheet and next_sheet.state == 'draft':
-                # Only post a message if this is a brand-new sheet (wasn't created at approval)
-                already_noted = any(
-                    'auto-created on CEO approval' in (m.body or '')
-                    for m in next_sheet.message_ids
-                )
-                if not already_noted:
-                    sheet.message_post(body=Markup(_(
-                        'Next period sheet '
-                        '<a href="#" data-oe-model="x.liability.sheet" '
-                        'data-oe-id="%(id)s"><b>%(name)s</b></a> '
-                        'created for <b>%(from)s → %(to)s</b>.'
-                    )) % {
-                        'id': next_sheet.id,
-                        'name': next_sheet.name,
-                        'from': next_sheet.date_from,
-                        'to': next_sheet.date_to,
-                    })
 
     def _sync_paid_amounts_from_payments(self):
         """Refresh line paid amounts from posted vendor payments.
