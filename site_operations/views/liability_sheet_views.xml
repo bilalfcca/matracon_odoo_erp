@@ -183,6 +183,26 @@
                         </div>
                     </div>
 
+                    <!-- ── Report Filter Toggle ── -->
+                    <div class="d-flex align-items-center gap-2 mb-2 p-2"
+                         style="background:#f8f9fa; border:1px solid #dee2e6; border-radius:6px;">
+                        <i class="fa fa-filter text-muted"/>
+                        <span class="fw-semibold text-muted" style="font-size:0.82rem; text-transform:uppercase; letter-spacing:0.4px;">View:</span>
+                        <field name="x_report_filter"
+                               widget="radio"
+                               options="{'horizontal': true}"
+                               nolabel="1"/>
+                        <span class="text-muted ms-2" style="font-size:0.78rem;"
+                              invisible="x_report_filter == 'overall'">
+                            Period data: <b><field name="date_from" nolabel="1" readonly="1" class="d-inline"/></b>
+                            → <b><field name="date_to" nolabel="1" readonly="1" class="d-inline"/></b>
+                        </span>
+                        <span class="text-muted ms-2" style="font-size:0.78rem;"
+                              invisible="x_report_filter == 'period'">
+                            All-time cumulative data for this project — refresh from ledger to update.
+                        </span>
+                    </div>
+
                     <!-- ── Select All / Deselect All + Partner search ── -->
                     <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
                         <!-- Select / Deselect — SA + draft only -->
@@ -221,22 +241,41 @@
                             <field name="is_selected"
                                    string="Submit"
                                    readonly="parent.state != 'draft'"
+                                   column_invisible="parent.x_report_filter == 'overall'"
                                    optional="show"/>
                             <field name="description"/>
-                            <field name="x_account_title" string="Account Title" optional="show"/>
+                            <field name="x_account_title" string="Account Title"
+                                   column_invisible="parent.x_report_filter == 'overall'"
+                                   optional="show"/>
                             <field name="x_bank_name" string="Bank Name" optional="hide"/>
                             <field name="x_iban" string="IBAN / Account No" optional="hide"/>
                             <field name="partner_id" readonly="is_locked"/>
-                            <field name="opening_balance" readonly="is_locked"/>
-                            <field name="new_liability" readonly="is_locked"/>
-                            <field name="liability_amount" readonly="1"/>
+                            <!-- ── Period columns (hidden in Overall mode) ── -->
+                            <field name="opening_balance" readonly="is_locked"
+                                   column_invisible="parent.x_report_filter == 'overall'"/>
+                            <field name="new_liability" readonly="is_locked"
+                                   column_invisible="parent.x_report_filter == 'overall'"/>
+                            <field name="liability_amount" readonly="1"
+                                   column_invisible="parent.x_report_filter == 'overall'"/>
                             <field name="recommended_amount"
-                                   readonly="parent.state != 'draft'"/>
+                                   readonly="parent.state != 'draft'"
+                                   column_invisible="parent.x_report_filter == 'overall'"/>
                             <field name="approved_amount"
-                                   column_invisible="parent.state == 'draft'"
+                                   column_invisible="parent.state == 'draft' or parent.x_report_filter == 'overall'"
                                    readonly="1"/>
-                            <field name="paid_amount" readonly="1" optional="show"/>
-                            <field name="balance" readonly="1" optional="show"/>
+                            <field name="paid_amount" readonly="1" optional="show"
+                                   column_invisible="parent.x_report_filter == 'overall'"/>
+                            <field name="balance" readonly="1" optional="show"
+                                   column_invisible="parent.x_report_filter == 'overall'"/>
+                            <!-- ── Overall columns (hidden in Period mode) ── -->
+                            <field name="x_overall_total_bills" readonly="1"
+                                   column_invisible="parent.x_report_filter == 'period'"/>
+                            <field name="x_overall_total_approved" readonly="1"
+                                   column_invisible="parent.x_report_filter == 'period'"/>
+                            <field name="x_overall_total_paid" readonly="1"
+                                   column_invisible="parent.x_report_filter == 'period'"/>
+                            <field name="x_overall_net_outstanding" readonly="1"
+                                   column_invisible="parent.x_report_filter == 'period'"/>
                             <field name="is_locked" column_invisible="1"/>
                         </list>
                     </field>
@@ -250,18 +289,38 @@
                         <list string="Submitted Lines" editable="bottom">
                             <field name="sequence" widget="handle"/>
                             <field name="x_is_ceo" column_invisible="1"/>
-                            <field name="description"/>
-                            <field name="x_account_title" string="Account Title" readonly="1" optional="show"/>
+                            <field name="description"
+                                   column_invisible="parent.x_report_filter == 'overall'"/>
+                            <field name="x_account_title" string="Account Title" readonly="1"
+                                   column_invisible="parent.x_report_filter == 'overall'"
+                                   optional="show"/>
                             <field name="partner_id" readonly="is_locked"/>
-                            <field name="opening_balance" readonly="1"/>
-                            <field name="new_liability" readonly="1"/>
-                            <field name="liability_amount" readonly="1"/>
-                            <field name="recommended_amount" readonly="1"/>
+                            <!-- ── Period columns ── -->
+                            <field name="opening_balance" readonly="1"
+                                   column_invisible="parent.x_report_filter == 'overall'"/>
+                            <field name="new_liability" readonly="1"
+                                   column_invisible="parent.x_report_filter == 'overall'"/>
+                            <field name="liability_amount" readonly="1"
+                                   column_invisible="parent.x_report_filter == 'overall'"/>
+                            <field name="recommended_amount" readonly="1"
+                                   column_invisible="parent.x_report_filter == 'overall'"/>
                             <!-- CEO enters approved amounts here -->
                             <field name="approved_amount"
-                                   readonly="parent.state != 'submitted' or is_locked or not x_is_ceo"/>
-                            <field name="paid_amount" readonly="1" optional="show"/>
-                            <field name="balance" readonly="1" optional="show"/>
+                                   readonly="parent.state != 'submitted' or is_locked or not x_is_ceo"
+                                   column_invisible="parent.x_report_filter == 'overall'"/>
+                            <field name="paid_amount" readonly="1" optional="show"
+                                   column_invisible="parent.x_report_filter == 'overall'"/>
+                            <field name="balance" readonly="1" optional="show"
+                                   column_invisible="parent.x_report_filter == 'overall'"/>
+                            <!-- ── Overall columns ── -->
+                            <field name="x_overall_total_bills" readonly="1"
+                                   column_invisible="parent.x_report_filter == 'period'"/>
+                            <field name="x_overall_total_approved" readonly="1"
+                                   column_invisible="parent.x_report_filter == 'period'"/>
+                            <field name="x_overall_total_paid" readonly="1"
+                                   column_invisible="parent.x_report_filter == 'period'"/>
+                            <field name="x_overall_net_outstanding" readonly="1"
+                                   column_invisible="parent.x_report_filter == 'period'"/>
                             <field name="is_locked" column_invisible="1"/>
                             <field name="is_selected" column_invisible="1"/>
                         </list>

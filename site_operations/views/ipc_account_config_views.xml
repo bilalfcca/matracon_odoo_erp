@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         IPC Account Settings — form view
+         One record per company; set once and all new IPCs auto-fill from here.
+    ═══════════════════════════════════════════════════════════════════════ -->
+
+    <record id="view_ipc_account_config_form" model="ir.ui.view">
+        <field name="name">x.ipc.account.config.form</field>
+        <field name="model">x.ipc.account.config</field>
+        <field name="arch" type="xml">
+            <form string="IPC Account Settings">
+                <sheet>
+                    <div class="oe_title">
+                        <h1>IPC Account Settings</h1>
+                        <p class="text-muted">
+                            Configure the GL accounts used when posting Subcontractor IPC
+                            journal entries. These settings apply to all IPCs in this company.
+                            Each IPC still allows per-entry overrides for the expense account,
+                            payable account, and journal.
+                        </p>
+                    </div>
+
+                    <!-- Default entry accounts -->
+                    <group string="Default Entry Accounts"
+                          colspan="2" col="2">
+                        <field name="expense_account_id"
+                               options="{'no_create': True}"
+                               help="GL account debited for certified work done (Dr side). Auto-fills on new IPCs."/>
+                        <field name="payable_account_id"
+                               options="{'no_create': True}"
+                               help="Default subcontractor payable account (Cr side — hits partner ledger). Override per-IPC or set on the subcontractor partner."/>
+                        <field name="journal_id"
+                               options="{'no_create': True}"
+                               help="Journal for all IPC accounting entries. Falls back to first General journal if not set."/>
+                    </group>
+
+                    <!-- Deduction component accounts -->
+                    <group string="Deduction GL Accounts"
+                          colspan="2" col="2">
+                        <div class="alert alert-info" role="alert" colspan="2">
+                            <strong>How these work:</strong> When an IPC is submitted, a
+                            multi-line journal entry is posted. Each deduction that has an
+                            account configured here gets its own credit line. Any deductions
+                            <em>without</em> a configured account are folded into the
+                            Subcontractor Payable credit (the JE always balances).
+                        </div>
+                        <field name="retention_payable_account_id"
+                               options="{'no_create': True}"
+                               help="Liability account for retention withheld (e.g. 5%). Credited in IPC JE; debited when released."/>
+                        <field name="mob_advance_account_id"
+                               options="{'no_create': True}"
+                               help="Asset account for mobilisation advances. Debited when advance is given; credited in IPC JE as it is recovered."/>
+                        <field name="security_withheld_account_id"
+                               options="{'no_create': True}"
+                               help="Liability account for security deposits withheld. Credited in IPC JE; debited when returned."/>
+                        <field name="backcharge_recovery_account_id"
+                               options="{'no_create': True}"
+                               help="Account credited when back charges are recovered from a subcontractor."/>
+                        <field name="other_deductions_account_id"
+                               options="{'no_create': True}"
+                               help="Account credited for the Other Deductions line in IPCs."/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Server action — opens (or auto-creates) the singleton config form -->
+    <record id="action_ipc_account_config" model="ir.actions.server">
+        <field name="name">IPC Account Settings</field>
+        <field name="model_id" ref="model_x_ipc_account_config"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_open_config()</field>
+    </record>
+
+    <!-- Accounting → Configuration → IPC Account Settings -->
+    <menuitem id="menu_ipc_account_config"
+              name="IPC Account Settings"
+              parent="account.menu_finance_configuration"
+              action="action_ipc_account_config"
+              sequence="95"
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
+</odoo>

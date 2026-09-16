@@ -29,11 +29,16 @@ class LiabilitySheet(models.Model):
                 ADD COLUMN IF NOT EXISTS pm_signature_date   TIMESTAMP WITHOUT TIME ZONE,
                 ADD COLUMN IF NOT EXISTS pm_signed_sheet     BYTEA,
                 ADD COLUMN IF NOT EXISTS pm_signed_sheet_filename VARCHAR,
-                ADD COLUMN IF NOT EXISTS account_move_id     INTEGER
+                ADD COLUMN IF NOT EXISTS account_move_id     INTEGER,
+                ADD COLUMN IF NOT EXISTS x_report_filter     VARCHAR NOT NULL DEFAULT 'period'
         """)
         self.env.cr.execute("""
             ALTER TABLE x_liability_sheet_line
-                ADD COLUMN IF NOT EXISTS payment_id INTEGER
+                ADD COLUMN IF NOT EXISTS payment_id                INTEGER,
+                ADD COLUMN IF NOT EXISTS x_overall_total_bills     NUMERIC NOT NULL DEFAULT 0,
+                ADD COLUMN IF NOT EXISTS x_overall_total_approved  NUMERIC NOT NULL DEFAULT 0,
+                ADD COLUMN IF NOT EXISTS x_overall_total_paid      NUMERIC NOT NULL DEFAULT 0,
+                ADD COLUMN IF NOT EXISTS x_overall_net_outstanding NUMERIC NOT NULL DEFAULT 0
         """)
         return super()._register_hook()
 
@@ -102,6 +107,13 @@ class LiabilitySheet(models.Model):
         'x.batch.payment', string='Batch Payment',
         readonly=True, copy=False,
         help='Batch payment created by CEO approval — Finance HO posts this.')
+
+    # ── Report filter toggle: period vs overall ───────────────────────────────
+    x_report_filter = fields.Selection([
+        ('period', 'Selected Period'),
+        ('overall', 'Overall'),
+    ], string='View', default='period', required=True,
+       help='Switch the line table and PDF between period-scoped and all-time overall data.')
 
     # ── View helpers: selected lines only (CEO/FO view after submission) ─────
     selected_line_ids = fields.One2many(
@@ -331,18 +343,6 @@ class LiabilitySheet(models.Model):
             # Close the CEO activity that was created on submission
             matracon_notify.close_activities(sheet, summary_contains='Approve Liability Sheet')
 
-            # ── Auto-create next period sheet ─────────────────────────────────
-            # Runs on approval (not on paid) so SA can start filling the next
-            # period immediately while Finance HO is still processing payments.
-            next_sheet = None
-            try:
-                next_sheet = sheet._create_next_period_sheet()
-            except Exception as e:
-                # Never let auto-creation failure block the CEO approval
-                sheet.message_post(body=Markup(_(
-                    '⚠️ Could not auto-create the next period sheet: %s'
-                )) % str(e))
-
             msg = Markup(_(
                 'Liability Sheet approved by CEO <b>%(ceo)s</b>. '
                 'Total Approved: <b>%(total)s</b>.<br/>'
@@ -356,33 +356,6 @@ class LiabilitySheet(models.Model):
                 'batch_name': batch.name,
             }
             sheet.message_post(body=msg)
-
-            # Post a chatter note on both sheets about the auto-created next period
-            if next_sheet:
-                sheet.message_post(body=Markup(_(
-                    'Next period sheet '
-                    '<a href="#" data-oe-model="x.liability.sheet" '
-                    'data-oe-id="%(id)s"><b>%(name)s</b></a> '
-                    'auto-created for <b>%(from)s → %(to)s</b>. '
-                    'Site Accountant: run "↻ Refresh from Ledger" to populate balances.'
-                )) % {
-                    'id': next_sheet.id,
-                    'name': next_sheet.name,
-                    'from': next_sheet.date_from,
-                    'to': next_sheet.date_to,
-                })
-                next_sheet.message_post(body=Markup(_(
-                    'Sheet auto-created on CEO approval of '
-                    '<a href="#" data-oe-model="x.liability.sheet" '
-                    'data-oe-id="%(id)s"><b>%(name)s</b></a> '
-                    '(period: %(from)s → %(to)s).<br/>'
-                    'Run <b>↻ Refresh from Ledger</b> to pull current vendor balances from GL.'
-                )) % {
-                    'id': sheet.id,
-                    'name': sheet.name,
-                    'from': sheet.date_from,
-                    'to': sheet.date_to,
-                })
 
             _fo_grp = self.env.ref('site_operations.group_finance_ho', raise_if_not_found=False)
             if not _fo_grp:
@@ -551,29 +524,6 @@ class LiabilitySheet(models.Model):
             matracon_notify.close_activities(sheet)
             sheet.message_post(body=_(
                 'All approved payments completed — sheet closed by Finance HO.'))
-            # Next period sheet is normally created on CEO approval.
-            # _create_next_period_sheet() is idempotent — returns the existing sheet
-            # if one was already auto-created at approval time; only creates a new one
-            # if somehow it was missed (e.g. sheets approved before this feature).
-            next_sheet = sheet._create_next_period_sheet()
-            if next_sheet and next_sheet.state == 'draft':
-                # Only post a message if this is a brand-new sheet (wasn't created at approval)
-                already_noted = any(
-                    'auto-created on CEO approval' in (m.body or '')
-                    for m in next_sheet.message_ids
-                )
-                if not already_noted:
-                    sheet.message_post(body=Markup(_(
-                        'Next period sheet '
-                        '<a href="#" data-oe-model="x.liability.sheet" '
-                        'data-oe-id="%(id)s"><b>%(name)s</b></a> '
-                        'created for <b>%(from)s → %(to)s</b>.'
-                    )) % {
-                        'id': next_sheet.id,
-                        'name': next_sheet.name,
-                        'from': next_sheet.date_from,
-                        'to': next_sheet.date_to,
-                    })
 
     def _sync_paid_amounts_from_payments(self):
         """Refresh line paid amounts from posted vendor payments.
@@ -863,6 +813,58 @@ class LiabilitySheet(models.Model):
                             'new_liability': round(new_liab, 2),
                         })]})
 
+            # ── 3. Populate overall (all-time) data in one batch per sheet ─────
+            partner_ids = sheet.line_ids.mapped('partner_id').ids
+            if partner_ids and analytic_id:
+                # GL totals: all posted payable credits (bills) and debits (paid)
+                # for these partners on this project — no date filter.
+                self.env.cr.execute("""
+                    SELECT
+                        aml.partner_id,
+                        COALESCE(SUM(aml.credit), 0) AS total_bills,
+                        COALESCE(SUM(aml.debit),  0) AS total_paid
+                    FROM account_move_line aml
+                    JOIN account_move    am ON am.id  = aml.move_id
+                    JOIN account_account aa ON aa.id  = aml.account_id
+                    WHERE am.state = 'posted'
+                      AND aa.account_type = 'liability_payable'
+                      AND aml.partner_id = ANY(%s)
+                      AND (
+                          am.x_project_analytic_account_id = %s
+                          OR (aml.analytic_distribution IS NOT NULL
+                              AND aml.analytic_distribution ? %s)
+                      )
+                    GROUP BY aml.partner_id
+                """, [partner_ids, analytic_id, str_analytic_id])
+                gl_map = {row[0]: (float(row[1]), float(row[2]))
+                          for row in self.env.cr.fetchall()}
+
+                # Approved totals: sum of approved_amount across all
+                # approved/paid liability sheet lines for this vendor+project.
+                self.env.cr.execute("""
+                    SELECT
+                        lsl.partner_id,
+                        COALESCE(SUM(lsl.approved_amount), 0) AS total_approved
+                    FROM x_liability_sheet_line lsl
+                    JOIN x_liability_sheet ls ON ls.id = lsl.sheet_id
+                    WHERE lsl.partner_id = ANY(%s)
+                      AND ls.project_analytic_account_id = %s
+                      AND ls.state IN ('approved', 'paid')
+                    GROUP BY lsl.partner_id
+                """, [partner_ids, analytic_id])
+                approved_map = {row[0]: float(row[1])
+                                for row in self.env.cr.fetchall()}
+
+                for line in sheet.line_ids:
+                    pid = line.partner_id.id
+                    bills, paid = gl_map.get(pid, (0.0, 0.0))
+                    approved = approved_map.get(pid, 0.0)
+                    line.write({
+                        'x_overall_total_bills':    round(bills, 2),
+                        'x_overall_total_approved': round(approved, 2),
+                        'x_overall_total_paid':     round(paid, 2),
+                    })
+
             sheet.message_post(
                 body=Markup(_('Liability amounts refreshed from partner ledger by <b>%s</b>.'))
                 % self.env.user.name
@@ -943,6 +945,21 @@ class LiabilitySheetLine(models.Model):
     balance = fields.Float(
         string='Balance', compute='_compute_balance', store=True, digits=(16, 0))
 
+    # ── Overall (all-time) figures — populated by Refresh from Ledger ─────────
+    x_overall_total_bills = fields.Float(
+        string='Total Bills (All Time)', digits=(16, 0), readonly=True,
+        help='Sum of all posted payable credits for this vendor on this project, no date filter.')
+    x_overall_total_approved = fields.Float(
+        string='Total Approved (All Sheets)', digits=(16, 0), readonly=True,
+        help='Sum of approved_amount across all approved/paid liability sheets for this vendor+project.')
+    x_overall_total_paid = fields.Float(
+        string='Total Paid (All Time)', digits=(16, 0), readonly=True,
+        help='Sum of all posted payable debits for this vendor on this project, no date filter.')
+    x_overall_net_outstanding = fields.Float(
+        string='Net Outstanding', digits=(16, 0),
+        compute='_compute_overall_net', store=True,
+        help='Total Bills − Total Paid = current net amount owed to this vendor.')
+
     # ─────────────────────────────────────────────────────────────────────────
     # COMPUTE
     # ─────────────────────────────────────────────────────────────────────────
@@ -961,6 +978,13 @@ class LiabilitySheetLine(models.Model):
     def _compute_balance(self):
         for line in self:
             line.balance = line.liability_amount - line.paid_amount
+
+    @api.depends('x_overall_total_bills', 'x_overall_total_paid')
+    def _compute_overall_net(self):
+        for line in self:
+            line.x_overall_net_outstanding = (
+                line.x_overall_total_bills - line.x_overall_total_paid
+            )
 
     # ─────────────────────────────────────────────────────────────────────────
     # ONCHANGE

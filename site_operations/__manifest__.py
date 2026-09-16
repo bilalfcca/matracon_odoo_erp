@@ -76,6 +76,7 @@
         'views/postdated_cheque_views.xml',
         'views/cheque_series_views.xml',
         'views/subcontractor_backcharge_views.xml',
+        'views/ipc_account_config_views.xml',
         'views/subcontractor_ipc_views.xml',
         'views/subcontractor_ho_advance_views.xml',
         'views/employee_backcharge_views.xml',
