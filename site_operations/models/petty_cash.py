@@ -861,7 +861,10 @@ class PettyCashExpenseLine(models.Model):
     sequence = fields.Integer(default=10)
 
     name = fields.Char(string='Description', required=True)
-    amount = fields.Monetary(required=True, currency_field='currency_id')
+    # required=False — zero is a valid draft value; action_post validates amount > 0
+    # with a clear user-facing message. required=True caused Odoo's cryptic
+    # "Missing required value" error when saving a draft line with 0 amount.
+    amount = fields.Monetary(currency_field='currency_id')
     currency_id = fields.Many2one(
         related='expense_id.currency_id', store=False, readonly=True)
     project_analytic_account_id = fields.Many2one(
@@ -893,31 +896,7 @@ class PettyCashExpenseLine(models.Model):
         domain="[('category_id.name', '=', 'Subcontractor')]",
         help='Subcontractor receiving this advance.')
 
-    # ── Sync parent total on every change ─────────────────────────────────────
-    def _sync_parent_amount(self):
-        """Recompute and store the parent expense's total from all its lines."""
-        expenses = self.mapped('expense_id').filtered(lambda e: e.id)
-        for exp in expenses:
-            exp.amount = sum(exp.line_ids.mapped('amount'))
-
-    @api.model_create_multi
-    def create(self, vals_list):
-        lines = super().create(vals_list)
-        lines._sync_parent_amount()
-        return lines
-
-    def write(self, vals):
-        res = super().write(vals)
-        if 'amount' in vals or 'expense_id' in vals:
-            self._sync_parent_amount()
-        return res
-
-    def unlink(self):
-        expenses = self.mapped('expense_id').filtered(lambda e: e.id)
-        res = super().unlink()
-        for exp in expenses:
-            exp.amount = sum(exp.line_ids.mapped('amount'))
-        return res
+    # (no manual sync needed — parent amount is @api.depends computed)
 
 
 class PettyCashExpense(models.Model):
@@ -953,7 +932,17 @@ class PettyCashExpense(models.Model):
         related='fund_id.project_analytic_account_id', store=True, readonly=True)
     expense_date = fields.Date(
         default=fields.Date.context_today, required=True)
-    amount = fields.Monetary(required=True, currency_field='currency_id')
+    # Computed from line_ids so the form total updates live as lines are entered.
+    # required=False — action_post validates amount > 0 with a clear message.
+    amount = fields.Monetary(
+        compute='_compute_amount', store=True,
+        currency_field='currency_id',
+    )
+
+    @api.depends('line_ids.amount')
+    def _compute_amount(self):
+        for expense in self:
+            expense.amount = sum(expense.line_ids.mapped('amount'))
     available_balance = fields.Monetary(
         related='fund_id.balance', string='Available Balance',
         currency_field='currency_id', readonly=True,

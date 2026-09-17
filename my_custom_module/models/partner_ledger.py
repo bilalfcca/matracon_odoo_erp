@@ -160,6 +160,12 @@ class PartnerLedgerReportHandler(models.AbstractModel):
                 values['wht_amount'] = taxes.get('wht_amount', 0.0)
                 values['retention_amount'] = taxes.get('retention_amount', 0.0)
 
+            # IPC journal entries stamp x_ipc_retention_amount on the payable net
+            # credit line. Use it to populate the Retention column for that row.
+            ipc_ret = getattr(move_line, 'x_ipc_retention_amount', 0.0) or 0.0
+            if ipc_ret:
+                values['retention_amount'] = ipc_ret
+
     def _merge_tax_deduction_lines(self, aml_list):
         """Merge WHT/Retention MISC tax-deduction entries into the parent payment line."""
         if not aml_list:
