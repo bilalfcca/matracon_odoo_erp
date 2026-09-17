@@ -861,7 +861,10 @@ class PettyCashExpenseLine(models.Model):
     sequence = fields.Integer(default=10)
 
     name = fields.Char(string='Description', required=True)
-    amount = fields.Monetary(required=True, currency_field='currency_id')
+    # required=False — zero is a valid draft value; action_post validates amount > 0
+    # with a clear user-facing message. required=True caused Odoo's cryptic
+    # "Missing required value" error when saving a draft line with 0 amount.
+    amount = fields.Monetary(currency_field='currency_id')
     currency_id = fields.Many2one(
         related='expense_id.currency_id', store=False, readonly=True)
     project_analytic_account_id = fields.Many2one(
@@ -953,7 +956,10 @@ class PettyCashExpense(models.Model):
         related='fund_id.project_analytic_account_id', store=True, readonly=True)
     expense_date = fields.Date(
         default=fields.Date.context_today, required=True)
-    amount = fields.Monetary(required=True, currency_field='currency_id')
+    # required=False — action_post validates amount > 0 with a clear message.
+    # required=True caused "Missing required value" when the parent amount was 0
+    # (sum of unset line amounts) at the moment Odoo's ORM validated the form save.
+    amount = fields.Monetary(currency_field='currency_id')
     available_balance = fields.Monetary(
         related='fund_id.balance', string='Available Balance',
         currency_field='currency_id', readonly=True,
