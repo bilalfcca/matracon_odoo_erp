@@ -344,3 +344,4 @@ access_fleet_vehicle_site_store,fleet.vehicle.site.store,fleet.model_fleet_vehic
 access_fleet_vehicle_head_office,fleet.vehicle.head.office,fleet.model_fleet_vehicle,purchase_demand_raise.group_head_office,1,0,0,0
 access_fleet_vehicle_procurement_ho,fleet.vehicle.procurement.ho,fleet.model_fleet_vehicle,purchase_demand_raise.group_procurement_ho,1,0,0,0
 access_fleet_vehicle_matracon_admin,fleet.vehicle.matracon.admin,fleet.model_fleet_vehicle,purchase_demand_raise.group_matracon_admin,1,0,0,0
+access_fleet_vehicle_site_accountant,fleet.vehicle.site.accountant,fleet.model_fleet_vehicle,site_operations.group_site_accountant,1,0,0,0
