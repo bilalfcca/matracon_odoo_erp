@@ -1145,56 +1145,55 @@ class PurchaseOrder(models.Model):
         self.invalidate_recordset(['picking_ids', 'incoming_picking_count'])
 
     def action_view_picking(self):
-        """Open the incoming receipt form (Site Store) — not a list view.
+        """Open receipts: list when multiple, form when single.
 
         Uses a direct DB search instead of the computed self.picking_ids to
         avoid ORM-cache stale reads after picking creation in the same request.
+        sudo() is used so site-store record rules (anchored to the user's
+        warehouse) do not hide receipts belonging to this PO.
         """
         self.ensure_one()
         self._matracon_ensure_receipt_pickings()
-        # Use sudo() so record rules on stock.picking don't hide the receipt.
-        # The site-store record rule uses x_default_warehouse_id which can be
-        # temporarily set to 'My Company' when the site warehouse has no stock.
-        # sudo() bypasses that; the form view itself enforces its own access.
         Picking = self.env['stock.picking'].sudo()
-        # Primary: search via stock moves (the normal picking path)
-        picking = Picking.search([
+
+        # Collect ALL receipt pickings for this PO (done + pending + cancelled).
+        # Primary: via stock moves (normal path).
+        pickings = Picking.search([
             ('move_ids.purchase_line_id.order_id', '=', self.id),
             ('picking_type_id.code', '=', 'incoming'),
-            ('state', 'not in', ('done', 'cancel')),
-        ], limit=1, order='id asc')
-        if not picking:
-            # Secondary: search by origin name — covers fallback pickings without moves
-            picking = Picking.search([
+        ], order='state asc, id asc')
+        if not pickings:
+            # Fallback: match by origin — covers backorders without moves.
+            pickings = Picking.search([
                 ('origin', '=', self.name),
                 ('picking_type_id.code', '=', 'incoming'),
-                ('state', 'not in', ('done', 'cancel')),
-            ], limit=1, order='id asc')
-        if not picking:
-            # Also check done receipts (already-received POs — open for review)
-            picking = Picking.search([
-                ('move_ids.purchase_line_id.order_id', '=', self.id),
-                ('picking_type_id.code', '=', 'incoming'),
-            ], limit=1, order='state asc, id asc')
-        if not picking:
-            picking = Picking.search([
-                ('origin', '=', self.name),
-                ('picking_type_id.code', '=', 'incoming'),
-            ], limit=1, order='state asc, id asc')
-        if picking:
-            # Plain act_window dict — no path key — keeps URL nested in the PO:
-            #   /odoo/purchase/{po_id}/stock.picking/{picking_id}
-            # exactly as in the staging environment.
+            ], order='state asc, id asc')
+
+        if not pickings:
+            return super().action_view_picking()
+
+        if len(pickings) == 1:
+            # Single receipt → open form directly (nested URL: /purchase/{id}/stock.picking/{id})
             return {
                 'type': 'ir.actions.act_window',
                 'name': _('Receipt'),
                 'res_model': 'stock.picking',
                 'view_mode': 'form',
-                'res_id': picking.id,
+                'res_id': pickings.id,
                 'target': 'current',
                 'context': dict(self.env.context),
             }
-        return super().action_view_picking()
+
+        # Multiple receipts → list so user can choose which one to open.
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Receipts'),
+            'res_model': 'stock.picking',
+            'view_mode': 'list,form',
+            'domain': [('id', 'in', pickings.ids)],
+            'target': 'current',
+            'context': dict(self.env.context),
+        }
 
     def action_rfq_send(self):
         """Override Send RFQ to enforce Matracon gates and inject custom template.

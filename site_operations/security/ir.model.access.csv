@@ -340,3 +340,8 @@ access_je_project_allocation_admin,je.project.allocation.admin,model_x_je_projec
 access_je_project_allocation_head_office,je.project.allocation.head.office,model_x_je_project_allocation,purchase_demand_raise.group_head_office,1,0,0,0
 access_je_project_allocation_site_accountant,je.project.allocation.site.accountant,model_x_je_project_allocation,site_operations.group_site_accountant,1,0,0,0
 access_je_project_allocation_ceo,je.project.allocation.ceo,model_x_je_project_allocation,purchase_demand_raise.group_ceo_approval,1,1,1,1
+access_fleet_vehicle_site_store,fleet.vehicle.site.store,fleet.model_fleet_vehicle,purchase_demand_raise.group_site_store,1,0,0,0
+access_fleet_vehicle_head_office,fleet.vehicle.head.office,fleet.model_fleet_vehicle,purchase_demand_raise.group_head_office,1,0,0,0
+access_fleet_vehicle_procurement_ho,fleet.vehicle.procurement.ho,fleet.model_fleet_vehicle,purchase_demand_raise.group_procurement_ho,1,0,0,0
+access_fleet_vehicle_matracon_admin,fleet.vehicle.matracon.admin,fleet.model_fleet_vehicle,purchase_demand_raise.group_matracon_admin,1,0,0,0
+access_fleet_vehicle_site_accountant,fleet.vehicle.site.accountant,fleet.model_fleet_vehicle,site_operations.group_site_accountant,1,0,0,0
