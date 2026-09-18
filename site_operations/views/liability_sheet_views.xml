@@ -199,8 +199,14 @@
                         </span>
                         <span class="text-muted ms-2" style="font-size:0.78rem;"
                               invisible="x_report_filter == 'period'">
-                            All-time cumulative data for this project — refresh from ledger to update.
+                            All-time cumulative data for this project.
                         </span>
+                        <button name="action_refresh_overall_data"
+                                type="object"
+                                string="↻ Refresh Overall"
+                                class="btn btn-sm btn-outline-secondary ms-auto"
+                                invisible="x_report_filter == 'period'"
+                                title="Pull all-time GL totals for each vendor (works on any state, including Paid)"/>
                     </div>
 
                     <!-- ── Select All / Deselect All + Partner search ── -->

@@ -144,6 +144,19 @@ class LiabilitySheet(models.Model):
         for sheet in self:
             sheet.x_is_site_accountant = is_sa
 
+    @api.onchange('x_report_filter')
+    def _onchange_x_report_filter(self):
+        """When switching to Overall mode, auto-refresh overall data from GL.
+
+        This ensures x_overall_* fields are always up-to-date when viewed —
+        even on Paid sheets where "Refresh from Ledger" is hidden.
+        The write is committed via a direct DB update so the freshly computed
+        values are visible after the form reloads.
+        """
+        if self.x_report_filter == 'overall' and self.id:
+            # Call the server-side refresh directly (persists to DB)
+            self.env['x.liability.sheet'].browse(self.id).action_refresh_overall_data()
+
     @api.onchange('x_filter_partner_id')
     def _onchange_x_filter_partner_id(self):
         """Return an updated domain for both One2many line fields.
@@ -496,19 +509,26 @@ class LiabilitySheet(models.Model):
         return new_sheet
 
     def action_fo_mark_paid(self):
-        """Finance HO closes the sheet after all vendor payments are posted."""
+        """Finance HO closes the sheet after all vendor payments are posted.
+
+        Lines with paid_amount = 0 are allowed — Finance HO intentionally skips
+        them; they will appear in the next cycle's opening balance.
+        Only PARTIALLY paid lines (0 < paid < approved) are blocked because
+        that usually indicates an in-progress payment that hasn't been posted yet.
+        """
         for sheet in self:
             if sheet.state != 'approved':
                 raise UserError(_('Only approved liability sheets can be marked paid.'))
             # Sync paid amounts from any posted payments first.
             sheet._sync_paid_amounts_from_payments()
-            # Check whether all approved lines are fully settled.
-            unpaid = sheet.line_ids.filtered(
+            # Block only partially paid lines (some payment was started but not posted).
+            # Zero-paid lines are intentionally left unpaid for this cycle — allowed.
+            partially_paid = sheet.line_ids.filtered(
                 lambda l: l.approved_amount > 0
-                and l.paid_amount < l.approved_amount - 0.01
+                and 0 < l.paid_amount < l.approved_amount - 0.01
             )
-            if unpaid:
-                # Lines still outstanding — require all non-zero payments to be posted.
+            if partially_paid:
+                # Lines partially paid — require outstanding payments to be posted.
                 unposted = sheet.payment_ids.filtered(
                     lambda p: p.state != 'posted' and (p.amount or 0) > 0.01
                 )
@@ -517,8 +537,9 @@ class LiabilitySheet(models.Model):
                         'Post all vendor payments before closing the sheet: %s'
                     ) % ', '.join(unposted.mapped('name')))
                 raise UserError(_(
-                    'Some approved lines are not fully paid yet: %s'
-                ) % ', '.join(unpaid.mapped('partner_id.display_name')))
+                    'Some vendor payments are partially recorded — '
+                    'post or remove them before closing: %s'
+                ) % ', '.join(partially_paid.mapped('partner_id.display_name')))
             sheet.state = 'paid'
             # Close the Finance HO activity that was created on CEO approval
             matracon_notify.close_activities(sheet)
@@ -813,62 +834,92 @@ class LiabilitySheet(models.Model):
                             'new_liability': round(new_liab, 2),
                         })]})
 
-            # ── 3. Populate overall (all-time) data in one batch per sheet ─────
-            partner_ids = sheet.line_ids.mapped('partner_id').ids
-            if partner_ids and analytic_id:
-                # GL totals: all posted payable credits (bills) and debits (paid)
-                # for these partners on this project — no date filter.
-                self.env.cr.execute("""
-                    SELECT
-                        aml.partner_id,
-                        COALESCE(SUM(aml.credit), 0) AS total_bills,
-                        COALESCE(SUM(aml.debit),  0) AS total_paid
-                    FROM account_move_line aml
-                    JOIN account_move    am ON am.id  = aml.move_id
-                    JOIN account_account aa ON aa.id  = aml.account_id
-                    WHERE am.state = 'posted'
-                      AND aa.account_type = 'liability_payable'
-                      AND aml.partner_id = ANY(%s)
-                      AND (
-                          am.x_project_analytic_account_id = %s
-                          OR (aml.analytic_distribution IS NOT NULL
-                              AND aml.analytic_distribution ? %s)
-                      )
-                    GROUP BY aml.partner_id
-                """, [partner_ids, analytic_id, str_analytic_id])
-                gl_map = {row[0]: (float(row[1]), float(row[2]))
-                          for row in self.env.cr.fetchall()}
-
-                # Approved totals: sum of approved_amount across all
-                # approved/paid liability sheet lines for this vendor+project.
-                self.env.cr.execute("""
-                    SELECT
-                        lsl.partner_id,
-                        COALESCE(SUM(lsl.approved_amount), 0) AS total_approved
-                    FROM x_liability_sheet_line lsl
-                    JOIN x_liability_sheet ls ON ls.id = lsl.sheet_id
-                    WHERE lsl.partner_id = ANY(%s)
-                      AND ls.project_analytic_account_id = %s
-                      AND ls.state IN ('approved', 'paid')
-                    GROUP BY lsl.partner_id
-                """, [partner_ids, analytic_id])
-                approved_map = {row[0]: float(row[1])
-                                for row in self.env.cr.fetchall()}
-
-                for line in sheet.line_ids:
-                    pid = line.partner_id.id
-                    bills, paid = gl_map.get(pid, (0.0, 0.0))
-                    approved = approved_map.get(pid, 0.0)
-                    line.write({
-                        'x_overall_total_bills':    round(bills, 2),
-                        'x_overall_total_approved': round(approved, 2),
-                        'x_overall_total_paid':     round(paid, 2),
-                    })
+            # ── 3. Populate overall (all-time) data ──────────────────────────
+            sheet.action_refresh_overall_data()
 
             sheet.message_post(
                 body=Markup(_('Liability amounts refreshed from partner ledger by <b>%s</b>.'))
                 % self.env.user.name
             )
+
+    def action_refresh_overall_data(self):
+        """Refresh x_overall_* fields from GL for all states (including Paid).
+
+        Only touches the four all-time aggregate columns — does NOT change
+        period-specific fields (opening_balance, new_liability, recommended_amount).
+        Safe to call on any sheet state.
+        """
+        for sheet in self:
+            analytic_id = (
+                sheet.project_analytic_account_id.id
+                if sheet.project_analytic_account_id else None
+            )
+            if not analytic_id:
+                continue
+            str_analytic_id = str(analytic_id)
+
+            partner_ids = sheet.line_ids.mapped('partner_id').ids
+            if not partner_ids:
+                continue
+
+            # GL totals: all posted payable credits (bills) and debits (paid)
+            # for these partners on this project — no date filter.
+            self.env.cr.execute("""
+                SELECT
+                    aml.partner_id,
+                    COALESCE(SUM(aml.credit), 0) AS total_bills,
+                    COALESCE(SUM(aml.debit),  0) AS total_paid
+                FROM account_move_line aml
+                JOIN account_move    am ON am.id  = aml.move_id
+                JOIN account_account aa ON aa.id  = aml.account_id
+                WHERE am.state = 'posted'
+                  AND aa.account_type = 'liability_payable'
+                  AND aml.partner_id = ANY(%s)
+                  AND (
+                      am.x_project_analytic_account_id = %s
+                      OR (aml.analytic_distribution IS NOT NULL
+                          AND aml.analytic_distribution ? %s)
+                  )
+                GROUP BY aml.partner_id
+            """, [partner_ids, analytic_id, str_analytic_id])
+            gl_map = {row[0]: (float(row[1]), float(row[2]))
+                      for row in self.env.cr.fetchall()}
+
+            # Approved totals: sum of approved_amount across all
+            # approved/paid liability sheet lines for this vendor+project.
+            self.env.cr.execute("""
+                SELECT
+                    lsl.partner_id,
+                    COALESCE(SUM(lsl.approved_amount), 0) AS total_approved
+                FROM x_liability_sheet_line lsl
+                JOIN x_liability_sheet ls ON ls.id = lsl.sheet_id
+                WHERE lsl.partner_id = ANY(%s)
+                  AND ls.project_analytic_account_id = %s
+                  AND ls.state IN ('approved', 'paid')
+                GROUP BY lsl.partner_id
+            """, [partner_ids, analytic_id])
+            approved_map = {row[0]: float(row[1])
+                            for row in self.env.cr.fetchall()}
+
+            for line in sheet.line_ids:
+                pid = line.partner_id.id
+                bills, paid = gl_map.get(pid, (0.0, 0.0))
+                approved = approved_map.get(pid, 0.0)
+                line.sudo().write({
+                    'x_overall_total_bills':    round(bills, 2),
+                    'x_overall_total_approved': round(approved, 2),
+                    'x_overall_total_paid':     round(paid, 2),
+                })
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'type': 'success',
+                'message': _('Overall data refreshed from GL.'),
+                'sticky': False,
+            },
+        }
 
     def unlink(self):
         for rec in self:
