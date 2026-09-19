@@ -32,6 +32,7 @@
         'data/site_warehouses_data.xml',
         'data/petty_cash_sequence.xml',
         'data/petty_cash_fix_action.xml',
+        'data/journal_entry_fix_action.xml',
         'data/compliance_sequences.xml',
         'data/ipc_sequence.xml',
         'data/employee_backcharge_sequence.xml',
