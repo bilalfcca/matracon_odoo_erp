@@ -1285,6 +1285,50 @@ class AccountMoveSiteOps(models.Model):
             'site_operations.action_report_journal_entry_voucher'
         ).report_action(self)
 
+    def action_rebuild_site_analytic_links(self):
+        """Admin-only: recompute x_site_analytic_ids for ALL posted journal entries.
+
+        Background
+        ----------
+        SA record rule (b) uses the stored Many2many ``x_site_analytic_ids`` to
+        decide which journal entries are visible to a site accountant.  This field
+        is populated from line-level ``analytic_distribution``.
+
+        Old HO-filled journal entries created before this field existed (or before
+        the module was upgraded) have an empty M2M, so the record rule never
+        matches them and SA cannot see those entries — even though the HO correctly
+        set analytics on individual lines.
+
+        Running this action once recomputes the M2M for every journal entry and
+        makes all matching old entries immediately visible to the correct SA.
+        Safe to run multiple times (idempotent).
+        """
+        if not (
+            self.env.user.has_group('purchase_demand_raise.group_matracon_admin')
+            or self.env.user.has_group('base.group_system')
+        ):
+            raise UserError(_(
+                'This action is restricted to Matracon Admin and System Administrator.'
+            ))
+
+        moves = self.env['account.move'].search([('move_type', '=', 'entry')])
+        moves._compute_x_site_analytic_ids()
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Site Analytics Rebuilt'),
+                'message': _(
+                    'Recomputed site-analytic links for %(count)d journal entries. '
+                    'Site accountants can now see all relevant old entries.',
+                    count=len(moves),
+                ),
+                'type': 'success',
+                'sticky': True,
+            },
+        }
+
 
 class AccountMoveLineSiteOps(models.Model):
     """DB-level hook: auto-fill analytic distribution on every vendor bill line.
