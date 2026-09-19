@@ -333,9 +333,10 @@
         <field name="inherit_id" ref="account.view_move_form"/>
         <field name="arch" type="xml">
 
-            <!-- 1. Payment Reference — not relevant for site receipt verification -->
+            <!-- 1. Payment Reference — hide on vendor bills for SA; show on journal entries
+                 so SA can read the payment reference HO entered. -->
             <xpath expr="//field[@name='payment_reference']" position="attributes">
-                <attribute name="groups">!site_operations.group_site_accountant</attribute>
+                <attribute name="invisible">x_user_is_site_accountant and move_type != 'entry'</attribute>
             </xpath>
 
             <!-- 2. Due Date label div (shared with Payment Terms label) -->
@@ -353,6 +354,78 @@
             <xpath expr="//page[@id='invoice_tab']//field[@name='account_id']" position="attributes">
                 <attribute name="domain">[('x_ho_only', '=', False), '|', ('x_site_ids', '=', False), ('x_site_ids', 'in', [parent.x_user_analytic_id])] if parent.x_user_analytic_id else []</attribute>
                 <attribute name="options">{'no_create': True, 'no_create_edit': True}</attribute>
+            </xpath>
+
+            <!-- 5. Expose the user-is-SA flag so invisible expressions above can use it -->
+            <xpath expr="//field[@name='payment_reference']" position="before">
+                <field name="x_user_is_site_accountant" invisible="1"/>
+            </xpath>
+
+            <!-- 6. SA read-only view of Finance-HO-filled journal entry fields.
+                 These fields are hidden from SA in the main (editable) view via
+                 group restrictions.  We inject read-only copies here so SA can
+                 see everything HO entered.  Only shown when the field has a value
+                 and the move is a journal entry.
+                 Target: base-view field[@name='ref'] without nolabel — stable anchor.
+            -->
+            <xpath expr="//field[@name='ref'][not(@nolabel)]" position="after">
+                <field name="x_bank_journal_id"
+                       string="Bank"
+                       readonly="1"
+                       invisible="not x_user_is_site_accountant or move_type != 'entry' or not x_bank_journal_id"
+                       options="{'no_open': True}"/>
+                <field name="x_cheque_leaf_id"
+                       string="Cheque No. (Series)"
+                       readonly="1"
+                       invisible="not x_user_is_site_accountant or move_type != 'entry' or not x_cheque_leaf_id"
+                       options="{'no_open': True}"/>
+                <field name="x_ho_source_project_id"
+                       string="Source Project (Credit Side)"
+                       readonly="1"
+                       invisible="not x_user_is_site_accountant or move_type != 'entry' or not x_ho_source_project_id"
+                       options="{'no_open': True}"/>
+                <field name="x_ho_dest_project_id"
+                       string="Destination Project (Debit Side)"
+                       readonly="1"
+                       invisible="not x_user_is_site_accountant or move_type != 'entry' or not x_ho_dest_project_id"
+                       options="{'no_open': True}"/>
+            </xpath>
+
+            <!-- 7. SA read-only Fund Allocation tab.
+                 Finance HO's editable Fund Allocation tab has group restrictions that
+                 exclude SA.  We add a parallel read-only tab visible only to SA
+                 on journal entries that have at least one allocation line.
+            -->
+            <xpath expr="//page[@id='aml_tab']" position="after">
+                <page string="Fund Allocation"
+                      name="je_fund_allocation_sa_readonly"
+                      invisible="not x_user_is_site_accountant or move_type != 'entry' or not x_je_allocation_ids"
+                      groups="site_operations.group_site_accountant">
+                    <field name="x_je_allocation_ids"
+                           readonly="1">
+                        <list string="Fund Allocation">
+                            <field name="project_analytic_account_id"
+                                   string="Source Project"
+                                   readonly="1"/>
+                            <field name="available_balance"
+                                   string="Available Balance"
+                                   readonly="1"/>
+                            <field name="allocation_amount"
+                                   string="Allocation Amount"
+                                   sum="Total Allocated"
+                                   readonly="1"/>
+                            <field name="currency_id" column_invisible="1"/>
+                        </list>
+                    </field>
+                    <!-- Inter-project entries (read-only) -->
+                    <div class="mt-3"
+                         invisible="not x_je_interproject_move_ids">
+                        <field name="x_je_interproject_move_ids"
+                               readonly="1"
+                               widget="many2many_tags"
+                               string="Inter-Project Entries Created"/>
+                    </div>
+                </page>
             </xpath>
 
         </field>
