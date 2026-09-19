@@ -74,6 +74,20 @@ class AccountMoveSiteOps(models.Model):
         for move in self:
             move.x_user_is_ho = is_ho
 
+    # Non-stored: True when the current user is a site accountant.
+    # Used in views to show HO-filled journal-entry fields as read-only to SA.
+    x_user_is_site_accountant = fields.Boolean(
+        compute='_compute_x_user_is_site_accountant',
+        store=False,
+        string='User is Site Accountant',
+    )
+
+    @api.depends_context('uid')
+    def _compute_x_user_is_site_accountant(self):
+        is_sa = self.env.user.has_group('site_operations.group_site_accountant')
+        for move in self:
+            move.x_user_is_site_accountant = is_sa
+
     # ── Site Analytics (from line-level analytic_distribution) ───────────────
     # Stored Many2many that collects ALL analytic accounts referenced in any
     # line of this move.  Used by the site-accountant record rules so that a

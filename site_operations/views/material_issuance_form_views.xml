@@ -129,13 +129,19 @@
                         invisible="x_transfer_purpose != 'material_issuance' or not x_backcharge_applicable or x_submitted_to_sa or state in ('done', 'cancel')"
                         groups="purchase_demand_raise.group_site_store"/>
 
-                <!-- Pending SA Review badge — visible to both site store and SA -->
-                <button type="object" name="action_submit_to_sa"
-                        class="btn-warning"
+                <!-- Pending SA Review badge — purely informational, no action on click -->
+                <button class="btn-warning"
                         string="⏳ Pending SA Review"
-                        readonly="1"
                         invisible="not x_submitted_to_sa or state in ('done', 'cancel')"
                         groups="purchase_demand_raise.group_site_store,site_operations.group_site_accountant"/>
+
+                <!-- Validate button for Site Accountant (shown when issuance is submitted for SA review) -->
+                <button name="button_validate"
+                        type="object"
+                        string="Validate"
+                        class="btn-primary"
+                        invisible="not x_submitted_to_sa or state in ('draft', 'confirmed', 'done', 'cancel')"
+                        groups="site_operations.group_site_accountant"/>
 
                 <!-- Print MIF button -->
                 <button name="action_print_mif"

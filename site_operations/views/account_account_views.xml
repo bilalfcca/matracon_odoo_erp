@@ -76,13 +76,29 @@
             <xpath expr="//sheet" position="before">
                 <field name="x_user_is_site_accountant" invisible="1"/>
                 <field name="x_site_balance" invisible="1"/>
+                <field name="x_is_main" invisible="1"/>
+                <field name="x_recursive_balance" invisible="1"/>
             </xpath>
 
             <!-- Standard Balance button: keep for HO users, hide from site accountants
-                 (the global balance is not meaningful / could be misleading for a site). -->
+                 AND from Main accounts (Main shows 0 on the standard balance — misleading). -->
             <xpath expr="//button[@name='account.action_move_line_select']" position="attributes">
                 <attribute name="groups">account.group_account_readonly</attribute>
-                <attribute name="invisible">x_user_is_site_accountant</attribute>
+                <attribute name="invisible">x_user_is_site_accountant or x_is_main</attribute>
+            </xpath>
+
+            <!-- Group Balance button: only for Main (grouping) accounts.
+                 Shows the recursive sum of ALL child/grandchild account balances.
+                 Clicking through opens journal items for the entire subtree. -->
+            <xpath expr="//button[@name='account.action_move_line_select']" position="after">
+                <button name="action_open_group_journal_items"
+                        type="object"
+                        class="oe_stat_button"
+                        icon="fa-calculator"
+                        invisible="not x_is_main"
+                        groups="account.group_account_readonly">
+                    <field name="x_recursive_balance" widget="statinfo" string="Group Balance"/>
+                </button>
             </xpath>
 
             <!-- Site Balance button: only for site accountants.
@@ -98,14 +114,34 @@
                 </button>
             </xpath>
 
-            <!-- Add Site Visibility section inside the Accounting tab -->
+            <!-- Matracon Settings: hierarchy + posting restriction -->
             <xpath expr="//page[@name='accounting']//group[last()]" position="after">
-                <group string="Posting &amp; Visibility" groups="account.group_account_manager">
-                    <!-- Allow Posting — uncheck for header/grouping accounts like
-                         "101000 Current Assets". Non-posting accounts are hidden
-                         from all account picker dropdowns system-wide. -->
-                    <field name="x_allow_posting" string="Allow Posting"
-                           help="Uncheck to make this a header/grouping account. It will not appear in any account selector dropdown."/>
+                <group string="Matracon: Hierarchy" groups="account.group_account_manager">
+                    <group>
+                        <field name="x_parent_account_id"
+                               string="Parent Account"
+                               options="{'no_create': True}"/>
+                        <field name="x_is_main"
+                               string="Main Account (No Posting)"/>
+                        <field name="x_allow_posting_to_main"
+                               string="Allow Posting Override"
+                               invisible="not x_is_main"/>
+                        <field name="x_allow_posting"
+                               string="Visible in Pickers"
+                               help="Uncheck to hide this account from all account selector dropdowns (journal entries, bills, etc.) without making it a Main account."/>
+                    </group>
+                    <group string="Child Accounts" invisible="not x_is_main">
+                        <field name="x_child_account_ids"
+                               nolabel="1"
+                               readonly="1"
+                               widget="many2many_tags"/>
+                    </group>
+                </group>
+            </xpath>
+
+            <!-- Site Visibility section -->
+            <xpath expr="//page[@name='accounting']//group[last()]" position="after">
+                <group string="Matracon: Site Visibility" groups="account.group_account_manager">
                     <!-- Head Office Only flag — when checked, no site accountant
                          can see this account regardless of x_site_ids below. -->
                     <field name="x_ho_only" string="Head Office Only"/>
@@ -216,8 +252,20 @@ action = {
         <field name="inherit_id" ref="account.view_account_list"/>
         <field name="arch" type="xml">
             <xpath expr="//list" position="inside">
+                <!-- Parent Account: shows which Main account this belongs to.
+                     Visible by default so the hierarchy is immediately clear. -->
+                <field name="x_parent_account_id"
+                       string="Parent Account"
+                       optional="show"
+                       readonly="1"
+                       groups="account.group_account_manager"/>
+                <!-- Main Account flag: shows whether this is a group/hierarchy node -->
+                <field name="x_is_main"
+                       string="Main"
+                       optional="show"
+                       groups="account.group_account_manager"/>
                 <field name="x_allow_posting"
-                       string="Allow Posting"
+                       string="In Pickers"
                        optional="show"
                        groups="account.group_account_manager"
                        widget="boolean_toggle"/>
