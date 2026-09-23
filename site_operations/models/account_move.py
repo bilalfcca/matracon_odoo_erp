@@ -1,3 +1,6 @@
+import logging
+import re
+
 from dateutil.relativedelta import relativedelta
 from markupsafe import Markup
 
@@ -5,6 +8,8 @@ from odoo import models, fields, api, Command, _
 from odoo.exceptions import UserError
 
 from . import matracon_notifications as matracon_notify
+
+_logger = logging.getLogger(__name__)
 
 
 class AccountMoveSiteOps(models.Model):
@@ -810,28 +815,308 @@ class AccountMoveSiteOps(models.Model):
         self._matracon_update_project_billed_amount(extra_analytic_ids=pre_analytics)
         return res
 
-    # ── Customer-invoice sequence: include project/site code ─────────────────
+    # ── Site-wise / HO-wise sequential numbering ──────────────────────────────
+    #
+    # Format: [DOC_TYPE]/[SITE_CODE]/[YEAR]/[SEQUENCE]
+    #   e.g. INV/MCH-BHW/2026/000001, BILL/HO/2026/000001, PAY/STP-MRD/2026/000001,
+    #        JE/RWASA/2026/000001
+    #
+    # In scope: Customer Invoices (out_invoice), Vendor Bills (in_invoice),
+    # Vendor Payments (an 'entry' move whose origin_payment_id is an outbound
+    # payment to a supplier), and plain Journal Entries (an 'entry' move with
+    # no origin_payment_id). Everything else (refunds/credit notes, customer
+    # payments/receipts, internal transfers, ...) is untouched —
+    # _matracon_sequence_doc_type() returns None for those and both overrides
+    # below fall straight back to standard Odoo behaviour.
+    #
+    # SITE_CODE is HO when there is no project analytic account on the move
+    # (x_project_analytic_account_id), otherwise the analytic account's own
+    # `code` (e.g. "MCH-BHW") — the exact same field already used everywhere
+    # else in this codebase for site scoping (record rules, liability sheet,
+    # IPC queries, ...), so there is a single source of truth for site codes.
+    #
+    # Numbering deliberately spans ALL journals of a given (doc type, site,
+    # year) — NOT scoped to a single journal like Odoo's own default sequence.
+    # Journal Entries in particular are posted through several different
+    # journals today (bank/cash journals, the Miscellaneous journal, ...);
+    # scoping by journal_id (as the base SequenceMixin does) would give each
+    # journal its own independent 000001, 000002, ... counter and produce
+    # duplicate numbers across journals for the same site. Overriding
+    # _get_last_sequence_domain() to scope by site + doc type instead (and
+    # drop the journal_id restriction for in-scope records only) gives one
+    # continuous, collision-free counter per site+doctype+year regardless of
+    # which journal handled a given entry.
+
+    def _matracon_sequence_payment_type_partner_type(self, payment):
+        """(payment_type, partner_type) for ``payment``, read straight from the
+        database rather than the payment's own field cache.
+
+        account.move._set_next_sequence() runs as part of account.payment's
+        own create/post flow, at a point where the payment record's cache can
+        still reflect field defaults rather than the values just passed to
+        create() (a plain Python attribute read on `self.origin_payment_id`
+        is not reliable here) — flushing pending writes then reading the row
+        directly sidesteps that ordering entirely, the same way the sequence
+        mixin itself flushes before its own raw-SQL lookups.
+        """
+        payment.flush_recordset(['payment_type', 'partner_type'])
+        self.env.cr.execute(
+            "SELECT payment_type, partner_type FROM account_payment WHERE id = %s",
+            (payment.id,),
+        )
+        row = self.env.cr.fetchone()
+        return tuple(row) if row else (False, False)
+
+    def _matracon_sequence_doc_type(self):
+        """Return 'INV'/'BILL'/'PAY'/'JE' for the 4 in-scope document types,
+        or None for anything out of scope (refunds, customer payments,
+        internal transfers, ...) — callers fall back to standard behaviour.
+        """
+        self.ensure_one()
+        if self.move_type == 'out_invoice':
+            return 'INV'
+        if self.move_type == 'in_invoice':
+            return 'BILL'
+        if self.move_type == 'entry':
+            payment = self.origin_payment_id
+            if not payment:
+                return 'JE'
+            payment_type, partner_type = self._matracon_sequence_payment_type_partner_type(payment)
+            if payment_type == 'outbound' and partner_type == 'supplier':
+                return 'PAY'
+        return None
+
+    def _matracon_sequence_site_code(self):
+        """SITE_CODE segment: the project analytic account's own `code`, or
+        'HO' when the move has no project (Head Office document).
+
+        For a payment-originated move, falls back to the payment's own
+        destination/fund project directly when the move's own header field
+        (x_project_analytic_account_id, normally stamped by
+        account.payment's _prepare_move_line_default_vals()/action_release())
+        has not been written yet at the point sequencing runs — reading the
+        DB row directly, for the same ordering reason as
+        _matracon_sequence_payment_type_partner_type() above.
+        """
+        self.ensure_one()
+        analytic = self.x_project_analytic_account_id
+        if not analytic and self.origin_payment_id:
+            payment = self.origin_payment_id
+            payment.flush_recordset(['x_destination_project_id', 'x_fund_project_id'])
+            self.env.cr.execute(
+                "SELECT x_destination_project_id, x_fund_project_id "
+                "FROM account_payment WHERE id = %s",
+                (payment.id,),
+            )
+            row = self.env.cr.fetchone()
+            analytic_id = (row and (row[0] or row[1])) or False
+            if analytic_id:
+                analytic = self.env['account.analytic.account'].browse(analytic_id)
+        if analytic and analytic.code:
+            return analytic.code.strip().upper()
+        return 'HO'
 
     def _get_starting_sequence(self):
-        """Include the project analytic account's code in the customer invoice
-        sequence so invoices are numbered per-site like other documents.
-
-        Standard:       INV/2026/00000
-        With project:   INV/MCH/2026/00000   (MCH = project code / first word of name)
-
-        Vendor bills, refunds and other move types are unaffected.
+        """First-ever number for a given (doc type, site, year): NNNN/SITE/YYYY/000000
+        (incremented to 000001 by the sequence mixin). Falls back to standard
+        Odoo behaviour for out-of-scope move types.
         """
-        seq = super()._get_starting_sequence()
-        if self.move_type == 'out_invoice' and self.x_project_analytic_account_id:
-            project = self.x_project_analytic_account_id
-            # Prefer the analytic account's short code; fall back to first word of name
-            raw = (project.code.strip() if project.code else project.name.split()[0])
-            site_code = raw.upper()[:8].replace(' ', '-')
-            # "INV/2026/00000" → ["INV", "2026", "00000"] → "INV/MCH/2026/00000"
-            parts = seq.split('/')
-            parts.insert(1, site_code)
-            seq = '/'.join(parts)
-        return seq
+        doc_type = self._matracon_sequence_doc_type()
+        if not doc_type:
+            return super()._get_starting_sequence()
+        move_date = self.date or self.invoice_date or fields.Date.context_today(self)
+        return "%s/%s/%04d/000000" % (doc_type, self._matracon_sequence_site_code(), move_date.year)
+
+    def _get_last_sequence_domain(self, relaxed=False):
+        """Scope the "find the previous number" lookup to the same doc type +
+        site + calendar year, spanning every journal (see module docstring
+        above). Falls back to standard Odoo behaviour (journal-scoped) for
+        out-of-scope move types, leaving their numbering completely
+        untouched.
+        """
+        doc_type = self._matracon_sequence_doc_type()
+        if not doc_type:
+            where_string, param = super()._get_last_sequence_domain(relaxed)
+            # Exclude records numbered under the new site-wise scheme (4-segment
+            # DOC_TYPE/SITE/YYYY/NNNNNN shape) so an out-of-scope record sharing
+            # a journal with in-scope ones (e.g. a customer receipt posted
+            # through the same bank journal as vendor payments) cannot mistake
+            # a new-scheme name for "the previous number in this journal" and
+            # continue that unrelated counter.
+            where_string += r" AND name !~ '^[^/]+/[^/]+/[0-9]{4}/[0-9]+$' "
+            return where_string, param
+
+        self.ensure_one()
+        if not self.date:
+            return "WHERE FALSE", {}
+
+        where_string = "WHERE company_id = %(company_id)s AND name != '/' "
+        param = {'company_id': self.company_id.id}
+
+        # Only ever match records already in the NEW 4-segment shape
+        # (DOC_TYPE/SITE/YYYY/NNNNNN). Pre-existing records use the old
+        # 3-segment shape (e.g. journal-code-based "INV/26-27/0009"), which
+        # would otherwise coincidentally satisfy the site/doc-type filters
+        # below whenever a pre-existing record also happens to have no
+        # analytic account set (the common HO case) — without this guard the
+        # very first new-scheme HO invoice of the year would wrongly continue
+        # the old numbering thread ("INV/26-27/0010") instead of starting a
+        # clean new one ("INV/HO/2026/000001").
+        where_string += r" AND name ~ '^[^/]+/[^/]+/[0-9]{4}/[0-9]+$' "
+
+        analytic_id = self.x_project_analytic_account_id.id
+        if analytic_id:
+            where_string += " AND x_project_analytic_account_id = %(matracon_analytic_id)s "
+            param['matracon_analytic_id'] = analytic_id
+        else:
+            where_string += " AND x_project_analytic_account_id IS NULL "
+
+        if doc_type == 'INV':
+            where_string += " AND move_type = 'out_invoice' "
+        elif doc_type == 'BILL':
+            where_string += " AND move_type = 'in_invoice' "
+        elif doc_type == 'PAY':
+            where_string += """
+                AND move_type = 'entry' AND origin_payment_id IN (
+                    SELECT id FROM account_payment
+                    WHERE payment_type = 'outbound' AND partner_type = 'supplier'
+                )
+            """
+        else:  # 'JE'
+            where_string += " AND move_type = 'entry' AND origin_payment_id IS NULL "
+
+        if not relaxed:
+            # Yearly reset, scoped to the calendar year of this move's own date
+            # (not the base mixin's date-range guess, which only knows about
+            # journal-scoped records and would miss the cross-journal picture).
+            where_string += " AND date_part('year', date) = %(matracon_year)s "
+            param['matracon_year'] = self.date.year
+
+        return where_string, param
+
+    # ── Historical backfill: re-number old documents into the new scheme ─────
+    #
+    # NEVER called automatically (no hook, no cron, no post_init/post_migrate
+    # trigger) — the ONLY entry point is the "Renumber Historical Documents
+    # (Site-Wise Sequence)" Server Action in Settings > Fix Tools
+    # (matracon_admin_tools), which is a manual, on-demand button requiring an
+    # explicit click plus its own confirmation dialog. Client confirmation is
+    # required before ever running this in a real environment.
+    _MATRACON_NEW_FORMAT_RE = r'^([^/]+)/([^/]+)/([0-9]{4})/([0-9]+)$'
+
+    def action_matracon_backfill_sequence(self):
+        """Re-number existing historical Customer Invoices, Vendor Bills,
+        Vendor Payments and Journal Entries that still use the old numbering
+        into the new [DOC_TYPE]/[SITE_CODE]/[YEAR]/[SEQUENCE] scheme.
+
+        Safety:
+          - Only POSTED documents already in scope (out_invoice, in_invoice,
+            or an 'entry' that is either a plain JE or an outbound-to-supplier
+            payment) and NOT already in the new format are touched.
+          - Skips (and reports, does not fail) any document that is hash-secured
+            (inalterable_hash) or has a reconciled line — renaming those could
+            break an audit hash chain or a reconciliation reference.
+          - New numbers CONTINUE from whatever is already the highest number in
+            each (doc type, site, year) group rather than renumbering
+            documents already created under the new scheme — so anything
+            created since the code went live is left completely untouched,
+            never renamed twice, and chronological order is preserved for
+            everything this run actually renames (oldest first) even though
+            it cannot retroactively reorder against already-migrated ones.
+          - Regular `write()`, not raw SQL: lets Odoo recompute the stored
+            sequence_prefix/sequence_number fields so future auto-numbering
+            for that group stays consistent.
+        """
+        if not (self.env.user.has_group('purchase_demand_raise.group_matracon_admin')
+                or self.env.user.has_group('base.group_system')):
+            raise UserError(_('Only Matracon Admin or System Administrator can run this action.'))
+
+        Move = self.env['account.move'].sudo()
+        candidates = Move.search([
+            ('state', '=', 'posted'),
+            ('move_type', 'in', ('out_invoice', 'in_invoice', 'entry')),
+        ])
+        # Keep only in-scope docs (JE/PAY/INV/BILL) not already in the new format.
+        new_format_re = re.compile(self._MATRACON_NEW_FORMAT_RE)
+        to_process = candidates.filtered(
+            lambda m: m._matracon_sequence_doc_type() and not (m.name and new_format_re.match(m.name))
+        )
+
+        skipped_hashed = self.env['account.move']
+        skipped_reconciled = self.env['account.move']
+        skipped_error = []
+        groups = {}  # (doc_type, site_code, year) -> list of moves
+
+        for move in to_process:
+            if move.inalterable_hash:
+                skipped_hashed |= move
+                continue
+            if move.line_ids.filtered('reconciled'):
+                skipped_reconciled |= move
+                continue
+            doc_type = move._matracon_sequence_doc_type()
+            site_code = move._matracon_sequence_site_code()
+            move_date = move.date or move.invoice_date
+            if not move_date:
+                skipped_error.append('%s: no date set' % (move.name or move.id))
+                continue
+            groups.setdefault((doc_type, site_code, move_date.year), []).append(move)
+
+        renamed = 0
+        for (doc_type, site_code, year), moves in groups.items():
+            prefix = '%s/%s/%04d/' % (doc_type, site_code, year)
+            # Find the current highest sequence number already used for this
+            # exact group (covers both untouched historical runs and any
+            # documents already created live under the new scheme).
+            self.env.cr.execute("""
+                SELECT name FROM account_move
+                WHERE name LIKE %s AND company_id IN %s
+                ORDER BY sequence_number DESC
+                LIMIT 1
+            """, (prefix + '%', tuple(self.env.companies.ids) or (0,)))
+            row = self.env.cr.fetchone()
+            next_number = 1
+            if row:
+                match = new_format_re.match(row[0])
+                if match:
+                    next_number = int(match.group(4)) + 1
+
+            # Oldest first, so the renumbering at least preserves this batch's
+            # own chronological order even though it cannot retroactively
+            # reorder against numbers already assigned live (see docstring).
+            moves.sort(key=lambda m: (m.date or m.invoice_date, m.id))
+            for move in moves:
+                new_name = '%s%06d' % (prefix, next_number)
+                try:
+                    move.write({'name': new_name})
+                    renamed += 1
+                    next_number += 1
+                except Exception as e:
+                    skipped_error.append('%s: %s' % (move.name or move.id, e))
+
+        message_lines = [_('%d document(s) renumbered.') % renamed]
+        if skipped_reconciled:
+            message_lines.append(_(
+                '%d skipped (reconciled lines — renumber manually if truly needed): %s'
+            ) % (len(skipped_reconciled), ', '.join(skipped_reconciled.mapped('name')[:20])))
+        if skipped_hashed:
+            message_lines.append(_(
+                '%d skipped (hash-secured — cannot be renamed without breaking the audit chain): %s'
+            ) % (len(skipped_hashed), ', '.join(skipped_hashed.mapped('name')[:20])))
+        if skipped_error:
+            message_lines.append(_('%d skipped (error): %s') % (len(skipped_error), '; '.join(skipped_error[:20])))
+        _logger.info('action_matracon_backfill_sequence: %s', ' | '.join(message_lines))
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Historical Document Renumbering Complete'),
+                'message': '\n'.join(message_lines),
+                'type': 'success' if not (skipped_reconciled or skipped_hashed or skipped_error) else 'warning',
+                'sticky': True,
+            },
+        }
 
     # (Real-time last-row balance is handled by the onchange on account.move.line
     #  itself — see account_move_line.py _onchange_amount_rebalance_last_row.
