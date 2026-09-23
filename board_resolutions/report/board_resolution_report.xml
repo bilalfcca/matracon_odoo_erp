@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Same margin philosophy as the PO/RFQ paper format, since this report
+         reuses purchase_demand_raise's matracon_po_layout (calibrated for
+         these exact margins — header/footer HTML space + zero side margins,
+         content padding handled inside the layout itself). -->
+    <record id="paperformat_board_resolution" model="report.paperformat">
+        <field name="name">A4 — Board Resolution</field>
+        <field name="default" eval="False"/>
+        <field name="format">A4</field>
+        <field name="orientation">Portrait</field>
+        <field name="margin_top">6</field>
+        <field name="margin_bottom">22</field>
+        <field name="margin_left">0</field>
+        <field name="margin_right">0</field>
+        <field name="header_spacing">0</field>
+        <field name="header_line" eval="False"/>
+        <field name="disable_shrinking" eval="True"/>
+        <field name="dpi">96</field>
+    </record>
+
+    <record id="action_report_board_resolution" model="ir.actions.report">
+        <field name="name">Board Resolution</field>
+        <field name="model">x.board.resolution</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">board_resolutions.report_board_resolution_document</field>
+        <field name="report_file">board_resolutions.report_board_resolution_document</field>
+        <field name="print_report_name">'%s' % object.name</field>
+        <field name="paperformat_id" ref="paperformat_board_resolution"/>
+        <field name="binding_model_id" ref="model_x_board_resolution"/>
+        <field name="binding_type">report</field>
+    </record>
+</odoo>
