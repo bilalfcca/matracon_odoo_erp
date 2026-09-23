@@ -86,12 +86,7 @@
                     <button name="action_confirm_receipt" type="object" string="Confirm Receipt"
                             class="btn-success" invisible="state != 'released'"
                             groups="site_operations.group_site_accountant"/>
-                    <button name="action_fix_petty_cash_entry" type="object"
-                            string="Fix GL Entry"
-                            class="btn-warning"
-                            invisible="state not in ('released', 'confirmed') or not payment_id"
-                            groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"
-                            confirm="This will create a correcting journal entry to move the released amount to the site's Petty Cash (Cash in Hand) account. Proceed?"/>
+                    <!-- "Fix GL Entry" moved to Settings → Fix Tools (see matracon_admin_tools) -->
                     <button name="action_delete_draft" type="object"
                             string="Delete" class="btn-danger"
                             invisible="state != 'draft'"
@@ -539,90 +534,5 @@
         <field name="view_mode">list,form</field>
     </record>
 
-    <!-- ── Admin Maintenance Wizard ──────────────────────────────────────── -->
-    <record id="view_petty_cash_admin_wizard_form" model="ir.ui.view">
-        <field name="name">x.petty.cash.admin.wizard.form</field>
-        <field name="model">x.petty.cash.admin.wizard</field>
-        <field name="arch" type="xml">
-            <form string="Admin Maintenance Tools">
-                <sheet>
-
-                    <!-- ── Tool 1: Fix Petty Cash Accounts ──────────────── -->
-                    <h4 style="margin-bottom:4px;">Fix Petty Cash Accounts</h4>
-                    <div class="alert alert-info" role="alert">
-                        <strong>What this tool does (safe to run multiple times):</strong>
-                        <ul style="margin-top:8px; margin-bottom:4px;">
-                            <li><b>Step 1</b> — Fills the <em>Petty Cash Account</em> field on all
-                                expenses where it was never saved (browser did not send the readonly
-                                value on save). Resolves the account from the fund or site
-                                configuration.</li>
-                            <li><b>Step 2</b> — Creates missing journal entries for posted expenses
-                                that have no JE (because Step 1's account was missing at post
-                                time).</li>
-                            <li><b>Step 3</b> — Corrects posted JEs whose <em>credit</em> line
-                                points to the wrong cash account. Fixes in-place (no reversal
-                                entries).</li>
-                        </ul>
-                        <small>Check <b>Server Logs</b> after running for a detailed line-by-line
-                            report.</small>
-                    </div>
-                    <div class="alert alert-warning" role="alert" style="margin-top:4px;">
-                        <strong>Pre-requisite:</strong> Make sure each Site Configuration has its
-                        <em>Petty Cash Account (Cash in Hand)</em> field set before running.
-                        Go to <b>Purchase → Configuration → Site Project Configurations</b>.
-                    </div>
-                    <div style="margin-bottom:20px;">
-                        <button name="action_run_fix"
-                                string="Run Petty Cash Fix"
-                                type="object"
-                                class="btn btn-primary"
-                                confirm="This will correct all petty cash GL accounts and journal entries. Continue?"/>
-                    </div>
-
-                    <hr style="border-top:1px solid #dee2e6; margin:12px 0;"/>
-
-                    <!-- ── Tool 2: Fix GL Analytic Distribution ──────────── -->
-                    <h4 style="margin-bottom:4px;">Fix GL Analytic Distribution on Payment Entries</h4>
-                    <div class="alert alert-info" role="alert">
-                        <strong>Problem this fixes:</strong> Site accountants filtering their
-                        General Ledger by analytic saw <b>zero in the Debit column</b> for site
-                        cash accounts (e.g. "Cash at RWASA", "Cash at N-55"). HO-created payment
-                        entries (petty cash releases, vendor payments) were visible to HO but
-                        <em>invisible</em> to site accountants because the cash/payable lines were
-                        missing <code>analytic_distribution</code>.
-                        <ul style="margin-top:8px; margin-bottom:4px;">
-                            <li>Finds all posted payments linked to any project.</li>
-                            <li>Stamps the correct site analytic on every JE line
-                                <em>except</em> the HO source-bank lines (those stay HO-only).</li>
-                            <li>Each site accountant sees only their own project's entries.</li>
-                            <li>Safe to run multiple times — only touches lines where analytic
-                                is blank.</li>
-                        </ul>
-                        <small>Check <b>Server Logs</b> after running for a payment-by-payment
-                            report.</small>
-                    </div>
-                    <div>
-                        <button name="action_fix_payment_analytic"
-                                string="Fix GL Analytic Distribution"
-                                type="object"
-                                class="btn btn-primary"
-                                confirm="This will stamp the correct analytic on all payment JE lines that are missing it. Each site accountant will then see HO payments in their filtered GL. Continue?"/>
-                    </div>
-
-                </sheet>
-                <footer>
-                    <button string="Close" class="btn-secondary" special="cancel"/>
-                </footer>
-            </form>
-        </field>
-    </record>
-
-    <record id="action_petty_cash_admin_wizard" model="ir.actions.act_window">
-        <field name="name">Fix Petty Cash Accounts</field>
-        <field name="res_model">x.petty.cash.admin.wizard</field>
-        <field name="view_mode">form</field>
-        <field name="view_id" ref="view_petty_cash_admin_wizard_form"/>
-        <field name="target">new</field>
-    </record>
 
 </odoo>

@@ -1,0 +1,308 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         Migrated tools: existing ir.actions.server records, flagged +
+         described here, and unbound from their old Action-menu location
+         (binding_model_id/binding_view_types cleared) so Settings > Fix
+         Tools becomes their one and only home. The underlying code=
+         (and therefore the Python method + its logic) is untouched.
+         ═══════════════════════════════════════════════════════════════ -->
+
+    <!-- Was: Journal Entries list → Action menu -->
+    <record id="site_operations.action_server_rebuild_site_analytic_links" model="ir.actions.server">
+        <field name="binding_model_id" eval="False"/>
+        <field name="binding_view_types"></field>
+        <!-- Original code (kept from journal_entry_fix_action.xml) called the
+             method as a bare statement, so its notification dict was silently
+             discarded by ir.actions.server's code engine (which only ever
+             returns whatever gets assigned to a variable named "action"). This
+             was invisible before because the only way to trigger it was this
+             same code path; assigning it here just makes the tool give visible
+             feedback like every other entry in this screen - the underlying
+             action_rebuild_site_analytic_links() logic is untouched. -->
+        <field name="code">action = model.action_rebuild_site_analytic_links()</field>
+        <field name="x_is_fix_tool" eval="True"/>
+        <field name="x_fix_tool_description">Old HO-filled journal entries may have an empty
+x_site_analytic_ids link, causing the site-accountant record rule to hide them.
+Running this once recomputes that link for every journal entry so each site
+accountant can see every entry that references their analytic account.
+Safe to run multiple times.</field>
+        <field name="group_ids" eval="[Command.set([
+            ref('purchase_demand_raise.group_matracon_admin'),
+            ref('base.group_system'),
+        ])]"/>
+        <field name="sequence">10</field>
+    </record>
+
+    <!-- Was: Petty Cash → Configuration wizard ("Run Petty Cash Fix" button)
+         AND Petty Cash Expenses list → Action menu - both called this exact
+         same routine, so migrating collapses two duplicate entry points
+         into this one. -->
+    <record id="site_operations.action_server_fix_petty_cash_accounts" model="ir.actions.server">
+        <field name="binding_model_id" eval="False"/>
+        <field name="binding_view_types"></field>
+        <!-- The retired wizard button's route showed this method's success
+             notification; the list Action-menu route (this record's original
+             bare-statement code) silently discarded it. Assigning to "action"
+             here restores the notification via the one remaining route -
+             action_admin_fix_petty_cash_accounts() itself is untouched. -->
+        <field name="code">action = model.action_admin_fix_petty_cash_accounts()</field>
+        <field name="x_is_fix_tool" eval="True"/>
+        <field name="x_fix_tool_description">Step 1 - fills the Petty Cash Account field on all
+expenses where it was never saved (browser did not send the readonly value on
+save); resolves it from the fund or site configuration.
+Step 2 - creates missing journal entries for posted expenses that have no JE
+(because Step 1's account was missing at post time).
+Step 3 - corrects posted JEs whose credit line points to the wrong cash
+account, in-place (no reversal entries).
+Pre-requisite: each Site Configuration should have its Petty Cash Account
+(Cash in Hand) field set before running. Safe to run multiple times.</field>
+        <field name="group_ids" eval="[Command.set([
+            ref('purchase_demand_raise.group_matracon_admin'),
+            ref('base.group_system'),
+        ])]"/>
+        <field name="sequence">20</field>
+    </record>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         Newly-registered tools: the button/menu at the old location is
+         removed (see the edits in site_operations / matracon_fleet views),
+         the underlying Python method is untouched, and it is exposed here
+         as a proper Server Action for the first time.
+         ═══════════════════════════════════════════════════════════════ -->
+
+    <!-- New tool (no old location - this bug had no UI trigger before).
+         Petty Cash Expenses always hardcoded a generic "Cash in Hand — <site>"
+         label on the credit line, so General Ledger / Partner Ledger showed no
+         real memo for that side of the entry (unlike a manually-typed Journal
+         Entry, which normally carries a real description on both sides). The
+         create-time fix lives in _create_journal_entry() (petty_cash.py); this
+         backfills already-posted historical entries. -->
+    <record id="action_server_backfill_petty_cash_memo" model="ir.actions.server">
+        <field name="name">Fix Missing Memo on Petty Cash Journal Entries</field>
+        <field name="model_id" ref="site_operations.model_x_petty_cash_expense"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_backfill_credit_line_memo()</field>
+        <field name="x_is_fix_tool" eval="True"/>
+        <field name="x_fix_tool_description">Corrects the Cash-in-Hand (credit) line's label on
+already-posted Petty Cash Expense journal entries that still show the old
+generic "Cash in Hand — [site]" text instead of the actual expense memo, so
+General Ledger and Partner Ledger display a meaningful description. Only
+label text is changed (in-place, no reversal entries, no amounts/accounts
+touched); already-corrected or manually-edited lines are left alone. Safe to
+run multiple times.</field>
+        <field name="group_ids" eval="[Command.set([
+            ref('purchase_demand_raise.group_matracon_admin'),
+            ref('base.group_system'),
+        ])]"/>
+        <field name="sequence">25</field>
+    </record>
+
+    <!-- Was: the wizard's second button ("Fix GL Analytic Distribution") -
+         method relocated unchanged to account.payment (models/account_payment.py)
+         since the wizard it lived on took no input and is now retired. -->
+    <record id="action_server_fix_payment_analytic" model="ir.actions.server">
+        <field name="name">Fix GL Analytic Distribution on Payment Entries</field>
+        <field name="model_id" ref="account.model_account_payment"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_fix_payment_analytic()</field>
+        <field name="x_is_fix_tool" eval="True"/>
+        <field name="x_fix_tool_description">Site accountants filtering their General Ledger by
+analytic saw zero in the Debit column for site cash accounts, because
+HO-created payment entries (petty cash releases, vendor payments) were
+missing analytic_distribution on their cash/payable lines. This stamps the
+correct site analytic on every JE line of every posted project-linked
+payment, except the HO source-bank line. Safe to run multiple times.</field>
+        <field name="group_ids" eval="[Command.set([
+            ref('purchase_demand_raise.group_matracon_admin'),
+            ref('base.group_system'),
+        ])]"/>
+        <field name="sequence">30</field>
+    </record>
+
+    <!-- Was: "Fix GL Entry" button on the Petty Cash Request form -->
+    <record id="action_server_fix_petty_cash_gl_entry" model="ir.actions.server">
+        <field name="name">Fix Petty Cash GL Entry</field>
+        <field name="model_id" ref="site_operations.model_x_petty_cash_request"/>
+        <field name="state">code</field>
+        <field name="code">action = {
+    'type': 'ir.actions.act_window',
+    'name': 'Fix Petty Cash GL Entry',
+    'res_model': 'x.petty.cash.gl.fix.wizard',
+    'view_mode': 'form',
+    'target': 'new',
+}</field>
+        <field name="x_is_fix_tool" eval="True"/>
+        <field name="x_fix_tool_description">Corrects a released Petty Cash Request whose journal
+entry debited the wrong GL account instead of the site's Cash-in-Hand
+account. Pick the affected request, then run - creates a correcting journal
+entry (the original entry is not reversed).</field>
+        <field name="group_ids" eval="[Command.set([
+            ref('site_operations.group_finance_ho'),
+            ref('purchase_demand_raise.group_matracon_admin'),
+        ])]"/>
+        <field name="sequence">40</field>
+    </record>
+
+    <!-- Was: "Fix Old Inter-Project Entries" button on Site Configuration -->
+    <record id="action_server_fix_interproject_entries" model="ir.actions.server">
+        <field name="name">Fix Old Inter-Project Entries</field>
+        <field name="model_id" ref="site_operations.model_x_project_site_config"/>
+        <field name="state">code</field>
+        <field name="code">action = {
+    'type': 'ir.actions.act_window',
+    'name': 'Fix Old Inter-Project Entries',
+    'res_model': 'x.site.config.fix.wizard',
+    'view_mode': 'form',
+    'target': 'new',
+    'context': {'default_fix_type': 'interproject'},
+}</field>
+        <field name="x_is_fix_tool" eval="True"/>
+        <field name="x_fix_tool_description">Updates ALL previously posted inter-project journal
+lines (across every site) from the old hardcoded accounts (13100/21100) to
+the Inter-Project Account configured on the site you pick. Run this once
+after setting the account - all sites share the same account, so this is a
+global sweep regardless of which site you pick it from.</field>
+        <field name="group_ids" eval="[Command.set([
+            ref('purchase_demand_raise.group_matracon_admin'),
+            ref('base.group_system'),
+        ])]"/>
+        <field name="sequence">50</field>
+    </record>
+
+    <!-- Was: "Fix Old Issuances" button on Site Configuration -->
+    <record id="action_server_fix_material_issue_accounts" model="ir.actions.server">
+        <field name="name">Fix Old Issuances</field>
+        <field name="model_id" ref="site_operations.model_x_project_site_config"/>
+        <field name="state">code</field>
+        <field name="code">action = {
+    'type': 'ir.actions.act_window',
+    'name': 'Fix Old Issuances',
+    'res_model': 'x.site.config.fix.wizard',
+    'view_mode': 'form',
+    'target': 'new',
+    'context': {'default_fix_type': 'material_issue'},
+}</field>
+        <field name="x_is_fix_tool" eval="True"/>
+        <field name="x_fix_tool_description">Updates all previously posted material issuance
+journal entries for the site you pick to use its configured Material Issue
+Account (creates the journal entry if it was never generated because the
+account was missing at issuance time).</field>
+        <field name="group_ids" eval="[Command.set([
+            ref('purchase_demand_raise.group_matracon_admin'),
+            ref('base.group_system'),
+        ])]"/>
+        <field name="sequence">60</field>
+    </record>
+
+    <!-- Was: "Fix Analytic Visibility" button on Site Configuration -->
+    <record id="action_server_fix_analytic_visibility" model="ir.actions.server">
+        <field name="name">Fix Analytic Visibility</field>
+        <field name="model_id" ref="site_operations.model_x_project_site_config"/>
+        <field name="state">code</field>
+        <field name="code">action = {
+    'type': 'ir.actions.act_window',
+    'name': 'Fix Analytic Visibility',
+    'res_model': 'x.site.config.fix.wizard',
+    'view_mode': 'form',
+    'target': 'new',
+    'context': {'default_fix_type': 'analytic_visibility'},
+}</field>
+        <field name="x_is_fix_tool" eval="True"/>
+        <field name="x_fix_tool_description">Scans all posted accounting entries for the picked
+site's analytic account and ensures they are visible to that site's
+accountant and appear correctly in all accounting reports (rebuilds the
+analytic-visibility link, fills blank line-level analytic distribution, and
+stamps the header analytic on old entries).</field>
+        <field name="group_ids" eval="[Command.set([
+            ref('purchase_demand_raise.group_matracon_admin'),
+            ref('base.group_system'),
+        ])]"/>
+        <field name="sequence">70</field>
+    </record>
+
+    <!-- Was: "Unlink GL" button on the Fleet Service Log form -->
+    <record id="action_server_fleet_unlink_gl" model="ir.actions.server">
+        <field name="name">Unlink GL (Fleet Service Log)</field>
+        <field name="model_id" ref="fleet.model_fleet_vehicle_log_services"/>
+        <field name="state">code</field>
+        <field name="code">action = {
+    'type': 'ir.actions.act_window',
+    'name': 'Unlink GL',
+    'res_model': 'x.fleet.gl.fix.wizard',
+    'view_mode': 'form',
+    'target': 'new',
+}</field>
+        <field name="x_is_fix_tool" eval="True"/>
+        <field name="x_fix_tool_description">Detaches the journal entry link on a fleet service
+log entry so it can be corrected. Pick the affected log entry, then run - the
+journal entry itself is NOT reversed, only the link is cleared.</field>
+        <field name="group_ids" eval="[Command.set([
+            ref('purchase_demand_raise.group_matracon_admin'),
+            ref('base.group_system'),
+        ])]"/>
+        <field name="sequence">80</field>
+    </record>
+
+    <!-- Was: Inventory → Configuration → Change Product UoM menu.
+         Reuses the existing wizard/action unchanged - just opened from here. -->
+    <record id="action_server_uom_change" model="ir.actions.server">
+        <field name="name">Change Product UoM</field>
+        <field name="model_id" ref="product.model_product_template"/>
+        <field name="state">code</field>
+        <field name="code">action = env.ref('site_operations.action_uom_change_wizard')._get_action_dict()</field>
+        <field name="x_is_fix_tool" eval="True"/>
+        <field name="x_fix_tool_description">Changes a product's Unit of Measure and converts all
+open (non-historical) quantities: product template UoM, on-hand/reserved
+stock quants, open stock moves and move lines, and draft purchase order
+lines. Posted/done records are left untouched (historical audit trail).</field>
+        <field name="group_ids" eval="[Command.set([
+            ref('purchase_demand_raise.group_matracon_admin'),
+            ref('base.group_system'),
+        ])]"/>
+        <field name="sequence">90</field>
+    </record>
+
+    <!-- New tool. Renumbers historical Customer Invoices, Vendor Bills, Vendor
+         Payments and Journal Entries into the new site/HO-wise
+         DOC_TYPE/SITE/YEAR/SEQUENCE scheme (new documents already get this
+         format automatically - see account_move.py _get_starting_sequence).
+
+         ⚠ MANUAL, ON-DEMAND ONLY. This is never called from a hook, cron, or
+         any automatic trigger anywhere in the codebase - the ONLY way it runs
+         is a deliberate click of "Run" on this row, which is exactly why it
+         lives here instead of a standalone button: it must never be
+         accidentally reachable from a document's own screen. Do not click
+         Run until the client has explicitly confirmed they want historical
+         document references changed - this rewrites the `name` field on real
+         posted accounting documents (financial audit trail). -->
+    <record id="action_server_backfill_sitewise_sequence" model="ir.actions.server">
+        <field name="name">Renumber Historical Documents (Site-Wise Sequence)</field>
+        <field name="model_id" ref="account.model_account_move"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_matracon_backfill_sequence()</field>
+        <field name="x_is_fix_tool" eval="True"/>
+        <field name="x_fix_tool_description">⚠ Run ONLY after the client has explicitly confirmed
+they want historical document numbers changed - this rewrites the reference
+number on real posted documents.
+
+Renumbers existing posted Customer Invoices, Vendor Bills, Vendor Payments
+and plain Journal Entries that still use the old numbering into the new
+DOC_TYPE/SITE/YEAR/SEQUENCE scheme (e.g. JE/MCH-BHW/2026/000001, JE/HO/2026/000001).
+New documents already get this format automatically going forward - this
+tool is only for the backlog of documents created before that change.
+
+Skips (and reports by name, without failing) any document with a reconciled
+line or an inalterability hash - those cannot be safely renamed. New numbers
+continue from whatever is already the highest number in each site/doc-type
+group rather than reordering documents already created under the new scheme.
+Safe to run multiple times - already-converted documents are left alone.</field>
+        <field name="group_ids" eval="[Command.set([
+            ref('purchase_demand_raise.group_matracon_admin'),
+            ref('base.group_system'),
+        ])]"/>
+        <field name="sequence">100</field>
+    </record>
+
+</odoo>

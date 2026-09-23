@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_fix_tools_list" model="ir.ui.view">
+        <field name="name">ir.actions.server.fix.tools.list</field>
+        <field name="model">ir.actions.server</field>
+        <field name="arch" type="xml">
+            <list string="Fix Tools" create="0" delete="0" edit="0" default_order="model_name, sequence">
+                <field name="name" string="Fix Tool"/>
+                <field name="model_name" string="Acts On"/>
+                <field name="x_fix_tool_description" string="What it does"/>
+                <field name="group_ids" string="Restricted To" widget="many2many_tags" optional="show"/>
+                <field name="sequence" column_invisible="True"/>
+                <button name="run" type="object" string="Run"
+                        class="btn-primary btn-sm"
+                        confirm="This will run the fix tool described above. Continue?"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_fix_tools_form" model="ir.ui.view">
+        <field name="name">ir.actions.server.fix.tools.form</field>
+        <field name="model">ir.actions.server</field>
+        <field name="arch" type="xml">
+            <form string="Fix Tool" create="0" delete="0">
+                <sheet>
+                    <group>
+                        <field name="name" readonly="1"/>
+                        <field name="model_name" string="Acts On" readonly="1"/>
+                        <field name="group_ids" string="Restricted To" widget="many2many_tags" readonly="1"/>
+                    </group>
+                    <group string="What it does">
+                        <field name="x_fix_tool_description" readonly="1" nolabel="1"/>
+                    </group>
+                </sheet>
+                <footer>
+                    <button name="run" type="object" string="Run" class="btn-primary"
+                            confirm="This will run the fix tool described above. Continue?"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_fix_tools" model="ir.actions.act_window">
+        <field name="name">Fix Tools</field>
+        <field name="res_model">ir.actions.server</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('x_is_fix_tool', '=', True)]</field>
+        <field name="context">{}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No fix tools registered yet.
+            </p>
+            <p>
+                Custom admin/data-repair Server Actions show up here. Add new ones by
+                creating an ir.actions.server record with the "Fix Tool" box checked -
+                do not add new ones as one-off buttons on individual model views.
+            </p>
+        </field>
+    </record>
+
+    <!-- Settings → Fix Tools (top-level, always visible to Matracon Admin / System -
+         no need to enable Developer Mode, unlike Settings → Technical) -->
+    <menuitem id="menu_fix_tools"
+              name="Fix Tools"
+              parent="base.menu_administration"
+              action="action_fix_tools"
+              sequence="4"
+              groups="purchase_demand_raise.group_matracon_admin,base.group_system,site_operations.group_finance_ho"/>
+
+</odoo>

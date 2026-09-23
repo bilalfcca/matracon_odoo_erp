@@ -1,0 +1,9 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_petty_cash_gl_fix_wizard,petty.cash.gl.fix.wizard,model_x_petty_cash_gl_fix_wizard,site_operations.group_finance_ho,1,1,1,1
+access_petty_cash_gl_fix_wizard_admin,petty.cash.gl.fix.wizard.admin,model_x_petty_cash_gl_fix_wizard,purchase_demand_raise.group_matracon_admin,1,1,1,1
+access_site_config_fix_wizard_admin,site.config.fix.wizard.admin,model_x_site_config_fix_wizard,purchase_demand_raise.group_matracon_admin,1,1,1,1
+access_site_config_fix_wizard_system,site.config.fix.wizard.system,model_x_site_config_fix_wizard,base.group_system,1,1,1,1
+access_fleet_gl_fix_wizard_admin,fleet.gl.fix.wizard.admin,model_x_fleet_gl_fix_wizard,purchase_demand_raise.group_matracon_admin,1,1,1,1
+access_fleet_gl_fix_wizard_system,fleet.gl.fix.wizard.system,model_x_fleet_gl_fix_wizard,base.group_system,1,1,1,1
+access_ir_actions_server_fix_tools_admin,ir.actions.server.fix.tools.admin,base.model_ir_actions_server,purchase_demand_raise.group_matracon_admin,1,0,0,0
+access_ir_actions_server_fix_tools_finance_ho,ir.actions.server.fix.tools.finance.ho,base.model_ir_actions_server,site_operations.group_finance_ho,1,0,0,0

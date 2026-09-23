@@ -106,12 +106,7 @@
         <field name="target">new</field>
     </record>
 
-    <!-- Menu: Inventory → Configuration → Change Product UoM -->
-    <menuitem id="menu_uom_change_wizard"
-              name="Change Product UoM"
-              parent="stock.menu_stock_config_settings"
-              action="action_uom_change_wizard"
-              sequence="99"
-              groups="purchase_demand_raise.group_matracon_admin,base.group_system"/>
+    <!-- Menu moved to Settings → Fix Tools (see matracon_admin_tools);
+         action_uom_change_wizard above is kept and reused from there. -->
 
 </odoo>
