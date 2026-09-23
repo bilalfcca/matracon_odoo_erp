@@ -42,6 +42,28 @@ class PurchaseOrder(models.Model):
         ('rejected', 'Rejected'),
     ], string='CEO Status', default='pending', tracking=True)
 
+    # ── Signature-automation identities ──────────────────────────────────────
+    # Same pattern already used on Liability Sheet / Petty Cash / Salary Sheet /
+    # Vendor Payment (all `x_ceo_approved_by_id`) — the report template reads
+    # this to auto-print the approving CEO's own configured signature, instead
+    # of the old company-wide/group-search fallback chain. Blank on a
+    # Site-Procurement PR that auto-approves with no real CEO click (see
+    # action_ceo_final_approve / _action_submit_site_procurement) — correct,
+    # since nobody actually approved it as CEO in that case.
+    x_ceo_approved_by_id = fields.Many2one(
+        'res.users', string='CEO Approved By', readonly=True, copy=False, tracking=True,
+    )
+    # Whoever in Procurement actually processed this PR into an RFQ — stamped
+    # (once, first-write-wins) at whichever of these happens first: HO review
+    # (action_ho_approve), sending the RFQ from the Comparative Statement
+    # (action_send_rfq_to_vendors), or sending it directly from the PO/RFQ form
+    # (action_rfq_send, for native Odoo "alternative RFQ" records that skip the
+    # Comparative Statement). Used to auto-print the Procurement Officer's
+    # signature on the RFQ report.
+    x_rfq_prepared_by_id = fields.Many2one(
+        'res.users', string='RFQ Prepared By', readonly=True, copy=False,
+    )
+
     # ── Procurement Type ─────────────────────────────────────────────────────
     x_procurement_type = fields.Selection([
         ('ho_procurement', 'HO Procurement'),
@@ -799,6 +821,8 @@ class PurchaseOrder(models.Model):
             order.write({
                 'x_ho_status': 'approved',
                 'x_pr_state': 'ceo_final',
+                # First-write-wins: whoever actually processed this into an RFQ.
+                'x_rfq_prepared_by_id': order.x_rfq_prepared_by_id.id or self.env.uid,
             })
 
             # Close HO's activities
@@ -918,6 +942,7 @@ class PurchaseOrder(models.Model):
                 'x_pr_state': 'po_locked',
                 'x_ceo_status': 'approved',
                 'x_ho_status': order.x_ho_status if not bypass_ho else 'pending',
+                'x_ceo_approved_by_id': self.env.uid,
             })
 
             # Auto-mark CEO's pending activities as done
@@ -1212,6 +1237,12 @@ class PurchaseOrder(models.Model):
         # ── Site Store gate ───────────────────────────────────────────────────
         if self.env.user.has_group('purchase_demand_raise.group_site_store'):
             raise UserError(_('Site Store cannot send RFQs. Please submit the PR for approval.'))
+
+        # Signature automation: whoever in Procurement actually sends the RFQ.
+        # First-write-wins — doesn't overwrite an identity already captured via
+        # HO review or the Comparative Statement's "Send RFQ to Vendors".
+        for order in self.filtered(lambda o: not o.x_rfq_prepared_by_id):
+            order.x_rfq_prepared_by_id = self.env.uid
 
         # ── Vendor gate — HO-raised PRs must have a vendor selected ──────────
         for order in self:

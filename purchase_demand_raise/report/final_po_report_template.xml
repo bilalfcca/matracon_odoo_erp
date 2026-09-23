@@ -418,14 +418,32 @@
                         </t>
                     </div>
 
-                    <!-- Signature block -->
+                    <!-- Signature block
+                         Source priority for the CEO's name + signature image:
+                           1. o.x_ceo_approved_by_id — the CEO who actually approved
+                              THIS PO (only set if they have x_sign_signature configured
+                              in Preferences AND actually clicked final approval).
+                           2. x.po.signature.config.x_ceo_signature — a manually
+                              uploaded fallback image, for a CEO who hasn't configured
+                              a personal signature yet.
+                           3. Any CEO-Approval-group user who has a signature configured
+                              (legacy behaviour, kept for compatibility).
+                           4. Hardcoded name/title, so the PO is never blank.
+                         The Title is always company-config/hardcoded — it isn't
+                         something tracked per user record. -->
                     <t t-set="sig" t-value="o.env['x.po.signature.config'].sudo().search(
                         [('company_id','=',o.company_id.id)], limit=1)"/>
+                    <t t-set="_po_approver" t-value="o.sudo().x_ceo_approved_by_id"/>
 
-                    <!-- Determine which CEO signature image to show:
-                         1. x.po.signature.config.x_ceo_signature (uploaded image)
-                         2. CEO user's x_sign_signature (drawn/typed in Preferences)  -->
-                    <t t-set="_po_ceo_img" t-value="sig.x_ceo_signature if (sig and sig.x_ceo_signature) else False"/>
+                    <t t-set="_po_ceo_img" t-value="False"/>
+                    <t t-set="_po_ceo_name" t-value="False"/>
+                    <t t-if="_po_approver and _po_approver.x_sign_signature">
+                        <t t-set="_po_ceo_img" t-value="_po_approver.x_sign_signature"/>
+                        <t t-set="_po_ceo_name" t-value="_po_approver.name"/>
+                    </t>
+                    <t t-elif="sig and sig.x_ceo_signature">
+                        <t t-set="_po_ceo_img" t-value="sig.x_ceo_signature"/>
+                    </t>
                     <t t-set="_po_ceo_user" t-value="False"/>
                     <t t-if="not _po_ceo_img">
                         <!-- Fall back: find a user in CEO Approval group who has drawn their signature -->
@@ -454,7 +472,7 @@
 
                     <div style="border-top:1px solid #000; padding-top:3px; display:inline-block; min-width:160px;">
                         <p style="margin:0; font-weight:bold; font-size:13px;">
-                            <t t-esc="(sig and sig.x_ceo_name) or (_po_ceo_user and _po_ceo_user.name) or 'JEHANZEB SAULAT'"/>
+                            <t t-esc="_po_ceo_name or (sig and sig.x_ceo_name) or (_po_ceo_user and _po_ceo_user.name) or 'JEHANZEB SAULAT'"/>
                         </p>
                         <p style="margin:0; font-size:12px;">
                             <t t-esc="(sig and sig.x_ceo_title) or 'CEO'"/>

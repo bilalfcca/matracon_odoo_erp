@@ -351,7 +351,19 @@ class ComparativeStatement(models.Model):
         return super().copy(default)
 
     def action_confirm(self):
-        """Lock CS and route PR to CEO via the HO-approval path."""
+        """Lock CS and route PR to CEO via the HO-approval path.
+
+        Server-side group check added alongside the view's `groups=` attribute
+        on the button — the view attribute alone only hides the button, it
+        doesn't stop the method being called some other way (API, automation).
+        """
+        if not (self.env.user.has_group('purchase_demand_raise.group_procurement_ho')
+                or self.env.user.has_group('purchase_demand_raise.group_ceo_approval')
+                or self.env.user.has_group('purchase_demand_raise.group_matracon_admin')
+                or self.env.user.has_group('base.group_system')):
+            raise UserError(_(
+                'Only Procurement HO or CEO Approval can confirm a Comparative Statement.'
+            ))
         for cs in self:
             if not cs.x_recommended_vendor_line_id:
                 raise UserError(_(
@@ -403,6 +415,12 @@ class ComparativeStatement(models.Model):
         po = self.x_purchase_order_id
         if not po:
             raise UserError(_('No Purchase Requisition linked to this Comparative Statement.'))
+
+        # Signature automation: whoever in Procurement actually sends the RFQ.
+        # First-write-wins — doesn't overwrite an identity already captured via
+        # HO review or a direct send from the PO/RFQ form.
+        if not po.x_rfq_prepared_by_id:
+            po.x_rfq_prepared_by_id = self.env.uid
 
         # Collect vendor partners that have an email address
         partners_with_email = self.x_vendor_line_ids.mapped('x_partner_id').filtered(
