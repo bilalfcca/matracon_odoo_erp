@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Fix Petty Cash GL Entry -->
+    <record id="view_petty_cash_gl_fix_wizard_form" model="ir.ui.view">
+        <field name="name">x.petty.cash.gl.fix.wizard.form</field>
+        <field name="model">x.petty.cash.gl.fix.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Fix Petty Cash GL Entry">
+                <div class="alert alert-info" role="alert">
+                    Corrects a released Petty Cash Request whose journal entry debited
+                    the wrong GL account instead of the site's Cash-in-Hand account.
+                    Creates a correcting journal entry - the original entry is not
+                    reversed.
+                </div>
+                <group>
+                    <field name="petty_cash_request_id"/>
+                </group>
+                <footer>
+                    <button name="action_apply" string="Run" type="object"
+                            class="btn-primary"
+                            confirm="This will create a correcting journal entry to move the released amount to the site's Petty Cash (Cash in Hand) account. Proceed?"/>
+                    <button string="Cancel" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- Shared Site Configuration fix picker (fix_type set via context per Server Action) -->
+    <record id="view_site_config_fix_wizard_form" model="ir.ui.view">
+        <field name="name">x.site.config.fix.wizard.form</field>
+        <field name="model">x.site.config.fix.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Fix Site Configuration Data">
+                <field name="fix_type" invisible="1"/>
+                <div class="alert alert-info" role="alert">
+                    <field name="fix_type_help" readonly="1" nolabel="1"/>
+                </div>
+                <group>
+                    <field name="site_config_id"/>
+                </group>
+                <footer>
+                    <button name="action_apply" string="Run" type="object"
+                            class="btn-primary"
+                            confirm="This will apply the fix described above. Continue?"/>
+                    <button string="Cancel" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- Fix Fleet Service Log GL Link -->
+    <record id="view_fleet_gl_fix_wizard_form" model="ir.ui.view">
+        <field name="name">x.fleet.gl.fix.wizard.form</field>
+        <field name="model">x.fleet.gl.fix.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Unlink GL">
+                <div class="alert alert-info" role="alert">
+                    Detaches the journal entry link on a fleet service log entry so it
+                    can be corrected. The journal entry itself is NOT reversed.
+                </div>
+                <group>
+                    <field name="log_entry_id"/>
+                </group>
+                <footer>
+                    <button name="action_apply" string="Run" type="object"
+                            class="btn-primary"
+                            confirm="This will detach the GL journal entry link (the JE itself is NOT reversed). Continue?"/>
+                    <button string="Cancel" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+</odoo>

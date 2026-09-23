@@ -598,3 +598,404 @@ On a fresh Odoo.sh dev build, if the site shows 500 immediately after a push, ch
 ```
 (docs only — no code changes)
 ```
+
+---
+
+## Session Notes — 2026-09-22
+
+### New Module: `account_counterpart_column` (v1.0.0)
+Adds an "Offsetting/Counterpart Account" column to the **General Ledger** report (Accounting >
+Reporting > Ledgers > General Ledger) and, hidden-by-default via the optional-columns toggle, to
+the **Journal Items** list view (covers the Trial Balance drill-down too, since it opens the same
+base view). Shows which account received the opposite debit/credit side of the same journal entry
+— comma-joined if the entry has more than 2 lines. Trial Balance's own report grid is untouched
+(it's account-aggregated, no single line to attach a counterpart to).
+
+- `models/account_move_line.py` — `_get_counterpart_account_display()`: one batched SQL query
+  (never N+1) shared by both surfaces; resolves account code/name via the ORM (not raw SQL) so
+  multi-company `code_store` resolves correctly.
+- `models/account_general_ledger.py` — extends `AccountGeneralLedgerReportHandler
+  ._report_custom_engine_general_ledger()`. **Gotcha**: return `None`, not `False`, for "no
+  counterpart" (account-subtotal / grand-total rows) — the report's `_format_value()` renders
+  `None` as blank but does `str()` on `False`, producing a literal "False" in the cell.
+- `views/account_move_line_views.xml` — adds the field as `optional="hide"` on the shared
+  `account.view_move_line_tree`, so it flows into every view that inherits it without touching any
+  of them individually.
+
+### New Module: `matracon_admin_tools` (v1.0.0) — Centralized "Fix Tools" Screen
+**Menu: Settings → Fix Tools.** Consolidates every ad-hoc "fix"/"rebuild"/data-repair Server Action
+that had accumulated as one-off buttons on individual model views into one screen. Reuses the
+native `ir.actions.server` model (two new fields: `x_is_fix_tool` boolean, `x_fix_tool_description`
+text) rather than a parallel model — every entry is a real Server Action, runnable via `.run()`.
+
+#### Access control design
+Each tool keeps the **exact same security groups** it had at its old button/menu location, via
+`ir.actions.server`'s native `group_ids` field (e.g. the petty-cash GL fix stays Finance HO +
+Matracon Admin; everything else stays Matracon Admin + System Administrator — nobody gained or
+lost capability). Two problems this created and how they were solved:
+- Finance HO / Matracon Admin had **zero** pre-existing ACL access to `ir.actions.server` (core
+  ACL only grants `base.group_system`) — new read-only ACL rows added for both groups.
+- A blanket grant would expose them to every OTHER Server Action in the system (automations,
+  technical config). Fixed with one global `ir.rule` (`security/ir_rule.xml`) whose domain is
+  `['|', ('x_is_fix_tool', '!=', True), '|', ('group_ids', '=', False), ('group_ids', 'in',
+  user.all_group_ids.ids)]` — non-fix-tool rows are *always* allowed (so nothing else in the
+  system is ever restricted by this rule, for anyone), fix-tool rows are scoped by `group_ids`.
+- **Odoo 19 gotcha**: `res.users.groups_id` was renamed to `group_ids` (and `all_group_ids` added
+  for implied groups) — `user.groups_id` in a domain raises `AttributeError`.
+- **`ir.actions.server.run()` gotcha**: `_can_execute_action_on_records()` checks `group_ids`
+  against the *calling user's actual group membership* — `self.sudo()` on the action record does
+  NOT bypass this. Verified empirically: a user in neither group is cleanly denied; a user in
+  either permitted group runs it; a user with zero ACL on the model gets denied earlier, at ACL
+  level, with no rule involved.
+- **Code-field gotcha**: `state='code'` actions only return whatever gets assigned to a variable
+  literally named `action` — a bare `model.method()` statement discards the method's return value
+  (its notification dict). Two migrated entries had this exact bug already in production (silently
+  swallowing their own success notification); fixed by writing `action = model.method()` when
+  editing those two records here — a **notification-visibility fix**, not a logic change.
+
+#### Migrated (9 tools)
+| Tool | Was at | Now |
+|---|---|---|
+| Rebuild Site Analytics | JE list → Action menu | Unbound (`binding_model_id` cleared), flagged in place |
+| Fix Petty Cash Accounts | Petty Cash Admin wizard button **+** PCE list → Action menu (2 duplicate entry points, same routine) | One entry, unbound from the list menu |
+| Fix GL Analytic Distribution on Payment Entries | Petty Cash Admin wizard's 2nd button | Method relocated (unchanged) from the retired wizard to `account.payment` |
+| Fix Petty Cash GL Entry | Button on `x.petty.cash.request` form | New `x.petty.cash.gl.fix.wizard` (pick request → run) |
+| Fix Old Inter-Project Entries / Fix Old Issuances / Fix Analytic Visibility | 3 buttons on Site Configuration form | One shared `x.site.config.fix.wizard` (pick site + fix type via context default → run), 3 list entries |
+| Unlink GL (Fleet) | Button on Fleet Service Log form | New `x.fleet.gl.fix.wizard` (pick log entry → run) |
+| Change Product UoM | Inventory → Configuration menu | Same wizard/action reused, just opened from here (`_get_action_dict()`) |
+
+`x.petty.cash.admin.wizard` (TransientModel, its view, window action, menu, and ACL rows) was
+**fully retired** — it took zero input fields, so both its buttons became direct Server Actions
+with no functional loss. Confirmed via `-u` that Odoo's module-update cleanup fully purged its
+stale `ir.model`/`ir.model.fields`/`ir.ui.menu`/`ir.actions.act_window`/`ir.model.access` rows —
+no manual cleanup needed.
+
+#### Left alone (deliberately, per user decision)
+Three role-gated but *routine* business actions were reviewed and left at their original
+locations, not treated as one-off fix tools: IPC "Regenerate Journal Entry" (Finance HO), Liability
+Sheet "Force Reset to Draft", and the payment/batch "Reverse" actions. These are everyday
+operational tools restricted by role, not ad-hoc data-repair patches.
+
+### Push Status
+Both new modules (`account_counterpart_column`, `matracon_admin_tools`) and all edits to
+`site_operations` / `matracon_fleet` are **local only** — not yet pushed via `odoosh-push`.
+
+---
+
+## Session Notes — 2026-09-23
+
+### Petty Cash Expenses — Missing Memo on Cash-in-Hand (Credit) Line
+
+#### Root cause
+`x.petty.cash.expense._create_journal_entry()` (`site_operations/models/petty_cash.py`) always
+hardcoded the credit (Cash-in-Hand) line's label to a generic `"Cash in Hand — <site>"` string,
+identical on every posted expense regardless of what it was for. The debit line was never the
+problem — it already correctly used `line.name` (the per-line "Description" field). General
+Ledger and Partner Ledger display the per-**line** `account_move_line.name`, not the move-level
+`ref` — so browsing the Cash-in-Hand account showed no real memo on the credit side, unlike a
+manually-typed Journal Entry where both sides normally carry a real description. Confirmed
+empirically via `odoo-bin shell` before touching any code.
+
+#### Fix (new entries)
+`_create_journal_entry()` now computes the credit line's label the same way a manual JE would
+read on both sides of a simple transaction:
+- **Single-line voucher** → same description as that one debit line.
+- **Multi-line voucher** → no single line represents the whole consolidated credit, so it falls
+  back to the voucher's own `name` (Voucher Title / memo).
+
+#### Backfill (existing entries) — new Fix Tool
+`x.petty.cash.expense.action_backfill_credit_line_memo()` — corrects already-posted JEs whose
+credit line still carries the old generic label. Same safe in-place SQL pattern already
+established by `fix_petty_cash_expense_accounts()`'s Step 3 (hooks.py): direct `UPDATE
+account_move_line SET name = ...` scoped to `credit > 0` lines still matching the old
+`'Cash in Hand — %'` pattern — label-only, no amounts/accounts/reconciliation touched, safe on
+posted lines, idempotent (re-running reports 0 fixed once done; already-corrected or
+manually-edited labels are left alone).
+
+Registered in the centralized **Settings → Fix Tools** screen (`matracon_admin_tools`, see prior
+session) as **"Fix Missing Memo on Petty Cash Journal Entries"**, sequence 25 — *not* as a
+standalone button on the Petty Cash Expenses view, per the screen's own stated purpose. Same
+`group_ids` restriction as the other petty-cash fix tools (Matracon Admin + System Administrator).
+
+#### Verified via `odoo-bin shell` (all test data cleaned up afterward)
+- New single-line expense → debit and credit lines both show the real expense description.
+- New multi-line expense → debit lines keep their own descriptions; credit line shows the
+  voucher title.
+- Backfill on an old-style entry → credit line corrected from the generic label to the real
+  memo; re-running reports 0 fixed (idempotent); already-correct new entries left untouched.
+- Confirmed a same-transaction ORM-cache staleness read is not a real bug (a fresh process /
+  post-commit read shows the corrected value immediately — direct SQL writes just don't
+  auto-invalidate an already-loaded recordset's cache within the same transaction).
+
+#### Areas reviewed, not touched
+Partner Ledger reads the same `account_move_line.name` field, so it benefits from this fix
+automatically wherever a petty cash JE line has a `partner_id` (subcontractor-advance lines) —
+no separate Partner Ledger-specific change needed. Regular (non-advance) expense lines have no
+`partner_id` and correctly don't appear in Partner Ledger at all, unaffected by this change. The
+`account_counterpart_column` report (prior session) and Trial Balance were reviewed and are
+unaffected — neither reads `account_move_line.name` for its own logic.
+
+---
+
+## Session Notes — 2026-09-23 (continued)
+
+### Site-Wise / HO-Wise Sequential Numbering — Customer Invoices, Vendor Bills, Vendor Payments, Journal Entries
+
+**Format:** `[DOC_TYPE]/[SITE_CODE]/[YEAR]/[SEQUENCE]` — e.g. `INV/MCH-BHW/2026/000001`,
+`BILL/HO/2026/000001`, `PAY/STP-MRD/2026/000001`, `JE/RWASA/2026/000001`. `DOC_TYPE` is
+`INV`/`BILL`/`PAY`/`JE`. `SITE_CODE` is the project analytic account's own `code` field (the
+same one used everywhere else for site scoping — e.g. `MCH-BHW`, `STP-MRD`) or literal `HO` when
+the move has no project. `SEQUENCE` is 6 digits, resets each calendar year.
+
+**File:** `site_operations/models/account_move.py` — extends the *existing* (previously
+out_invoice-only) `_get_starting_sequence()` override, generalized to all 4 doc types, plus a
+new `_get_last_sequence_domain()` override. Both are Odoo's own sanctioned `SequenceMixin`
+extension points (`account.move` inherits `sequence.mixin` from core) — no new `ir.sequence`
+records, no new journals, no hardcoded string concatenation at create time.
+
+#### Why journal_id-scoping (the base default) had to be dropped for in-scope docs
+Odoo's own `_get_last_sequence_domain()` scopes "find the previous number" by `journal_id`. Journal
+Entries in this system are posted through *several* different journals (bank/cash journals, the
+Miscellaneous journal, ...). Keeping that scoping would give each journal its own independent
+000001, 000002... counter and produce **duplicate numbers across journals for the same site**.
+Fix: override `_get_last_sequence_domain()` to scope by (doc type, site, calendar year) instead,
+spanning every journal in the company. Verified empirically: a site's Journal Entries posted
+through two different journals (bank, then misc) correctly continue as 000001 → 000002, not
+000001 in each independently.
+
+#### Two more bugs found and fixed via empirical testing (not visible from reading the code)
+1. **Site interleaving must not reset the counter.** Two different sites' invoices created
+   back-to-back in the *same* shared journal must each keep incrementing their own counter, not
+   restart. Verified: MCH → STP → MCH correctly continued MCH's own count.
+2. **New-format rows can "poison" both directions if they share a journal with pre-existing
+   old-format or out-of-scope rows**, because the underlying regex-based lookup finds "the most
+   recently inserted row in this journal" and tries to continue *its* prefix, regardless of
+   whether that prefix means anything to the record currently being numbered:
+   - An HO-scoped new invoice initially picked up a *pre-existing* old-format invoice's prefix
+     (both have `x_project_analytic_account_id IS NULL`) and continued the *old* numbering
+     thread instead of starting fresh.
+   - A **customer payment** (out of scope — Vendor Payments only per this task) sharing a bank
+     journal with an in-scope vendor payment picked up the vendor payment's *new*-format prefix
+     and continued *that* counter instead of falling back to standard behaviour.
+   - **Fix:** a symmetric regex guard on `name` — in-scope lookups require the candidate row to
+     already match the new 4-segment shape (`^[^/]+/[^/]+/[0-9]{4}/[0-9]+$`); the fallback path
+     for out-of-scope records requires the candidate to **not** match it. Each numbering universe
+     is now blind to the other's rows, however they happen to share a journal.
+3. **`account.payment`'s own fields are not reliably readable via a plain attribute access** at
+   the exact point `_get_starting_sequence()`/`_get_last_sequence_domain()` run (mid
+   create/post flow) — `payment.payment_type`/`partner_type` and
+   `payment.x_destination_project_id`/`x_fund_project_id` can reflect stale/default values.
+   Fixed by flushing the payment's pending writes then reading `payment_type`/`partner_type` (and
+   the destination/fund project, as a site-code fallback when the move's own
+   `x_project_analytic_account_id` isn't stamped yet) directly via raw SQL — the same technique
+   `sequence.mixin` itself uses before its own raw-SQL lookups.
+
+#### Out of scope (deliberately, per user decision) — left completely untouched
+Customer Payments/Receipts (inbound), refunds/credit notes (`out_refund`/`in_refund`), and any
+other `entry` that isn't a plain JE or an outbound-to-supplier payment. `_matracon_sequence_doc_type()`
+returns `None` for these and both overrides fall straight back to standard Odoo behaviour — verified
+a refund still gets the old `RINV/26-27/NNNN` format untouched.
+
+#### Historical backfill — new Fix Tool, manual-only
+`account.move.action_matracon_backfill_sequence()` renumbers existing posted documents still on
+the old format into the new scheme. Registered in **Settings → Fix Tools** as "Renumber Historical
+Documents (Site-Wise Sequence)" — **never called from any hook/cron/automatic trigger anywhere**
+(verified via a full-codebase grep: the only references are the Fix Tools XML record, the method
+definition, and its own internal log line). Matracon Admin / System Administrator only.
+
+- Skips (and reports by name) any document with a reconciled line or an `inalterable_hash`
+  (hash-secured journal) — renaming those could break a reconciliation reference or an audit
+  hash chain.
+- New numbers continue from whatever is already the highest number in each (doc type, site,
+  year) group, rather than reordering documents already created live under the new scheme —
+  nothing already-correct is ever touched or renamed twice. Documents this run *does* renumber
+  are still assigned oldest-first among themselves.
+- Uses `write()`, not raw SQL, so Odoo recomputes the stored `sequence_prefix`/`sequence_number`
+  correctly for future auto-numbering.
+- Verified idempotent (a second run reports 0 renumbered, same skip list) and correct (21
+  renumbered, 2 correctly skipped as reconciled, in this dev database) — **then fully reverted**:
+  per the explicit "never run this except on deliberate click" instruction for this specific
+  tool, every renamed document was restored to its original historical name immediately after
+  verifying the method's logic in an isolated shell session, and all forward-numbering test
+  documents created earlier in the same verification pass were deleted. The Fix Tools "Run"
+  button itself was never clicked through the actual delivered screen.
+
+#### Reports/views reviewed for consistency
+Grepped for any parsing/regex/fixed-width assumption on `move.name` or `payment.name` across all
+custom modules — none found; every reference is a plain display (`ipc.x_account_move_id.name` in
+a notification, an error message, ...), not a structural assumption. No QWeb templates in the
+custom modules reference `move.name` directly (the standard Odoo invoice/bill PDF templates
+handle variable-length references natively). No changes needed there.
+
+---
+
+## Session Notes — 2026-09-23 (continued — signature automation, phase 1)
+
+### Discovery phase → implementation of the approved decisions
+
+A discovery pass first found that a real digital-signature system already existed
+(`res.users.x_sign_signature` + shared macros in `site_operations/report/signature_block.xml`)
+but was inconsistently wired, plus **three separate legacy signature mechanisms** side by side.
+Full inventory/flow-mapping was published as an Artifact for review. This session implements the
+5 decisions approved from that review (decision 2 — Attendance CEO gate — is on hold; decision 5
+— IPC/Bank Guarantee approval — stays out of scope).
+
+### 1. Macro consolidation (dead code removed)
+`report_sig_4col_labels` in `signature_block.xml` had **zero callers** — Bank Payment Voucher and
+Journal Entry Voucher both hand-copied their own blank inline markup instead of calling either
+4-column macro. Removed `report_sig_4col_labels` entirely; both reports now call the
+already-proven `report_sig_4col` (used successfully by Petty Cash Expense, Cheque Print, MIF, Gate
+Pass, MTN).
+
+### 2. Bank Payment Voucher / Journal Entry Voucher — Prepared By / Approved By wired
+- **Bank Payment Voucher** (`account.payment`): Prepared By = `create_uid`; Approved By =
+  `x_ceo_approved_by_id` (already existed on the model, just never reached the PDF).
+- **Journal Entry Voucher** (`account.move`, used for both payment-derived and plain entries):
+  Prepared By = `create_uid`; Approved By = `origin_payment_id.x_ceo_approved_by_id` — resolves to
+  blank on a plain, non-payment journal entry (no new CEO-approval gate added there, per decision
+  1 — scope stays to the two report types that already have an approval workflow).
+- Checked By / Received By: untouched — no variable passed, same as before.
+
+### 3. Purchase Requisition → RFQ → PO signature identities
+**New fields on `purchase.order`** (same `x_ceo_approved_by_id` naming already used on Liability
+Sheet/Petty Cash/Salary Sheet/Payment, for consistency):
+- `x_ceo_approved_by_id` — stamped in `action_ceo_final_approve()`. Blank on a Site-Procurement PR
+  that auto-bypasses CEO review (`x_ceo_status='approved'` with no real click) — correct, nobody
+  actually approved it as CEO.
+- `x_rfq_prepared_by_id` — whoever in Procurement actually processed the PR into an RFQ.
+  First-write-wins, stamped at whichever happens first: `action_ho_approve()` (main PR flow — HO
+  review is literally "Procurement processes it"), `x.comparative.statement
+  .action_send_rfq_to_vendors()` (CS "Send RFQ to Vendors" button), or
+  `purchase.order.action_rfq_send()` (native Odoo "alternative RFQ" direct-send path, also
+  gated to block Site Store). Covers all three ways an RFQ actually gets sent/prepared in this
+  codebase.
+
+**RFQ report** (`rfq_report_template.xml`) had **no signature block at all** — added one, single
+column, sourced from `x_rfq_prepared_by_id`. Kept self-contained (not a call into
+`site_operations.report_sig_col`) — **`purchase_demand_raise` does not depend on `site_operations`,
+site_operations depends on it**, so reaching the other way would be a backwards, fragile
+cross-module reference (and could not resolve if site_operations were ever absent).
+
+**PO report** (`final_po_report_template.xml`) CEO block — new priority order: (1) the actual
+`x_ceo_approved_by_id` approver's own `x_sign_signature`, (2) `x.po.signature.config` uploaded
+fallback image, (3) legacy CEO-group user search, (4) hardcoded name. Previously only had (2)-(4)
+— the PO never showed the real approver's own signature, only a company-wide config or a search
+for *any* signed-up CEO-group user. Title stays company-config/hardcoded (not a per-user
+attribute). Verified end-to-end via `odoo-bin shell`: PO rendered with the actual approver's real
+name after `action_ceo_final_approve`.
+
+### 4. Comparative Statement `action_confirm` — security gap fixed
+Found during discovery: this button had **no `groups=` restriction at all** — any user with basic
+model write access could route a PR to CEO. Fixed both ways (view attribute alone only hides the
+button, doesn't stop the method being called another way):
+- View: `groups="...group_procurement_ho,...group_ceo_approval,...group_matracon_admin,base.group_system"`.
+- Server-side: explicit `has_group` check inside `action_confirm()` itself, raising `UserError`.
+- Verified: an unprivileged test user is cleanly denied; Procurement HO succeeds.
+
+### 5. Salary Slip — fixed to match its own parent Salary Sheet
+`report_sig_3col` was called with **zero variables set** — even Prepared By was blank, despite the
+parent Salary Sheet report already correctly showing both Prepared By and CEO Approved By. Now
+sources `sig_prepared_user` from the slip's own `create_uid` and `sig_approved_user` from
+`line.sheet_id.x_ceo_approved_by_id` — same data the parent already uses.
+
+### 6. Dead legacy signature fields removed
+- `res.company` — `x_po_officer_name`, `x_po_officer_title`, `x_ceo_name`, `x_ceo_title`. Entire
+  file (`purchase_demand_raise/models/res_company.py`) deleted — confirmed zero references
+  anywhere in the codebase, not exposed in any view, module-update cleanup purged the stale
+  `ir.model.fields` rows automatically.
+- `x.po.signature.config` — `x_po_officer_name/title/signature` (defined, editable in
+  `po_signature_config_views.xml`, but never read by any report). CEO fields on that same model
+  are kept — genuinely used as the PO's fallback image/name when the approving CEO hasn't
+  configured a personal signature. View updated: single "CEO (fallback)" section, help text
+  reworded to state it's a fallback, not the primary source.
+
+### Verified via `odoo-bin shell` (all test data cleaned up afterward)
+- Site-Store-raised PR → submit (CS auto-created) → HO approve (`x_rfq_prepared_by_id` stamped) →
+  RFQ PDF renders with the HO officer's real name **and an embedded signature image** → CEO final
+  approve (`x_ceo_approved_by_id` stamped) → PO PDF renders with the approver's real name.
+- HO-raised PR (bypasses HO review, routes straight to `ceo_final`) → CEO approve → PO PDF correct;
+  confirms `x_rfq_prepared_by_id` correctly stays blank when there was no RFQ-processing step.
+- Comparative Statement `action_confirm`: unprivileged user denied with the new error message;
+  Procurement HO user's own permission check passes (a separate, pre-existing business-state
+  check then correctly blocked reusing an already-`po_locked` test record — expected, not a bug).
+- Bank Payment Voucher and Journal Entry Voucher PDFs render correctly with Prepared By populated.
+- All test POs, the auto-created Comparative Statement, a test payment, and temporary
+  `x_sign_signature` values set on real CEO/Procurement HO user accounts were fully cleaned up —
+  environment restored to its pre-test state.
+
+### Still pending (not in this phase)
+- Decision 2 (Attendance Sheet CEO-approval gate) — on hold, client confirmation needed before any
+  workflow change there.
+- Decision 5 (Subcontractor IPC / Bank Guarantee approval steps) — explicitly out of scope.
+
+---
+
+## Session Notes — 2026-09-23 (continued — Board Resolutions app)
+
+### New Standalone App: `board_resolutions` (v1.0.0)
+
+Legal/governance documents (SECP authorizations etc.) — deliberately its **own top-level app**, not
+folded into Settings or an existing app, restricted to `purchase_demand_raise.group_matracon_admin`
++ `purchase_demand_raise.group_ceo_approval` + `base.group_system` **only**. Security is enforced at
+the ACL level (`security/ir.model.access.csv` grants zero rows to any other group) — the menu's
+`groups=` is just a visibility convenience on top of that, not the actual boundary. Verified: an
+unrelated user gets `AccessError` on both `search()` and `create()`.
+
+#### Models
+- `x.board.resolution` — `name` (reference), `meeting_date`, `meeting_venue` (defaults from the
+  company address, editable), `subject`, `attendee_ids`, `clause_ids`, `ratification_text` (Html,
+  boilerplate default), `authorized_person_id` (`res.partner`, optional — only for a clause
+  authorizing a specific individual) + `authorized_person_cnic` (related, read-only, pulled from
+  the partner's existing `x_cnic` field already used elsewhere in this codebase — not duplicated),
+  `state` (draft/confirmed, matching every other document model's pattern here).
+- `x.board.resolution.attendee` — `name`, `designation` (free-text Char, not a rigid Selection —
+  "Director/CEO/Company Secretary/etc." is open-ended), `user_id` (optional, only to source a
+  signature image — same "only if configured" rule used everywhere else in this system).
+- `x.board.resolution.clause` — `sequence` + `text` (Html), numbered 1/2/3... in the report.
+
+#### Reference numbering — why NOT a plain `ir.sequence`
+The requirement is explicit: auto-suggest the next number, always stay editable, and after a
+manual override **the next suggestion must follow that override**, not an untouched internal
+counter. A raw `ir.sequence`'s own counter has no way to "notice" that a record's field was
+hand-edited — it just keeps incrementing from wherever it already was. Implemented instead as a
+small `_default_name()` that regex-finds the trailing number on the most recently created record's
+own actual `name` value and increments it (`(\d+)(\D*)$`, preserves zero-padding width). This is
+the same *category* of mechanism as Odoo's own SequenceMixin (used for invoice/PO/JE numbering
+elsewhere in this system, see the 2026-09-23 site-wise-numbering session above) — purpose-built
+lighter version here since the format has no year/month reset requirement (numbering is
+**continuous, never resets**, confirmed with the user given the sample format "BR # 26/16" was
+ambiguous about whether "26" meant a resetting fiscal year).
+- First-ever resolution: no prior record to continue from → default is blank, Admin/CEO types the
+  starting reference by hand, exactly as required.
+- Verified: `BR # 26/16` → confirmed → next default computes `BR # 26/17`; manually overriding the
+  first record to `BR # 26/50` correctly makes the *next* default `BR # 26/51`, not `26/17`.
+
+#### Report — reuses `purchase_demand_raise.matracon_po_layout`
+The polished PO/RFQ letterhead (logo + centered company name + navy divider + header ref-bar +
+Head Office/Regional Office footer) is already a **generic, reusable** template — confirmed by
+reading it: no PO-specific text baked in, just generic `po_ref_number`/`po_ref_date` variables the
+caller sets. Reused here instead of duplicating letterhead markup a third time; this is why
+`board_resolutions` depends on `purchase_demand_raise` (which nearly every custom module already
+depends on anyway, for its core security groups). Also depends on `site_operations`, solely to
+reuse `res.partner.x_cnic` — same precedent as `matracon_fleet`, which already depends on both.
+
+Signature block: one cell per attendee, company stamp/seal (new `res.company
+.x_board_resolution_stamp` field — a small addition to the standard Company form's own "Board
+Resolutions" tab, Settings-level access like the rest of that form, deliberately **not** part of
+the app's own restricted ACL) layered behind each attendee's own signature image (if their linked
+user has one configured) via `position:absolute` CSS layering, printed name, and designation below.
+
+**Gotcha hit and fixed**: `meeting_date` is a plain `Date` field, not `Datetime` — the PO
+template's `context_timestamp(...)` helper (used there because `date_approve`/`date_order` ARE
+Datetime) raises `AssertionError: Datetime instance expected` on a Date. Fixed by formatting
+`meeting_date` directly with `.strftime()` — no timezone conversion needed for a pure date anyway.
+
+#### Verified via `odoo-bin shell` (all test data rolled back, nothing persisted)
+- Numbering: first-record blank default, correct auto-increment, correct pickup after manual
+  override (see above).
+- `action_confirm` blocks with a clear error when there are no attendees, blocks again with no
+  clauses, succeeds once both exist.
+- Full PDF (HTML render **and** the actual wkhtmltopdf binary generation) renders correctly with
+  the real subject, attendee names, embedded signature image, clause text, and ratification text.
+- Access control: an unrelated user gets `AccessError` on `search()` and `create()`; a Matracon
+  Admin user can create/confirm normally.

@@ -164,6 +164,40 @@
                         </div>
                     </t>
 
+                    <!-- Signature — Procurement Officer who prepared/sent this RFQ.
+                         Single column (this report has only one signatory). Kept
+                         self-contained (not a call into site_operations' shared
+                         signature_block.xml macros) because purchase_demand_raise
+                         does not depend on site_operations — site_operations
+                         depends on purchase_demand_raise, the other way round —
+                         so reaching into it here would be a fragile, backwards
+                         cross-module reference. Mirrors the same image-or-blank
+                         rendering logic as those macros. -->
+                    <t t-set="_rfq_sig_user" t-value="o.sudo().x_rfq_prepared_by_id"/>
+                    <div class="row mt-5">
+                        <div class="col-4 text-center">
+                            <div style="display:table; width:100%; height:60px;">
+                                <div style="display:table-cell; vertical-align:bottom; text-align:center; padding-bottom:2px;">
+                                    <t t-if="_rfq_sig_user and _rfq_sig_user.x_sign_signature">
+                                        <img t-att-src="image_data_uri(_rfq_sig_user.x_sign_signature)"
+                                             style="max-height:52px; max-width:150px; object-fit:contain;"/>
+                                    </t>
+                                </div>
+                            </div>
+                            <div style="border-top:2px solid #000; padding-top:8px;">
+                                <div style="font-weight:700; font-size:13px;">Prepared By</div>
+                                <t t-if="_rfq_sig_user">
+                                    <div style="font-size:11px; color:#374151; margin-top:12px; font-weight:600;">
+                                        <t t-esc="_rfq_sig_user.name"/>
+                                    </div>
+                                </t>
+                                <t t-else="">
+                                    <div style="font-size:11px; color:#6c757d; margin-top:16px;">Name: _______________________</div>
+                                </t>
+                            </div>
+                        </div>
+                    </div>
+
                 </t>
             </t>
         </t>

@@ -1,0 +1,10 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_board_resolution_admin,board.resolution.admin,model_x_board_resolution,purchase_demand_raise.group_matracon_admin,1,1,1,1
+access_board_resolution_ceo,board.resolution.ceo,model_x_board_resolution,purchase_demand_raise.group_ceo_approval,1,1,1,1
+access_board_resolution_system,board.resolution.system,model_x_board_resolution,base.group_system,1,1,1,1
+access_board_resolution_attendee_admin,board.resolution.attendee.admin,model_x_board_resolution_attendee,purchase_demand_raise.group_matracon_admin,1,1,1,1
+access_board_resolution_attendee_ceo,board.resolution.attendee.ceo,model_x_board_resolution_attendee,purchase_demand_raise.group_ceo_approval,1,1,1,1
+access_board_resolution_attendee_system,board.resolution.attendee.system,model_x_board_resolution_attendee,base.group_system,1,1,1,1
+access_board_resolution_clause_admin,board.resolution.clause.admin,model_x_board_resolution_clause,purchase_demand_raise.group_matracon_admin,1,1,1,1
+access_board_resolution_clause_ceo,board.resolution.clause.ceo,model_x_board_resolution_clause,purchase_demand_raise.group_ceo_approval,1,1,1,1
+access_board_resolution_clause_system,board.resolution.clause.system,model_x_board_resolution_clause,base.group_system,1,1,1,1
