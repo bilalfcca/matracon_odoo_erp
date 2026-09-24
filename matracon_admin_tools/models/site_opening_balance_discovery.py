@@ -123,7 +123,7 @@ class XSiteOpeningBalanceDiscoveryWizard(models.TransientModel):
             if wizard.as_of_date and not wizard.receipts_since_date:
                 wizard.receipts_since_date = wizard.as_of_date
 
-    def _check_access(self):
+    def _check_tool_access(self):
         if not (self.env.user.has_group('purchase_demand_raise.group_matracon_admin')
                 or self.env.user.has_group('site_operations.group_finance_ho')
                 or self.env.user.has_group('base.group_system')):
@@ -372,7 +372,7 @@ class XSiteOpeningBalanceDiscoveryWizard(models.TransientModel):
 
     def action_run_discovery(self):
         self.ensure_one()
-        self._check_access()
+        self._check_tool_access()
         site_config = self.site_config_id
         has_file = bool(self.summary_file)
 
