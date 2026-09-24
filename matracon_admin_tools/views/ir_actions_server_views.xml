@@ -47,6 +47,17 @@
         <field name="view_mode">list,form</field>
         <field name="domain">[('x_is_fix_tool', '=', True)]</field>
         <field name="context">{}</field>
+        <!-- Explicitly bind our own read-only list/form views (with the Run button)
+             instead of leaving Odoo to auto-resolve a view for ir.actions.server.
+             Without this, Odoo's default view lookup picks base's own technical
+             "Server Action"/"Server Actions" views (same priority, lower id, loaded
+             earlier by the base module) — which exposes full technical editing
+             (Type selector, Execute Code, New/Delete) and has no Run button at all. -->
+        <field name="view_ids" eval="[
+            Command.clear(),
+            Command.create({'view_mode': 'list', 'view_id': ref('view_fix_tools_list')}),
+            Command.create({'view_mode': 'form', 'view_id': ref('view_fix_tools_form')}),
+        ]"/>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 No fix tools registered yet.
