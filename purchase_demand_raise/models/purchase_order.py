@@ -1101,8 +1101,18 @@ class PurchaseOrder(models.Model):
             if order.x_pr_state in _soft_check:
                 if not order.partner_id:
                     raise UserError(_('Please select a Vendor before confirming the order.'))
-                # Advance state to po_locked (both approvals done, vendor chosen)
+                # Advance state to po_locked (both approvals done, vendor chosen).
+                # This is an alternate path to the same CEO-approval transition that
+                # action_ceo_final_approve() handles — e.g. Confirm triggered via a
+                # list-view bulk action instead of the "Final Approve & Lock PO"
+                # button. Stamp the same approver-identity field it stamps, so the
+                # PO report's CEO signature (final_po_report_template.xml, which
+                # reads x_ceo_approved_by_id) is never left blank just because this
+                # path was used instead of the dedicated button.
                 order.x_pr_state = 'po_locked'
+                order.x_ceo_status = 'approved'
+                if not order.x_ceo_approved_by_id:
+                    order.x_ceo_approved_by_id = self.env.uid
 
         res = super().button_confirm()
         self._matracon_ensure_receipt_pickings()

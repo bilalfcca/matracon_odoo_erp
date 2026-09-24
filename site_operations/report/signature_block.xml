@@ -15,7 +15,9 @@
 
         When a variable is set AND the user has x_sign_signature set, the
         signature image is rendered above the line; the Name is auto-filled.
-        When no variable or no signature: blank space + "Name: ___" as before.
+        When no variable is set (nobody signed yet): just the blank line +
+        label — no "Name: ___" placeholder underneath (removed 2026-09, was
+        printing on every unsigned slot with no signature above it).
 
         Calling convention (signature vars inside t-call so they stay scoped):
 
@@ -60,9 +62,9 @@
                         <t t-esc="_sc_user.name"/>
                     </div>
                 </t>
-                <t t-else="">
-                    <div style="font-size:11px; color:#6c757d; margin-top:16px;">Name: _______________________</div>
-                </t>
+                <!-- No blank "Name: ___" placeholder when unsigned — the empty
+                     line + label above is the signature slot; nothing is printed
+                     underneath until someone actually signs. -->
             </div>
         </div>
     </template>

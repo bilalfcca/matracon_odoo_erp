@@ -492,14 +492,27 @@
     <!-- ════════════════════════════════════════════════════════════
          SIGNATURE BLOCK — 4 columns side by side
          Prepared By  = whoever created this payment (Finance HO or Site
-                         Accountant, whichever actually raised it).
-         Approved By  = the CEO who approved it, only once approved
-                         (x_ceo_approved_by_id is blank until then).
+                         Accountant, whichever actually raised it). Untouched.
+         Approved By  = the CEO who approved it. Most vendor payments are
+                         raised against an already CEO-approved Liability
+                         Sheet (x_liability_sheet_id set) — CEO approval
+                         happens once at the sheet level, so the payment's
+                         own x_ceo_approved_by_id is never separately
+                         stamped (see _matracon_check_ceo_approval in
+                         account_payment.py, "Liability sheet carries its
+                         own CEO approval — skip payment-level check").
+                         Fall back to the sheet's approver so the printed
+                         voucher still shows the real CEO signature. Applies
+                         equally when printed from a Batch Payment selection
+                         — this report is bound per-payment either way.
          Checked By / Received By stay manual — never auto-filled.
     ═══════════════════════════════════════════════════════════════ -->
+    <t t-set="_bpv_ceo_approver" t-value="o.sudo().x_ceo_approved_by_id
+        or (o.sudo().x_liability_sheet_id and o.sudo().x_liability_sheet_id.sudo().x_ceo_approved_by_id)
+        or False"/>
     <t t-call="site_operations.report_sig_4col">
         <t t-set="sig_prepared_user" t-value="o.sudo().create_uid"/>
-        <t t-set="sig_approved_user" t-value="o.sudo().x_ceo_approved_by_id"/>
+        <t t-set="sig_approved_user" t-value="_bpv_ceo_approver"/>
     </t>
 
 </div>

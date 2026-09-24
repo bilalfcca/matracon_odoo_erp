@@ -191,9 +191,12 @@
                                         <t t-esc="_rfq_sig_user.name"/>
                                     </div>
                                 </t>
-                                <t t-else="">
-                                    <div style="font-size:11px; color:#6c757d; margin-top:16px;">Name: _______________________</div>
-                                </t>
+                                <!-- No blank "Name: ___" placeholder when nobody has
+                                     prepared this RFQ yet — mirrors the fix in
+                                     site_operations.report_sig_col (see that file's
+                                     comment; kept self-contained here for the same
+                                     module-dependency reason as the rest of this
+                                     block). -->
                             </div>
                         </div>
                     </div>

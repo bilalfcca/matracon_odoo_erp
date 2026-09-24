@@ -1,22 +1,22 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 access_cs_commercial_opt_site_store,x.cs.commercial.option site store,model_x_cs_commercial_option,purchase_demand_raise.group_site_store,1,0,0,0
 access_cs_commercial_opt_procurement_ho,x.cs.commercial.option procurement ho,model_x_cs_commercial_option,purchase_demand_raise.group_procurement_ho,1,0,0,0
-access_cs_commercial_opt_ceo,x.cs.commercial.option ceo,model_x_cs_commercial_option,purchase_demand_raise.group_ceo_approval,1,0,0,0
+access_cs_commercial_opt_ceo,x.cs.commercial.option ceo,model_x_cs_commercial_option,purchase_demand_raise.group_ceo_approval,1,1,1,1
 access_cs_commercial_opt_ho,x.cs.commercial.option ho,model_x_cs_commercial_option,purchase_demand_raise.group_head_office,1,1,1,1
 access_cs_commercial_opt_matracon_admin,x.cs.commercial.option matracon admin,model_x_cs_commercial_option,purchase_demand_raise.group_matracon_admin,1,1,1,1
 access_cs_commercial_opt_admin,x.cs.commercial.option admin,model_x_cs_commercial_option,base.group_system,1,1,1,1
 access_cs_site_store,x.comparative.statement site store,model_x_comparative_statement,purchase_demand_raise.group_site_store,1,0,0,0
 access_cs_procurement_ho,x.comparative.statement procurement ho,model_x_comparative_statement,purchase_demand_raise.group_procurement_ho,1,1,1,0
-access_cs_ceo,x.comparative.statement ceo,model_x_comparative_statement,purchase_demand_raise.group_ceo_approval,1,1,0,0
+access_cs_ceo,x.comparative.statement ceo,model_x_comparative_statement,purchase_demand_raise.group_ceo_approval,1,1,1,1
 access_cs_ho,x.comparative.statement ho,model_x_comparative_statement,purchase_demand_raise.group_head_office,1,1,1,1
 access_cs_admin,x.comparative.statement admin,model_x_comparative_statement,base.group_system,1,1,1,1
 access_cs_vendor_site_store,x.cs.vendor site store,model_x_cs_vendor,purchase_demand_raise.group_site_store,1,0,0,0
 access_cs_vendor_procurement_ho,x.cs.vendor procurement ho,model_x_cs_vendor,purchase_demand_raise.group_procurement_ho,1,1,1,1
-access_cs_vendor_ceo,x.cs.vendor ceo,model_x_cs_vendor,purchase_demand_raise.group_ceo_approval,1,0,0,0
+access_cs_vendor_ceo,x.cs.vendor ceo,model_x_cs_vendor,purchase_demand_raise.group_ceo_approval,1,1,1,1
 access_cs_vendor_ho,x.cs.vendor ho,model_x_cs_vendor,purchase_demand_raise.group_head_office,1,1,1,1
 access_cs_vendor_line_site_store,x.cs.vendor.line site store,model_x_cs_vendor_line,purchase_demand_raise.group_site_store,1,0,0,0
 access_cs_vendor_line_procurement_ho,x.cs.vendor.line procurement ho,model_x_cs_vendor_line,purchase_demand_raise.group_procurement_ho,1,1,1,1
-access_cs_vendor_line_ceo,x.cs.vendor.line ceo,model_x_cs_vendor_line,purchase_demand_raise.group_ceo_approval,1,0,0,0
+access_cs_vendor_line_ceo,x.cs.vendor.line ceo,model_x_cs_vendor_line,purchase_demand_raise.group_ceo_approval,1,1,1,1
 access_cs_vendor_line_ho,x.cs.vendor.line ho,model_x_cs_vendor_line,purchase_demand_raise.group_head_office,1,1,1,1
 access_cs_vendor_line_matracon_admin,x.cs.vendor.line matracon admin,model_x_cs_vendor_line,purchase_demand_raise.group_matracon_admin,1,1,1,1
 access_cs_vendor_line_admin,x.cs.vendor.line admin,model_x_cs_vendor_line,base.group_system,1,1,1,1
@@ -58,7 +58,7 @@ access_res_partner_site_store,res.partner site store,base.model_res_partner,purc
 access_res_partner_category_site_store,res.partner.category site store,base.model_res_partner_category,purchase_demand_raise.group_site_store,1,0,0,0
 access_po_terms_template_site_store,x.po.terms.template site store,model_x_po_terms_template,purchase_demand_raise.group_site_store,1,0,0,0
 access_po_terms_template_procurement_ho,x.po.terms.template procurement ho,model_x_po_terms_template,purchase_demand_raise.group_procurement_ho,1,1,1,0
-access_po_terms_template_ceo,x.po.terms.template ceo,model_x_po_terms_template,purchase_demand_raise.group_ceo_approval,1,0,0,0
+access_po_terms_template_ceo,x.po.terms.template ceo,model_x_po_terms_template,purchase_demand_raise.group_ceo_approval,1,1,1,1
 access_po_terms_template_ho,x.po.terms.template ho,model_x_po_terms_template,purchase_demand_raise.group_head_office,1,1,1,1
 access_po_terms_template_matracon_admin,x.po.terms.template matracon admin,model_x_po_terms_template,purchase_demand_raise.group_matracon_admin,1,1,1,1
 access_po_terms_template_admin,x.po.terms.template admin,model_x_po_terms_template,base.group_system,1,1,1,1
