@@ -19,11 +19,26 @@
         <field name="subformula">counterpart_account</field>
     </record>
 
+    <!-- Requested placement: replace the "Currency" column (sequence 40, between
+         Partner and Debit) with Counterpart Account instead of appending it at
+         the end. Currency isn't used in this single-currency deployment. -->
     <record id="general_ledger_report_counterpart_account" model="account.report.column">
         <field name="report_id" ref="account_reports.general_ledger_report"/>
         <field name="name">Counterpart Account</field>
         <field name="expression_label">counterpart_account</field>
         <field name="figure_type">string</field>
-        <field name="sequence">70</field>
+        <field name="sequence">40</field>
     </record>
+
+    <!-- Remove the standard "Currency" column from the General Ledger report.
+         Deleting the account.report.column record (rather than hiding it) is
+         the standard Odoo mechanism — it's a report-specific config record
+         with no other referents, so this cannot affect any other report.
+         Uses search= (not id=) so re-running this data file after the first
+         delete is silent (an empty search is a no-op) instead of logging a
+         "missing XML ID" warning every subsequent module update. -->
+    <delete model="account.report.column" search="[
+        ('report_id', '=', ref('account_reports.general_ledger_report')),
+        ('expression_label', '=', 'amount_currency'),
+    ]"/>
 </odoo>
