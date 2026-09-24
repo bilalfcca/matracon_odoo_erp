@@ -15,19 +15,21 @@
             <field name="perm_unlink" eval="False"/>
         </record>
 
-        <!-- ── Procurement HO / CEO / Head Office — HO Procurement visibility ──
-             Site Procurement is internal to site store and never visible to HO/CEO.
-             Site-store draft PRs (not yet submitted) are hidden from HO/CEO.
+        <!-- ── Procurement HO / Head Office — HO Procurement visibility ──
+             Site Procurement is internal to site store and never visible to HO.
+             Site-store draft PRs (not yet submitted) are hidden from HO.
              HO-raised PRs (x_pr_origin='procurement_ho') are always visible so that
              HO can create and edit their own draft PRs directly (bypassing site store).
              Individual role-specific list actions (in views/purchase_order_list_view.xml)
-             pre-apply filters so each role lands on its own action-needed records. -->
+             pre-apply filters so each role lands on its own action-needed records.
+             CEO is handled by its own dedicated rule below (rule_po_ceo_admin_parity) —
+             NOT included here, so CEO never inherits this rule's "always show my own
+             HO-origin drafts" carve-out (CEO never sees drafts, full stop). -->
         <record id="rule_po_procurement_ho_all" model="ir.rule">
-            <field name="name">Purchase Order: HO/CEO see HO Procurement submitted or above</field>
+            <field name="name">Purchase Order: HO see HO Procurement submitted or above</field>
             <field name="model_id" ref="purchase.model_purchase_order"/>
             <field name="groups" eval="[
                 (4, ref('purchase_demand_raise.group_procurement_ho')),
-                (4, ref('purchase_demand_raise.group_ceo_approval')),
                 (4, ref('purchase_demand_raise.group_head_office')),
             ]"/>
             <field name="domain_force">['|',
@@ -36,6 +38,29 @@
                     ('x_pr_state', 'not in', ['draft']),
                 ('x_pr_origin', '=', 'procurement_ho')
             ]</field>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <!-- CEO: full admin-equivalent CRUD on every Purchase Order, except drafts
+             are never shown (drafts are site/HO work-in-progress not yet ready for
+             CEO review). Unlike rule_po_procurement_ho_all, this applies uniformly
+             regardless of x_procurement_type/x_pr_origin — CEO gets everything past
+             draft, exactly like the admin bypass rule below, minus drafts.
+             perm_create/perm_unlink are False for the same reason
+             rule_po_procurement_ho_all above already uses that pattern: a
+             freshly-created record always starts in x_pr_state='draft', so a
+             perm_create=True rule with a "!= draft" domain would reject its own
+             creation. Leaving create/unlink out of this rule's scope means CEO
+             falls through to ACL-only gating for those two operations (already
+             full, same as admin) — read/write stay restricted to non-draft. -->
+        <record id="rule_po_ceo_admin_parity" model="ir.rule">
+            <field name="name">Purchase Order: CEO — admin parity, drafts hidden</field>
+            <field name="model_id" ref="purchase.model_purchase_order"/>
+            <field name="groups" eval="[(4, ref('purchase_demand_raise.group_ceo_approval'))]"/>
+            <field name="domain_force">[('x_pr_state', '!=', 'draft')]</field>
             <field name="perm_read" eval="True"/>
             <field name="perm_write" eval="True"/>
             <field name="perm_create" eval="False"/>
@@ -66,6 +91,24 @@
             <field name="perm_unlink" eval="False"/>
         </record>
 
+        <!-- Purchase Order Line: CEO — same admin-parity-minus-drafts policy as the
+             parent order, mirrored here so direct queries (Purchase Analysis
+             pivot/graph) are consistent with what CEO can see on the PO form.
+             perm_create/unlink=False for the same reason as rule_po_ceo_admin_parity
+             above (lines are created/removed as part of the order's own workflow,
+             e.g. while CEO finalises Approved Qty — that must not be blocked by a
+             domain keyed off the parent's draft state). -->
+        <record id="rule_purchase_order_line_ceo" model="ir.rule">
+            <field name="name">Purchase Order Line: CEO — admin parity, drafts hidden</field>
+            <field name="model_id" ref="purchase.model_purchase_order_line"/>
+            <field name="groups" eval="[(4, ref('purchase_demand_raise.group_ceo_approval'))]"/>
+            <field name="domain_force">[('order_id.x_pr_state', '!=', 'draft')]</field>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
         <record id="rule_purchase_order_line_admin" model="ir.rule">
             <field name="name">Purchase Order Line: Administrators see all</field>
             <field name="model_id" ref="purchase.model_purchase_order_line"/>
@@ -74,6 +117,28 @@
                 (4, ref('purchase_demand_raise.group_matracon_admin')),
             ]"/>
             <field name="domain_force">[(1, '=', 1)]</field>
+        </record>
+
+        <!-- Comparative Statement: CEO — same admin-parity-minus-drafts policy.
+             No record rule previously existed for this model at all (fully open to
+             anyone with ACL access), so this is the first draft-hiding filter added
+             here — scoped to CEO only, per the same policy applied everywhere else. -->
+        <!-- read-only: x.comparative.statement.action_confirm() — which CEO is
+             explicitly allowed to call — writes x_state from 'draft' to
+             'confirmed' on the record itself; a perm_write=True rule checking
+             "!= draft" would block that very transition (same class of issue as
+             the stock.move/account.payment CEO rules in site_operations). Read
+             stays restricted to non-draft; write/create/unlink fall through to
+             ACL-only gating (already full, same as admin). -->
+        <record id="rule_comparative_statement_ceo" model="ir.rule">
+            <field name="name">Comparative Statement: CEO — admin parity, drafts hidden</field>
+            <field name="model_id" ref="model_x_comparative_statement"/>
+            <field name="groups" eval="[(4, ref('purchase_demand_raise.group_ceo_approval'))]"/>
+            <field name="domain_force">[('x_state', '!=', 'draft')]</field>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
         </record>
 
     </data>

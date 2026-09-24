@@ -155,7 +155,7 @@ access_cheque_series_fo,cheque.series.fo,model_x_cheque_series,site_operations.g
 access_cheque_series_ceo,cheque.series.ceo,model_x_cheque_series,purchase_demand_raise.group_ceo_approval,1,1,1,1
 access_cheque_series_admin,cheque.series.admin,model_x_cheque_series,purchase_demand_raise.group_matracon_admin,1,1,1,1
 access_cheque_leaf_fo,cheque.leaf.fo,model_x_cheque_leaf,site_operations.group_finance_ho,1,1,1,1
-access_cheque_leaf_ceo,cheque.leaf.ceo,model_x_cheque_leaf,purchase_demand_raise.group_ceo_approval,1,0,0,0
+access_cheque_leaf_ceo,cheque.leaf.ceo,model_x_cheque_leaf,purchase_demand_raise.group_ceo_approval,1,1,1,1
 access_cheque_leaf_sa,cheque.leaf.sa,model_x_cheque_leaf,site_operations.group_site_accountant,1,0,0,0
 access_cheque_leaf_ho,cheque.leaf.ho,model_x_cheque_leaf,purchase_demand_raise.group_head_office,1,0,0,0
 access_cheque_leaf_admin,cheque.leaf.admin,model_x_cheque_leaf,purchase_demand_raise.group_matracon_admin,1,1,1,1
@@ -166,6 +166,7 @@ access_subcontractor_ipc_admin,subcontractor.ipc.admin,model_x_subcontractor_ipc
 access_subcontractor_ipc_head_office,subcontractor.ipc.head.office,model_x_subcontractor_ipc,purchase_demand_raise.group_head_office,1,1,1,0
 access_ipc_account_config_site_accountant,ipc.account.config.site.accountant,model_x_ipc_account_config,site_operations.group_site_accountant,1,0,0,0
 access_ipc_account_config_finance_ho,ipc.account.config.finance.ho,model_x_ipc_account_config,site_operations.group_finance_ho,1,1,1,1
+access_ipc_account_config_ceo,ipc.account.config.ceo,model_x_ipc_account_config,purchase_demand_raise.group_ceo_approval,1,1,1,1
 access_ipc_account_config_admin,ipc.account.config.admin,model_x_ipc_account_config,purchase_demand_raise.group_matracon_admin,1,1,1,1
 access_ipc_account_config_system,ipc.account.config.system,model_x_ipc_account_config,base.group_system,1,1,1,1
 access_ipc_backcharge_line_site_accountant,ipc.backcharge.line.site.accountant,model_x_subcontractor_ipc_backcharge_line,site_operations.group_site_accountant,1,1,1,1
@@ -300,7 +301,7 @@ access_batch_payment_line_proj_alloc_matracon_admin,batch.payment.line.proj.allo
 access_batch_payment_line_proj_alloc_ceo,batch.payment.line.proj.alloc.ceo,model_x_batch_payment_line_project_allocation,purchase_demand_raise.group_ceo_approval,1,1,1,1
 access_partner_wht_exemption_finance_ho,partner.wht.exemption.finance.ho,model_x_partner_wht_exemption,site_operations.group_finance_ho,1,1,1,1
 access_partner_wht_exemption_head_office,partner.wht.exemption.head.office,model_x_partner_wht_exemption,purchase_demand_raise.group_head_office,1,0,0,0
-access_partner_wht_exemption_ceo,partner.wht.exemption.ceo,model_x_partner_wht_exemption,purchase_demand_raise.group_ceo_approval,1,0,0,0
+access_partner_wht_exemption_ceo,partner.wht.exemption.ceo,model_x_partner_wht_exemption,purchase_demand_raise.group_ceo_approval,1,1,1,1
 access_partner_wht_exemption_matracon_admin,partner.wht.exemption.matracon.admin,model_x_partner_wht_exemption,purchase_demand_raise.group_matracon_admin,1,1,1,1
 access_partner_wht_exemption_site_accountant,partner.wht.exemption.site.accountant,model_x_partner_wht_exemption,site_operations.group_site_accountant,1,0,0,0
 access_inv_product_line_ceo,inv.product.line.ceo,model_x_management_dashboard_inv_product_line,purchase_demand_raise.group_ceo_approval,1,1,1,1

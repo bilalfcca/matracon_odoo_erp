@@ -825,5 +825,73 @@
             ]"/>
         </record>
 
+        <!-- ═══════════════════════════════════════════════════════════════════
+             CEO — ADMIN PARITY (minus drafts)
+             CEO gets the same unrestricted access as Matracon Admin
+             (rule_*_matracon_admin above) on every model below, with one
+             exception: draft records are always excluded. These models had NO
+             CEO-scoped rule at all before, which under Odoo's rule engine meant
+             CEO's visibility was already unrestricted (drafts included) — these
+             rules narrow that down to "everything except drafts", matching the
+             same policy already applied to stock.picking, account.move, etc.
+        ════════════════════════════════════════════════════════════════════ -->
+
+        <!-- perm_create/perm_unlink are deliberately omitted from True on all three
+             CEO rules below: stock.move/move.line/account.payment records are
+             created starting in state='draft' by Odoo itself (e.g. receipt moves
+             auto-created while CEO finalises a PO) — a perm_create=True rule with
+             a "!= draft" domain would reject that very creation, since the new
+             record doesn't yet satisfy the domain. Restricting these rules to
+             read/write only (perm_create=False, perm_unlink=False) means create
+             and unlink fall through to ACL-only gating — already full, matching
+             admin — while read/write correctly stay restricted to non-draft. -->
+        <!-- read-only: stock.move records CEO's own PO-confirm action creates are
+             born in state='draft' and immediately written to 'confirmed' within
+             the same call (native _create_picking → _action_confirm) — a
+             perm_write=True rule checks the domain against the PRE-write state,
+             so it would block that very transition. Restricting to read keeps
+             drafts out of lists/reports without touching write/create/unlink,
+             which fall through to ACL-only gating (already full, same as admin). -->
+        <record id="rule_stock_move_ceo" model="ir.rule">
+            <field name="name">Stock Move: CEO — admin parity, drafts hidden</field>
+            <field name="model_id" ref="stock.model_stock_move"/>
+            <field name="groups" eval="[(4, ref('purchase_demand_raise.group_ceo_approval'))]"/>
+            <field name="domain_force">[('state', '!=', 'draft')]</field>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <!-- read-only: same reasoning as rule_stock_move_ceo above. -->
+        <record id="rule_stock_move_line_ceo" model="ir.rule">
+            <field name="name">Stock Move Line: CEO — admin parity, drafts hidden</field>
+            <field name="model_id" ref="stock.model_stock_move_line"/>
+            <field name="groups" eval="[(4, ref('purchase_demand_raise.group_ceo_approval'))]"/>
+            <field name="domain_force">[('state', '!=', 'draft')]</field>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <!-- read-only: action_ceo_approve_payment() (account_payment.py) writes
+             x_ceo_approval_state/x_ceo_approved_by_id on a payment that is very
+             often still in native state='draft' at that point (CEO approves
+             before Finance HO posts it) — a perm_write=True rule here would
+             block CEO's own approval click. Same reasoning as stock.move above:
+             read-only keeps drafts out of lists/reports; write/create/unlink
+             fall through to ACL-only gating (already full, same as admin). -->
+        <record id="rule_account_payment_ceo" model="ir.rule">
+            <field name="name">Account Payment: CEO — admin parity, drafts hidden</field>
+            <field name="model_id" ref="account.model_account_payment"/>
+            <field name="groups" eval="[(4, ref('purchase_demand_raise.group_ceo_approval'))]"/>
+            <field name="domain_force">[('state', '!=', 'draft')]</field>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
     </data>
 </odoo>
