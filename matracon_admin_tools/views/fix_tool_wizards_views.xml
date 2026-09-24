@@ -72,4 +72,44 @@
         </field>
     </record>
 
+    <!-- Site Opening Balance Import — Discovery Report (Phase 1, read-only) -->
+    <record id="view_site_opening_balance_discovery_wizard_form" model="ir.ui.view">
+        <field name="name">x.site.opening.balance.discovery.wizard.form</field>
+        <field name="model">x.site.opening.balance.discovery.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Site Opening Balance — Discovery Report">
+                <div class="alert alert-info" role="alert">
+                    Phase 1 discovery only — READ-ONLY. This does not create, change or
+                    delete any product, account, stock move, quant or journal entry. It
+                    reads the uploaded "MAIN SUMMARY" sheet and the current system
+                    configuration and reports what it finds, for review before any
+                    import or fix code is written or run. Run this in Staging first,
+                    review the report, then run it again in Production the same way.
+                </div>
+                <group invisible="result_summary">
+                    <field name="site_config_id"/>
+                    <field name="summary_file" filename="summary_filename"/>
+                    <field name="summary_filename" invisible="1"/>
+                    <field name="as_of_date"/>
+                    <field name="receipts_since_date"/>
+                    <field name="target_account_code"/>
+                    <field name="value_tolerance"/>
+                </group>
+                <group string="Result" invisible="not result_summary">
+                    <field name="result_summary" readonly="1" nolabel="1"
+                           widget="text" class="o_field_text"/>
+                    <field name="report_file" filename="report_filename" readonly="1"
+                           string="Download Detail Report (CSV)"/>
+                    <field name="report_filename" invisible="1"/>
+                </group>
+                <footer>
+                    <button name="action_run_discovery" string="Run Discovery Report"
+                            type="object" class="btn-primary"
+                            invisible="result_summary"/>
+                    <button string="Close" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
 </odoo>

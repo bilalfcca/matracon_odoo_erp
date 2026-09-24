@@ -7,3 +7,6 @@ access_fleet_gl_fix_wizard_admin,fleet.gl.fix.wizard.admin,model_x_fleet_gl_fix_
 access_fleet_gl_fix_wizard_system,fleet.gl.fix.wizard.system,model_x_fleet_gl_fix_wizard,base.group_system,1,1,1,1
 access_ir_actions_server_fix_tools_admin,ir.actions.server.fix.tools.admin,base.model_ir_actions_server,purchase_demand_raise.group_matracon_admin,1,0,0,0
 access_ir_actions_server_fix_tools_finance_ho,ir.actions.server.fix.tools.finance.ho,base.model_ir_actions_server,site_operations.group_finance_ho,1,0,0,0
+access_site_opening_balance_discovery_wizard_admin,site.opening.balance.discovery.wizard.admin,model_x_site_opening_balance_discovery_wizard,purchase_demand_raise.group_matracon_admin,1,1,1,1
+access_site_opening_balance_discovery_wizard_system,site.opening.balance.discovery.wizard.system,model_x_site_opening_balance_discovery_wizard,base.group_system,1,1,1,1
+access_site_opening_balance_discovery_wizard_finance_ho,site.opening.balance.discovery.wizard.finance.ho,model_x_site_opening_balance_discovery_wizard,site_operations.group_finance_ho,1,1,1,1
