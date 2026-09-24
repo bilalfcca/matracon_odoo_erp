@@ -999,3 +999,24 @@ Datetime) raises `AssertionError: Datetime instance expected` on a Date. Fixed b
   the real subject, attendee names, embedded signature image, clause text, and ratification text.
 - Access control: an unrelated user gets `AccessError` on `search()` and `create()`; a Matracon
   Admin user can create/confirm normally.
+
+---
+
+## Session Notes — 2026-09-24
+
+### Dev Build — DB Not Initialized (500 Error), Again
+
+Same failure mode as the 2026-07-30 session: fresh dev container rebuild, `install.log` came up
+0 bytes, `ir_module_module` didn't exist, every request threw `KeyError: 'ir.http'` → 500.
+
+Fix applied (manual, this session):
+```bash
+odoo-bin -i base --stop-after-init --no-http
+odoo-bin -i purchase_demand_raise,site_operations,account_counterpart_column,matracon_admin_tools,board_resolutions,matracon_fleet,my_custom_module,matracon_ss --stop-after-init --no-http
+```
+All 137 modules loaded with zero errors (only the usual harmless field-label duplicate warnings).
+Background server reloaded and HTTP now returns `302` (login redirect) instead of `500`.
+
+No code changes were required — this is purely a recurring dev-environment quirk, not a bug in
+`/home/odoo/src/user`. Documenting again here since it's now happened twice; if it recurs a third
+time, worth asking the Odoo.sh team why `install.log` intermittently fails to run on rebuild.
