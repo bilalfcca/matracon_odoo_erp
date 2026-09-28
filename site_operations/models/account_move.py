@@ -74,6 +74,25 @@ class AccountMoveSiteOps(models.Model):
         for move in self:
             move.x_user_is_ho = is_ho
 
+    # Non-stored: True when the current user is a Site Accountant. Mirrors
+    # AccountAccountSiteOps.x_user_is_site_accountant (account_account.py) —
+    # kept as a separate field here (rather than reused across models) since
+    # view invisible/readonly expressions can only reference fields on their
+    # own model. Lets the SA read-only vendor-bill/journal-entry view toggle
+    # visibility without relying on <field groups="..."> (which cannot
+    # express "has A but not B").
+    x_user_is_site_accountant = fields.Boolean(
+        compute='_compute_x_user_is_site_accountant',
+        store=False,
+        string='User is Site Accountant',
+    )
+
+    @api.depends_context('uid')
+    def _compute_x_user_is_site_accountant(self):
+        is_sa = self.env.user.has_group('site_operations.group_site_accountant')
+        for move in self:
+            move.x_user_is_site_accountant = is_sa
+
     # Filtered One2many used in the Journal Items tab on vendor bills /
     # customer invoices.  Excludes 'payment_term' display_type lines —
     # those are the AP/AR counterpart lines Odoo auto-generates to balance
