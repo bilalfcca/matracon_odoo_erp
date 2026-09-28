@@ -342,15 +342,15 @@
                        options="{'no_open': True}"/>
             </xpath>
 
-            <!-- 7. SA read-only Fund Allocation tab — intentionally NOT ported here.
-                 staging_for_test's version of this view also adds a read-only
-                 "Fund Allocation" page backed by x_je_allocation_ids /
-                 x_je_interproject_move_ids (from a "Journal Entry Fund Allocation"
-                 feature that only exists on staging_for_test / production_backup,
-                 not on Development). Porting that xpath without its backing model
-                 would just trade this crash for an identical one on those fields.
-                 Bring that feature over separately (its own model + migration)
-                 before re-adding this block. -->
+            <!-- 7. SA read-only "Journal Entry Fund Allocation" tab — intentionally
+                 NOT present in this module. A divergent copy of this view on some
+                 branches once added such a tab, backed by a comodel/fields that were
+                 never defined in this module's code (no model, no ir.model.access.csv
+                 entry, no Python anywhere in site_operations). Referencing undefined
+                 fields from a view crashes module upgrade with a ParseError, so no
+                 such xpath is added here. If this feature is wanted, it must first be
+                 built as a real comodel + One2many field + access rights in this
+                 module (see CLAUDE.md), not copied in as a bare view fragment. -->
 
         </field>
     </record>
