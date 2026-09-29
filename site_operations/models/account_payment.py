@@ -688,7 +688,10 @@ class AccountPaymentSiteOps(models.Model):
                         vals['x_ceo_approval_state'] = 'pending'
                 elif category == 'vendor':
                     # Inbound receipts (customer payments) never need CEO approval.
-                    if vals.get('payment_type') == 'inbound':
+                    # payment_type is readonly on the form, so the web client does not
+                    # send it; fall back to the action's default_payment_type.
+                    payment_type = vals.get('payment_type') or self.env.context.get('default_payment_type')
+                    if payment_type == 'inbound':
                         vals['x_ceo_approval_state'] = 'not_required'
                     else:
                         # Vendor payments require EXPLICIT CEO approval in all cases
@@ -707,6 +710,11 @@ class AccountPaymentSiteOps(models.Model):
                         elif not has_liability_sheet:
                             vals['x_ceo_approval_state'] = 'pending'
         payments = super().create(vals_list)
+        # Safety net: receipts never need CEO approval, whatever path set the state.
+        payments.filtered(
+            lambda p: p.payment_type == 'inbound'
+            and p.x_ceo_approval_state in ('pending', 'submitted')
+        ).x_ceo_approval_state = 'not_required'
         payments._matracon_fix_salary_ceo_state()
         payments._matracon_notify_ceo_on_payment_create()
         return payments
