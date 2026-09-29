@@ -126,8 +126,9 @@
                 <!-- Bank selector + Cheque series — HO / Finance HO / Admin only -->
                 <div invisible="move_type != 'entry'"
                      groups="purchase_demand_raise.group_head_office,site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin">
+                    <label for="x_bank_journal_id" string="Bank"/>
                     <field name="x_bank_journal_id"
-                           string="Bank"
+                           nolabel="1"
                            readonly="state == 'posted'"
                            options="{'no_create': True, 'no_open': True}"
                            placeholder="Select bank / cash journal"/>
@@ -183,6 +184,54 @@
                  We move aml_tab (Journal Items) to appear before invoice_tab. -->
             <xpath expr="//page[@id='invoice_tab']" position="before">
                 <xpath expr="//page[@id='aml_tab']" position="move"/>
+            </xpath>
+
+            <!-- ── Fund Allocation tab — Finance HO journal entries only ─────────
+                 Mirrors the vendor-payment "Fund Allocation & Tracking" tab.
+                 Lists source project(s) + allocation amounts.  On posting:
+                   • available balance of each source project decreases
+                   • if source ≠ destination → inter-project receivable/payable
+                     entries are auto-created
+                 Invisible on vendor bills / customer invoices (move_type != entry).
+            ─────────────────────────────────────────────────────────────────── -->
+            <xpath expr="//page[@id='aml_tab']" position="after">
+                <page string="Fund Allocation"
+                      name="je_fund_allocation"
+                      invisible="move_type != 'entry'"
+                      groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin">
+                    <p class="text-muted mb-2">
+                        Record which project(s) fund this journal entry and how much from each.
+                        The Available Balance updates as soon as you select a project.
+                        When posted, each project's balance decreases by its allocation amount.
+                        If source ≠ Destination Project, inter-project receivable/payable entries
+                        are created automatically.
+                    </p>
+                    <field name="x_je_allocation_ids"
+                           readonly="state == 'posted'">
+                        <list string="Fund Allocation"
+                              editable="bottom">
+                            <field name="project_analytic_account_id"
+                                   string="Source Project"
+                                   required="1"
+                                   options="{'no_create': True, 'no_open': True}"/>
+                            <field name="available_balance"
+                                   string="Available Balance"
+                                   readonly="1"/>
+                            <field name="allocation_amount"
+                                   string="Allocation Amount"
+                                   sum="Total Allocated"/>
+                            <field name="currency_id" column_invisible="1"/>
+                        </list>
+                    </field>
+                    <!-- Inter-project entries smart button area -->
+                    <div class="mt-3"
+                         invisible="not x_je_interproject_move_ids">
+                        <field name="x_je_interproject_move_ids"
+                               readonly="1"
+                               widget="many2many_tags"
+                               string="Inter-Project Entries Created"/>
+                    </div>
+                </page>
             </xpath>
 
             <!-- ── Journal Items: hide line_ids; show x_journal_item_ids instead ──
@@ -342,15 +391,42 @@
                        options="{'no_open': True}"/>
             </xpath>
 
-            <!-- 7. SA read-only "Journal Entry Fund Allocation" tab — intentionally
-                 NOT present in this module. A divergent copy of this view on some
-                 branches once added such a tab, backed by a comodel/fields that were
-                 never defined in this module's code (no model, no ir.model.access.csv
-                 entry, no Python anywhere in site_operations). Referencing undefined
-                 fields from a view crashes module upgrade with a ParseError, so no
-                 such xpath is added here. If this feature is wanted, it must first be
-                 built as a real comodel + One2many field + access rights in this
-                 module (see CLAUDE.md), not copied in as a bare view fragment. -->
+            <!-- 7. SA read-only Fund Allocation tab.
+                 Finance HO's editable Fund Allocation tab has group restrictions that
+                 exclude SA.  We add a parallel read-only tab visible only to SA
+                 on journal entries that have at least one allocation line.
+            -->
+            <xpath expr="//page[@id='aml_tab']" position="after">
+                <page string="Fund Allocation"
+                      name="je_fund_allocation_sa_readonly"
+                      invisible="not x_user_is_site_accountant or move_type != 'entry' or not x_je_allocation_ids"
+                      groups="site_operations.group_site_accountant">
+                    <field name="x_je_allocation_ids"
+                           readonly="1">
+                        <list string="Fund Allocation">
+                            <field name="project_analytic_account_id"
+                                   string="Source Project"
+                                   readonly="1"/>
+                            <field name="available_balance"
+                                   string="Available Balance"
+                                   readonly="1"/>
+                            <field name="allocation_amount"
+                                   string="Allocation Amount"
+                                   sum="Total Allocated"
+                                   readonly="1"/>
+                            <field name="currency_id" column_invisible="1"/>
+                        </list>
+                    </field>
+                    <!-- Inter-project entries (read-only) -->
+                    <div class="mt-3"
+                         invisible="not x_je_interproject_move_ids">
+                        <field name="x_je_interproject_move_ids"
+                               readonly="1"
+                               widget="many2many_tags"
+                               string="Inter-Project Entries Created"/>
+                    </div>
+                </page>
+            </xpath>
 
         </field>
     </record>

@@ -290,5 +290,7 @@
         <field name="name">Spare Parts Log</field>
         <field name="res_model">x.fleet.spare.part</field>
         <field name="view_mode">list,form</field>
+        <!-- Default: group all entries by date so every day's work is shown together -->
+        <field name="context">{'search_default_group_date': 1}</field>
     </record>
 </odoo>

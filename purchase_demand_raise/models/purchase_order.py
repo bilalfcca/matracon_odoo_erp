@@ -42,6 +42,28 @@ class PurchaseOrder(models.Model):
         ('rejected', 'Rejected'),
     ], string='CEO Status', default='pending', tracking=True)
 
+    # ── Signature-automation identities ──────────────────────────────────────
+    # Same pattern already used on Liability Sheet / Petty Cash / Salary Sheet /
+    # Vendor Payment (all `x_ceo_approved_by_id`) — the report template reads
+    # this to auto-print the approving CEO's own configured signature, instead
+    # of the old company-wide/group-search fallback chain. Blank on a
+    # Site-Procurement PR that auto-approves with no real CEO click (see
+    # action_ceo_final_approve / _action_submit_site_procurement) — correct,
+    # since nobody actually approved it as CEO in that case.
+    x_ceo_approved_by_id = fields.Many2one(
+        'res.users', string='CEO Approved By', readonly=True, copy=False, tracking=True,
+    )
+    # Whoever in Procurement actually processed this PR into an RFQ — stamped
+    # (once, first-write-wins) at whichever of these happens first: HO review
+    # (action_ho_approve), sending the RFQ from the Comparative Statement
+    # (action_send_rfq_to_vendors), or sending it directly from the PO/RFQ form
+    # (action_rfq_send, for native Odoo "alternative RFQ" records that skip the
+    # Comparative Statement). Used to auto-print the Procurement Officer's
+    # signature on the RFQ report.
+    x_rfq_prepared_by_id = fields.Many2one(
+        'res.users', string='RFQ Prepared By', readonly=True, copy=False,
+    )
+
     # ── Procurement Type ─────────────────────────────────────────────────────
     x_procurement_type = fields.Selection([
         ('ho_procurement', 'HO Procurement'),
@@ -157,6 +179,40 @@ class PurchaseOrder(models.Model):
                 or order.x_procurement_type == 'site_procurement'   # Site Procurement type selected
             )
 
+    # ── PO Fulfillment / Delivery Status ─────────────────────────────────────
+    # Only meaningful for POs in po_locked state (CEO-approved and dispatched).
+    # Uses the native `receipt_status` from purchase_stock (pending/partial/full).
+    # 'open'    — ordered, nothing received yet
+    # 'partial' — some lines received, backorders still pending
+    # 'closed'  — all pickings done/cancelled OR PO force-locked to 'done'
+    x_fulfillment_status = fields.Selection([
+        ('open', 'Open'),
+        ('partial', 'Partially Received'),
+        ('closed', 'Closed'),
+    ], string='PO Delivery Status',
+       compute='_compute_fulfillment_status',
+       store=True,
+       help='Open: dispatched but no material received.\n'
+            'Partially Received: some received, backorders pending.\n'
+            'Closed: fully received, backorders cancelled, or PO locked to done.\n'
+            'Blank: PR not yet dispatched as a PO.')
+
+    @api.depends('state', 'x_pr_state', 'receipt_status')
+    def _compute_fulfillment_status(self):
+        for order in self:
+            if order.x_pr_state != 'po_locked' or order.state not in ('purchase', 'done'):
+                order.x_fulfillment_status = False
+                continue
+            rs = order.receipt_status
+            if order.state == 'done' or rs == 'full':
+                # Force-closed OR all pickings done/backorders cancelled
+                order.x_fulfillment_status = 'closed'
+            elif rs == 'partial':
+                order.x_fulfillment_status = 'partial'
+            else:
+                # receipt_status is 'pending' or False — nothing received yet
+                order.x_fulfillment_status = 'open'
+
     # ── Role flags (used in view expressions — Odoo 19 forbids groups() in attrs) ──
     x_is_site_store = fields.Boolean(compute='_compute_role_flags')
     x_is_ho = fields.Boolean(compute='_compute_role_flags')
@@ -204,6 +260,13 @@ class PurchaseOrder(models.Model):
         string='CEO Bypassed HO',
         default=False, copy=False, readonly=True,
         help='Set when CEO approves directly from Submitted without HO review.',
+    )
+
+    x_show_product_ref = fields.Boolean(
+        string='Print Product Reference',
+        default=False,
+        help='When ticked, a separate "Ref." column showing the product\'s '
+             'Internal Reference is printed on the Purchase Order PDF.',
     )
 
     x_pr_origin = fields.Selection([
@@ -758,6 +821,8 @@ class PurchaseOrder(models.Model):
             order.write({
                 'x_ho_status': 'approved',
                 'x_pr_state': 'ceo_final',
+                # First-write-wins: whoever actually processed this into an RFQ.
+                'x_rfq_prepared_by_id': order.x_rfq_prepared_by_id.id or self.env.uid,
             })
 
             # Close HO's activities
@@ -877,6 +942,7 @@ class PurchaseOrder(models.Model):
                 'x_pr_state': 'po_locked',
                 'x_ceo_status': 'approved',
                 'x_ho_status': order.x_ho_status if not bypass_ho else 'pending',
+                'x_ceo_approved_by_id': self.env.uid,
             })
 
             # Auto-mark CEO's pending activities as done
@@ -1035,8 +1101,18 @@ class PurchaseOrder(models.Model):
             if order.x_pr_state in _soft_check:
                 if not order.partner_id:
                     raise UserError(_('Please select a Vendor before confirming the order.'))
-                # Advance state to po_locked (both approvals done, vendor chosen)
+                # Advance state to po_locked (both approvals done, vendor chosen).
+                # This is an alternate path to the same CEO-approval transition that
+                # action_ceo_final_approve() handles — e.g. Confirm triggered via a
+                # list-view bulk action instead of the "Final Approve & Lock PO"
+                # button. Stamp the same approver-identity field it stamps, so the
+                # PO report's CEO signature (final_po_report_template.xml, which
+                # reads x_ceo_approved_by_id) is never left blank just because this
+                # path was used instead of the dedicated button.
                 order.x_pr_state = 'po_locked'
+                order.x_ceo_status = 'approved'
+                if not order.x_ceo_approved_by_id:
+                    order.x_ceo_approved_by_id = self.env.uid
 
         res = super().button_confirm()
         self._matracon_ensure_receipt_pickings()
@@ -1104,56 +1180,55 @@ class PurchaseOrder(models.Model):
         self.invalidate_recordset(['picking_ids', 'incoming_picking_count'])
 
     def action_view_picking(self):
-        """Open the incoming receipt form (Site Store) — not a list view.
+        """Open receipts: list when multiple, form when single.
 
         Uses a direct DB search instead of the computed self.picking_ids to
         avoid ORM-cache stale reads after picking creation in the same request.
+        sudo() is used so site-store record rules (anchored to the user's
+        warehouse) do not hide receipts belonging to this PO.
         """
         self.ensure_one()
         self._matracon_ensure_receipt_pickings()
-        # Use sudo() so record rules on stock.picking don't hide the receipt.
-        # The site-store record rule uses x_default_warehouse_id which can be
-        # temporarily set to 'My Company' when the site warehouse has no stock.
-        # sudo() bypasses that; the form view itself enforces its own access.
         Picking = self.env['stock.picking'].sudo()
-        # Primary: search via stock moves (the normal picking path)
-        picking = Picking.search([
+
+        # Collect ALL receipt pickings for this PO (done + pending + cancelled).
+        # Primary: via stock moves (normal path).
+        pickings = Picking.search([
             ('move_ids.purchase_line_id.order_id', '=', self.id),
             ('picking_type_id.code', '=', 'incoming'),
-            ('state', 'not in', ('done', 'cancel')),
-        ], limit=1, order='id asc')
-        if not picking:
-            # Secondary: search by origin name — covers fallback pickings without moves
-            picking = Picking.search([
+        ], order='state asc, id asc')
+        if not pickings:
+            # Fallback: match by origin — covers backorders without moves.
+            pickings = Picking.search([
                 ('origin', '=', self.name),
                 ('picking_type_id.code', '=', 'incoming'),
-                ('state', 'not in', ('done', 'cancel')),
-            ], limit=1, order='id asc')
-        if not picking:
-            # Also check done receipts (already-received POs — open for review)
-            picking = Picking.search([
-                ('move_ids.purchase_line_id.order_id', '=', self.id),
-                ('picking_type_id.code', '=', 'incoming'),
-            ], limit=1, order='state asc, id asc')
-        if not picking:
-            picking = Picking.search([
-                ('origin', '=', self.name),
-                ('picking_type_id.code', '=', 'incoming'),
-            ], limit=1, order='state asc, id asc')
-        if picking:
-            # Plain act_window dict — no path key — keeps URL nested in the PO:
-            #   /odoo/purchase/{po_id}/stock.picking/{picking_id}
-            # exactly as in the staging environment.
+            ], order='state asc, id asc')
+
+        if not pickings:
+            return super().action_view_picking()
+
+        if len(pickings) == 1:
+            # Single receipt → open form directly (nested URL: /purchase/{id}/stock.picking/{id})
             return {
                 'type': 'ir.actions.act_window',
                 'name': _('Receipt'),
                 'res_model': 'stock.picking',
                 'view_mode': 'form',
-                'res_id': picking.id,
+                'res_id': pickings.id,
                 'target': 'current',
                 'context': dict(self.env.context),
             }
-        return super().action_view_picking()
+
+        # Multiple receipts → list so user can choose which one to open.
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Receipts'),
+            'res_model': 'stock.picking',
+            'view_mode': 'list,form',
+            'domain': [('id', 'in', pickings.ids)],
+            'target': 'current',
+            'context': dict(self.env.context),
+        }
 
     def action_rfq_send(self):
         """Override Send RFQ to enforce Matracon gates and inject custom template.
@@ -1172,6 +1247,12 @@ class PurchaseOrder(models.Model):
         # ── Site Store gate ───────────────────────────────────────────────────
         if self.env.user.has_group('purchase_demand_raise.group_site_store'):
             raise UserError(_('Site Store cannot send RFQs. Please submit the PR for approval.'))
+
+        # Signature automation: whoever in Procurement actually sends the RFQ.
+        # First-write-wins — doesn't overwrite an identity already captured via
+        # HO review or the Comparative Statement's "Send RFQ to Vendors".
+        for order in self.filtered(lambda o: not o.x_rfq_prepared_by_id):
+            order.x_rfq_prepared_by_id = self.env.uid
 
         # ── Vendor gate — HO-raised PRs must have a vendor selected ──────────
         for order in self:

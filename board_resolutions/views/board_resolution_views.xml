@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_board_resolution_form" model="ir.ui.view">
+        <field name="name">x.board.resolution.form</field>
+        <field name="model">x.board.resolution</field>
+        <field name="arch" type="xml">
+            <form string="Board Resolution">
+                <header>
+                    <button name="action_confirm" string="Confirm" type="object"
+                            class="btn-primary" invisible="state != 'draft'"
+                            confirm="Confirm this resolution? It becomes read-only afterwards."/>
+                    <button name="action_reset_draft" string="Reset to Draft" type="object"
+                            invisible="state != 'confirmed'"
+                            confirm="Reset to Draft so this resolution can be edited again?"/>
+                    <button name="action_print" string="Print PDF" type="object"
+                            class="btn-secondary" icon="fa-file-pdf-o"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,confirmed"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <label for="subject"/>
+                        <h1><field name="subject" placeholder="e.g. Authorization for SECP Representation"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="name" readonly="state == 'confirmed'"/>
+                            <field name="meeting_date" readonly="state == 'confirmed'"/>
+                        </group>
+                        <group>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                            <field name="meeting_venue" readonly="state == 'confirmed'"/>
+                        </group>
+                    </group>
+
+                    <notebook>
+                        <page string="Attendees">
+                            <field name="attendee_ids" readonly="state == 'confirmed'">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="name"/>
+                                    <field name="designation"/>
+                                    <field name="user_id" optional="show"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Resolution Clauses">
+                            <field name="clause_ids" readonly="state == 'confirmed'">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="text" widget="html"/>
+                                </list>
+                            </field>
+                            <label for="ratification_text" string="Ratification Clause" class="mt-3"/>
+                            <field name="ratification_text" readonly="state == 'confirmed'"/>
+                        </page>
+                        <page string="Authorized Person" name="authorized_person">
+                            <div class="alert alert-info" role="alert">
+                                Only needed when a clause authorizes a specific named
+                                individual (e.g. for SECP representation). Leave blank
+                                otherwise — CNIC is pulled automatically from the
+                                selected contact's own record.
+                            </div>
+                            <group>
+                                <field name="authorized_person_id" readonly="state == 'confirmed'"/>
+                                <field name="authorized_person_cnic" invisible="not authorized_person_id"/>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_board_resolution_list" model="ir.ui.view">
+        <field name="name">x.board.resolution.list</field>
+        <field name="model">x.board.resolution</field>
+        <field name="arch" type="xml">
+            <list string="Board Resolutions" decoration-muted="state == 'draft'">
+                <field name="name"/>
+                <field name="meeting_date"/>
+                <field name="subject"/>
+                <field name="state" widget="badge" decoration-success="state == 'confirmed'"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_board_resolution_search" model="ir.ui.view">
+        <field name="name">x.board.resolution.search</field>
+        <field name="model">x.board.resolution</field>
+        <field name="arch" type="xml">
+            <search string="Board Resolutions">
+                <field name="name"/>
+                <field name="subject"/>
+                <field name="meeting_date"/>
+                <filter string="Draft" name="draft" domain="[('state', '=', 'draft')]"/>
+                <filter string="Confirmed" name="confirmed" domain="[('state', '=', 'confirmed')]"/>
+                <separator/>
+                <filter string="Group by Status" name="group_state" context="{'group_by': 'state'}"/>
+                <filter string="Group by Meeting Date" name="group_date" context="{'group_by': 'meeting_date'}"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_board_resolution" model="ir.actions.act_window">
+        <field name="name">Board Resolutions</field>
+        <field name="res_model">x.board.resolution</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No board resolutions yet.
+            </p>
+            <p>
+                Create the first one and type its reference number by hand (e.g. "BR # 26/16").
+                Every resolution after that suggests the next number automatically — always
+                editable.
+            </p>
+        </field>
+    </record>
+
+</odoo>

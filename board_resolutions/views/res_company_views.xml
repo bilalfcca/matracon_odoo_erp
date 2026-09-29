@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Small addition to the standard Company form (Settings → Companies).
+         Deliberately just a company-level setting, not part of the
+         board_resolutions app's own restricted ACL — uploading the company
+         seal is a general company-configuration action, same access level
+         as everything else on this form (Settings access). -->
+    <record id="view_company_form_board_resolution_stamp" model="ir.ui.view">
+        <field name="name">res.company.form.board.resolution.stamp</field>
+        <field name="model">res.company</field>
+        <field name="inherit_id" ref="base.view_company_form"/>
+        <field name="arch" type="xml">
+            <page name="general_info" position="after">
+                <page string="Board Resolutions" name="board_resolutions">
+                    <group>
+                        <field name="x_board_resolution_stamp" widget="image"
+                               options="{'size': [130, 130]}"/>
+                    </group>
+                </page>
+            </page>
+        </field>
+    </record>
+</odoo>

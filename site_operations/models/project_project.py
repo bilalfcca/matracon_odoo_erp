@@ -276,6 +276,10 @@ class ProjectProjectMatracon(models.Model):
         # the bank / cash outflow lines) to capture the fund outflow from this
         # source project.  account.payment-based payments are already captured
         # above via x_fund_project_id / x_allocation_ids — no double-counting.
+        #
+        # IMPORTANT: JEs that have Fund Allocation tab lines (x_je_allocation_ids)
+        # are tracked via the x.je.project.allocation table below — exclude them
+        # here with NOT EXISTS to prevent double-counting.
         self.env.cr.execute("""
             SELECT COALESCE(SUM(aml.credit), 0)
               FROM account_move_line aml
@@ -288,6 +292,24 @@ class ProjectProjectMatracon(models.Model):
                        'liability_payable', 'asset_receivable'
                    )
                AND aml.credit > 0
+               AND NOT EXISTS (
+                   SELECT 1 FROM x_je_project_allocation
+                    WHERE move_id = am.id
+               )
+        """, [analytic_id])
+        total_spent += self.env.cr.fetchone()[0] or 0.0
+
+        # ── JE Fund Allocation tab lines (x_je_allocation_ids — multi-source) ─
+        # New JEs that use the Fund Allocation tab (x.je.project.allocation)
+        # are tracked here instead of via the GL credit SQL above.
+        # This covers both single-source and multi-source JEs that specify
+        # allocation amounts explicitly through the Fund Allocation tab.
+        self.env.cr.execute("""
+            SELECT COALESCE(SUM(ja.allocation_amount), 0)
+              FROM x_je_project_allocation ja
+              JOIN account_move            am ON am.id = ja.move_id
+             WHERE am.state                         = 'posted'
+               AND ja.project_analytic_account_id   = %s
         """, [analytic_id])
         total_spent += self.env.cr.fetchone()[0] or 0.0
 
