@@ -328,9 +328,9 @@
                        help="Optional: override which account this receipt debits. Leave blank to use the selected Bank Journal's default account."/>
                 <field name="x_cheque_number"
                        string="Cheque No."
-                       invisible="payment_type != 'inbound' or not x_is_cheque_payment"
+                       invisible="payment_type != 'inbound'"
                        required="payment_type == 'inbound' and x_is_cheque_payment"
-                       help="Customer's cheque number — typed manually."/>
+                       help="Customer's cheque number — typed manually. Required when the payment method is Checks."/>
             </xpath>
 
             <xpath expr="//field[@name='x_available_bank_balance']" position="after">
