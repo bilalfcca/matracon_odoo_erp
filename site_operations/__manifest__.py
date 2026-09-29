@@ -16,6 +16,8 @@
         'contacts',
         'hr',
         'hr_attendance',
+        'product',
+        'uom',
     ],
     'data': [
         'security/app_visibility_groups.xml',
