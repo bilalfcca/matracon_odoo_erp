@@ -9,9 +9,9 @@ class AccountMoveLine(models.Model):
     x_counterpart_account_display = fields.Char(
         string="Counterpart Account",
         compute='_compute_x_counterpart_account_display',
-        help="Account(s) that received the opposite debit/credit side of this journal entry. "
-             "When the entry has more than two lines, every other account on the entry is "
-             "listed, comma-separated.",
+        help="Account(s) on the opposite side of this journal entry: the credited "
+             "account(s) for a debit line, the debited account(s) for a credit line. "
+             "Several are listed comma-separated.",
     )
 
     def _compute_x_counterpart_account_display(self):
@@ -24,10 +24,12 @@ class AccountMoveLine(models.Model):
         """Batch-compute a human-readable "code name" label of the counterpart
         account(s) for each account.move.line id in ``aml_ids``.
 
-        The "counterpart" of a line is the account of every *other* line on
-        the same journal entry (move) - i.e. the account that received the
-        opposite debit/credit side of the transaction. When a move has more
-        than two lines, every other account is listed, comma-separated.
+        The "counterpart" of a line is the account of every line on the
+        *opposite side* of the same journal entry (move): for a debit line,
+        the accounts that were credited; for a credit line, the accounts that
+        were debited. Lines on the same side, and the line's own account, are
+        not counterparts. When several accounts qualify they are listed,
+        comma-separated.
 
         This is shared by this field's compute and by the General Ledger
         report's custom engine (see account_general_ledger.py), so both
@@ -39,8 +41,8 @@ class AccountMoveLine(models.Model):
 
         :param aml_ids: list of account.move.line ids.
         :return: dict {aml_id: display_string}. Ids with no counterpart
-                 (e.g. a line whose move has no other postable line) are
-                 omitted from the result.
+                 (e.g. a zero-balance line, or a move with no line on the
+                 opposite side) are omitted from the result.
         """
         aml_ids = [aml_id for aml_id in aml_ids if aml_id]
         if not aml_ids:
@@ -52,7 +54,13 @@ class AccountMoveLine(models.Model):
               JOIN account_move_line other_line
                 ON other_line.move_id = this_line.move_id
                AND other_line.id != this_line.id
+               AND other_line.account_id != this_line.account_id
                AND COALESCE(other_line.display_type, '') NOT IN ('line_section', 'line_note')
+               -- opposite side only: debit line -> credited accounts, credit line -> debited accounts
+               AND (
+                    (this_line.balance > 0 AND other_line.balance < 0)
+                 OR (this_line.balance < 0 AND other_line.balance > 0)
+               )
              WHERE this_line.id = ANY(%s)
              GROUP BY this_line.id, other_line.account_id
         """, [aml_ids])

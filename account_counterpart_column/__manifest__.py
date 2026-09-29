@@ -1,6 +1,6 @@
 {
     'name': 'Counterpart Account Column',
-    'version': '1.0.0',
+    'version': '1.0.1',
     'summary': 'Adds an Offsetting/Counterpart Account column to the General Ledger report and Journal Items list',
     'description': """
 Counterpart Account Column
