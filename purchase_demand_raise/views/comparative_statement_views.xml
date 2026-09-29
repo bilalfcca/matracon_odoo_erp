@@ -21,6 +21,7 @@
                             type="object"
                             class="btn-primary"
                             invisible="x_state != 'draft'"
+                            groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,base.group_system"
                             confirm="Lock the winning vendor and advance this PR to CEO approval?"/>
                     <!-- Print CS PDF -->
                     <button name="action_print"

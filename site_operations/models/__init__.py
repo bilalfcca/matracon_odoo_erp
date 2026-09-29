@@ -1,4 +1,5 @@
 from . import base_backdate  # per-user default entry date (backdate preference)
+from . import draft_cleanup  # midnight cron: delete stale accounting drafts
 from . import x_employee_presence_log
 from . import mail_presence_ext
 from . import hr_employee_ext
@@ -16,12 +17,12 @@ from . import bg_facility_amendment_import
 from . import tax_notice
 from . import matracon_notifications
 from . import app_visibility
+from . import interproject_accounting  # must load before stock_picking (imported at module level)
 from . import stock_picking
 from . import purchase_order
 from . import stock_move
 from . import stock_return_picking
 from . import analytic_distribution_mixin
-from . import interproject_accounting
 from . import interproject_transfer
 from . import account_payment
 from . import payment_tax_line
@@ -39,6 +40,7 @@ from . import site_accountant_dashboard
 from . import wht_certificate
 from . import postdated_cheque
 from . import cheque_series
+from . import ipc_account_config
 from . import subcontractor_backcharge
 from . import subcontractor_ipc
 from . import subcontractor_ho_advance
@@ -51,3 +53,4 @@ from . import employee_backcharge
 from . import account_report_ext  # lock analytic filter for site accountants
 from . import uom_ext  # UoM alternative name search aliases
 from . import product_category_ext  # x_add_to_dashboard flag on product category
+from . import uom_change_wizard  # Change product UoM + convert all open quantities

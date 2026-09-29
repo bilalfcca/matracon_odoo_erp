@@ -1,8 +1,12 @@
 import calendar
+import logging
+
 from markupsafe import Markup
 
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
+
+_logger = logging.getLogger(__name__)
 
 from . import matracon_notifications as matracon_notify
 
@@ -187,10 +191,17 @@ class SalarySheet(models.Model):
             sheet.message_post(
                 body=Markup(_('Salary sheet submitted by <b>%s</b>.')) % self.env.user.name)
             # Notify CEO for approval
-            ceo_users = self.env['res.users'].search([
-                ('group_ids', 'in', self.env.ref(
-                    'purchase_demand_raise.group_ceo_approval').id),
-            ])
+            _ceo_grp = self.env.ref(
+                'purchase_demand_raise.group_ceo_approval', raise_if_not_found=False)
+            if not _ceo_grp:
+                _logger.warning(
+                    'Matracon: purchase_demand_raise.group_ceo_approval not found; '
+                    'CEO notification skipped for salary sheet %s.', sheet.name
+                )
+            ceo_users = (
+                self.env['res.users'].search([('group_ids', 'in', _ceo_grp.id)])
+                if _ceo_grp else self.env['res.users'].browse()
+            )
             matracon_notify.notify_users(
                 sheet, ceo_users,
                 _('Salary sheet <b>%s</b> requires your approval.') % sheet.name,
@@ -283,10 +294,16 @@ class SalarySheet(models.Model):
                     ''.join(f'<li>{entry}</li>' for entry in backcharge_log)
                 )
             sheet.message_post(body=msg)
-            fo_users = self.env['res.users'].search([
-                ('group_ids', 'in', self.env.ref(
-                    'site_operations.group_finance_ho').id),
-            ])
+            _fo_grp = self.env.ref('site_operations.group_finance_ho', raise_if_not_found=False)
+            if not _fo_grp:
+                _logger.warning(
+                    'Matracon: site_operations.group_finance_ho not found; '
+                    'FO notification skipped for salary sheet %s.', sheet.name
+                )
+            fo_users = (
+                self.env['res.users'].search([('group_ids', 'in', _fo_grp.id)])
+                if _fo_grp else self.env['res.users'].browse()
+            )
             matracon_notify.notify_users(
                 sheet, fo_users,
                 _('CEO approved salary sheet <b>%s</b> — create and post payment.') % sheet.name,

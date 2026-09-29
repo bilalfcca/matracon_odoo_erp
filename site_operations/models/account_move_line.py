@@ -1,4 +1,4 @@
-from odoo import models, api, _
+from odoo import models, fields, api, _
 from odoo.exceptions import UserError
 
 
@@ -30,6 +30,40 @@ class AccountMoveLineSiteOps(models.Model):
     """
 
     _inherit = 'account.move.line'
+
+    # ── 0. Main Account posting guard ────────────────────────────────────────
+
+    @api.constrains('account_id')
+    def _check_no_posting_to_main_account(self):
+        """Block journal entry lines from using Main (group/header) accounts.
+
+        Main accounts (x_is_main=True) are hierarchy/reporting nodes only.
+        All actual postings must go to leaf child accounts.  The only exception
+        is when the account has x_allow_posting_to_main=True (set by admin for
+        rare edge cases where no child account exists).
+
+        The constraint fires at line create/write so the error is immediate and
+        clear rather than surfacing later at posting time.
+        """
+        for line in self:
+            account = line.account_id
+            if account.x_is_main and not account.x_allow_posting_to_main:
+                raise UserError(
+                    _("Account '%(name)s [%(code)s]' is a Main account — "
+                      "journal entries cannot be posted to it.\n\n"
+                      "Please select one of its child accounts instead.\n"
+                      "If posting to this account is genuinely required, "
+                      "enable 'Allow Posting Override' on the account settings.")
+                    % {'name': account.name, 'code': account.code}
+                )
+
+    # ── IPC display field (partner ledger Retention column) ───────────────────
+    x_ipc_retention_amount = fields.Float(
+        string='IPC Retention Amount',
+        default=0.0,
+        help='For IPC journal entries: the retention amount deducted from the '
+             'subcontractor payable. Stamped on the net-payable credit line so '
+             'the Partner Ledger Retention column shows it on the main IPC row.')
 
     # ── 1. Constraint override ────────────────────────────────────────────────
 

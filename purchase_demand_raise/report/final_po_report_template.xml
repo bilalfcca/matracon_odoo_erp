@@ -145,6 +145,10 @@
                 .po-table tbody tr,
                 .rfq-table tbody tr { page-break-inside: avoid; }
 
+                /* Totals tbody — keep all summary rows together on the same page */
+                .po-totals { page-break-inside: avoid; }
+                .po-total-sep td { padding: 0 !important; }
+
                 /* T&amp;C HTML formatting — preserve bullets, numbering, indentation */
                 .po-tnc ol, .po-tnc ul { padding-left: 22px; margin: 4px 0; }
                 .po-tnc li { margin-bottom: 3px; }
@@ -185,7 +189,7 @@
                 <!-- Supply ref + date to the layout header BEFORE t-call -->
                 <t t-set="po_ref_number" t-value="o.name"/>
                 <t t-set="po_ref_date"
-                   t-value="context_timestamp(datetime.datetime.now()).strftime('%B %d, %Y')"/>
+                   t-value="context_timestamp(o.date_approve or o.date_order).strftime('%B %d, %Y')"/>
 
                 <t t-call="purchase_demand_raise.matracon_po_layout">
 
@@ -257,6 +261,9 @@
                            l.x_line_currency_id and l.x_line_currency_id != _po_order_currency
                            for l in o.order_line if not l.display_type
                        )"/>
+                    <!-- Product column width: shrinks by 8% when Ref. column is shown -->
+                    <t t-set="_po_prod_col_width"
+                       t-value="('27%' if _po_has_multi_currency else '30%') if o.x_show_product_ref else ('35%' if _po_has_multi_currency else '38%')"/>
 
                     <!-- Line items table
                          Qty = x_approved_qty if set and > 0, else product_qty -->
@@ -266,7 +273,10 @@
                         <thead>
                             <tr>
                                 <th style="width:4%;">#</th>
-                                <th t-attf-style="width:#{_po_has_multi_currency and '35%' or '38%'}; text-align:left;">Product / Description</th>
+                                <t t-if="o.x_show_product_ref">
+                                    <th style="width:8%; text-align:left;">Ref.</th>
+                                </t>
+                                <th t-attf-style="width:#{_po_prod_col_width}; text-align:left;">Product / Description</th>
                                 <th style="width:9%;">UoM</th>
                                 <th style="width:10%;">Qty</th>
                                 <t t-if="_po_has_multi_currency">
@@ -293,9 +303,14 @@
                                             <t t-esc="line_no"/>
                                             <t t-set="line_no" t-value="line_no + 1"/>
                                         </td>
+                                        <t t-if="o.x_show_product_ref">
+                                            <td style="text-align:left; font-size:11px; color:#555;">
+                                                <t t-esc="line.product_id.default_code or ''"/>
+                                            </td>
+                                        </t>
                                         <td style="text-align:left;">
-                                            <t t-esc="line.product_id.display_name or line.name"/>
-                                            <t t-if="line.name and line.name != (line.product_id.display_name or '')">
+                                            <t t-esc="line.product_id.name or line.name"/>
+                                            <t t-if="line.name and line.name != (line.product_id.name or '')">
                                                 <br/><span style="font-size:11px; color:#666;">
                                                     <t t-esc="line.name"/>
                                                 </span>
@@ -322,17 +337,72 @@
                                 </t>
                             </t>
                         </tbody>
-                        <tfoot>
+                        <!-- ── Totals block — kept in <tbody> deliberately.
+                             wkhtmltopdf repeats <tfoot> on every page (same as
+                             <thead>), so using <tfoot> causes the grand-total row
+                             to appear at the bottom of every page.  Plain <tbody>
+                             rows only appear once, at the actual position in the
+                             document flow. ── -->
+                        <tbody class="po-totals">
+                            <!-- Separator row -->
+                            <tr class="po-total-sep">
+                                <td t-att-colspan="6 + (1 if _po_has_multi_currency else 0) + (1 if o.x_show_product_ref else 0)"
+                                    style="padding:0; height:0; border-top:2px solid #1a3a5c !important; background:#eef1f7;"/>
+                            </tr>
+
+                            <!-- ① Untaxed Amount — show always -->
                             <tr>
-                                <td t-att-colspan="5 + (1 if _po_has_multi_currency else 0)"
-                                    style="text-align:right; padding:7px 8px;">
-                                    Total Amount (<t t-esc="o.currency_id.name or 'PKR'"/>)
+                                <td t-att-colspan="5 + (1 if _po_has_multi_currency else 0) + (1 if o.x_show_product_ref else 0)"
+                                    style="text-align:right; padding:6px 8px; background:#eef1f7; border:1px solid #cccccc !important;">
+                                    Untaxed Amount (<t t-esc="o.currency_id.name or 'PKR'"/>)
                                 </td>
-                                <td style="text-align:right; padding:7px 8px; font-weight:bold;">
-                                    <t t-esc="'{:,.2f}'.format(po_grand_total)"/>
+                                <td style="text-align:right; padding:6px 8px; font-weight:bold; background:#eef1f7; border:1px solid #cccccc !important;">
+                                    <t t-esc="'{:,.2f}'.format(o.amount_untaxed)"/>
                                 </td>
                             </tr>
-                        </tfoot>
+
+                            <!-- ② Tax groups — show only when tax is present -->
+                            <t t-if="o.amount_tax">
+                                <t t-if="o.tax_totals and o.tax_totals.get('subtotals')">
+                                    <t t-foreach="o.tax_totals['subtotals']" t-as="subtotal">
+                                        <t t-foreach="subtotal.get('tax_groups', [])" t-as="tg">
+                                            <tr>
+                                                <td t-att-colspan="5 + (1 if _po_has_multi_currency else 0) + (1 if o.x_show_product_ref else 0)"
+                                                    style="text-align:right; padding:5px 8px; background:#eef1f7; border:1px solid #cccccc !important;">
+                                                    <t t-esc="tg.get('group_name', 'Tax')"/>
+                                                </td>
+                                                <td style="text-align:right; padding:5px 8px; background:#eef1f7; border:1px solid #cccccc !important;">
+                                                    <t t-esc="'{:,.2f}'.format(tg.get('tax_amount_currency', 0.0))"/>
+                                                </td>
+                                            </tr>
+                                        </t>
+                                    </t>
+                                </t>
+                                <t t-else="">
+                                    <!-- Fallback: no subtotal groups — show single Tax row -->
+                                    <tr>
+                                        <td t-att-colspan="5 + (1 if _po_has_multi_currency else 0) + (1 if o.x_show_product_ref else 0)"
+                                            style="text-align:right; padding:5px 8px; background:#eef1f7; border:1px solid #cccccc !important;">
+                                            Tax
+                                        </td>
+                                        <td style="text-align:right; padding:5px 8px; background:#eef1f7; border:1px solid #cccccc !important;">
+                                            <t t-esc="'{:,.2f}'.format(o.amount_tax)"/>
+                                        </td>
+                                    </tr>
+                                </t>
+                            </t>
+
+                            <!-- ③ Grand Total — always last -->
+                            <tr>
+                                <td t-att-colspan="5 + (1 if _po_has_multi_currency else 0) + (1 if o.x_show_product_ref else 0)"
+                                    style="text-align:right; padding:7px 8px; font-weight:bold; font-size:13px; background:#d4daf0; border:1px solid #1a3a5c !important;">
+                                    Total Amount (<t t-esc="o.currency_id.name or 'PKR'"/>)
+                                </td>
+                                <td style="text-align:right; padding:7px 8px; font-weight:bold; font-size:13px; background:#d4daf0; border:1px solid #1a3a5c !important;">
+                                    <t t-esc="'{:,.2f}'.format(o.amount_total)"/>
+                                </td>
+                            </tr>
+                        </tbody>
                     </table>
 
                     <!-- Terms &amp; Conditions (always rendered) -->
@@ -348,20 +418,38 @@
                         </t>
                     </div>
 
-                    <!-- Signature block -->
+                    <!-- Signature block
+                         Source priority for the CEO's name + signature image:
+                           1. o.x_ceo_approved_by_id — the CEO who actually approved
+                              THIS PO (only set if they have x_sign_signature configured
+                              in Preferences AND actually clicked final approval).
+                           2. x.po.signature.config.x_ceo_signature — a manually
+                              uploaded fallback image, for a CEO who hasn't configured
+                              a personal signature yet.
+                           3. Any CEO-Approval-group user who has a signature configured
+                              (legacy behaviour, kept for compatibility).
+                           4. Hardcoded name/title, so the PO is never blank.
+                         The Title is always company-config/hardcoded — it isn't
+                         something tracked per user record. -->
                     <t t-set="sig" t-value="o.env['x.po.signature.config'].sudo().search(
                         [('company_id','=',o.company_id.id)], limit=1)"/>
+                    <t t-set="_po_approver" t-value="o.sudo().x_ceo_approved_by_id"/>
 
-                    <!-- Determine which CEO signature image to show:
-                         1. x.po.signature.config.x_ceo_signature (uploaded image)
-                         2. CEO user's x_sign_signature (drawn/typed in Preferences)  -->
-                    <t t-set="_po_ceo_img" t-value="sig.x_ceo_signature if (sig and sig.x_ceo_signature) else False"/>
+                    <t t-set="_po_ceo_img" t-value="False"/>
+                    <t t-set="_po_ceo_name" t-value="False"/>
+                    <t t-if="_po_approver and _po_approver.x_sign_signature">
+                        <t t-set="_po_ceo_img" t-value="_po_approver.x_sign_signature"/>
+                        <t t-set="_po_ceo_name" t-value="_po_approver.name"/>
+                    </t>
+                    <t t-elif="sig and sig.x_ceo_signature">
+                        <t t-set="_po_ceo_img" t-value="sig.x_ceo_signature"/>
+                    </t>
                     <t t-set="_po_ceo_user" t-value="False"/>
                     <t t-if="not _po_ceo_img">
                         <!-- Fall back: find a user in CEO Approval group who has drawn their signature -->
                         <t t-set="_ceo_grp" t-value="env['res.groups'].sudo().search([('name','=','CEO Approval')], limit=1)"/>
                         <t t-if="_ceo_grp">
-                            <t t-set="_po_ceo_user" t-value="_ceo_grp.users.filtered(lambda u: u.x_sign_signature)[:1]"/>
+                            <t t-set="_po_ceo_user" t-value="env['res.users'].sudo().search([('group_ids', 'in', [_ceo_grp.id]), ('x_sign_signature', '!=', False)], limit=1)"/>
                         </t>
                     </t>
 
@@ -384,7 +472,7 @@
 
                     <div style="border-top:1px solid #000; padding-top:3px; display:inline-block; min-width:160px;">
                         <p style="margin:0; font-weight:bold; font-size:13px;">
-                            <t t-esc="(sig and sig.x_ceo_name) or (_po_ceo_user and _po_ceo_user.name) or 'JEHANZEB SAULAT'"/>
+                            <t t-esc="_po_ceo_name or (sig and sig.x_ceo_name) or (_po_ceo_user and _po_ceo_user.name) or 'JEHANZEB SAULAT'"/>
                         </p>
                         <p style="margin:0; font-size:12px;">
                             <t t-esc="(sig and sig.x_ceo_title) or 'CEO'"/>

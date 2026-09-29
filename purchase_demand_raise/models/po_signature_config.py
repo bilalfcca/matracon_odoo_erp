@@ -14,20 +14,12 @@ class POSignatureConfig(models.Model):
         default=lambda self: self.env.company,
     )
 
-    # ── PO Officer ────────────────────────────────────────────────────────
-    x_po_officer_name = fields.Char(
-        string='PO Officer Name',
-        default='Nasir Swati',
-    )
-    x_po_officer_title = fields.Char(
-        string='Title / Designation',
-        default='Procurement Officer',
-    )
-    x_po_officer_signature = fields.Binary(
-        string='Signature Image (optional)',
-        attachment=True,
-        help='If uploaded, the image is used on the PO PDF. Otherwise the name is shown in signature font.',
-    )
+    # Note: a "PO Officer" signature section used to live here too
+    # (x_po_officer_name/title/signature) but was never read by any report —
+    # removed 2026-09 as dead code. The RFQ report's Procurement Officer
+    # signature is sourced from purchase.order.x_rfq_prepared_by_id instead
+    # (the actual person who processed/sent that specific RFQ), not a single
+    # company-wide configured name.
 
     # ── CEO ───────────────────────────────────────────────────────────────
     x_ceo_name = fields.Char(

@@ -1,9 +1,12 @@
+import logging
 from dateutil.relativedelta import relativedelta
 
 from markupsafe import Markup
 
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError, ValidationError
+
+_logger = logging.getLogger(__name__)
 
 from . import matracon_notifications as matracon_notify
 
@@ -26,11 +29,16 @@ class LiabilitySheet(models.Model):
                 ADD COLUMN IF NOT EXISTS pm_signature_date   TIMESTAMP WITHOUT TIME ZONE,
                 ADD COLUMN IF NOT EXISTS pm_signed_sheet     BYTEA,
                 ADD COLUMN IF NOT EXISTS pm_signed_sheet_filename VARCHAR,
-                ADD COLUMN IF NOT EXISTS account_move_id     INTEGER
+                ADD COLUMN IF NOT EXISTS account_move_id     INTEGER,
+                ADD COLUMN IF NOT EXISTS x_report_filter     VARCHAR NOT NULL DEFAULT 'period'
         """)
         self.env.cr.execute("""
             ALTER TABLE x_liability_sheet_line
-                ADD COLUMN IF NOT EXISTS payment_id INTEGER
+                ADD COLUMN IF NOT EXISTS payment_id                INTEGER,
+                ADD COLUMN IF NOT EXISTS x_overall_total_bills     NUMERIC NOT NULL DEFAULT 0,
+                ADD COLUMN IF NOT EXISTS x_overall_total_approved  NUMERIC NOT NULL DEFAULT 0,
+                ADD COLUMN IF NOT EXISTS x_overall_total_paid      NUMERIC NOT NULL DEFAULT 0,
+                ADD COLUMN IF NOT EXISTS x_overall_net_outstanding NUMERIC NOT NULL DEFAULT 0
         """)
         return super()._register_hook()
 
@@ -100,6 +108,13 @@ class LiabilitySheet(models.Model):
         readonly=True, copy=False,
         help='Batch payment created by CEO approval — Finance HO posts this.')
 
+    # ── Report filter toggle: period vs overall ───────────────────────────────
+    x_report_filter = fields.Selection([
+        ('period', 'Selected Period'),
+        ('overall', 'Overall'),
+    ], string='View', default='period', required=True,
+       help='Switch the line table and PDF between period-scoped and all-time overall data.')
+
     # ── View helpers: selected lines only (CEO/FO view after submission) ─────
     selected_line_ids = fields.One2many(
         'x.liability.sheet.line', 'sheet_id',
@@ -128,6 +143,19 @@ class LiabilitySheet(models.Model):
         is_sa = self.env.user.has_group('site_operations.group_site_accountant')
         for sheet in self:
             sheet.x_is_site_accountant = is_sa
+
+    @api.onchange('x_report_filter')
+    def _onchange_x_report_filter(self):
+        """When switching to Overall mode, auto-refresh overall data from GL.
+
+        This ensures x_overall_* fields are always up-to-date when viewed —
+        even on Paid sheets where "Refresh from Ledger" is hidden.
+        The write is committed via a direct DB update so the freshly computed
+        values are visible after the form reloads.
+        """
+        if self.x_report_filter == 'overall' and self.id:
+            # Call the server-side refresh directly (persists to DB)
+            self.env['x.liability.sheet'].browse(self.id).action_refresh_overall_data()
 
     @api.onchange('x_filter_partner_id')
     def _onchange_x_filter_partner_id(self):
@@ -275,10 +303,17 @@ class LiabilitySheet(models.Model):
                 body=Markup(_(
                     'Liability Sheet submitted for CEO approval by <b>%s</b>.'
                 )) % self.env.user.name)
-            ceo_users = self.env['res.users'].search([
-                ('group_ids', 'in', self.env.ref(
-                    'purchase_demand_raise.group_ceo_approval').id),
-            ])
+            _ceo_grp = self.env.ref(
+                'purchase_demand_raise.group_ceo_approval', raise_if_not_found=False)
+            if not _ceo_grp:
+                _logger.warning(
+                    'Matracon: purchase_demand_raise.group_ceo_approval not found; '
+                    'CEO notification skipped for liability sheet %s.', sheet.name
+                )
+            ceo_users = (
+                self.env['res.users'].search([('group_ids', 'in', _ceo_grp.id)])
+                if _ceo_grp else self.env['res.users'].browse()
+            )
             matracon_notify.notify_users(
                 sheet,
                 ceo_users,
@@ -321,18 +356,6 @@ class LiabilitySheet(models.Model):
             # Close the CEO activity that was created on submission
             matracon_notify.close_activities(sheet, summary_contains='Approve Liability Sheet')
 
-            # ── Auto-create next period sheet ─────────────────────────────────
-            # Runs on approval (not on paid) so SA can start filling the next
-            # period immediately while Finance HO is still processing payments.
-            next_sheet = None
-            try:
-                next_sheet = sheet._create_next_period_sheet()
-            except Exception as e:
-                # Never let auto-creation failure block the CEO approval
-                sheet.message_post(body=Markup(_(
-                    '⚠️ Could not auto-create the next period sheet: %s'
-                )) % str(e))
-
             msg = Markup(_(
                 'Liability Sheet approved by CEO <b>%(ceo)s</b>. '
                 'Total Approved: <b>%(total)s</b>.<br/>'
@@ -347,37 +370,16 @@ class LiabilitySheet(models.Model):
             }
             sheet.message_post(body=msg)
 
-            # Post a chatter note on both sheets about the auto-created next period
-            if next_sheet:
-                sheet.message_post(body=Markup(_(
-                    'Next period sheet '
-                    '<a href="#" data-oe-model="x.liability.sheet" '
-                    'data-oe-id="%(id)s"><b>%(name)s</b></a> '
-                    'auto-created for <b>%(from)s → %(to)s</b>. '
-                    'Site Accountant: run "↻ Refresh from Ledger" to populate balances.'
-                )) % {
-                    'id': next_sheet.id,
-                    'name': next_sheet.name,
-                    'from': next_sheet.date_from,
-                    'to': next_sheet.date_to,
-                })
-                next_sheet.message_post(body=Markup(_(
-                    'Sheet auto-created on CEO approval of '
-                    '<a href="#" data-oe-model="x.liability.sheet" '
-                    'data-oe-id="%(id)s"><b>%(name)s</b></a> '
-                    '(period: %(from)s → %(to)s).<br/>'
-                    'Run <b>↻ Refresh from Ledger</b> to pull current vendor balances from GL.'
-                )) % {
-                    'id': sheet.id,
-                    'name': sheet.name,
-                    'from': sheet.date_from,
-                    'to': sheet.date_to,
-                })
-
-            fo_users = self.env['res.users'].search([
-                ('group_ids', 'in', self.env.ref(
-                    'site_operations.group_finance_ho').id),
-            ])
+            _fo_grp = self.env.ref('site_operations.group_finance_ho', raise_if_not_found=False)
+            if not _fo_grp:
+                _logger.warning(
+                    'Matracon: site_operations.group_finance_ho not found; '
+                    'FO notification skipped for liability sheet %s.', sheet.name
+                )
+            fo_users = (
+                self.env['res.users'].search([('group_ids', 'in', _fo_grp.id)])
+                if _fo_grp else self.env['res.users'].browse()
+            )
             matracon_notify.notify_users(
                 sheet,
                 fo_users,
@@ -420,6 +422,8 @@ class LiabilitySheet(models.Model):
                 (0, 0, {
                     'partner_id': line.partner_id.id,
                     'gross_amount': line.approved_amount,
+                    'memo': line.description or '',
+                    'x_account_title': line.x_account_title or '',
                     'x_destination_project_id': (
                         self.project_analytic_account_id.id or False
                     ),
@@ -485,6 +489,9 @@ class LiabilitySheet(models.Model):
             (0, 0, {
                 'partner_id': line.partner_id.id,
                 'description': line.description,
+                'x_bank_name': line.x_bank_name or '',
+                'x_account_title': line.x_account_title or '',
+                'x_iban': line.x_iban or '',
                 'opening_balance': 0.0,
                 'new_liability': 0.0,
                 'recommended_amount': 0.0,
@@ -502,19 +509,26 @@ class LiabilitySheet(models.Model):
         return new_sheet
 
     def action_fo_mark_paid(self):
-        """Finance HO closes the sheet after all vendor payments are posted."""
+        """Finance HO closes the sheet after all vendor payments are posted.
+
+        Lines with paid_amount = 0 are allowed — Finance HO intentionally skips
+        them; they will appear in the next cycle's opening balance.
+        Only PARTIALLY paid lines (0 < paid < approved) are blocked because
+        that usually indicates an in-progress payment that hasn't been posted yet.
+        """
         for sheet in self:
             if sheet.state != 'approved':
                 raise UserError(_('Only approved liability sheets can be marked paid.'))
             # Sync paid amounts from any posted payments first.
             sheet._sync_paid_amounts_from_payments()
-            # Check whether all approved lines are fully settled.
-            unpaid = sheet.line_ids.filtered(
+            # Block only partially paid lines (some payment was started but not posted).
+            # Zero-paid lines are intentionally left unpaid for this cycle — allowed.
+            partially_paid = sheet.line_ids.filtered(
                 lambda l: l.approved_amount > 0
-                and l.paid_amount < l.approved_amount - 0.01
+                and 0 < l.paid_amount < l.approved_amount - 0.01
             )
-            if unpaid:
-                # Lines still outstanding — require all non-zero payments to be posted.
+            if partially_paid:
+                # Lines partially paid — require outstanding payments to be posted.
                 unposted = sheet.payment_ids.filtered(
                     lambda p: p.state != 'posted' and (p.amount or 0) > 0.01
                 )
@@ -523,36 +537,14 @@ class LiabilitySheet(models.Model):
                         'Post all vendor payments before closing the sheet: %s'
                     ) % ', '.join(unposted.mapped('name')))
                 raise UserError(_(
-                    'Some approved lines are not fully paid yet: %s'
-                ) % ', '.join(unpaid.mapped('partner_id.display_name')))
+                    'Some vendor payments are partially recorded — '
+                    'post or remove them before closing: %s'
+                ) % ', '.join(partially_paid.mapped('partner_id.display_name')))
             sheet.state = 'paid'
             # Close the Finance HO activity that was created on CEO approval
             matracon_notify.close_activities(sheet)
             sheet.message_post(body=_(
                 'All approved payments completed — sheet closed by Finance HO.'))
-            # Next period sheet is normally created on CEO approval.
-            # _create_next_period_sheet() is idempotent — returns the existing sheet
-            # if one was already auto-created at approval time; only creates a new one
-            # if somehow it was missed (e.g. sheets approved before this feature).
-            next_sheet = sheet._create_next_period_sheet()
-            if next_sheet and next_sheet.state == 'draft':
-                # Only post a message if this is a brand-new sheet (wasn't created at approval)
-                already_noted = any(
-                    'auto-created on CEO approval' in (m.body or '')
-                    for m in next_sheet.message_ids
-                )
-                if not already_noted:
-                    sheet.message_post(body=Markup(_(
-                        'Next period sheet '
-                        '<a href="#" data-oe-model="x.liability.sheet" '
-                        'data-oe-id="%(id)s"><b>%(name)s</b></a> '
-                        'created for <b>%(from)s → %(to)s</b>.'
-                    )) % {
-                        'id': next_sheet.id,
-                        'name': next_sheet.name,
-                        'from': next_sheet.date_from,
-                        'to': next_sheet.date_to,
-                    })
 
     def _sync_paid_amounts_from_payments(self):
         """Refresh line paid amounts from posted vendor payments.
@@ -769,17 +761,22 @@ class LiabilitySheet(models.Model):
                 )
                 new_liab = sum(l.credit - l.debit for l in period_lines)
 
-                # Always sync description from the contact's x_description so
-                # liability sheet lines stay labelled correctly without manual effort.
                 partner_desc = (
                     line.partner_id.x_description
                     or line.partner_id.name
                     or ''
                 ).strip()
+                p = line.partner_id
                 line.write({
                     'opening_balance': round(opening, 2),
                     'new_liability': round(new_liab, 2),
-                    'description': partner_desc,
+                    # Preserve any description the SA has manually typed.
+                    # Only fill from the partner if the field is still empty.
+                    'description': line.description or partner_desc,
+                    # Auto-fill bank details from partner if not yet set on this line.
+                    'x_bank_name': line.x_bank_name or (p.x_bank_name or ''),
+                    'x_account_title': line.x_account_title or (p.x_account_title or ''),
+                    'x_iban': line.x_iban or (p.x_iban or ''),
                 })
 
             # ── 2. Auto-discover partners in the ledger not yet on the sheet ──
@@ -830,14 +827,99 @@ class LiabilitySheet(models.Model):
                             'description': (
                                 partner.x_description or partner.name or ''
                             ).strip(),
+                            'x_bank_name': partner.x_bank_name or '',
+                            'x_account_title': partner.x_account_title or '',
+                            'x_iban': partner.x_iban or '',
                             'opening_balance': round(opening, 2),
                             'new_liability': round(new_liab, 2),
                         })]})
+
+            # ── 3. Populate overall (all-time) data ──────────────────────────
+            sheet.action_refresh_overall_data()
 
             sheet.message_post(
                 body=Markup(_('Liability amounts refreshed from partner ledger by <b>%s</b>.'))
                 % self.env.user.name
             )
+
+    def action_refresh_overall_data(self):
+        """Refresh x_overall_* fields from GL for all states (including Paid).
+
+        Only touches the four all-time aggregate columns — does NOT change
+        period-specific fields (opening_balance, new_liability, recommended_amount).
+        Safe to call on any sheet state.
+        """
+        for sheet in self:
+            analytic_id = (
+                sheet.project_analytic_account_id.id
+                if sheet.project_analytic_account_id else None
+            )
+            if not analytic_id:
+                continue
+            str_analytic_id = str(analytic_id)
+
+            partner_ids = sheet.line_ids.mapped('partner_id').ids
+            if not partner_ids:
+                continue
+
+            # GL totals: all posted payable credits (bills) and debits (paid)
+            # for these partners on this project — no date filter.
+            self.env.cr.execute("""
+                SELECT
+                    aml.partner_id,
+                    COALESCE(SUM(aml.credit), 0) AS total_bills,
+                    COALESCE(SUM(aml.debit),  0) AS total_paid
+                FROM account_move_line aml
+                JOIN account_move    am ON am.id  = aml.move_id
+                JOIN account_account aa ON aa.id  = aml.account_id
+                WHERE am.state = 'posted'
+                  AND aa.account_type = 'liability_payable'
+                  AND aml.partner_id = ANY(%s)
+                  AND (
+                      am.x_project_analytic_account_id = %s
+                      OR (aml.analytic_distribution IS NOT NULL
+                          AND aml.analytic_distribution ? %s)
+                  )
+                GROUP BY aml.partner_id
+            """, [partner_ids, analytic_id, str_analytic_id])
+            gl_map = {row[0]: (float(row[1]), float(row[2]))
+                      for row in self.env.cr.fetchall()}
+
+            # Approved totals: sum of approved_amount across all
+            # approved/paid liability sheet lines for this vendor+project.
+            self.env.cr.execute("""
+                SELECT
+                    lsl.partner_id,
+                    COALESCE(SUM(lsl.approved_amount), 0) AS total_approved
+                FROM x_liability_sheet_line lsl
+                JOIN x_liability_sheet ls ON ls.id = lsl.sheet_id
+                WHERE lsl.partner_id = ANY(%s)
+                  AND ls.project_analytic_account_id = %s
+                  AND ls.state IN ('approved', 'paid')
+                GROUP BY lsl.partner_id
+            """, [partner_ids, analytic_id])
+            approved_map = {row[0]: float(row[1])
+                            for row in self.env.cr.fetchall()}
+
+            for line in sheet.line_ids:
+                pid = line.partner_id.id
+                bills, paid = gl_map.get(pid, (0.0, 0.0))
+                approved = approved_map.get(pid, 0.0)
+                line.sudo().write({
+                    'x_overall_total_bills':    round(bills, 2),
+                    'x_overall_total_approved': round(approved, 2),
+                    'x_overall_total_paid':     round(paid, 2),
+                })
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'type': 'success',
+                'message': _('Overall data refreshed from GL.'),
+                'sticky': False,
+            },
+        }
 
     def unlink(self):
         for rec in self:
@@ -880,6 +962,13 @@ class LiabilitySheetLine(models.Model):
     )
 
     description = fields.Char(string='Description')
+
+    # Banking details — editable by site accountant, auto-filled from partner,
+    # flow through to batch payment line for BPV / cheque printing.
+    x_bank_name = fields.Char(string='Bank Name')
+    x_account_title = fields.Char(string='Account Title')
+    x_iban = fields.Char(string='IBAN / Account No')
+
     partner_id = fields.Many2one(
         'res.partner', string='Vendor/Partner', required=True,
         domain="[('category_id.name', 'in', ['Vendor', 'Subcontractor'])]",
@@ -907,6 +996,21 @@ class LiabilitySheetLine(models.Model):
     balance = fields.Float(
         string='Balance', compute='_compute_balance', store=True, digits=(16, 0))
 
+    # ── Overall (all-time) figures — populated by Refresh from Ledger ─────────
+    x_overall_total_bills = fields.Float(
+        string='Total Bills (All Time)', digits=(16, 0), readonly=True,
+        help='Sum of all posted payable credits for this vendor on this project, no date filter.')
+    x_overall_total_approved = fields.Float(
+        string='Total Approved (All Sheets)', digits=(16, 0), readonly=True,
+        help='Sum of approved_amount across all approved/paid liability sheets for this vendor+project.')
+    x_overall_total_paid = fields.Float(
+        string='Total Paid (All Time)', digits=(16, 0), readonly=True,
+        help='Sum of all posted payable debits for this vendor on this project, no date filter.')
+    x_overall_net_outstanding = fields.Float(
+        string='Net Outstanding', digits=(16, 0),
+        compute='_compute_overall_net', store=True,
+        help='Total Bills − Total Paid = current net amount owed to this vendor.')
+
     # ─────────────────────────────────────────────────────────────────────────
     # COMPUTE
     # ─────────────────────────────────────────────────────────────────────────
@@ -926,13 +1030,20 @@ class LiabilitySheetLine(models.Model):
         for line in self:
             line.balance = line.liability_amount - line.paid_amount
 
+    @api.depends('x_overall_total_bills', 'x_overall_total_paid')
+    def _compute_overall_net(self):
+        for line in self:
+            line.x_overall_net_outstanding = (
+                line.x_overall_total_bills - line.x_overall_total_paid
+            )
+
     # ─────────────────────────────────────────────────────────────────────────
     # ONCHANGE
     # ─────────────────────────────────────────────────────────────────────────
 
     @api.onchange('partner_id')
     def _onchange_partner_description(self):
-        """Auto-fill description as 'Tag (partner description)' when partner is selected."""
+        """Auto-fill description and bank details when partner is selected."""
         if not self.partner_id:
             return
         tags = self.partner_id.category_id
@@ -944,6 +1055,10 @@ class LiabilitySheetLine(models.Model):
             self.description = tag_name
         elif partner_desc:
             self.description = partner_desc
+        # Auto-fill bank details from partner
+        self.x_bank_name = self.partner_id.x_bank_name or ''
+        self.x_account_title = self.partner_id.x_account_title or ''
+        self.x_iban = self.partner_id.x_iban or ''
 
     def write(self, vals):
         # self.env.su is True when called via sudo() — allow system-driven pre-fills

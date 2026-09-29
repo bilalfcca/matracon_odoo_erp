@@ -1,5 +1,9 @@
+import logging
+
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
+
+_logger = logging.getLogger(__name__)
 
 from . import matracon_notifications as matracon_notify
 
@@ -202,10 +206,17 @@ class BatchPayment(models.Model):
                     'Add at least one payment line before submitting for approval.'
                 ))
 
-            ceo_users = self.env['res.users'].search([
-                ('group_ids', 'in', self.env.ref(
-                    'purchase_demand_raise.group_ceo_approval').id),
-            ])
+            _ceo_grp = self.env.ref(
+                'purchase_demand_raise.group_ceo_approval', raise_if_not_found=False)
+            if not _ceo_grp:
+                _logger.warning(
+                    'Matracon: purchase_demand_raise.group_ceo_approval not found; '
+                    'CEO notification skipped for batch payment %s.', batch.name
+                )
+            ceo_users = (
+                self.env['res.users'].search([('group_ids', 'in', _ceo_grp.id)])
+                if _ceo_grp else self.env['res.users'].browse()
+            )
             total_str = '{:,.2f}'.format(batch.total_net)
             currency_sym = batch.currency_id.symbol or ''
             matracon_notify.notify_users(
@@ -254,10 +265,16 @@ class BatchPayment(models.Model):
                     'ceo': self.env.user.name,
                 }
             )
-            fo_users = self.env['res.users'].search([
-                ('group_ids', 'in', self.env.ref(
-                    'site_operations.group_finance_ho').id),
-            ])
+            _fo_grp = self.env.ref('site_operations.group_finance_ho', raise_if_not_found=False)
+            if not _fo_grp:
+                _logger.warning(
+                    'Matracon: site_operations.group_finance_ho not found; '
+                    'FO notification skipped for batch payment %s.', batch.name
+                )
+            fo_users = (
+                self.env['res.users'].search([('group_ids', 'in', _fo_grp.id)])
+                if _fo_grp else self.env['res.users'].browse()
+            )
             matracon_notify.notify_users(
                 batch,
                 fo_users,

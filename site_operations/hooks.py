@@ -12,7 +12,7 @@
 # SITE USERS (one project each via Site Project Configuration):
 #   MCH:      accountant 12, store 13
 #   RWASA:    accountant  6, store  7
-#   STP:      accountant  9, store  8
+#   STP:      accountant  9, store  8         
 # ═══════════════════════════════════════════════════════════════════════════
 
 from odoo import fields, _
@@ -320,6 +320,30 @@ def set_pkr_decimal_places(env):
         env['res.currency'].invalidate_model(['decimal_places'])
 
 
+def set_analytic_percentage_precision(env):
+    """
+    Raise 'Percentage Analytic' decimal precision from 2 → 6.
+
+    The analytic_distribution widget rounds the stored percentage ratio to
+    (analytic_precision + 2) decimal places before saving to the JSON field.
+    With the default of 2 the ratio has only 4 dp:
+        4,001 / 40,000 = 0.10002500 → 0.1000 (4 dp) → back-calc 4,000  ← wrong
+    With 6 the ratio has 8 dp:
+        4,001 / 40,000 = 0.10002500 → 0.10002500 (8 dp) → back-calc 4,001 ✓
+
+    Uses raw SQL because the analytic.decimal_percentage_analytic record has
+    noupdate=True in ir.model.data and cannot be overridden from a data file.
+    """
+    import logging
+    _logger = logging.getLogger(__name__)
+    env.cr.execute(
+        "UPDATE decimal_precision SET digits = 6 WHERE name = 'Percentage Analytic' AND digits < 6"
+    )
+    if env.cr.rowcount:
+        _logger.info('set_analytic_percentage_precision: raised Percentage Analytic precision to 6')
+        env['decimal.precision'].invalidate_model(['digits'])
+
+
 def set_date_format(env):
     """
     Set DD/MM/YYYY date format on every installed language so the format
@@ -377,6 +401,7 @@ def set_pakistan_fiscal_year(env):
 
 def post_init_hook(env):
     set_pkr_decimal_places(env)
+    set_analytic_percentage_precision(env)
     set_date_format(env)
     set_pakistan_fiscal_year(env)
     deduplicate_partner_tags(env)
@@ -399,6 +424,8 @@ def post_init_hook(env):
             'site_operations post_init_hook: skipped user configuration '
             '(not a production DB or users not yet created): %s', e
         )
+    ensure_deduction_accounts(env)
+    cleanup_stale_views(env)
     reprocess_existing_payments(env)
     # Restrict Odoo's built-in 'see all' account.move rules to group_account_manager
     # so site accountants are properly scoped to their own project.
@@ -407,11 +434,84 @@ def post_init_hook(env):
     # On a fresh install into a DB with existing data (e.g. a restored production dump),
     # post_migrate_hook does NOT run — only post_init_hook runs.
     try:
+        migrate_petty_cash_expense_lines(env)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(
+            'post_init_hook: migrate_petty_cash_expense_lines failed: %s', e)
+    try:
         fix_petty_cash_expense_accounts(env)
     except Exception as e:
         import logging
         logging.getLogger(__name__).warning(
             'post_init_hook: fix_petty_cash_expense_accounts failed: %s', e)
+    # Mark Main accounts, create bank children, and wire parent-child hierarchy.
+    try:
+        setup_main_accounts_and_bank_children(env)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(
+            'post_init_hook: setup_main_accounts_and_bank_children failed: %s', e)
+    # Build account.group records from the x_parent_account_id tree so the
+    # Trial Balance shows collapsible group headers with subtotals.
+    try:
+        setup_account_groups(env)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(
+            'post_init_hook: setup_account_groups failed: %s', e)
+
+
+def migrate_petty_cash_expense_lines(env):
+    """One-time migration: create x.petty.cash.expense.line for every existing
+    flat expense that has no lines yet.
+
+    Reads the legacy flat columns directly via SQL (bypassing the ORM) so that
+    the values are available even when the ``amount`` field is later driven by
+    line totals.  Safe to run multiple times — skips expenses that already have lines.
+    """
+    import logging
+    _log = logging.getLogger(__name__)
+
+    env.cr.execute("""
+        SELECT
+            e.id,
+            e.name,
+            e.amount,
+            e.expense_account_id,
+            e.is_employee_advance,
+            e.employee_id,
+            e.is_subcontractor_advance,
+            e.advance_subcontractor_id
+        FROM x_petty_cash_expense e
+        WHERE NOT EXISTS (
+            SELECT 1 FROM x_petty_cash_expense_line l WHERE l.expense_id = e.id
+        )
+        AND e.amount IS NOT NULL AND e.amount > 0
+    """)
+    rows = env.cr.fetchall()
+    if not rows:
+        _log.info('migrate_petty_cash_expense_lines: all expenses already have lines, nothing to do.')
+        return
+
+    _log.info('migrate_petty_cash_expense_lines: migrating %d flat expense(s) → lines', len(rows))
+    Line = env['x.petty.cash.expense.line'].sudo()
+    for (exp_id, name, amount, acct_id, is_emp, emp_id, is_sc, sc_id) in rows:
+        try:
+            Line.create({
+                'expense_id': exp_id,
+                'name': name or 'Expense',
+                'amount': amount,
+                'expense_account_id': acct_id or False,
+                'is_employee_advance': is_emp or False,
+                'employee_id': emp_id or False,
+                'is_subcontractor_advance': is_sc or False,
+                'advance_subcontractor_id': sc_id or False,
+            })
+        except Exception as e:
+            _log.warning(
+                'migrate_petty_cash_expense_lines: expense id=%s skipped (%s)', exp_id, e)
+    _log.info('migrate_petty_cash_expense_lines: done.')
 
 
 def fix_petty_cash_expense_accounts(env):
@@ -648,6 +748,445 @@ def fix_petty_cash_expense_accounts(env):
         )
 
 
+def setup_main_accounts_and_bank_children(env):
+    """Mark Main accounts (x_is_main=True), create 3 child accounts per bank,
+    and wire the full x_parent_account_id hierarchy for the Matracon 9-digit CoA.
+
+    Main accounts are group/hierarchy nodes — posting to them is blocked by the
+    _check_no_posting_to_main_account constraint on account.move.line.
+    The only exception is when x_allow_posting_to_main=True.
+
+    Bank accounts get 3 fixed children:
+      {code}1  → {name} - Useable Balance
+      {code}2  → {name} - Cash Margin
+      {code}3  → {name} - PO
+
+    Step 4 switches every bank journal whose default_account is a Main account
+    to the Useable Balance child so postings land on the right leaf account.
+
+    Idempotent — safe to run on every module upgrade.
+    """
+    import logging
+    _logger = logging.getLogger(__name__)
+
+    Account = env['account.account'].sudo()
+    company = env.company
+
+    # ── All codes marked as Main in the chart of accounts ──────────────────
+    MAIN_CODES = [
+        '200000000',  # ASSETS
+        '220000000',  # Fixed Assets
+        '222000000',  # ACCUMULATED DEPRECIATION
+        '230000000',  # CURRENT ASSETS
+        '231100000',  # Banks (group)
+        # Individual bank accounts — become group accounts after children are created
+        '231100100', '231100200', '231100300', '231100400', '231100500',
+        '231100600', '231100700', '231100800', '231100900', '231101000',
+        '231101100', '231101200', '231101300', '231101400', '231101500',
+        '231101600', '231101700', '231101800', '231101900', '231102000',
+        '231102100', '231102200', '231102300', '231102400', '231102500',
+        '231102600', '231102700', '231102800', '231102900', '231103000',
+        '231103100', '231103200', '231103300', '231103400', '231103500',
+        '231103600', '231103700', '231103800',
+        # Cash & current assets
+        '231200000',  # Cash & Cash Equivalents
+        '230200000',  # Account Receivables
+        '230210000',  # Receivable From Employer
+        '230500000',  # Suspense Account
+        '230600000',  # Advances To Employee's
+        '230700000',  # Prepaid Expenses
+        '230100000',  # Advance Tax
+        # Liabilities
+        '400000000',  # Liabilities
+        '430000000',  # Current Liabilities
+        '430200000',  # Payable To Sub-Contractor's
+        '430500000',  # Taxes Payable (group)
+        # 430510000 WHT Payable — NOT main; transactions post directly here
+        # 430520000 Sales Tax Payable — NOT main; transactions post directly here
+        '430600000',  # Accrued Expenses
+        '430610000',  # Accrued Salaries
+        '420000000',  # Non-Current Liabilities
+        '420100000',  # Payable To Client/Employer
+        '420200000',  # Inter-Project Transaction
+        # Equity
+        '100000000',  # Equity
+        '100200000',  # Directors Loans
+        # Revenue
+        '600000000',  # Revenue
+        '610000000',  # OTHER INCOME
+        # Direct Project Cost
+        '700000000',  # Direct Project Cost
+        '700500000',  # Rental Expenses (Site)
+        '701100000',  # Utilities Expenses
+        '701600000',  # Rent Of HTV / LTV/ Equipment
+        '701800000',  # Repairs And Maintenance
+        '702100000',  # Salaries And Allowances
+        # General & Admin
+        '800000000',  # General Office & Admin Exp
+        '801000000',  # HO Staff Cost
+        '802000000',  # Office Expenses
+        '803000000',  # Utilities Expenses
+        '804000000',  # Legal & Professional Fee
+        '805000000',  # Travelling Expenses (HO)
+        '806000000',  # Rental Expenses (HO)
+        '801400000',  # Financial Charges
+        '801500000',  # MAQ sb Personal Expenses
+    ]
+
+    # ── Bank codes that each need 3 fixed children ──────────────────────────
+    BANK_CODES = [
+        '231100100', '231100200', '231100300', '231100400', '231100500',
+        '231100600', '231100700', '231100800', '231100900', '231101000',
+        '231101100', '231101200', '231101300', '231101400', '231101500',
+        '231101600', '231101700', '231101800', '231101900', '231102000',
+        '231102100', '231102200', '231102300', '231102400', '231102500',
+        '231102600', '231102700', '231102800', '231102900', '231103000',
+        '231103100', '231103200', '231103300', '231103400', '231103500',
+        '231103600', '231103700', '231103800',
+    ]
+
+    CHILD_SUFFIXES = [
+        ('1', 'Useable Balance'),
+        ('2', 'Cash Margin'),
+        ('3', 'PO'),
+    ]
+
+    # ── Step 1: Mark all main accounts ─────────────────────────────────────
+    accounts = Account.search([
+        ('code', 'in', MAIN_CODES),
+        ('company_ids', 'in', [company.id]),
+    ])
+    newly_marked = 0
+    for acc in accounts:
+        if not acc.x_is_main:
+            acc.x_is_main = True
+            newly_marked += 1
+    _logger.info(
+        'setup_main_accounts: marked %d account(s) as Main (x_is_main=True)',
+        newly_marked,
+    )
+
+    # ── Step 1b: Un-mark posting accounts that must NOT be Main ─────────────
+    # WHT Payable (430510000) and Sales Tax Payable (430520000) are leaf
+    # posting accounts — transactions post directly here (e.g. WHT deductions).
+    # They must NOT have x_is_main=True or the posting constraint will block
+    # every payment/bill that includes WHT/sales-tax deductions.
+    POSTING_ONLY = ['430510000', '430520000']
+    posting_accs = Account.search([
+        ('code', 'in', POSTING_ONLY),
+        ('company_ids', 'in', [company.id]),
+        ('x_is_main', '=', True),
+    ])
+    if posting_accs:
+        posting_accs.sudo().write({'x_is_main': False})
+        _logger.info(
+            'setup_main_accounts: cleared x_is_main on %d posting-only account(s): %s',
+            len(posting_accs),
+            ', '.join(posting_accs.mapped('code')),
+        )
+
+    # ── Step 2: Create 3 child accounts per bank ────────────────────────────
+    bank_accounts = Account.search([
+        ('code', 'in', BANK_CODES),
+        ('company_ids', 'in', [company.id]),
+    ])
+    created = 0
+    for bank in bank_accounts:
+        for suffix, label in CHILD_SUFFIXES:
+            child_code = bank.code + suffix
+            if Account.search([
+                ('code', '=', child_code),
+                ('company_ids', 'in', [company.id]),
+            ], limit=1):
+                continue  # Already exists — idempotent
+            Account.create({
+                'name': '%s - %s' % (bank.name, label),
+                'code': child_code,
+                'account_type': bank.account_type,
+                'reconcile': bank.reconcile,
+                'company_ids': [(4, company.id)],
+                'x_parent_account_id': bank.id,
+            })
+            created += 1
+    if created:
+        _logger.info(
+            'setup_main_accounts: created %d bank child account(s) '
+            '(Useable Balance / Cash Margin / PO)',
+            created,
+        )
+
+    # ── Step 3: Set x_parent_account_id for the full CoA hierarchy ──────────
+    PARENT_MAP = {
+        # ── ASSETS (200000000) ──────────────────────────────────────────────
+        '220000000': '200000000',   # Fixed Assets → ASSETS
+        '222000000': '200000000',   # Accumulated Depreciation → ASSETS
+        '230000000': '200000000',   # Current Assets → ASSETS
+        # Fixed Assets children
+        '221100000': '220000000',   # Vehicles
+        '221200000': '220000000',   # Plant & Machinery
+        '221300000': '220000000',   # Computers
+        '221400000': '220000000',   # Tools & Equipments
+        '221500000': '220000000',   # Scaffolding Pipes
+        '221600000': '220000000',   # Furniture & Fixture
+        '221700000': '220000000',   # Office Equipments
+        '222800000': '220000000',   # Electrical Equipments
+        # Accumulated Depreciation children
+        '222100000': '222000000',   # Plants & Machinery (dep.)
+        '222200000': '222000000',   # Computers (dep.)
+        '222300000': '222000000',   # Tools & Equipment (dep.)
+        '222400000': '222000000',   # Scaffolding Pipes (dep.)
+        '222500000': '222000000',   # Furniture & Fixture (dep.)
+        '222600000': '222000000',   # Office Equipments (dep.)
+        '222700000': '222000000',   # Electrical Equipments (dep.)
+        '223000000': '222000000',   # Intangible Assets
+        # Current Assets children
+        '231100000': '230000000',   # Banks → Current Assets
+        '231200000': '230000000',   # Cash & Cash Equivalents
+        '230200000': '230000000',   # Account Receivables
+        '230210000': '230200000',   # Receivable From Employer → Account Receivables
+        '230500000': '230000000',   # Suspense Account
+        '230600000': '230000000',   # Advances To Employee's
+        '230700000': '230000000',   # Prepaid Expenses
+        '230100000': '230000000',   # Advance Tax
+        # Individual bank accounts → Banks (231100000)
+        '231100100': '231100000', '231100200': '231100000', '231100300': '231100000',
+        '231100400': '231100000', '231100500': '231100000', '231100600': '231100000',
+        '231100700': '231100000', '231100800': '231100000', '231100900': '231100000',
+        '231101000': '231100000', '231101100': '231100000', '231101200': '231100000',
+        '231101300': '231100000', '231101400': '231100000', '231101500': '231100000',
+        '231101600': '231100000', '231101700': '231100000', '231101800': '231100000',
+        '231101900': '231100000', '231102000': '231100000', '231102100': '231100000',
+        '231102200': '231100000', '231102300': '231100000', '231102400': '231100000',
+        '231102500': '231100000', '231102600': '231100000', '231102700': '231100000',
+        '231102800': '231100000', '231102900': '231100000', '231103000': '231100000',
+        '231103100': '231100000', '231103200': '231100000', '231103300': '231100000',
+        '231103400': '231100000', '231103500': '231100000', '231103600': '231100000',
+        '231103700': '231100000', '231103800': '231100000',
+        # ── LIABILITIES (400000000) ─────────────────────────────────────────
+        '430000000': '400000000',   # Current Liabilities → Liabilities
+        '420000000': '400000000',   # Non-Current Liabilities → Liabilities
+        # Current Liabilities children
+        '430200000': '430000000',   # Payable To Sub-Contractor's
+        '430500000': '430000000',   # Taxes Payable
+        '430510000': '430500000',   # WHT Payable → Taxes Payable
+        '430520000': '430500000',   # Sales Tax Payable → Taxes Payable
+        '430600000': '430000000',   # Accrued Expenses
+        '430610000': '430600000',   # Accrued Salaries → Accrued Expenses
+        # Non-Current Liabilities children
+        '420100000': '420000000',   # Payable To Client/Employer
+        '420200000': '420000000',   # Inter-Project Transaction
+        # ── EQUITY (100000000) ──────────────────────────────────────────────
+        '100200000': '100000000',   # Directors Loans → Equity
+        # ── DIRECT PROJECT COST (700000000) ─────────────────────────────────
+        '700500000': '700000000',   # Rental Expenses (Site)
+        '701100000': '700000000',   # Utilities Expenses
+        '701600000': '700000000',   # Rent Of HTV / LTV / Equipment
+        '701800000': '700000000',   # Repairs And Maintenance
+        '702100000': '700000000',   # Salaries And Allowances
+        # ── GENERAL OFFICE & ADMIN (800000000) ──────────────────────────────
+        '801000000': '800000000',   # HO Staff Cost
+        '802000000': '800000000',   # Office Expenses
+        '803000000': '800000000',   # Utilities Expenses (HO)
+        '804000000': '800000000',   # Legal & Professional Fee
+        '805000000': '800000000',   # Travelling Expenses (HO)
+        '806000000': '800000000',   # Rental Expenses (HO)
+        '801400000': '800000000',   # Financial Charges
+        '801500000': '800000000',   # MAQ sb Personal Expenses
+    }
+
+    all_accounts = Account.search([('company_ids', 'in', [company.id])])
+    code_to_acc = {a.code: a for a in all_accounts}
+
+    parent_linked = 0
+    for child_code, parent_code in PARENT_MAP.items():
+        child_acc = code_to_acc.get(child_code)
+        parent_acc = code_to_acc.get(parent_code)
+        if not child_acc or not parent_acc:
+            continue
+        if child_acc.x_parent_account_id.id == parent_acc.id:
+            continue
+        child_acc.x_parent_account_id = parent_acc.id
+        parent_linked += 1
+    _logger.info(
+        'setup_main_accounts: linked x_parent_account_id on %d account(s)',
+        parent_linked,
+    )
+
+    # ── Step 4: Switch bank journals to Useable Balance child account ────────
+    Journal = env['account.journal'].sudo()
+    bank_journals = Journal.search([
+        ('type', '=', 'bank'),
+        ('company_id', '=', company.id),
+    ])
+    journals_updated = 0
+    for journal in bank_journals:
+        current_acc = journal.default_account_id
+        if not current_acc or not current_acc.x_is_main:
+            continue
+        useable_code = current_acc.code + '1'
+        child_acc = code_to_acc.get(useable_code)
+        if not child_acc:
+            _logger.warning(
+                'setup_main_accounts: journal "%s" — Useable Balance child (%s) '
+                'not found, skipping', journal.name, useable_code,
+            )
+            continue
+        journal.default_account_id = child_acc.id
+        journals_updated += 1
+        _logger.info(
+            'setup_main_accounts: journal "%s" → account %s → %s',
+            journal.name, current_acc.code, child_acc.code,
+        )
+    if journals_updated:
+        _logger.info(
+            'setup_main_accounts: updated %d bank journal(s) to Useable Balance account',
+            journals_updated,
+        )
+
+
+def setup_account_groups(env):
+    """Build account.group records that mirror the x_parent_account_id hierarchy.
+
+    Every account that acts as a parent (has at least one child pointing to it
+    via x_parent_account_id) gets one account.group record:
+
+        prefix = account.code.rstrip('0')
+
+    Examples from the Matracon 9-digit CoA:
+        230000000 Current Assets  → prefix '23'      → captures all 23xxxxxxx
+        231100000 Banks           → prefix '2311'    → captures all 2311xxxxx
+        231100100 AlBaraka-4012   → prefix '2311001' → captures all 2311001xx
+
+    The parent_id chain on account.group mirrors x_parent_account_id exactly so
+    the Trial Balance report tree reflects the live CoA structure.
+
+    Root prefixes (single character '1','2','4','6','7','8') are SKIPPED to
+    prevent short-code legacy accounts from being mis-assigned.
+
+    Idempotent: creates missing groups, updates names/parents on existing ones.
+    Safe on fresh dev DBs with no x_parent_account_id data (no-op).
+    """
+    import logging
+    _logger = logging.getLogger(__name__)
+
+    Group = env['account.group'].sudo()
+    Account = env['account.account'].sudo()
+    company = env.company
+
+    # ── 1. Find all parent accounts ─────────────────────────────────────────
+    env.cr.execute("""
+        SELECT DISTINCT x_parent_account_id
+        FROM account_account
+        WHERE x_parent_account_id IS NOT NULL
+    """)
+    parent_ids = [r[0] for r in env.cr.fetchall()]
+
+    if not parent_ids:
+        _logger.info(
+            'setup_account_groups: no x_parent_account_id relationships found — '
+            'skipping (no 9-digit CoA imported yet)'
+        )
+        return
+
+    parent_accounts = Account.browse(parent_ids)
+
+    # ── 2. Compute prefix (strip trailing zeros) ─────────────────────────────
+    def get_prefix(code):
+        if not code:
+            return ''
+        stripped = code.rstrip('0')
+        return stripped if stripped else code[:1]
+
+    valid_parents = [
+        a for a in parent_accounts
+        if a.code and len(get_prefix(a.code)) >= 2
+    ]
+
+    if not valid_parents:
+        _logger.info('setup_account_groups: no qualifying parent accounts found')
+        return
+
+    # Shortest prefix first — ensures parent groups exist before children
+    valid_parents.sort(key=lambda a: len(get_prefix(a.code)))
+
+    # ── 3. Get-or-create helper ──────────────────────────────────────────────
+    def get_or_create_group(name, prefix):
+        # 1. Exact prefix match
+        grp = Group.search([
+            ('code_prefix_start', '=', prefix),
+            ('code_prefix_end', '=', prefix),
+            ('company_id', '=', company.id),
+        ], limit=1)
+        # 2. Name match
+        if not grp:
+            grp = Group.search([
+                ('name', '=', name),
+                ('company_id', '=', company.id),
+            ], limit=1)
+        # 3. Overlap check (bypass ORM constraint via SQL)
+        if not grp:
+            env.cr.execute("""
+                SELECT id FROM account_group
+                WHERE company_id = %s
+                  AND char_length(code_prefix_start) = %s
+                  AND code_prefix_start <= %s
+                  AND code_prefix_end   >= %s
+                LIMIT 1
+            """, (company.id, len(prefix), prefix, prefix))
+            row = env.cr.fetchone()
+            if row:
+                grp = Group.browse(row[0])
+                _logger.warning(
+                    'setup_account_groups: "%s" (%s) overlaps existing group id=%d '
+                    '"%s" (%s–%s); reusing it.',
+                    name, prefix, grp.id, grp.name,
+                    grp.code_prefix_start, grp.code_prefix_end,
+                )
+        if grp:
+            if grp.name != name:
+                grp.write({'name': name})
+                _logger.info('setup_account_groups: renamed → "%s" (%s)', name, prefix)
+            return grp
+        # 4. Create fresh
+        grp = Group.create({
+            'name': name,
+            'code_prefix_start': prefix,
+            'code_prefix_end': prefix,
+            'company_id': company.id,
+        })
+        _logger.info('setup_account_groups: created "%s" (prefix=%s)', name, prefix)
+        return grp
+
+    # ── 4. First pass: create / update groups ───────────────────────────────
+    account_to_group = {}
+    for acct in valid_parents:
+        prefix = get_prefix(acct.code)
+        grp = get_or_create_group(acct.name, prefix)
+        account_to_group[acct.id] = grp
+
+    # ── 5. Second pass: wire parent_id to mirror x_parent_account_id ────────
+    for acct in valid_parents:
+        if acct.id not in account_to_group:
+            continue
+        grp = account_to_group[acct.id]
+        desired_parent = False
+        p = acct.x_parent_account_id
+        while p:
+            if p.id in account_to_group:
+                desired_parent = account_to_group[p.id]
+                break
+            p = p.x_parent_account_id
+        current_parent_id = grp.parent_id.id or False
+        desired_parent_id = desired_parent.id if desired_parent else False
+        if current_parent_id != desired_parent_id:
+            grp.write({'parent_id': desired_parent_id})
+
+    _logger.info(
+        'setup_account_groups: synced %d account groups for company "%s"',
+        len(valid_parents), company.name,
+    )
+
+
 def fix_account_move_rules(env):
     """
     Restrict Odoo's built-in 'see all' record rules on account.move /
@@ -732,6 +1271,7 @@ def generate_cheque_leaves_for_existing_series(env):
 
 def post_migrate_hook(env):
     set_pkr_decimal_places(env)
+    set_analytic_percentage_precision(env)
     set_date_format(env)
     set_pakistan_fiscal_year(env)
     deduplicate_partner_tags(env)
@@ -745,6 +1285,12 @@ def post_migrate_hook(env):
     # Restrict Odoo's built-in 'see all' account.move rules to group_account_manager
     # so site accountants are properly scoped to their own project.
     fix_account_move_rules(env)
+    try:
+        migrate_petty_cash_expense_lines(env)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(
+            'post_migrate_hook: migrate_petty_cash_expense_lines failed: %s', e)
     try:
         fix_petty_cash_expense_accounts(env)
     except Exception as e:
@@ -801,6 +1347,20 @@ def post_migrate_hook(env):
         import logging
         logging.getLogger(__name__).warning(
             'post_migrate_hook: backfill_payment_cheque_numbers failed: %s', e)
+    # Mark Main accounts, create bank children, and wire parent-child hierarchy.
+    try:
+        setup_main_accounts_and_bank_children(env)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(
+            'post_migrate_hook: setup_main_accounts_and_bank_children failed: %s', e)
+    # Build account.group records from the x_parent_account_id tree.
+    try:
+        setup_account_groups(env)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(
+            'post_migrate_hook: setup_account_groups failed: %s', e)
 
 
 def backfill_payment_cheque_numbers(env):
@@ -841,3 +1401,89 @@ def backfill_payment_cheque_numbers(env):
     """)
     line_rows = env.cr.rowcount
     _log.info('backfill_payment_cheque_numbers: updated %d account_move_line rows', line_rows)
+
+
+def ensure_deduction_accounts(env):
+    """Ensure WHT Payable (252100) and Retention Payable (211200) accounts
+    exist and are linked to their XML IDs. Safe on any DB state."""
+    import logging
+    _logger = logging.getLogger(__name__)
+    Account = env['account.account'].sudo()
+    IMD = env['ir.model.data'].sudo()
+
+    accounts_to_ensure = [
+        ('account_wht_payable', '252100', 'WHT Payable', 'liability_current'),
+        ('account_retention_payable', '211200', 'Retention Payable', 'liability_payable'),
+    ]
+
+    for xml_id, code, name, account_type in accounts_to_ensure:
+        existing_ref = env.ref(f'site_operations.{xml_id}', raise_if_not_found=False)
+        if existing_ref:
+            continue
+        account = Account.search([('code', '=', code)], limit=1)
+        if not account:
+            account = Account.create({
+                'code': code,
+                'name': name,
+                'account_type': account_type,
+            })
+            _logger.info('ensure_deduction_accounts: created %s (%s)', name, code)
+        IMD.search([
+            ('module', '=', 'site_operations'),
+            ('name', '=', xml_id),
+        ]).unlink()
+        IMD.create({
+            'name': xml_id,
+            'module': 'site_operations',
+            'model': 'account.account',
+            'res_id': account.id,
+            'noupdate': True,
+        })
+        _logger.info('ensure_deduction_accounts: linked %s -> account #%s', xml_id, account.id)
+
+
+def cleanup_stale_views(env):
+    """Deactivate known orphaned/stale views left in the database from earlier
+    Studio customizations or removed features. Safe to run multiple times."""
+    import logging
+    _logger = logging.getLogger(__name__)
+    View = env['ir.ui.view'].sudo()
+
+    stale_view_names = [
+        'account.move.vendor.bill.backcharge.section',
+    ]
+
+    # Note: arch_db reset for x_parent_account_id views is no longer needed —
+    # those fields are restored and the views are up to date.
+
+    for name in stale_view_names:
+        views = View.search([('name', '=', name), ('active', '=', True)])
+        if views:
+            views.write({'active': False})
+            _logger.info('cleanup_stale_views: deactivated %s (ids: %s)', name, views.ids)
+
+
+
+def pre_init_hook(env):
+    """Runs BEFORE any module data/views are loaded — cleans up known stale
+    Studio-created database records that would otherwise crash view
+    validation during module install/update on any fresh database snapshot
+    (since post_init_hook runs too late for view-loading-time crashes).
+    Uses raw SQL only — registry may not be fully ready at this stage."""
+    cr = env.cr
+    # Deactivate stale Studio view referencing a removed action
+    cr.execute("""
+        UPDATE ir_ui_view SET active = false
+        WHERE name = 'account.move.vendor.bill.backcharge.section'
+          AND active = true
+    """)
+    cr.execute("""
+        DELETE FROM ir_model_data
+        WHERE model = 'ir.ui.view'
+          AND res_id IN (
+              SELECT id FROM ir_ui_view
+              WHERE name = 'account.move.vendor.bill.backcharge.section'
+          )
+    """)
+    # Note: arch_db reset for x_parent_account_id views removed — fields are restored.
+

@@ -17,32 +17,19 @@
 
                     <div class="alert alert-info" role="alert" style="margin-bottom:16px;">
                         <i class="fa fa-info-circle me-2"/>
-                        These signatures appear on the <strong>Purchase Order PDF</strong> sent to vendors after CEO approval.<br/>
+                        The Purchase Order PDF prefers the actual approving CEO's own signature
+                        (set under their <strong>User Preferences → Signature</strong>). This
+                        section is only a <strong>fallback</strong>, used when that CEO hasn't
+                        configured a personal signature yet.<br/>
                         <strong>Image uploaded?</strong> &#8594; image is used. &#160;
                         <strong>No image?</strong> &#8594; name is rendered in signature font automatically.
                     </div>
 
                     <div class="row">
-                        <!-- PO Officer -->
+                        <!-- CEO (fallback only) -->
                         <div class="col-6">
                             <h5 class="fw-bold border-bottom pb-2 mb-3">
-                                <i class="fa fa-pen me-1"/> PO Officer
-                            </h5>
-                            <group>
-                                <field name="x_po_officer_name" string="Full Name"/>
-                                <field name="x_po_officer_title" string="Designation"/>
-                                <field name="x_po_officer_signature"
-                                       string="Signature Image"
-                                       widget="image"
-                                       options="{'size': [260, 120]}"
-                                       help="Optional. PNG with transparent background recommended (height ~120px)."/>
-                            </group>
-                        </div>
-
-                        <!-- CEO -->
-                        <div class="col-6">
-                            <h5 class="fw-bold border-bottom pb-2 mb-3">
-                                <i class="fa fa-pen me-1"/> CEO
+                                <i class="fa fa-pen me-1"/> CEO (fallback)
                             </h5>
                             <group>
                                 <field name="x_ceo_name" string="Full Name"/>
