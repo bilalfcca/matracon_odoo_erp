@@ -15,7 +15,8 @@
                   decoration-warning="state in ('waiting', 'confirmed', 'assigned')">
                 <!-- ── Always visible ────────────────────────────────── -->
                 <field name="name" string="Reference"/>
-                <field name="x_contact_id" string="Contact"/>
+                <field name="x_contact_id" string="Contact" optional="show"/>
+                <field name="x_fleet_vehicle_id" string="Vehicle" optional="show"/>
                 <field name="x_issuance_project_id" string="Project" optional="show"/>
                 <field name="state" string="Status"
                        widget="badge"

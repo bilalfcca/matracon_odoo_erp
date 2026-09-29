@@ -53,6 +53,12 @@
                             class="btn-success"
                             invisible="state != 'submitted'"
                             groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"/>
+                    <button name="action_regenerate_journal_entry" type="object"
+                            string="Regenerate Journal Entry"
+                            class="btn-warning"
+                            invisible="state != 'submitted'"
+                            groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin,base.group_system"
+                            confirm="This will reverse the existing journal entry and post a new multi-line entry booking each deduction component to its configured GL account. Continue?"/>
                     <button name="action_print_ipc" type="object"
                             string="Print IPC"
                             class="btn-secondary"
@@ -295,15 +301,48 @@
                                    readonly="state != 'draft'"
                                    required="state == 'draft'"
                                    options="{'no_create': True}"
-                                   help="Account debited for the certified work done cost (e.g. Subcontract Work Expense)."/>
+                                   help="Account debited for the full gross + additions amount. Auto-fills from IPC Account Settings."/>
                             <field name="x_payable_account_id"
                                    string="Subcontractor Payable Account (Cr)"
                                    readonly="state != 'draft'"
                                    required="state == 'draft'"
                                    options="{'no_create': True}"
-                                   help="Account credited — this is what appears in the Partner Ledger and Liability Sheet."/>
+                                   help="Account credited for the residual (net payable + unconfigured deductions). Appears in Partner Ledger and Liability Sheet."/>
+                            <field name="x_journal_id"
+                                   string="Journal"
+                                   readonly="state != 'draft'"
+                                   options="{'no_create': True}"
+                                   help="Journal for the IPC accounting entry. Auto-fills from IPC Account Settings; falls back to first General journal."/>
                         </group>
-                        <group string="Posted Entry">
+                        <group string="Deduction GL Accounts (from IPC Settings)">
+                            <div class="text-muted mb-2" colspan="2">
+                                <i>These accounts are configured in
+                                   Accounting → Configuration → IPC Account Settings.
+                                   Each deduction with a configured account gets its own
+                                   credit line in the journal entry.</i>
+                            </div>
+                            <field name="x_cfg_retention_acct"
+                                   string="Retention Payable (Cr)"
+                                   readonly="1"
+                                   options="{'no_create': True}"/>
+                            <field name="x_cfg_mob_advance_acct"
+                                   string="Mob Advance Recovery (Cr)"
+                                   readonly="1"
+                                   options="{'no_create': True}"/>
+                            <field name="x_cfg_security_acct"
+                                   string="Security Withheld (Cr)"
+                                   readonly="1"
+                                   options="{'no_create': True}"/>
+                            <field name="x_cfg_backcharge_acct"
+                                   string="Back Charge Recovery (Cr)"
+                                   readonly="1"
+                                   options="{'no_create': True}"/>
+                            <field name="x_cfg_other_ded_acct"
+                                   string="Other Deductions (Cr)"
+                                   readonly="1"
+                                   options="{'no_create': True}"/>
+                        </group>
+                        <group string="Posted Entry" colspan="2">
                             <field name="x_account_move_id"
                                    string="Journal Entry"
                                    readonly="1"
@@ -312,8 +351,9 @@
                                 <i>Entry will be posted on submission.</i>
                             </div>
                             <div class="text-muted" invisible="state != 'draft'">
-                                <i>A journal entry will be created automatically on submission
-                                   and will appear in the Partner Ledger and Liability Sheet.</i>
+                                <i>A multi-line journal entry will be posted on submission,
+                                   booking each deduction component to its configured GL account.
+                                   The entry appears in the Partner Ledger and Liability Sheet.</i>
                             </div>
                         </group>
                     </group>

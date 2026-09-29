@@ -7,6 +7,10 @@ from odoo import models, fields, api, _
 from odoo.exceptions import UserError
 
 from . import matracon_notifications as matracon_notify
+from .interproject_accounting import (
+    _get_or_create_interproject_journal as _ipr_journal,
+    _get_or_create_interproject_account as _ipr_account,
+)
 
 
 class StockPickingSiteOps(models.Model):
@@ -22,6 +26,7 @@ class StockPickingSiteOps(models.Model):
         ('normal', 'Normal'),
         ('subcontractor', 'Subcontractor'),
         ('3rd_party', '3rd Party'),
+        ('vehicle', 'Vehicle'),
     ], string='Issue Type', default='normal', tracking=True)
 
     x_inventory_type = fields.Selection([
@@ -33,6 +38,11 @@ class StockPickingSiteOps(models.Model):
     x_contact_id = fields.Many2one(
         'res.partner', string='Issuance Contact', tracking=True,
         help='Employee or subcontractor receiving the material')
+
+    # ── Vehicle (fuel / diesel issuance to vehicle instead of a person) ───────
+    x_fleet_vehicle_id = fields.Many2one(
+        'fleet.vehicle', string='Vehicle', tracking=True,
+        help='Vehicle receiving fuel/consumable. Used when Issue Type = Vehicle.')
 
     # ── Project (auto-filled from user site config) ───────────────────────────
     x_issuance_project_id = fields.Many2one(
@@ -372,6 +382,12 @@ class StockPickingSiteOps(models.Model):
             self.x_backcharge_applicable = True
         else:
             self.x_backcharge_applicable = False
+
+    @api.onchange('x_fleet_vehicle_id')
+    def _onchange_vehicle_fill_project(self):
+        """Auto-fill project analytic from the selected vehicle's site config."""
+        if self.x_fleet_vehicle_id and self.x_fleet_vehicle_id.x_analytic_account_id:
+            self.x_issuance_project_id = self.x_fleet_vehicle_id.x_analytic_account_id
 
     @api.onchange('x_contact_id', 'x_issuance_project_id', 'move_ids', 'move_ids.product_id')
     def _onchange_contact_outstanding_preview(self):
@@ -764,9 +780,14 @@ class StockPickingSiteOps(models.Model):
             pick.x_backcharge_amount = sum(
                 pick.move_ids.mapped('x_line_backcharge_amount'))
 
-    @api.depends('x_contact_id', 'x_issuance_project_id', 'move_ids.product_id')
+    @api.depends('x_contact_id', 'x_issuance_project_id', 'move_ids.product_id',
+                 'x_issue_type')
     def _compute_outstanding_materials(self):
         for pick in self:
+            # Vehicle issuances are consumables (fuel) — no outstanding tracking needed
+            if pick.x_issue_type == 'vehicle':
+                pick.x_outstanding_materials_html = ''
+                continue
             if not pick.x_contact_id or not pick.x_issuance_project_id:
                 pick.x_outstanding_materials_html = ''
                 continue
@@ -985,8 +1006,14 @@ class StockPickingSiteOps(models.Model):
     def button_validate(self):
         for pick in self:
             if pick.x_transfer_purpose == 'material_issuance':
-                # ── Contact is mandatory for both issuances and returns ────────
-                if not pick.x_contact_id:
+                # ── Contact or Vehicle is mandatory ────────────────────────────
+                if pick.x_issue_type == 'vehicle':
+                    if not pick.x_fleet_vehicle_id:
+                        raise UserError(_(
+                            'Vehicle is required for Vehicle issuances.\n\n'
+                            'Please select the vehicle receiving the fuel/material.'
+                        ))
+                elif not pick.x_contact_id:
                     raise UserError(_(
                         'Issuance Contact is required.\n\n'
                         'Please select the employee or subcontractor '
@@ -1990,41 +2017,12 @@ class StockPickingSiteOps(models.Model):
         return account
 
     def _get_or_create_interproject_journal(self):
-        Journal = self.env['account.journal'].sudo()
-        journal = Journal.search(
-            [('name', '=', 'Inter-Project Transfers'),
-             ('type', '=', 'general')], limit=1)
-        if not journal:
-            journal = Journal.create({
-                'name': 'Inter-Project Transfers',
-                'type': 'general',
-                'code': 'IPTR',
-            })
-        return journal
+        """Delegate to the shared helper in interproject_accounting.py."""
+        return _ipr_journal(self.env)
 
     def _get_or_create_interproject_account(self, account_type):
-        Account = self.env['account.account'].sudo()
-        if account_type == 'receivable':
-            account = Account.search(
-                [('name', 'ilike', 'Inter-Project Receivable')], limit=1)
-            if not account:
-                account = Account.create({
-                    'name': 'Inter-Project Receivables',
-                    'code': '13100',
-                    'account_type': 'asset_receivable',
-                    'reconcile': True,
-                })
-        else:
-            account = Account.search(
-                [('name', 'ilike', 'Inter-Project Payable')], limit=1)
-            if not account:
-                account = Account.create({
-                    'name': 'Inter-Project Payables',
-                    'code': '21100',
-                    'account_type': 'liability_payable',
-                    'reconcile': True,
-                })
-        return account
+        """Delegate to the shared helper in interproject_accounting.py."""
+        return _ipr_account(self.env, account_type)
 
     # ─────────────────────────────────────────────────────────────────────────
     # ACTIONS

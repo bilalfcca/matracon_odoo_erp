@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        Board Resolution — QWeb PDF Template
+        =====================================
+        Reuses purchase_demand_raise's matracon_po_layout (the polished
+        letterhead: logo + company name + navy divider + header ref-bar +
+        Head Office/Regional Office footer) for visual consistency with the
+        PO/RFQ documents, rather than duplicating that markup a third time.
+        This is why board_resolutions depends on purchase_demand_raise.
+    -->
+    <template id="report_board_resolution_document">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="o">
+
+                <!-- Supply ref + date to the layout header BEFORE t-call -->
+                <t t-set="po_ref_number" t-value="o.name"/>
+                <!-- meeting_date is a plain Date (no time-of-day/timezone to
+                     convert), unlike the PO template's Datetime fields —
+                     format directly, no context_timestamp() wrapper. -->
+                <t t-set="po_ref_date"
+                   t-value="o.meeting_date.strftime('%B %d, %Y') if o.meeting_date else ''"/>
+
+                <t t-call="purchase_demand_raise.matracon_po_layout">
+
+                    <style type="text/css">
+                        .br-attendee-table {
+                            width: 100%;
+                            border-collapse: collapse !important;
+                            font-size: 12px;
+                            margin: 10px 0 18px 0;
+                        }
+                        .br-attendee-table thead tr { background: #1a3a5c; color: #ffffff; }
+                        .br-attendee-table th {
+                            text-align: left;
+                            padding: 6px 8px;
+                            border: 1px solid #1a3a5c !important;
+                            font-size: 12px;
+                            font-weight: bold;
+                            color: #ffffff;
+                        }
+                        .br-attendee-table td {
+                            border: 1px solid #cccccc !important;
+                            padding: 5px 8px;
+                            font-size: 12px;
+                        }
+                        .br-clause { margin: 0 0 10px 0; font-size: 13px; line-height: 1.6; }
+                        .br-clause .br-clause-num { font-weight: bold; margin-right: 4px; }
+                        .br-sig-block { margin-top: 26px; }
+                        .br-sig-cell {
+                            display: inline-block;
+                            width: 31%;
+                            vertical-align: top;
+                            text-align: center;
+                            margin: 0 1% 20px 1%;
+                            page-break-inside: avoid;
+                        }
+                        .br-sig-imgbox {
+                            height: 55px;
+                            display: table;
+                            width: 100%;
+                        }
+                        .br-sig-imgbox-cell {
+                            display: table-cell;
+                            vertical-align: bottom;
+                            text-align: center;
+                            position: relative;
+                        }
+                        .br-sig-stamp {
+                            max-height: 55px;
+                            max-width: 55px;
+                            opacity: 0.85;
+                            position: absolute;
+                            left: 50%;
+                            bottom: 0;
+                            transform: translateX(-50%);
+                            z-index: 1;
+                        }
+                        .br-sig-signature {
+                            max-height: 48px;
+                            max-width: 130px;
+                            object-fit: contain;
+                            position: relative;
+                            z-index: 2;
+                        }
+                        .br-sig-line { border-top: 1.5px solid #000; padding-top: 6px; margin-top: 2px; }
+                        .br-sig-name { font-size: 12px; font-weight: 700; color: #222; }
+                        .br-sig-designation { font-size: 11px; color: #555; }
+                    </style>
+
+                    <!-- Title -->
+                    <p style="text-align:center; font-size:17px; font-weight:bold; margin:6px 0 14px 0;
+                              text-transform:uppercase; letter-spacing:0.5px; color:#1a3a5c;">
+                        Board Resolution
+                    </p>
+                    <p style="text-align:center; font-size:14px; font-weight:bold; margin:0 0 18px 0; color:#222;">
+                        <t t-esc="o.subject"/>
+                    </p>
+
+                    <!-- Meeting details -->
+                    <div style="margin-bottom:14px; font-size:13px; line-height:1.7;">
+                        <div>
+                            <span style="font-weight:bold; display:inline-block; min-width:120px;">Meeting Date:</span>
+                            <span><t t-esc="o.meeting_date" t-options="{'widget': 'date'}"/></span>
+                        </div>
+                        <div>
+                            <span style="font-weight:bold; display:inline-block; min-width:120px; vertical-align:top;">Meeting Venue:</span>
+                            <span style="display:inline-block; max-width:75%;"><t t-esc="o.meeting_venue"/></span>
+                        </div>
+                    </div>
+
+                    <p style="font-size:13px; line-height:1.7; margin:0 0 6px 0;">
+                        The following were present at the meeting of the Board of Directors:
+                    </p>
+
+                    <!-- Attendees -->
+                    <table class="br-attendee-table">
+                        <thead>
+                            <tr>
+                                <th style="width:8%; text-align:center;">#</th>
+                                <th style="width:52%;">Name</th>
+                                <th style="width:40%;">Designation</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <t t-foreach="o.attendee_ids" t-as="attendee">
+                                <tr>
+                                    <td style="text-align:center;"><t t-esc="attendee_index + 1"/></td>
+                                    <td><t t-esc="attendee.name"/></td>
+                                    <td><t t-esc="attendee.designation"/></td>
+                                </tr>
+                            </t>
+                        </tbody>
+                    </table>
+
+                    <!-- Authorized person (only if set) -->
+                    <t t-if="o.authorized_person_id">
+                        <p style="font-size:13px; line-height:1.7; margin:0 0 10px 0;">
+                            <span style="font-weight:bold;">Authorized Person:</span>
+                            <t t-esc="o.authorized_person_id.name"/>
+                            <t t-if="o.authorized_person_cnic">
+                                (CNIC: <t t-esc="o.authorized_person_cnic"/>)
+                            </t>
+                        </p>
+                    </t>
+
+                    <!-- Resolution clauses -->
+                    <t t-foreach="o.clause_ids" t-as="clause">
+                        <p class="br-clause">
+                            <span class="br-clause-num"><t t-esc="clause_index + 1"/>.</span>
+                            <span t-out="clause.text"/>
+                        </p>
+                    </t>
+
+                    <!-- Ratification clause -->
+                    <t t-if="o.ratification_text">
+                        <div style="font-size:13px; line-height:1.6; margin:10px 0 0 0;">
+                            <t t-out="o.ratification_text"/>
+                        </div>
+                    </t>
+
+                    <!-- Signature block: one cell per attendee — company stamp
+                         (if configured) behind the signature image (if the
+                         linked user has one configured), printed name, and
+                         designation. Blank line for manual signing when no
+                         signature is configured — same rule used throughout
+                         this system. -->
+                    <div class="br-sig-block">
+                        <t t-set="_br_stamp" t-value="o.company_id.x_board_resolution_stamp"/>
+                        <t t-foreach="o.attendee_ids" t-as="attendee">
+                            <div class="br-sig-cell">
+                                <div class="br-sig-imgbox">
+                                    <div class="br-sig-imgbox-cell">
+                                        <t t-if="_br_stamp">
+                                            <img t-att-src="image_data_uri(_br_stamp)" class="br-sig-stamp"/>
+                                        </t>
+                                        <t t-if="attendee.signature_image">
+                                            <img t-att-src="image_data_uri(attendee.signature_image)" class="br-sig-signature"/>
+                                        </t>
+                                    </div>
+                                </div>
+                                <div class="br-sig-line">
+                                    <div class="br-sig-name"><t t-esc="attendee.name"/></div>
+                                    <div class="br-sig-designation"><t t-esc="attendee.designation"/></div>
+                                </div>
+                            </div>
+                        </t>
+                    </div>
+
+                </t>
+            </t>
+        </t>
+    </template>
+</odoo>
