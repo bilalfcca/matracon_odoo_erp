@@ -10,6 +10,11 @@
     -->
     <function model="account.account" name="_link_site_ops_accounts"/>
 
+    <!-- noupdate: create these accounts on a fresh install only. Finance
+         renumbers/renames them in the Chart of Accounts (e.g. WHT Payable →
+         430510000); without noupdate every module upgrade reset the code
+         back to 252100. -->
+    <data noupdate="1">
     <record id="account_wht_payable" model="account.account">
         <field name="code">252100</field>
         <field name="name">WHT Payable</field>
@@ -21,6 +26,7 @@
         <field name="name">Retention Payable</field>
         <field name="account_type">liability_payable</field>
     </record>
+    </data>
 
     <!-- ── Liability Sheet Sequence ─────────────────────────────────────── -->
     <record id="seq_liability_sheet" model="ir.sequence">

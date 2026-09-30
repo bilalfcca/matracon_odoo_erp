@@ -419,7 +419,7 @@ class AccountAccountSiteOps(models.Model):
                 'module': 'site_operations',
                 'model': 'account.account',
                 'res_id': account_id,
-                'noupdate': False,
+                'noupdate': True,
             })
 
     @api.model_create_multi
