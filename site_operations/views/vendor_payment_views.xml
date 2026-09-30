@@ -115,7 +115,7 @@
                         string="Approve (CEO)"
                         class="btn-success"
                         groups="purchase_demand_raise.group_ceo_approval"
-                        invisible="x_ceo_approval_state not in ('pending', 'submitted')"/>
+                        invisible="x_ceo_approval_state not in ('pending', 'submitted') or payment_type == 'inbound'"/>
 
                 <!-- CEO: reverse a previously-given approval (e.g. approved in error or
                      payment details changed). Only on draft payments — posted payments
@@ -126,7 +126,7 @@
                         class="btn-warning"
                         confirm="Reverse your CEO approval? Finance HO will need to re-submit this payment."
                         groups="purchase_demand_raise.group_ceo_approval"
-                        invisible="x_ceo_approval_state != 'approved' or state != 'draft'"/>
+                        invisible="x_ceo_approval_state != 'approved' or state != 'draft' or payment_type == 'inbound'"/>
 
                 <!-- Finance HO: FIRST submission — only visible when still in 'pending'
                      (not yet sent to CEO).  After click, state → 'submitted' and this
