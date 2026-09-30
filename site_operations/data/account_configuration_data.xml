@@ -1,32 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!--
-        _link_site_ops_accounts() runs BEFORE the <record> entries below.
-        It maps each XML ID to the existing account (by code) so Odoo performs
-        a safe UPDATE instead of a colliding CREATE.  This is idempotent and
-        fires on every upgrade regardless of which module version the DB is at
-        (covers the case where pre-migrate.py was skipped because the DB was
-        already at the target version, e.g. a staging clone from a dev snapshot).
-    -->
-    <function model="account.account" name="_link_site_ops_accounts"/>
-
-    <!-- noupdate: create these accounts on a fresh install only. Finance
-         renumbers/renames them in the Chart of Accounts (e.g. WHT Payable →
-         430510000); without noupdate every module upgrade reset the code
-         back to 252100. -->
-    <data noupdate="1">
-    <record id="account_wht_payable" model="account.account">
-        <field name="code">252100</field>
-        <field name="name">WHT Payable</field>
-        <field name="account_type">liability_current</field>
-    </record>
-
-    <record id="account_retention_payable" model="account.account">
-        <field name="code">211200</field>
-        <field name="name">Retention Payable</field>
-        <field name="account_type">liability_payable</field>
-    </record>
-    </data>
+    <!-- WHT / Retention Payable are chosen on the Company form (Matracon
+         Accounts tab) — not created or renumbered by this module. This hands
+         the old site_operations.account_* records over to those fields and
+         drops their xmlids so upgrades never touch the accounts again. -->
+    <function model="res.company" name="_matracon_adopt_deduction_accounts"/>
 
     <!-- ── Liability Sheet Sequence ─────────────────────────────────────── -->
     <record id="seq_liability_sheet" model="ir.sequence">

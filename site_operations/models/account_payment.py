@@ -1033,22 +1033,21 @@ class AccountPaymentSiteOps(models.Model):
             if moves:
                 payment.x_interproject_move_ids = [(6, 0, moves.ids)]
 
-    def _get_deduction_account(self, xmlid):
-        """Safely resolve an account by xmlid, fall back to code search."""
-        account = self.env.ref(f'site_operations.{xmlid}', raise_if_not_found=False)
-        if account:
-            return account
-        # Fallback: search by code (handles installs where data wasn't reloaded)
-        code_map = {
-            'account_wht_payable': '252100',
-            'account_retention_payable': '211200',
-        }
-        code = code_map.get(xmlid)
-        if code:
-            return self.env['account.account'].search(
-                [('code', '=', code), ('company_id', '=', self.company_id.id)], limit=1
-            )
-        return self.env['account.account']
+    def _get_deduction_account(self, field_name):
+        """Default deduction account chosen on the Company form
+        (x_wht_payable_account_id / x_retention_payable_account_id)."""
+        return self.company_id[field_name] or self.env.company[field_name]
+
+    def _raise_missing_deduction_account(self, label):
+        raise UserError(_(
+            'No %(label)s account is set, so the deduction on payment %(pay)s '
+            'cannot be posted.\n\n'
+            'Set it on Settings → Companies → %(company)s → Matracon Accounts.'
+        ) % {
+            'label': label,
+            'pay': self.name or '',
+            'company': (self.company_id or self.env.company).name,
+        })
 
     def _create_tax_deduction_entries(self):
         """For each WHT / Retention deduction line, post a journal entry that:
@@ -1079,17 +1078,9 @@ class AccountPaymentSiteOps(models.Model):
         # WHT: prefer the per-exemption account stored on each tax line so that
         # the Credit here (liability created) and the Debit on the FBR companion
         # payment both land on the SAME account (e.g. 420402 Income Tax 153(1)(A)).
-        # Falls back to the system-level default (xmlid / code 252100).
-        wht_account_default = self._get_deduction_account('account_wht_payable')
-        retention_account = self._get_deduction_account('account_retention_payable')
-
-        has_wht = wht_account_default or any(
-            tl.x_exemption_id and tl.x_exemption_id.x_wht_payable_account_id
-            for tl in deduction_lines
-            if tl.tax_type == 'wht'
-        )
-        if not has_wht and not retention_account:
-            return  # Nothing to post — accounts not set up
+        # Falls back to the company's Default WHT Payable Account.
+        wht_account_default = self._get_deduction_account('x_wht_payable_account_id')
+        retention_account = self._get_deduction_account('x_retention_payable_account_id')
 
         # Vendor AP account — read from the existing payment JE
         ap_account = self.env['account.account']
@@ -1133,7 +1124,7 @@ class AccountPaymentSiteOps(models.Model):
                     or wht_account_default
                 )
                 if not credit_account:
-                    continue
+                    self._raise_missing_deduction_account(_('WHT Payable'))
                 label = _('WHT — %s') % (tl.tax_id.name if tl.tax_id else 'WHT')
                 # Dr AP (vendor) — reduces their payable balance
                 # Cr WHT Payable (FBR as partner) — creates the WHT liability in
@@ -1166,7 +1157,7 @@ class AccountPaymentSiteOps(models.Model):
             elif tl.tax_type == 'retention':
                 credit_account = retention_account
                 if not credit_account:
-                    continue
+                    self._raise_missing_deduction_account(_('Retention Payable'))
                 label = _('Retention — %s') % self.partner_id.name
                 # Dr AP (vendor) — removes from current AP
                 # Cr Retention Payable (vendor) — creates new payable back to them
@@ -1824,7 +1815,7 @@ class AccountPaymentSiteOps(models.Model):
         # correctly debits it when posted (Dr WHT Payable / Cr Bank).
         # Without this, the companion would debit FBR's default AP account
         # instead, leaving the WHT payable account unbalanced.
-        wht_account = self._get_deduction_account('account_wht_payable')
+        wht_account = self._get_deduction_account('x_wht_payable_account_id')
 
         memo = _('WHT — %s | %s') % (origin_label, self.name or '')
 

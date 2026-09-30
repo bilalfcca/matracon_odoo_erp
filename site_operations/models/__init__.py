@@ -17,6 +17,7 @@ from . import bg_facility_amendment_import
 from . import tax_notice
 from . import matracon_notifications
 from . import app_visibility
+from . import res_company
 from . import interproject_accounting  # must load before stock_picking (imported at module level)
 from . import stock_picking
 from . import purchase_order
