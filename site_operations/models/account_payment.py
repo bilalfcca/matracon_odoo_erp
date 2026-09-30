@@ -150,6 +150,22 @@ class AccountPaymentSiteOps(models.Model):
              'this field does not affect whether the payment appears in an IPC.',
     )
 
+    # ── Customer Receipt account overrides (inbound only) ──────────────────
+    x_debit_account_id = fields.Many2one(
+        'account.account',
+        string='Debit Account',
+        tracking=True,
+        help='Optional: override which account this customer receipt JE debits. '
+             'Leave blank to use the selected Bank Journal\'s default account.',
+    )
+    x_credit_account_id = fields.Many2one(
+        'account.account',
+        string='Credit Account',
+        tracking=True,
+        help='Optional: override which account this customer receipt JE credits. '
+             'Leave blank to use the customer\'s default receivable account.',
+    )
+
     x_cheque_leaf_id = fields.Many2one(
         'x.cheque.leaf', string='Cheque No.',
         domain="[('bank_journal_id', '=', journal_id), ('state', '=', 'available')]",
@@ -672,7 +688,10 @@ class AccountPaymentSiteOps(models.Model):
                         vals['x_ceo_approval_state'] = 'pending'
                 elif category == 'vendor':
                     # Inbound receipts (customer payments) never need CEO approval.
-                    if vals.get('payment_type') == 'inbound':
+                    # payment_type is readonly on the form, so the web client does not
+                    # send it; fall back to the action's default_payment_type.
+                    payment_type = vals.get('payment_type') or self.env.context.get('default_payment_type')
+                    if payment_type == 'inbound':
                         vals['x_ceo_approval_state'] = 'not_required'
                     else:
                         # Vendor payments require EXPLICIT CEO approval in all cases
@@ -691,6 +710,11 @@ class AccountPaymentSiteOps(models.Model):
                         elif not has_liability_sheet:
                             vals['x_ceo_approval_state'] = 'pending'
         payments = super().create(vals_list)
+        # Safety net: receipts never need CEO approval, whatever path set the state.
+        payments.filtered(
+            lambda p: p.payment_type == 'inbound'
+            and p.x_ceo_approval_state in ('pending', 'submitted')
+        ).x_ceo_approval_state = 'not_required'
         payments._matracon_fix_salary_ceo_state()
         payments._matracon_notify_ceo_on_payment_create()
         return payments
@@ -1368,8 +1392,14 @@ class AccountPaymentSiteOps(models.Model):
         return 'BPV-%02d-%02d-%06d' % (yy, mm, next_seq)
 
     def action_post(self):
-        """Auto-assign cheque number from series before posting if not already set."""
-        for payment in self:
+        """Auto-assign cheque number from series before posting if not already set.
+
+        Outbound only: x.cheque.series is OUR company's own cheque-leaf register
+        for cheques we issue to vendors. Inbound (customer receipts) never draw
+        from this series — a customer's cheque number must be typed in manually
+        (see the check below).
+        """
+        for payment in self.filtered(lambda p: p.payment_type == 'outbound'):
             if (payment.x_is_cheque_payment
                     and payment.journal_id
                     and not payment.x_cheque_number):
@@ -1392,6 +1422,13 @@ class AccountPaymentSiteOps(models.Model):
                         'No active cheque series found for bank "%s". '
                         'Please set one up in Configuration → Cheque Series.'
                     ) % payment.journal_id.name)
+        # Inbound: cheque number is always manually typed (it's the customer's
+        # cheque, not ours) — just require it, never auto-assign.
+        for payment in self.filtered(lambda p: p.payment_type == 'inbound'):
+            if payment.x_is_cheque_payment and not payment.x_cheque_number:
+                raise UserError(_(
+                    'Cheque No. is required for customer receipts paid by cheque.'
+                ))
         # Assign BPV-YY-MM-XXXXX reference for outbound payments being posted now.
         for payment in self.filtered(
             lambda p: p.payment_type == 'outbound' and not p.x_bpv_ref
@@ -1576,6 +1613,33 @@ class AccountPaymentSiteOps(models.Model):
                 if acct.account_type in ('liability_payable', 'asset_receivable'):
                     vals['account_id'] = self.x_expense_account_id.id
                     break  # Only the first payable/receivable line (the counterpart)
+
+        # ── Customer receipt: substitute manually-chosen credit account ────────
+        # Mirrors the x_expense_account_id override above but for the counterpart
+        # (receivable) line of an inbound payment. When set, the receipt JE
+        # credits this account instead of the customer's default receivable
+        # account. Must run BEFORE the debit override below so the account_type
+        # check still sees the original (untouched) receivable line.
+        if self.x_credit_account_id and self.payment_type == 'inbound':
+            for vals in line_vals_list:
+                acct = self.env['account.account'].browse(vals.get('account_id'))
+                if acct.account_type == 'asset_receivable':
+                    vals['account_id'] = self.x_credit_account_id.id
+                    break  # Only the counterpart line
+
+        # ── Customer receipt: substitute manually-chosen debit account ─────────
+        # When set, the receipt JE debits this account instead of the selected
+        # Bank Journal's default/outstanding account.
+        if self.x_debit_account_id and self.payment_type == 'inbound':
+            bank_account_id = (
+                self.outstanding_account_id.id
+                if self.outstanding_account_id
+                else (self.journal_id.default_account_id.id if self.journal_id else None)
+            )
+            for vals in line_vals_list:
+                if vals.get('account_id') == bank_account_id:
+                    vals['account_id'] = self.x_debit_account_id.id
+                    break  # Only the liquidity/bank line
 
         # ── Multi-bank split: one Cr line per bank allocation ──────────────────
         # Standard Odoo produces a single bank credit line keyed to journal_id

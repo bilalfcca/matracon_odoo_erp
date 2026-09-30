@@ -115,7 +115,7 @@
                         string="Approve (CEO)"
                         class="btn-success"
                         groups="purchase_demand_raise.group_ceo_approval"
-                        invisible="x_ceo_approval_state not in ('pending', 'submitted')"/>
+                        invisible="x_ceo_approval_state not in ('pending', 'submitted') or payment_type == 'inbound'"/>
 
                 <!-- CEO: reverse a previously-given approval (e.g. approved in error or
                      payment details changed). Only on draft payments — posted payments
@@ -126,7 +126,7 @@
                         class="btn-warning"
                         confirm="Reverse your CEO approval? Finance HO will need to re-submit this payment."
                         groups="purchase_demand_raise.group_ceo_approval"
-                        invisible="x_ceo_approval_state != 'approved' or state != 'draft'"/>
+                        invisible="x_ceo_approval_state != 'approved' or state != 'draft' or payment_type == 'inbound'"/>
 
                 <!-- Finance HO: FIRST submission — only visible when still in 'pending'
                      (not yet sent to CEO).  After click, state → 'submitted' and this
@@ -246,9 +246,18 @@
                        invisible="not x_liability_sheet_line_id"/>
 
                 <field name="x_fund_project_id"
-                       string="Fund Project (Client Receipt)"
+                       string="Project"
                        invisible="payment_type != 'inbound'"
-                       required="payment_type == 'inbound'"/>
+                       required="payment_type == 'inbound'"
+                       help="Project receiving this customer payment."/>
+
+                <!-- Credit Account: optional override for the receivable account in the JE -->
+                <field name="x_credit_account_id"
+                       string="Credit Account"
+                       invisible="payment_type != 'inbound'"
+                       options="{'no_create': True}"
+                       domain="[('active', '=', True)]"
+                       help="Optional: override which account is credited in the receipt journal entry. Leave blank to use the customer's default receivable account."/>
 
                 <!-- Vendor Bank Account — removed from UI (kept in model for data integrity) -->
                 <field name="x_vendor_bank_account_id" invisible="1"/>
@@ -288,13 +297,15 @@
 
             </xpath>
 
-            <!-- ── Journal: hidden from form — auto-set from first Bank Fund row ──
+            <!-- ── Journal: hidden for OUTBOUND — auto-set from first Bank Fund row ──
                  journal_id is required by Odoo for posting but FO no longer
-                 touches it directly. It is set via
+                 touches it directly for vendor payments. It is set via
                  _onchange_bank_allocations_set_journal when the first bank
-                 is added to the Bank Fund tab. -->
+                 is added to the Bank Fund tab.
+                 For INBOUND (customer receipts) there is no Bank Fund tab, so
+                 the Bank Journal must stay visible/selectable here. -->
             <xpath expr="//field[@name='journal_id']" position="attributes">
-                <attribute name="invisible">1</attribute>
+                <attribute name="invisible">payment_type == 'outbound'</attribute>
             </xpath>
 
             <!-- Source Banks: hidden from form — entry via Bank Fund tab only -->
@@ -307,6 +318,19 @@
                        widget="many2many_tags"
                        string="Source Banks"
                        invisible="1"/>
+                <!-- Customer receipt: optional debit-account override, and
+                     manual cheque number (typed, not from our cheque-leaf series). -->
+                <field name="x_debit_account_id"
+                       string="Debit Account"
+                       invisible="payment_type != 'inbound'"
+                       options="{'no_create': True}"
+                       domain="[('active', '=', True)]"
+                       help="Optional: override which account this receipt debits. Leave blank to use the selected Bank Journal's default account."/>
+                <field name="x_cheque_number"
+                       string="Cheque No."
+                       invisible="payment_type != 'inbound'"
+                       required="payment_type == 'inbound' and x_is_cheque_payment"
+                       help="Customer's cheque number — typed manually. Required when the payment method is Checks."/>
             </xpath>
 
             <xpath expr="//field[@name='x_available_bank_balance']" position="after">
@@ -567,6 +591,30 @@
         <field name="context">{'default_payment_type': 'outbound', 'default_partner_type': 'supplier'}</field>
     </record>
 
+    <!-- ── Customer Receipts: dedicated search view ──────────────────────────
+         Primary-mode copy of the standard payment search so it stays scoped
+         to Receipts only (does not touch the base search view used elsewhere).
+         Adds Project as a search field and a "Group By: Project" option.
+         Customer search, and Day/Week/Month/Quarter/Year date grouping, are
+         already available from the inherited base search (partner_id field +
+         the standard "Payment Date" filter/group-by, which Odoo auto-expands
+         into date granularities). -->
+    <record id="view_account_payment_search_receipts" model="ir.ui.view">
+        <field name="name">account.payment.search.receipts</field>
+        <field name="model">account.payment</field>
+        <field name="inherit_id" ref="account.view_account_payment_search"/>
+        <field name="mode">primary</field>
+        <field name="arch" type="xml">
+            <field name="journal_id" position="after">
+                <field name="x_fund_project_id" string="Project"/>
+            </field>
+            <filter name="partner" position="after">
+                <filter string="Project" name="groupby_project" domain="[]"
+                        context="{'group_by': 'x_fund_project_id'}"/>
+            </filter>
+        </field>
+    </record>
+
     <!-- ═══════════════════════════════════════════════════════════════════
          Fix 1: Accounting → Customers → Payments
          Standard action uses search_default_inbound_filter (user can clear it).
@@ -574,6 +622,7 @@
          ═══════════════════════════════════════════════════════════════════ -->
     <record id="account.action_account_payments" model="ir.actions.act_window">
         <field name="domain">[('payment_type', '=', 'inbound')]</field>
+        <field name="search_view_id" ref="view_account_payment_search_receipts"/>
     </record>
 
     <!-- ═══════════════════════════════════════════════════════════════════
