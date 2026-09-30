@@ -1520,7 +1520,10 @@ class AccountPaymentSiteOps(models.Model):
 
     def _matracon_tag_payment_move_analytic(self):
         self.ensure_one()
-        analytic = self.x_destination_project_id or self.x_fund_project_id
+        if self.payment_type == 'inbound':
+            analytic = self.x_fund_project_id
+        else:
+            analytic = self.x_destination_project_id or self.x_fund_project_id
         if not analytic or not self.move_id:
             return
         # Stamp x_project_analytic_account_id on the payment journal entry so
@@ -1546,11 +1549,17 @@ class AccountPaymentSiteOps(models.Model):
             if alloc.journal_id and alloc.journal_id.default_account_id:
                 bank_acct_ids.add(alloc.journal_id.default_account_id.id)
         dist = self._analytic_distribution_for_account(analytic)
-        lines = self.move_id.line_ids.filtered(
-            lambda l: l.account_id.id not in bank_acct_ids
-        )
+        # Customer receipts: the receiving bank is the project's own money, so
+        # every line (bank/debit side included) carries the project analytic —
+        # Finance should never have to reset the JE to add it by hand.
+        if self.payment_type == 'inbound':
+            lines = self.move_id.line_ids
+        else:
+            lines = self.move_id.line_ids.filtered(
+                lambda l: l.account_id.id not in bank_acct_ids
+            )
         if lines:
-            lines.write({'analytic_distribution': dist})
+            lines.sudo().write({'analytic_distribution': dist})
 
     def _matracon_propagate_cheque_to_move(self):
         """Copy x_cheque_number / x_account_title from this payment to its JE.
@@ -1729,7 +1738,10 @@ class AccountPaymentSiteOps(models.Model):
                 bank_acct_ids.add(alloc.journal_id.default_account_id.id)
         dist = self._analytic_distribution_for_account(analytic)
         for vals in line_vals_list:
-            if vals.get('account_id') not in bank_acct_ids:
+            # Inbound receipts tag the bank/debit line too (see
+            # _matracon_tag_payment_move_analytic).
+            if (self.payment_type == 'inbound'
+                    or vals.get('account_id') not in bank_acct_ids):
                 vals['analytic_distribution'] = dist
         return line_vals_list
 
