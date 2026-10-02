@@ -22,10 +22,10 @@
             <xpath expr="//div[hasclass('o_row')][.//field[@name='qty_available']]"
                    position="after">
                 <field name="x_add_to_dashboard"
-                       groups="purchase_demand_raise.group_head_office,purchase_demand_raise.group_procurement_ho,site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"/>
+                       groups="purchase_demand_raise.group_head_office,purchase_demand_raise.group_procurement_ho,site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_ceo_approval"/>
                 <field name="x_show_zero_qty"
                        invisible="not x_add_to_dashboard"
-                       groups="purchase_demand_raise.group_head_office,purchase_demand_raise.group_procurement_ho,site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"/>
+                       groups="purchase_demand_raise.group_head_office,purchase_demand_raise.group_procurement_ho,site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_ceo_approval"/>
             </xpath>
         </field>
     </record>
@@ -38,7 +38,7 @@
         <field name="arch" type="xml">
             <xpath expr="//field[@name='name']" position="after">
                 <field name="x_add_to_dashboard"
-                       groups="purchase_demand_raise.group_head_office,purchase_demand_raise.group_procurement_ho,site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"/>
+                       groups="purchase_demand_raise.group_head_office,purchase_demand_raise.group_procurement_ho,site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_ceo_approval"/>
             </xpath>
         </field>
     </record>
