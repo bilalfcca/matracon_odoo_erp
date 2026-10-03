@@ -92,6 +92,29 @@
             ]"/>
         </record>
 
+        <!-- ...except a draft request that a payment still points at (e.g. the
+             site accountant reset the request to Draft after it was released).
+             Read-only: lets HO roles open that payment without an access error;
+             editing the draft request stays with the site accountant. Rules for
+             the same user are OR-ed, so for read this widens the rule above. -->
+        <record id="rule_petty_cash_request_read_linked_ho" model="ir.rule">
+            <field name="name">Petty Cash Request: HO/CEO/Admin can read Draft linked to a payment</field>
+            <field name="model_id" ref="model_x_petty_cash_request"/>
+            <field name="domain_force">['|', ('state', '!=', 'draft'), ('x_payment_ids', '!=', False)]</field>
+            <field name="groups" eval="[
+                (4, ref('purchase_demand_raise.group_ceo_approval')),
+                (4, ref('purchase_demand_raise.group_head_office')),
+                (4, ref('site_operations.group_finance_ho')),
+                (4, ref('purchase_demand_raise.group_procurement_ho')),
+                (4, ref('purchase_demand_raise.group_matracon_admin')),
+                (4, ref('base.group_system')),
+            ]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
         <record id="rule_petty_cash_expense_site_accountant" model="ir.rule">
             <field name="name">Petty Cash Expense: Site Accountant own project</field>
             <field name="model_id" ref="model_x_petty_cash_expense"/>

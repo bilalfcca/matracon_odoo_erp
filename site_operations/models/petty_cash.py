@@ -261,6 +261,11 @@ class PettyCashRequest(models.Model):
         string='CEO Approved Amount', currency_field='currency_id', copy=False)
     payment_id = fields.Many2one(
         'account.payment', string='Release Payment', readonly=True, copy=False)
+    # Every payment that points at this request (account.payment.x_petty_cash_request_id),
+    # including ones left behind after a Reset to Draft cleared payment_id. Used by
+    # rule_petty_cash_request_read_linked_ho so HO roles can still open those payments.
+    x_payment_ids = fields.One2many(
+        'account.payment', 'x_petty_cash_request_id', string='Payments', readonly=True)
     currency_id = fields.Many2one(
         'res.currency', default=lambda self: self.env.company.currency_id)
 
