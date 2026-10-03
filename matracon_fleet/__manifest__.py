@@ -1,6 +1,6 @@
 {
     'name': 'Matracon Fleet Management',
-    'version': '1.0.1',
+    'version': '1.0.2',
     'summary': 'Fleet & Vehicle Management — MPPL coding, site-scoped costs, GL integration, and dashboard',
     'author': 'Matracon Pakistan',
     'category': 'Uncategorized',
