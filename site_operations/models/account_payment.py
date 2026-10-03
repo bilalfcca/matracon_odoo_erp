@@ -2116,7 +2116,7 @@ class AccountPaymentSiteOps(models.Model):
         if self.x_petty_cash_request_id:
             pcr = self.x_petty_cash_request_id
             if pcr.state in ('released', 'confirmed'):
-                pcr.state = 'approved'
+                pcr.state = 'ceo_approved'
                 pcr.payment_id = False
                 pcr.message_post(
                     body=Markup('PCR reset to Approved — payment <b>%s</b> reversed.') % payment_name

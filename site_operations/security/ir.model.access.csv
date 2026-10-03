@@ -99,6 +99,8 @@ access_tax_notice_order_admin,tax.notice.order.admin,model_x_tax_notice_order,pu
 access_tax_notice_payment_line_fo,tax.notice.payment.line.fo,model_x_tax_notice_payment_line,site_operations.group_finance_ho,1,1,1,1
 access_tax_notice_payment_line_ceo,tax.notice.payment.line.ceo,model_x_tax_notice_payment_line,purchase_demand_raise.group_ceo_approval,1,1,1,1
 access_tax_notice_payment_line_admin,tax.notice.payment.line.admin,model_x_tax_notice_payment_line,purchase_demand_raise.group_matracon_admin,1,1,1,1
+access_tax_notice_order_procurement_ho,tax.notice.order.procurement.ho,model_x_tax_notice_order,purchase_demand_raise.group_procurement_ho,1,0,0,0
+access_tax_notice_payment_line_procurement_ho,tax.notice.payment.line.procurement.ho,model_x_tax_notice_payment_line,purchase_demand_raise.group_procurement_ho,1,0,0,0
 access_management_dashboard_ceo,management.dashboard.ceo,model_x_management_dashboard,purchase_demand_raise.group_ceo_approval,1,1,1,1
 access_management_dashboard_fo,management.dashboard.fo,model_x_management_dashboard,site_operations.group_finance_ho,1,1,1,1
 access_management_dashboard_site_acct,management.dashboard.site.acct,model_x_management_dashboard,site_operations.group_site_accountant,1,1,1,1

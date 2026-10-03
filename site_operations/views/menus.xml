@@ -318,7 +318,7 @@
               name="Petty Cash"
               parent="account.menu_finance"
               sequence="12"
-              groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+              groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_ceo_approval,base.group_system"/>
 
     <!-- Single Requests menu for ALL roles. Draft visibility is controlled by a
          record rule (HO/CEO/Admin cannot see draft). Site accountants see their
@@ -335,20 +335,20 @@
               parent="site_operations.menu_petty_cash_root"
               action="site_operations.action_petty_cash_expense"
               sequence="20"
-              groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+              groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_ceo_approval,base.group_system"/>
 
     <menuitem id="menu_petty_cash_funds"
               name="Cash Funds"
               parent="site_operations.menu_petty_cash_root"
               action="site_operations.action_petty_cash_fund"
               sequence="30"
-              groups="site_operations.group_finance_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_ceo_approval,base.group_system"/>
 
     <!-- Petty Cash → Configuration → Fix Petty Cash Accounts moved to
          Settings → Fix Tools (see matracon_admin_tools) -->
 
     <!-- ════════════════════════════════════════════════════════════════════
-         MANAGEMENT DASHBOARD — Standalone App (CEO, Finance HO, Admin)
+         MANAGEMENT DASHBOARD — Standalone App (CEO, Finance HO, Procurement HO, Admin)
          Separate top-level app so management doesn't need to enter
          Accounting.  The old Accounting and Project entries are hidden.
     ════════════════════════════════════════════════════════════════════ -->
@@ -359,13 +359,13 @@
               sequence="60"
               groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_head_office,purchase_demand_raise.group_procurement_ho,base.group_system"/>
 
-    <!-- Management Overview (Finance/CEO/Admin — full financial view) -->
+    <!-- Management Overview (Finance/CEO/Procurement HO/Admin — full financial view) -->
     <menuitem id="menu_matracon_mgmt_overview"
               name="Management Overview"
               parent="site_operations.menu_matracon_mgmt_root"
               action="site_operations.action_management_dashboard"
               sequence="10"
-              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_procurement_ho,base.group_system"/>
 
     <!-- Project Dashboard — project-level KPIs, BGs, and completion metrics -->
     <menuitem id="menu_matracon_mgmt_project"
@@ -391,7 +391,7 @@
               parent="site_operations.menu_matracon_mgmt_root"
               action="site_operations.action_management_dashboard_vendors_tab"
               sequence="30"
-              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_procurement_ho,base.group_system"/>
 
     <!-- Subcontractors — outstanding balances, IPCs, and payments -->
     <menuitem id="menu_matracon_mgmt_sub"
@@ -399,7 +399,7 @@
               parent="site_operations.menu_matracon_mgmt_root"
               action="site_operations.action_management_dashboard_sub_tab"
               sequence="40"
-              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_procurement_ho,base.group_system"/>
 
     <!-- Bank Guarantees — facility utilization and expiry alerts -->
     <menuitem id="menu_matracon_mgmt_bg"
@@ -407,7 +407,7 @@
               parent="site_operations.menu_matracon_mgmt_root"
               action="site_operations.action_management_dashboard_bg_tab"
               sequence="50"
-              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_procurement_ho,base.group_system"/>
 
     <!-- Procurement Dashboard — PO tracking, site store, comparatives -->
     <menuitem id="menu_matracon_mgmt_procurement"
