@@ -110,11 +110,8 @@
                             <t t-set="line_no" t-value="1"/>
                             <t t-foreach="o.order_line" t-as="line">
                                 <t t-if="not line.display_type">
-                                    <!-- qty cascade: recommended → requested → product_qty -->
-                                    <t t-set="rfq_qty"
-                                       t-value="(line.x_recommended_qty or 0) if (line.x_recommended_qty or 0) > 0
-                                                else ((line.x_requested_qty or 0) if (line.x_requested_qty or 0) > 0
-                                                else (line.product_qty or 0))"/>
+                                    <!-- qty cascade: approved → recommended → requested → product_qty -->
+                                    <t t-set="rfq_qty" t-value="line._x_effective_qty()"/>
                                     <tr>
                                         <td style="text-align:center; color:#222;">
                                             <t t-esc="line_no"/>

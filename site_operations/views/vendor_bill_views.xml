@@ -125,7 +125,7 @@
             <xpath expr="//field[@name='ref'][not(@nolabel)]" position="after">
                 <!-- Bank selector + Cheque series — HO / Finance HO / Admin only -->
                 <div invisible="move_type != 'entry'"
-                     groups="purchase_demand_raise.group_head_office,site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin">
+                     groups="purchase_demand_raise.group_head_office,site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_ceo_approval">
                     <label for="x_bank_journal_id" string="Bank"/>
                     <field name="x_bank_journal_id"
                            nolabel="1"
@@ -198,7 +198,7 @@
                 <page string="Fund Allocation"
                       name="je_fund_allocation"
                       invisible="move_type != 'entry'"
-                      groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin">
+                      groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_ceo_approval">
                     <p class="text-muted mb-2">
                         Record which project(s) fund this journal entry and how much from each.
                         The Available Balance updates as soon as you select a project.
@@ -271,7 +271,7 @@
                                optional="show"
                                options="{'no_create': True, 'no_open': True}"
                                domain="[('state', '=', 'available'), '|', ('bank_journal_id', '=', parent.x_bank_journal_id), ('bank_journal_id', '=', parent.journal_id)]"
-                               groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"/>
+                               groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_ceo_approval"/>
                         <button name="action_discard_je_line_cheque_leaf"
                                 type="object"
                                 icon="fa-ban"
@@ -281,7 +281,7 @@
                                 confirm="Mark this cheque as discarded? It cannot be reassigned."
                                 class="btn btn-warning btn-sm"
                                 optional="show"
-                                groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"/>
+                                groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_ceo_approval"/>
                         <field name="x_cheque_number"
                                string="Cheque No. (Manual)"
                                optional="show"/>

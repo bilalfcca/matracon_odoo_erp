@@ -17,7 +17,7 @@
                             string="Create Vendor Payment"
                             class="btn-primary"
                             invisible="state != 'draft' or payment_id != False"
-                            groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"/>
+                            groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_ceo_approval"/>
                     <!-- Once payment exists: re-open it -->
                     <button name="action_open_payment" type="object"
                             string="Open Payment"
@@ -26,11 +26,11 @@
                     <button name="action_reset_draft" type="object"
                             string="Reset to Draft" class="btn-secondary"
                             invisible="state != 'confirmed'"
-                            groups="purchase_demand_raise.group_matracon_admin"/>
+                            groups="purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_ceo_approval"/>
                     <button name="action_cancel" type="object"
                             string="Cancel" class="btn-danger"
                             invisible="state in ('confirmed', 'cancelled')"
-                            groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"/>
+                            groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_ceo_approval"/>
                     <field name="state" widget="statusbar"
                            statusbar_visible="draft,confirmed"/>
                     <button name="action_delete_draft" type="object"

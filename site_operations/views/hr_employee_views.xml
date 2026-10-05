@@ -23,12 +23,12 @@
                         string="Print Card"
                         class="oe_stat_button"
                         icon="fa-id-card"
-                        groups="purchase_demand_raise.group_matracon_admin,site_operations.group_finance_ho,purchase_demand_raise.group_head_office"/>
+                        groups="purchase_demand_raise.group_matracon_admin,site_operations.group_finance_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_ceo_approval"/>
                 <button name="action_view_backcharges"
                         type="object"
                         class="oe_stat_button"
                         icon="fa-exclamation-triangle"
-                        groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system">
+                        groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system,purchase_demand_raise.group_ceo_approval">
                     <div class="o_field_widget o_stat_info">
                         <span class="o_stat_value">
                             <field name="x_backcharge_count"/>
@@ -71,7 +71,7 @@
                 <!-- Online History — session log: Online At / Offline At / Duration -->
                 <page string="Online History" name="online_history"
                       invisible="not user_id"
-                      groups="purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_head_office,site_operations.group_finance_ho">
+                      groups="purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_head_office,site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval">
                     <field name="x_presence_log_ids" readonly="1">
                         <list create="0" delete="0" default_order="online_at desc">
                             <field name="online_at" string="Online At" widget="datetime"/>

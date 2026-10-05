@@ -182,7 +182,7 @@
                                 </t>
 
                                 <!-- c) Back Charges -->
-                                <t t-if="ipc.backcharge_line_ids">
+                                <t t-if="ipc.backcharge_line_ids or ipc.backcharge_balance_bf or ipc.backcharge_balance_cf">
                                     <tr>
                                         <td></td>
                                         <td colspan="3" style="font-weight:bold;
@@ -219,6 +219,49 @@
                                         </td>
                                         <td></td>
                                     </tr>
+                                    <!-- Carry-forward rows: only when a balance is involved,
+                                         so prints without one look exactly as before. -->
+                                    <t t-if="ipc.backcharge_balance_bf or ipc.backcharge_balance_cf">
+                                        <tr>
+                                            <td></td>
+                                            <td style="padding-left:24px;">Balance b/f from Previous IPC</td>
+                                            <td class="text-end">
+                                                <t t-esc="ipc.backcharge_balance_bf"
+                                                   t-options="{'widget': 'monetary', 'display_currency': ipc.currency_id}"/>
+                                            </td>
+                                            <td></td>
+                                        </tr>
+                                        <tr>
+                                            <td></td>
+                                            <td style="padding-left:24px;">Total Back Charges Due</td>
+                                            <td class="text-end">
+                                                <t t-esc="ipc.backcharge_due"
+                                                   t-options="{'widget': 'monetary', 'display_currency': ipc.currency_id}"/>
+                                            </td>
+                                            <td></td>
+                                        </tr>
+                                        <tr>
+                                            <td></td>
+                                            <td style="padding-left:24px; font-weight:bold;">
+                                                Deducted in this IPC
+                                                (<t t-esc="dict(ipc._fields['backcharge_deduction_mode'].selection).get(ipc.backcharge_deduction_mode)"/>)
+                                            </td>
+                                            <td class="text-end fw-bold">
+                                                <t t-esc="ipc.backcharge_applied"
+                                                   t-options="{'widget': 'monetary', 'display_currency': ipc.currency_id}"/>
+                                            </td>
+                                            <td></td>
+                                        </tr>
+                                        <tr>
+                                            <td></td>
+                                            <td style="padding-left:24px;">Balance c/f to Next IPC</td>
+                                            <td class="text-end">
+                                                <t t-esc="ipc.backcharge_balance_cf"
+                                                   t-options="{'widget': 'monetary', 'display_currency': ipc.currency_id}"/>
+                                            </td>
+                                            <td></td>
+                                        </tr>
+                                    </t>
                                 </t>
 
                                 <!-- d) Security Withheld -->

@@ -14,24 +14,42 @@ class SubcontractorIPCBackchargeLine(models.Model):
     ipc_id = fields.Many2one(
         'x.subcontractor.ipc', string='IPC',
         ondelete='cascade', required=True, index=True)
+    # Optional: pick a registered back charge (values copied from it), or leave
+    # empty and type Description / Date / Amount manually.
     backcharge_id = fields.Many2one(
-        'x.subcontractor.backcharge', string='Back Charge',
-        required=True)
+        'x.subcontractor.backcharge', string='Back Charge')
     description = fields.Char(
-        string='Description', related='backcharge_id.description')
+        string='Description',
+        compute='_compute_from_backcharge', store=True, readonly=False)
     date = fields.Date(
-        string='Date', related='backcharge_id.date')
+        string='Date',
+        compute='_compute_from_backcharge', store=True, readonly=False)
     amount = fields.Monetary(
         string='Amount',
-        compute='_compute_backcharge_amount', store=True,
+        compute='_compute_from_backcharge', store=True, readonly=False,
         currency_field='currency_id')
     currency_id = fields.Many2one(
         'res.currency', related='ipc_id.currency_id', store=True)
 
-    @api.depends('backcharge_id', 'backcharge_id.amount')
-    def _compute_backcharge_amount(self):
+    @api.depends(
+        'backcharge_id', 'backcharge_id.description',
+        'backcharge_id.date', 'backcharge_id.amount',
+    )
+    def _compute_from_backcharge(self):
         for line in self:
-            line.amount = line.backcharge_id.amount if line.backcharge_id else 0.0
+            bc = line.backcharge_id
+            if not bc:
+                continue  # manual line: keep what the user typed
+            line.description = bc.description
+            line.date = bc.date
+            line.amount = bc.amount
+
+    @api.constrains('backcharge_id', 'description')
+    def _check_manual_line_description(self):
+        for line in self:
+            if not line.backcharge_id and not (line.description or '').strip():
+                raise UserError(_(
+                    'Please enter a Description for each manually added back charge line.'))
 
 
 class SubcontractorIPC(models.Model):
@@ -165,6 +183,43 @@ class SubcontractorIPC(models.Model):
         string='Total Back Charges',
         compute='_compute_deductions', store=True,
         currency_field='currency_id')
+
+    # ── Back charge deduction: Full / Manual with carry-forward ─────────────
+    # backcharge_total (above) is unchanged: this IPC's back charge lines.
+    # Any part not deducted is carried forward and shown as "b/f" on the next IPC
+    # for the same subcontractor + project (via previous_ipc_id).
+    backcharge_balance_bf = fields.Monetary(
+        string='Back Charges b/f (Previous IPC)',
+        compute='_compute_backcharge_balance_bf', store=True,
+        currency_field='currency_id',
+        help='Back charge balance not deducted in the previous IPC. '
+             'Frozen once this IPC is submitted.')
+    backcharge_due = fields.Monetary(
+        string='Total Back Charges Due',
+        compute='_compute_deductions', store=True,
+        currency_field='currency_id',
+        help='Balance b/f + this IPC\'s back charges.')
+    backcharge_deduction_mode = fields.Selection([
+        ('full', 'Full'),
+        ('manual', 'Manual'),
+    ], string='Back Charge Deduction', default='full', required=True, tracking=True,
+        help='Full: deduct the whole amount due. '
+             'Manual: deduct only the amount entered; the rest carries forward.')
+    backcharge_manual_amount = fields.Monetary(
+        string='Manual Deduction Amount',
+        currency_field='currency_id', tracking=True,
+        help='May be less than, equal to or more than the amount due. '
+             'The difference carries forward to the next IPC.')
+    backcharge_applied = fields.Monetary(
+        string='Back Charges Deducted (this IPC)',
+        compute='_compute_deductions', store=True,
+        currency_field='currency_id')
+    backcharge_balance_cf = fields.Monetary(
+        string='Back Charges c/f (Next IPC)',
+        compute='_compute_deductions', store=True,
+        currency_field='currency_id',
+        help='Amount due − amount deducted. Negative means more was deducted '
+             'than was due; the next IPC\'s amount due is reduced by it.')
 
     # ── Security Withheld ─────────────────────────────────────────────────────
     security_withheld = fields.Monetary(
@@ -329,6 +384,14 @@ class SubcontractorIPC(models.Model):
                 ipc.previous_gross_work_done = 0.0
                 ipc.ipc_date_from = False
 
+    @api.depends('previous_ipc_id', 'previous_ipc_id.backcharge_balance_cf', 'state')
+    def _compute_backcharge_balance_bf(self):
+        for ipc in self:
+            if ipc.state != 'draft' and ipc.id:
+                continue  # frozen at submission — matches the posted journal entry
+            prev = ipc.previous_ipc_id
+            ipc.backcharge_balance_bf = prev.backcharge_balance_cf if prev else 0.0
+
     @api.depends(
         'subcontractor_id', 'project_analytic_account_id',
         'ipc_date', 'previous_ipc_id',
@@ -431,6 +494,7 @@ class SubcontractorIPC(models.Model):
         'security_withheld',
         'other_deductions_amount', 'other_additions_amount',
         'backcharge_line_ids.amount',
+        'backcharge_balance_bf', 'backcharge_deduction_mode', 'backcharge_manual_amount',
     )
     def _compute_deductions(self):
         for ipc in self:
@@ -441,17 +505,20 @@ class SubcontractorIPC(models.Model):
             prev_ret = ipc.previous_gross_work_done * pct
             this_ret = total_ret - prev_ret
 
-            bc_total = sum(
-                line.amount for line in ipc.backcharge_line_ids
-                if line.backcharge_id
-            )
+            # Registered and manually added lines both count.
+            bc_total = sum(ipc.backcharge_line_ids.mapped('amount'))
+            bc_due = ipc.backcharge_balance_bf + bc_total
+            if ipc.backcharge_deduction_mode == 'manual':
+                bc_applied = max(ipc.backcharge_manual_amount or 0.0, 0.0)
+            else:
+                bc_applied = max(bc_due, 0.0)
 
             total_ded = (
                 this_ret
                 + ipc.mob_advance_recovery
                 + ipc.ho_advance_recovery
                 + ipc.security_withheld
-                + bc_total
+                + bc_applied
                 + ipc.other_deductions_amount
             )
             net = max(this_gross - total_ded + ipc.other_additions_amount, 0.0)
@@ -461,6 +528,9 @@ class SubcontractorIPC(models.Model):
             ipc.previous_retention_amount = prev_ret
             ipc.retention_amount = this_ret
             ipc.backcharge_total = bc_total
+            ipc.backcharge_due = bc_due
+            ipc.backcharge_applied = bc_applied
+            ipc.backcharge_balance_cf = bc_due - bc_applied
             ipc.total_deductions = total_ded
             ipc.net_payable = net
 
@@ -599,12 +669,18 @@ class SubcontractorIPC(models.Model):
             ('state', '=', 'pending'),
         ])
         new_lines = [(0, 0, {'backcharge_id': bc.id}) for bc in pending_bc]
-        # Replace lines — start fresh so we don't double-add on sub/project change
-        self.backcharge_line_ids = [(5, 0, 0)] + new_lines
+        # Keep manually added lines; re-fetch registered ones so we don't
+        # double-add on subcontractor/project change.
+        manual_lines = [
+            (0, 0, {'description': l.description, 'date': l.date, 'amount': l.amount})
+            for l in self.backcharge_line_ids if not l.backcharge_id
+        ]
+        self.backcharge_line_ids = [(5, 0, 0)] + manual_lines + new_lines
 
     def action_refresh_backcharges(self):
         """Append any pending back charges not yet linked to this IPC."""
         self.ensure_one()
+        self._matracon_refresh_previous_ipc()
         if not self.subcontractor_id or not self.project_analytic_account_id:
             return {
                 'type': 'ir.actions.client', 'tag': 'display_notification',
@@ -642,7 +718,29 @@ class SubcontractorIPC(models.Model):
     # WORKFLOW ACTIONS
     # ─────────────────────────────────────────────────────────────────────────
 
+    def _matracon_refresh_previous_ipc(self):
+        """previous_ipc_id is only recomputed when subcontractor/project/date
+        change. If an earlier IPC was submitted after this draft was created,
+        refresh it so Work Done b/f and Back Charges b/f use the right IPC."""
+        for ipc in self.filtered(lambda i: i.state == 'draft' and i.id):
+            latest = self.search([
+                ('subcontractor_id', '=', ipc.subcontractor_id.id),
+                ('project_analytic_account_id', '=', ipc.project_analytic_account_id.id),
+                ('state', 'in', ('submitted', 'paid')),
+                ('id', '!=', ipc.id),
+            ], order='ipc_date desc, id desc', limit=1)
+            if latest != ipc.previous_ipc_id:
+                self.env.add_to_compute(self._fields['previous_ipc_id'], ipc)
+        self.flush_recordset()
+
+    @api.constrains('backcharge_manual_amount')
+    def _check_backcharge_manual_amount(self):
+        for ipc in self:
+            if ipc.backcharge_manual_amount < 0:
+                raise UserError(_('Manual back charge deduction cannot be negative.'))
+
     def action_submit(self):
+        self._matracon_refresh_previous_ipc()
         for ipc in self:
             if ipc.state != 'draft':
                 raise UserError(_('Only draft IPCs can be submitted.'))
@@ -700,6 +798,18 @@ class SubcontractorIPC(models.Model):
                         'ipc_id': ipc.id,
                     })
             ipc.state = 'submitted'
+            if ipc.backcharge_balance_bf or ipc.backcharge_deduction_mode == 'manual':
+                ipc.message_post(body=Markup(_(
+                    'Back charges — b/f: %(bf)s, this IPC: %(cur)s, due: %(due)s, '
+                    'deducted (%(mode)s): <b>%(applied)s</b>, c/f to next IPC: <b>%(cf)s</b>.'
+                )) % {
+                    'bf': '{:,.2f}'.format(ipc.backcharge_balance_bf),
+                    'cur': '{:,.2f}'.format(ipc.backcharge_total),
+                    'due': '{:,.2f}'.format(ipc.backcharge_due),
+                    'mode': dict(ipc._fields['backcharge_deduction_mode'].selection)[ipc.backcharge_deduction_mode],
+                    'applied': '{:,.2f}'.format(ipc.backcharge_applied),
+                    'cf': '{:,.2f}'.format(ipc.backcharge_balance_cf),
+                })
             ipc.message_post(body=Markup(_(
                 'IPC <b>%(name)s</b> (IPC No. %(num)s) submitted. '
                 'Net Payable: <b>%(currency)s %(amount)s</b>. '
@@ -724,7 +834,7 @@ class SubcontractorIPC(models.Model):
           Cr  Retention Payable          = retention_amount        (if account configured)
           Cr  Mob Advance Account        = mob_advance_recovery    (if account configured)
           Cr  Security Withheld Account  = security_withheld       (if account configured)
-          Cr  Back Charge Recovery       = backcharge_total        (if account configured)
+          Cr  Back Charge Recovery       = backcharge_applied      (if account configured)
           Cr  Other Deductions Account   = other_deductions_amount (if account configured)
           Cr  Subcontractor Payable      = remaining credit to balance the entry
                                            (= net_payable + ho_advance_recovery
@@ -829,7 +939,7 @@ class SubcontractorIPC(models.Model):
             configured_credits += self.security_withheld
 
         # ── Credit: Back Charge Recovery ──────────────────────────────────────
-        if self.backcharge_total > 0 and cfg.backcharge_recovery_account_id:
+        if self.backcharge_applied > 0 and cfg.backcharge_recovery_account_id:
             line_ids.append((0, 0, {
                 'name': _(
                     'Back Charge Recovery — %(sub)s (IPC %(num)s)'
@@ -837,10 +947,10 @@ class SubcontractorIPC(models.Model):
                 'account_id': cfg.backcharge_recovery_account_id.id,
                 'partner_id': self.subcontractor_id.id,
                 'debit':  0.0,
-                'credit': self.backcharge_total,
+                'credit': self.backcharge_applied,
                 'analytic_distribution': anal,
             }))
-            configured_credits += self.backcharge_total
+            configured_credits += self.backcharge_applied
 
         # ── Credit: Other Deductions ──────────────────────────────────────────
         if self.other_deductions_amount > 0 and cfg.other_deductions_account_id:
@@ -937,12 +1047,13 @@ class SubcontractorIPC(models.Model):
         allowed = [
             'site_operations.group_site_accountant',
             'site_operations.group_finance_ho',
+            'purchase_demand_raise.group_ceo_approval',
             'purchase_demand_raise.group_matracon_admin',
             'base.group_system',
         ]
         if not any(self.env.user.has_group(g) for g in allowed):
             raise UserError(_(
-                'Only Site Accountant, Finance HO, or Matracon Admin can reset an IPC to Draft.'
+                'Only Site Accountant, Finance HO, CEO or Matracon Admin can reset an IPC to Draft.'
             ))
         for ipc in self:
             if ipc.state == 'draft':
@@ -952,6 +1063,18 @@ class SubcontractorIPC(models.Model):
                     'IPC %s is already marked as Paid and cannot be reset to Draft.\n\n'
                     'If a payment needs to be reversed, handle it via the linked payment record.'
                 ) % ipc.name)
+            # A later submitted IPC froze this IPC's back charge c/f as its b/f.
+            later = self.search([
+                ('previous_ipc_id', '=', ipc.id),
+                ('state', 'in', ('submitted', 'paid')),
+            ], limit=1)
+            if later and ipc.backcharge_balance_cf:
+                raise UserError(_(
+                    'IPC %(ipc)s carried a back charge balance of %(amt).2f forward to '
+                    'IPC %(later)s, which is already submitted.\n\n'
+                    'Reset IPC %(later)s to Draft first.',
+                    ipc=ipc.name, amt=ipc.backcharge_balance_cf, later=later.name,
+                ))
 
             # ── 1. Reverse the journal entry ──────────────────────────────────
             move = ipc.x_account_move_id
@@ -1121,12 +1244,13 @@ class SubcontractorIPC(models.Model):
         """
         allowed = [
             'site_operations.group_finance_ho',
+            'purchase_demand_raise.group_ceo_approval',
             'purchase_demand_raise.group_matracon_admin',
             'base.group_system',
         ]
         if not any(self.env.user.has_group(g) for g in allowed):
             raise UserError(_(
-                'Only Finance HO or Matracon Admin can regenerate an IPC journal entry.'
+                'Only Finance HO, CEO or Matracon Admin can regenerate an IPC journal entry.'
             ))
         for ipc in self:
             if ipc.state == 'draft':

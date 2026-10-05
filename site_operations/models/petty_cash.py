@@ -1462,12 +1462,13 @@ class PettyCashExpense(models.Model):
         """
         allowed_groups = [
             'site_operations.group_finance_ho',
+            'purchase_demand_raise.group_ceo_approval',
             'purchase_demand_raise.group_matracon_admin',
             'base.group_system',
         ]
         if not any(self.env.user.has_group(g) for g in allowed_groups):
             raise UserError(_(
-                'Only Finance HO or Matracon Admin can reset a petty cash expense to Draft.'
+                'Only Finance HO, CEO or Matracon Admin can reset a petty cash expense to Draft.'
             ))
 
         for expense in self:
