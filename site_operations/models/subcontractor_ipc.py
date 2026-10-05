@@ -1047,12 +1047,13 @@ class SubcontractorIPC(models.Model):
         allowed = [
             'site_operations.group_site_accountant',
             'site_operations.group_finance_ho',
+            'purchase_demand_raise.group_ceo_approval',
             'purchase_demand_raise.group_matracon_admin',
             'base.group_system',
         ]
         if not any(self.env.user.has_group(g) for g in allowed):
             raise UserError(_(
-                'Only Site Accountant, Finance HO, or Matracon Admin can reset an IPC to Draft.'
+                'Only Site Accountant, Finance HO, CEO or Matracon Admin can reset an IPC to Draft.'
             ))
         for ipc in self:
             if ipc.state == 'draft':
@@ -1243,12 +1244,13 @@ class SubcontractorIPC(models.Model):
         """
         allowed = [
             'site_operations.group_finance_ho',
+            'purchase_demand_raise.group_ceo_approval',
             'purchase_demand_raise.group_matracon_admin',
             'base.group_system',
         ]
         if not any(self.env.user.has_group(g) for g in allowed):
             raise UserError(_(
-                'Only Finance HO or Matracon Admin can regenerate an IPC journal entry.'
+                'Only Finance HO, CEO or Matracon Admin can regenerate an IPC journal entry.'
             ))
         for ipc in self:
             if ipc.state == 'draft':

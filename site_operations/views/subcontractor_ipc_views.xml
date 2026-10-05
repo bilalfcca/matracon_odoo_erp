@@ -46,18 +46,18 @@
                             string="Reset to Draft"
                             class="btn-warning"
                             invisible="state != 'submitted'"
-                            groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"
+                            groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_ceo_approval"
                             confirm="This will reverse the accounting journal entry and restore back charges to Pending. Are you sure?"/>
                     <button name="action_mark_paid" type="object"
                             string="Mark as Paid"
                             class="btn-success"
                             invisible="state != 'submitted'"
-                            groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"/>
+                            groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_ceo_approval"/>
                     <button name="action_regenerate_journal_entry" type="object"
                             string="Regenerate Journal Entry"
                             class="btn-warning"
                             invisible="state != 'submitted'"
-                            groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin,base.group_system"
+                            groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin,base.group_system,purchase_demand_raise.group_ceo_approval"
                             confirm="This will reverse the existing journal entry and post a new multi-line entry booking each deduction component to its configured GL account. Continue?"/>
                     <button name="action_print_ipc" type="object"
                             string="Print IPC"

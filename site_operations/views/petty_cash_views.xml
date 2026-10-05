@@ -201,7 +201,7 @@
                             string="↩ Reset to Draft"
                             class="btn-secondary"
                             invisible="state != 'posted'"
-                            groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin,base.group_system"
+                            groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin,base.group_system,purchase_demand_raise.group_ceo_approval"
                             confirm="Reset this expense to Draft? The linked journal entry will be cancelled and the GL reversed. This cannot be undone automatically — you will need to re-post or delete the expense."/>
                     <field name="state" widget="statusbar"/>
                     <button name="action_delete_draft" type="object"

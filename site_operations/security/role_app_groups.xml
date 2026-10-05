@@ -73,7 +73,7 @@
                     ref('uom.group_uom'),
                     ref('account.group_account_manager'),
                     ref('base.group_partner_manager'),
-                    ref('hr_attendance.group_hr_attendance_officer'),
+                    ref('hr_attendance.group_hr_attendance_manager'),
                     ref('base.group_allow_export'),
                     ref('group_mtr_app_purchase'),
                     ref('group_mtr_app_inventory'),

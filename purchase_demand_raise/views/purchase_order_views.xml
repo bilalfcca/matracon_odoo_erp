@@ -217,7 +217,7 @@
                         type="object"
                         class="btn-secondary"
                         confirm="Full reset: ALL approval statuses will be cleared and PR returned to Draft. Continue?"
-                        groups="purchase_demand_raise.group_matracon_admin,base.group_system"
+                        groups="purchase_demand_raise.group_matracon_admin,base.group_system,purchase_demand_raise.group_ceo_approval"
                         invisible="x_pr_state == 'draft'"/>
 
             </xpath>
