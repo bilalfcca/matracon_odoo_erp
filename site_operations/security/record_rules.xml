@@ -85,7 +85,7 @@
             <field name="groups" eval="[
                 (4, ref('purchase_demand_raise.group_ceo_approval')),
                 (4, ref('purchase_demand_raise.group_head_office')),
-                (4, ref('site_operations.group_finance_ho')),
+                (3, ref('site_operations.group_finance_ho')),
                 (4, ref('purchase_demand_raise.group_procurement_ho')),
                 (4, ref('purchase_demand_raise.group_matracon_admin')),
                 (4, ref('base.group_system')),
@@ -104,7 +104,7 @@
             <field name="groups" eval="[
                 (4, ref('purchase_demand_raise.group_ceo_approval')),
                 (4, ref('purchase_demand_raise.group_head_office')),
-                (4, ref('site_operations.group_finance_ho')),
+                (3, ref('site_operations.group_finance_ho')),
                 (4, ref('purchase_demand_raise.group_procurement_ho')),
                 (4, ref('purchase_demand_raise.group_matracon_admin')),
                 (4, ref('base.group_system')),
@@ -131,7 +131,7 @@
             <field name="groups" eval="[
                 (4, ref('purchase_demand_raise.group_ceo_approval')),
                 (4, ref('purchase_demand_raise.group_head_office')),
-                (4, ref('site_operations.group_finance_ho')),
+                (3, ref('site_operations.group_finance_ho')),
                 (4, ref('purchase_demand_raise.group_procurement_ho')),
             ]"/>
         </record>
@@ -460,6 +460,9 @@
         </record>
         <record id="rule_liability_sheet_finance_ho" model="ir.rule">
             <field name="name">Liability Sheet: Finance HO sees submitted+ only</field>
+            <!-- Deactivated: Finance HO has full accounting access incl. drafts.
+                 Not deleted/emptied — a rule without groups would apply to everyone. -->
+            <field name="active" eval="False"/>
             <field name="model_id" ref="model_x_liability_sheet"/>
             <field name="groups" eval="[(4, ref('site_operations.group_finance_ho'))]"/>
             <field name="domain_force">[('state', '!=', 'draft')]</field>
@@ -635,6 +638,12 @@
             <field name="perm_unlink" eval="False"/>
         </record>
 
+        <!-- Finance HO has full accounting access, drafts included (2026-10-06):
+             FO is removed with (3, ...) — not (4, ...) — from the accounting
+             no-draft rules (account move/line, petty cash request/expense,
+             subcontractor IPC/backcharge, WHT certificate) so the link is also
+             dropped from existing databases on upgrade; the FO-only liability
+             sheet rule is deactivated. -->
         <!-- ═══════════════════════════════════════════════════════════════════
              HO / CEO — NO DRAFT VISIBILITY (A to Z)
              CEO, Head Office, Finance HO, Procurement HO see only submitted /
@@ -658,7 +667,7 @@
             <field name="groups" eval="[
                 (4, ref('purchase_demand_raise.group_ceo_approval')),
                 (4, ref('purchase_demand_raise.group_head_office')),
-                (4, ref('site_operations.group_finance_ho')),
+                (3, ref('site_operations.group_finance_ho')),
                 (4, ref('purchase_demand_raise.group_procurement_ho')),
             ]"/>
         </record>
@@ -676,7 +685,7 @@
             <field name="groups" eval="[
                 (4, ref('purchase_demand_raise.group_ceo_approval')),
                 (4, ref('purchase_demand_raise.group_head_office')),
-                (4, ref('site_operations.group_finance_ho')),
+                (3, ref('site_operations.group_finance_ho')),
                 (4, ref('purchase_demand_raise.group_procurement_ho')),
             ]"/>
         </record>
@@ -791,7 +800,7 @@
             <field name="groups" eval="[
                 (4, ref('purchase_demand_raise.group_ceo_approval')),
                 (4, ref('purchase_demand_raise.group_head_office')),
-                (4, ref('site_operations.group_finance_ho')),
+                (3, ref('site_operations.group_finance_ho')),
                 (4, ref('purchase_demand_raise.group_procurement_ho')),
             ]"/>
         </record>
@@ -804,7 +813,7 @@
             <field name="groups" eval="[
                 (4, ref('purchase_demand_raise.group_ceo_approval')),
                 (4, ref('purchase_demand_raise.group_head_office')),
-                (4, ref('site_operations.group_finance_ho')),
+                (3, ref('site_operations.group_finance_ho')),
                 (4, ref('purchase_demand_raise.group_procurement_ho')),
             ]"/>
         </record>
@@ -830,7 +839,7 @@
             <field name="groups" eval="[
                 (4, ref('purchase_demand_raise.group_ceo_approval')),
                 (4, ref('purchase_demand_raise.group_head_office')),
-                (4, ref('site_operations.group_finance_ho')),
+                (3, ref('site_operations.group_finance_ho')),
                 (4, ref('purchase_demand_raise.group_procurement_ho')),
             ]"/>
         </record>

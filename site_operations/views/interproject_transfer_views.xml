@@ -69,7 +69,7 @@
                             string="Re-open"
                             class="btn-warning"
                             invisible="state == 'open'"
-                            groups="purchase_demand_raise.group_matracon_admin"/>
+                            groups="purchase_demand_raise.group_matracon_admin,site_operations.group_finance_ho"/>
                     <button name="action_print_interproject_transfer"
                             type="object"
                             string="Print Report"
