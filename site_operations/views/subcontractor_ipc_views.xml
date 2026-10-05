@@ -233,12 +233,17 @@
                                nolabel="1"
                                readonly="state != 'draft'">
                             <list editable="bottom">
+                                <!-- Optional: pick a registered back charge, or leave empty
+                                     and type Description / Date / Amount manually. -->
                                 <field name="backcharge_id"
+                                       string="Back Charge (optional)"
                                        domain="[('subcontractor_id', '=', parent.subcontractor_id), ('project_analytic_account_id', '=', parent.project_analytic_account_id), ('state', '=', 'pending')]"
                                        options="{'no_create': True}"/>
-                                <field name="description" readonly="1"/>
-                                <field name="date" readonly="1"/>
-                                <field name="amount" readonly="1" sum="Total"/>
+                                <field name="description"
+                                       readonly="backcharge_id"
+                                       required="not backcharge_id"/>
+                                <field name="date" readonly="backcharge_id"/>
+                                <field name="amount" readonly="backcharge_id" sum="Total"/>
                                 <field name="currency_id" column_invisible="1"/>
                             </list>
                         </field>

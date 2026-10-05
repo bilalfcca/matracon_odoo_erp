@@ -14,24 +14,46 @@ class SubcontractorIPCBackchargeLine(models.Model):
     ipc_id = fields.Many2one(
         'x.subcontractor.ipc', string='IPC',
         ondelete='cascade', required=True, index=True)
+    # Optional: pick a registered back charge (values copied from it), or leave
+    # empty and type Description / Date / Amount manually.
     backcharge_id = fields.Many2one(
-        'x.subcontractor.backcharge', string='Back Charge',
-        required=True)
+        'x.subcontractor.backcharge', string='Back Charge')
     description = fields.Char(
-        string='Description', related='backcharge_id.description')
+        string='Description',
+        compute='_compute_from_backcharge', store=True, readonly=False)
     date = fields.Date(
-        string='Date', related='backcharge_id.date')
+        string='Date',
+        compute='_compute_from_backcharge', store=True, readonly=False)
     amount = fields.Monetary(
         string='Amount',
-        compute='_compute_backcharge_amount', store=True,
+        compute='_compute_from_backcharge', store=True, readonly=False,
         currency_field='currency_id')
     currency_id = fields.Many2one(
         'res.currency', related='ipc_id.currency_id', store=True)
 
-    @api.depends('backcharge_id', 'backcharge_id.amount')
-    def _compute_backcharge_amount(self):
+    @api.depends(
+        'backcharge_id', 'backcharge_id.description',
+        'backcharge_id.date', 'backcharge_id.amount',
+    )
+    def _compute_from_backcharge(self):
         for line in self:
-            line.amount = line.backcharge_id.amount if line.backcharge_id else 0.0
+            bc = line.backcharge_id
+            if bc:
+                line.description = bc.description
+                line.date = bc.date
+                line.amount = bc.amount
+            else:
+                # Manual line: keep what the user typed.
+                line.description = line.description
+                line.date = line.date
+                line.amount = line.amount
+
+    @api.constrains('backcharge_id', 'description')
+    def _check_manual_line_description(self):
+        for line in self:
+            if not line.backcharge_id and not (line.description or '').strip():
+                raise UserError(_(
+                    'Please enter a Description for each manually added back charge line.'))
 
 
 class SubcontractorIPC(models.Model):
@@ -441,10 +463,8 @@ class SubcontractorIPC(models.Model):
             prev_ret = ipc.previous_gross_work_done * pct
             this_ret = total_ret - prev_ret
 
-            bc_total = sum(
-                line.amount for line in ipc.backcharge_line_ids
-                if line.backcharge_id
-            )
+            # Registered and manually added lines both count.
+            bc_total = sum(ipc.backcharge_line_ids.mapped('amount'))
 
             total_ded = (
                 this_ret
@@ -599,8 +619,13 @@ class SubcontractorIPC(models.Model):
             ('state', '=', 'pending'),
         ])
         new_lines = [(0, 0, {'backcharge_id': bc.id}) for bc in pending_bc]
-        # Replace lines — start fresh so we don't double-add on sub/project change
-        self.backcharge_line_ids = [(5, 0, 0)] + new_lines
+        # Keep manually added lines; re-fetch registered ones so we don't
+        # double-add on subcontractor/project change.
+        manual_lines = [
+            (0, 0, {'description': l.description, 'date': l.date, 'amount': l.amount})
+            for l in self.backcharge_line_ids if not l.backcharge_id
+        ]
+        self.backcharge_line_ids = [(5, 0, 0)] + manual_lines + new_lines
 
     def action_refresh_backcharges(self):
         """Append any pending back charges not yet linked to this IPC."""
