@@ -253,6 +253,41 @@
                         </div>
                     </group>
 
+                    <!-- Back charge deduction: Full / Manual, balance carried to next IPC -->
+                    <group string="Back Charge Deduction">
+                        <group>
+                            <field name="backcharge_balance_bf"
+                                   string="Balance b/f (Previous IPC)"
+                                   readonly="1"/>
+                            <field name="backcharge_total"
+                                   string="Back Charges (this IPC)"
+                                   readonly="1"/>
+                            <field name="backcharge_due"
+                                   string="Total Due"
+                                   readonly="1"
+                                   class="fw-bold"/>
+                        </group>
+                        <group>
+                            <field name="backcharge_deduction_mode"
+                                   string="Deduction"
+                                   widget="radio"
+                                   options="{'horizontal': true}"
+                                   readonly="state != 'draft'"/>
+                            <field name="backcharge_manual_amount"
+                                   string="Amount to Deduct"
+                                   invisible="backcharge_deduction_mode != 'manual'"
+                                   required="backcharge_deduction_mode == 'manual' and state == 'draft'"
+                                   readonly="state != 'draft'"/>
+                            <field name="backcharge_applied"
+                                   string="Deducted in this IPC"
+                                   readonly="1"
+                                   class="fw-bold"/>
+                            <field name="backcharge_balance_cf"
+                                   string="Balance c/f (Next IPC)"
+                                   readonly="1"/>
+                        </group>
+                    </group>
+
                     <!-- e) Other Deductions & f) Other Additions -->
                     <group>
                         <group string="f)  Other Deductions">
