@@ -46,7 +46,7 @@
                         icon="fa-check"
                         class="btn-success btn-sm"
                         invisible="state == 'settled'"
-                        groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"/>
+                        groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_ceo_approval"/>
             </list>
         </field>
     </record>
@@ -63,13 +63,13 @@
                             string="Mark as Settled"
                             class="btn-success"
                             invisible="state == 'settled'"
-                            groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"/>
+                            groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_ceo_approval"/>
                     <button name="action_reopen"
                             type="object"
                             string="Re-open"
                             class="btn-warning"
                             invisible="state == 'open'"
-                            groups="purchase_demand_raise.group_matracon_admin"/>
+                            groups="purchase_demand_raise.group_matracon_admin,site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval"/>
                     <button name="action_print_interproject_transfer"
                             type="object"
                             string="Print Report"

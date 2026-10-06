@@ -56,7 +56,7 @@
             <!-- ── WHT Exemption tab ── -->
             <xpath expr="//notebook" position="inside">
                 <page string="WHT Exemption" name="wht_exemption"
-                      groups="site_operations.group_finance_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin">
+                      groups="site_operations.group_finance_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_ceo_approval">
                     <field name="x_wht_exemption_ids" widget="one2many">
                         <list string="WHT Exemption Certificates" editable="bottom">
                             <field name="tax_year" string="Tax Year"/>

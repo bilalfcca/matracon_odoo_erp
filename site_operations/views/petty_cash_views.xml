@@ -61,7 +61,7 @@
                            statusbar_visible="draft,submitted,ceo_approved,released,confirmed"/>
                     <button name="action_submit" type="object" string="Submit to Finance HO"
                             class="btn-primary" invisible="state != 'draft'"
-                            groups="site_operations.group_site_accountant"/>
+                            groups="site_operations.group_site_accountant,site_operations.group_finance_ho"/>
                     <!-- Reset to Draft — Site Accountant / Finance HO:
                          any non-draft state; payment reversal runs automatically -->
                     <button name="action_reset_to_draft" type="object"
@@ -75,7 +75,7 @@
                             string="↩ Reset to Draft"
                             class="btn-secondary"
                             invisible="state == 'draft'"
-                            groups="purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,base.group_system"
+                            groups="purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,base.group_system,site_operations.group_finance_ho"
                             confirm="Reset to Draft? If a release payment exists it will be reversed and cancelled."/>
                     <button name="action_ceo_approve" type="object" string="Approve (CEO)"
                             class="btn-success" invisible="state != 'submitted'"
@@ -85,7 +85,7 @@
                             groups="site_operations.group_finance_ho"/>
                     <button name="action_confirm_receipt" type="object" string="Confirm Receipt"
                             class="btn-success" invisible="state != 'released'"
-                            groups="site_operations.group_site_accountant"/>
+                            groups="site_operations.group_site_accountant,site_operations.group_finance_ho"/>
                     <!-- "Fix GL Entry" moved to Settings → Fix Tools (see matracon_admin_tools) -->
                     <button name="action_delete_draft" type="object"
                             string="Delete" class="btn-danger"
@@ -201,7 +201,7 @@
                             string="↩ Reset to Draft"
                             class="btn-secondary"
                             invisible="state != 'posted'"
-                            groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin,base.group_system"
+                            groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin,base.group_system,purchase_demand_raise.group_ceo_approval"
                             confirm="Reset this expense to Draft? The linked journal entry will be cancelled and the GL reversed. This cannot be undone automatically — you will need to re-post or delete the expense."/>
                     <field name="state" widget="statusbar"/>
                     <button name="action_delete_draft" type="object"

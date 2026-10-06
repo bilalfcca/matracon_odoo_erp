@@ -58,6 +58,10 @@
              full, same as admin) — read/write stay restricted to non-draft. -->
         <record id="rule_po_ceo_admin_parity" model="ir.rule">
             <field name="name">Purchase Order: CEO — admin parity, drafts hidden</field>
+            <!-- Deactivated 2026-10-06: CEO has admin-level access in every app
+                 shown to them, drafts included. Not emptied — a rule without
+                 groups would apply to everyone. -->
+            <field name="active" eval="False"/>
             <field name="model_id" ref="purchase.model_purchase_order"/>
             <field name="groups" eval="[(4, ref('purchase_demand_raise.group_ceo_approval'))]"/>
             <field name="domain_force">[('x_pr_state', '!=', 'draft')]</field>
@@ -100,6 +104,10 @@
              domain keyed off the parent's draft state). -->
         <record id="rule_purchase_order_line_ceo" model="ir.rule">
             <field name="name">Purchase Order Line: CEO — admin parity, drafts hidden</field>
+            <!-- Deactivated 2026-10-06: CEO has admin-level access in every app
+                 shown to them, drafts included. Not emptied — a rule without
+                 groups would apply to everyone. -->
+            <field name="active" eval="False"/>
             <field name="model_id" ref="purchase.model_purchase_order_line"/>
             <field name="groups" eval="[(4, ref('purchase_demand_raise.group_ceo_approval'))]"/>
             <field name="domain_force">[('order_id.x_pr_state', '!=', 'draft')]</field>
@@ -132,6 +140,10 @@
              ACL-only gating (already full, same as admin). -->
         <record id="rule_comparative_statement_ceo" model="ir.rule">
             <field name="name">Comparative Statement: CEO — admin parity, drafts hidden</field>
+            <!-- Deactivated 2026-10-06: CEO has admin-level access in every app
+                 shown to them, drafts included. Not emptied — a rule without
+                 groups would apply to everyone. -->
+            <field name="active" eval="False"/>
             <field name="model_id" ref="model_x_comparative_statement"/>
             <field name="groups" eval="[(4, ref('purchase_demand_raise.group_ceo_approval'))]"/>
             <field name="domain_force">[('x_state', '!=', 'draft')]</field>

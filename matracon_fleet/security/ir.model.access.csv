@@ -22,3 +22,5 @@ access_fleet_spare_part_head_office,x.fleet.spare.part head office,model_x_fleet
 access_fleet_vehicle_ceo,fleet.vehicle ceo,fleet.model_fleet_vehicle,purchase_demand_raise.group_ceo_approval,1,0,0,0
 access_fleet_log_services_ceo,fleet.vehicle.log.services ceo,fleet.model_fleet_vehicle_log_services,purchase_demand_raise.group_ceo_approval,1,0,0,0
 access_fleet_spare_part_ceo,x.fleet.spare.part ceo,model_x_fleet_spare_part,purchase_demand_raise.group_ceo_approval,1,0,0,0
+access_fleet_vehicle_finance_ho,fleet.vehicle finance ho,fleet.model_fleet_vehicle,site_operations.group_finance_ho,1,0,0,0
+access_fleet_log_services_finance_ho,fleet.vehicle.log.services finance ho,fleet.model_fleet_vehicle_log_services,site_operations.group_finance_ho,1,0,0,0
