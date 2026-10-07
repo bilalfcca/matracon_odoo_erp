@@ -1211,7 +1211,10 @@ class PettyCashExpense(models.Model):
             # is NOT a site accountant (FO / admin / CEO still see the guard
             # to prevent accidental overspend from the HO side).
             user = self.env.user
-            is_site_accountant = user.has_group('site_operations.group_site_accountant')
+            is_site_accountant = (
+                user.has_group('site_operations.group_site_accountant')
+                or user.has_group('site_operations.group_accountant_ho')
+            )
             if not is_site_accountant and balance_before < expense.amount - 0.01:
                 raise UserError(_(
                     'Insufficient petty cash balance (available: %s %.2f).'
@@ -1441,7 +1444,9 @@ class PettyCashExpense(models.Model):
                 'and link it to this site.\n\n'
                 'Then try posting again.'
             ))
-        move = self.env['account.move'].create(move_vals)
+        # Created with system rights: posting an expense is what authorises this entry,
+        # and Accountant HO has no accounting role of its own. create_uid stays the user.
+        move = self.env['account.move'].sudo().create(move_vals)
         move.action_post()
         self.x_account_move_id = move
 
