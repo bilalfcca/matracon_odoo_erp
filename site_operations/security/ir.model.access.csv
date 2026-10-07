@@ -346,3 +346,14 @@ access_fleet_vehicle_head_office,fleet.vehicle.head.office,fleet.model_fleet_veh
 access_fleet_vehicle_procurement_ho,fleet.vehicle.procurement.ho,fleet.model_fleet_vehicle,purchase_demand_raise.group_procurement_ho,1,0,0,0
 access_fleet_vehicle_matracon_admin,fleet.vehicle.matracon.admin,fleet.model_fleet_vehicle,purchase_demand_raise.group_matracon_admin,1,0,0,0
 access_fleet_vehicle_site_accountant,fleet.vehicle.site.accountant,fleet.model_fleet_vehicle,site_operations.group_site_accountant,1,0,0,0
+access_petty_cash_expense_accountant_ho,petty.cash.expense.accountant.ho,model_x_petty_cash_expense,site_operations.group_accountant_ho,1,1,1,1
+access_petty_cash_expense_line_accountant_ho,petty.cash.expense.line.accountant.ho,model_x_petty_cash_expense_line,site_operations.group_accountant_ho,1,1,1,1
+access_petty_cash_fund_accountant_ho,petty.cash.fund.accountant.ho,model_x_petty_cash_fund,site_operations.group_accountant_ho,1,0,0,0
+access_account_move_accountant_ho,account.move.accountant.ho,account.model_account_move,site_operations.group_accountant_ho,1,0,0,0
+access_account_move_line_accountant_ho,account.move.line.accountant.ho,account.model_account_move_line,site_operations.group_accountant_ho,1,0,0,0
+access_account_account_accountant_ho,account.account.accountant.ho,account.model_account_account,site_operations.group_accountant_ho,1,0,0,0
+access_account_journal_accountant_ho,account.journal.accountant.ho,account.model_account_journal,site_operations.group_accountant_ho,1,0,0,0
+access_hr_employee_accountant_ho,hr.employee.accountant.ho,hr.model_hr_employee,site_operations.group_accountant_ho,1,0,0,0
+access_stock_picking_accountant_ho,stock.picking.accountant.ho,stock.model_stock_picking,site_operations.group_accountant_ho,1,0,0,0
+access_purchase_order_accountant_ho,purchase.order.accountant.ho,purchase.model_purchase_order,site_operations.group_accountant_ho,1,0,0,0
+access_project_site_config_accountant_ho,x.project.site.config.accountant.ho,purchase_demand_raise.model_x_project_site_config,site_operations.group_accountant_ho,1,0,0,0
