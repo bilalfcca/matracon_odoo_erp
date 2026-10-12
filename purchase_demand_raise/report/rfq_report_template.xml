@@ -124,8 +124,8 @@
                                         </t>
                                         <td style="text-align:left; color:#222;">
                                             <t t-esc="line.product_id.name or line.name"/>
-                                            <t t-if="line.name and line.name != (line.product_id.name or '')">
-                                                <br/><span style="font-size:11px; color:#666;">
+                                            <t t-if="line.name and line.name.strip() not in (line.product_id.name or '', line.product_id.display_name or '')">
+                                                <br/><span style="font-size:11px; color:#666; white-space:pre-line;">
                                                     <t t-esc="line.name"/>
                                                 </span>
                                             </t>
@@ -140,6 +140,16 @@
                                         <td></td>
                                         <td></td>
                                         <td></td>
+                                    </tr>
+                                </t>
+                                <!-- Section / note lines ("Add a section" / "Add a note"
+                                     on the order lines): print as a full-width row. -->
+                                <t t-elif="line.display_type and line.name">
+                                    <tr>
+                                        <td t-att-colspan="7 + (1 if o.x_show_product_ref else 0)"
+                                            t-attf-style="text-align:left; color:#222; white-space:pre-line; #{line.display_type == 'line_note' and 'font-style:italic;' or 'font-weight:bold;'}">
+                                            <t t-esc="line.name"/>
+                                        </td>
                                     </tr>
                                 </t>
                             </t>
