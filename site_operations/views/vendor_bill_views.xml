@@ -300,6 +300,11 @@
                                sum="Total Credit"
                                invisible="display_type in ('line_section', 'line_subsection', 'line_note')"/>
                         <field name="display_type" column_invisible="1"/>
+                        <!-- Hidden but sent on save: the Debit/Credit onchange sets the
+                             line's price to match, and Odoo rebuilds the amount from it. -->
+                        <field name="price_unit" column_invisible="1"/>
+                        <field name="quantity" column_invisible="1"/>
+                        <field name="discount" column_invisible="1"/>
                     </list>
                 </field>
             </xpath>

@@ -1,5 +1,7 @@
 import logging
 
+from markupsafe import Markup
+
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
 
@@ -165,6 +167,10 @@ class BatchPayment(models.Model):
                     'the batch before posting.'
                 ))
 
+            # A batch reversed and reset to draft keeps its old (now draft)
+            # payments on the lines — release them so the lines post afresh.
+            batch.line_ids._matracon_release_unposted_payments()
+
             # Step 1: validate everything up-front so we don't partially post
             for line in batch.line_ids:
                 if line.payment_id:
@@ -180,9 +186,9 @@ class BatchPayment(models.Model):
             batch.state = 'posted'
             matracon_notify.close_activities(batch)
             batch.message_post(
-                body=_(
+                body=Markup(_(
                     'Batch posted. <b>%d</b> payment(s) created.'
-                ) % len(batch.line_ids)
+                )) % len(batch.line_ids)
             )
 
     def action_submit_to_ceo(self):
@@ -239,7 +245,7 @@ class BatchPayment(models.Model):
             )
             batch.x_ceo_approval_state = 'submitted'
             batch.message_post(
-                body=_('Batch submitted to CEO for approval by <b>%s</b>.') % self.env.user.name,
+                body=Markup(_('Batch submitted to CEO for approval by <b>%s</b>.')) % self.env.user.name,
             )
 
     def action_ceo_approve_batch(self):
@@ -256,9 +262,9 @@ class BatchPayment(models.Model):
             total_str = '{:,.2f}'.format(batch.total_net)
             currency_sym = batch.currency_id.symbol or ''
             batch.message_post(
-                body=_('Batch payment <b>%(name)s</b> (%(currency)s %(total)s) '
-                       'approved by CEO <b>%(ceo)s</b>. '
-                       'Finance HO can now post all payments.') % {
+                body=Markup(_('Batch payment <b>%(name)s</b> (%(currency)s %(total)s) '
+                              'approved by CEO <b>%(ceo)s</b>. '
+                              'Finance HO can now post all payments.')) % {
                     'name': batch.name,
                     'currency': currency_sym,
                     'total': total_str,
@@ -352,19 +358,23 @@ class BatchPayment(models.Model):
             for line in posted_lines:
                 line.payment_id.action_matracon_reverse_payment()
                 reversed_count += 1
+            # Unlink the reversed payments from the lines so the lines can be
+            # edited and re-posted once the batch is reset to draft.
+            batch.line_ids._matracon_release_unposted_payments()
 
             batch.state = 'cancelled'
             matracon_notify.close_activities(batch)
-            batch.message_post(body=_(
+            batch.message_post(body=Markup(_(
                 'Batch reversed by <b>%(user)s</b>. '
                 '<b>%(count)d</b> payment(s) reversed and reset to Draft. '
                 'All journal entries, WHT deductions, and bank entries cancelled.'
-            ) % {'user': self.env.user.name, 'count': reversed_count})
+            )) % {'user': self.env.user.name, 'count': reversed_count})
 
     def action_reset_to_draft(self):
         for batch in self:
             if batch.state != 'cancelled':
                 raise UserError(_('Only cancelled batches can be reset to Draft.'))
+            batch.line_ids._matracon_release_unposted_payments()
             batch.state = 'draft'
 
     def action_view_payments(self):
@@ -940,6 +950,38 @@ class BatchPaymentLine(models.Model):
 
     # ── Validation ───────────────────────────────────────────────────────────
 
+    def _matracon_release_unposted_payments(self):
+        """Unlink payments that are no longer posted (reversed back to draft)
+        from these lines, so the lines become editable again and "Post All
+        Payments" creates fresh payments instead of skipping them as already
+        posted. The old payments are cancelled — not deleted — and listed in
+        the batch chatter for the audit trail.
+        """
+        posted_states = ('in_process', 'paid', 'partial', 'posted')
+        for line in self:
+            stale = (line.payment_id | line.x_fbr_payment_id).filtered(
+                lambda p: p.state not in posted_states)
+            if not stale:
+                continue
+            vals = {}
+            if line.payment_id in stale:
+                vals['payment_id'] = False
+            if line.x_fbr_payment_id in stale:
+                vals['x_fbr_payment_id'] = False
+            line.write(vals)
+            for payment in stale.filtered(lambda p: p.state == 'draft'):
+                # Same as account.payment.action_cancel(), minus deleting the
+                # once-posted draft entry (which Odoo refuses).
+                payment.move_id.filtered(lambda m: m.state == 'draft').button_cancel()
+                payment.state = 'canceled'
+            line.batch_id.message_post(body=Markup(_(
+                'Line <b>%(vendor)s</b>: reversed payment(s) %(names)s released '
+                'and cancelled — the line is editable and will post a new payment.'
+            )) % {
+                'vendor': line.partner_id.display_name or '',
+                'names': ', '.join(stale.mapped('name')),
+            })
+
     def _validate(self):
         """Raise UserError if this line cannot be posted."""
         self.ensure_one()
@@ -1363,11 +1405,11 @@ class BatchPaymentLine(models.Model):
         # Outstanding-payment accounts are reconcilable in standard Odoo setups;
         # if somehow not, skip gracefully.
         if not outstanding_account.reconcile:
-            wht_companion.message_post(body=_(
+            wht_companion.message_post(body=Markup(_(
                 'WHT payment posted but could not be auto-marked as Paid. '
                 'Please reconcile manually, or set "Allow Reconciliation = True" '
                 'on account <b>%s</b> and/or account <b>%s</b>.'
-            ) % (
+            )) % (
                 wht_account.display_name if wht_account else '—',
                 outstanding_account.display_name,
             ))
@@ -1408,9 +1450,9 @@ class BatchPaymentLine(models.Model):
             )[:1]
             if clearing_dr:
                 (outstanding_line | clearing_dr).reconcile()
-            wht_companion.message_post(body=_(
+            wht_companion.message_post(body=Markup(_(
                 'Outstanding WHT transit auto-cleared via JE <b>%s</b>.'
-            ) % clearing_move.name)
+            )) % clearing_move.name)
         except Exception:
             # Absolute safety net — log and continue; never fail the batch post
             wht_companion.message_post(body=_(
