@@ -109,6 +109,19 @@
             ]"/>
         </record>
 
+        <!-- Accountant HO: Invoicing app only, with Petty Cash → Expenses as its only menu
+             (see ir_ui_menu.py). No core accounting role on purpose: it would add every
+             Accounting menu. Access to the models the expense screen reads is granted
+             directly in ir.model.access.csv; no site-scoping rule → all projects. -->
+        <record id="group_accountant_ho" model="res.groups">
+            <field name="implied_ids" eval="[
+                (6, 0, [
+                    ref('base.group_allow_export'),
+                    ref('group_mtr_app_accounting'),
+                ])
+            ]"/>
+        </record>
+
         <!-- Finance HO: Accounting + Employees + Payroll + Attendance + Compliance + Contacts + Fleet -->
         <!-- NOTE: group_mtr_app_fleet added by matracon_fleet/security/app_visibility_fleet.xml -->
         <record id="group_finance_ho" model="res.groups">

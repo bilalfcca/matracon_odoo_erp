@@ -887,8 +887,10 @@ class AccountMoveSiteOps(models.Model):
         return None
 
     def _matracon_sequence_site_code(self):
-        """SITE_CODE segment: the project analytic account's own `code`, or
-        'HO' when the move has no project (Head Office document).
+        """SITE_CODE segment: the project analytic account's own `code`
+        (falling back to its site warehouse code when the analytic has no
+        code), or 'HO' only when the move has no project (Head Office
+        document).
 
         For a payment-originated move, falls back to the payment's own
         destination/fund project directly when the move's own header field
@@ -912,9 +914,24 @@ class AccountMoveSiteOps(models.Model):
             analytic_id = (row and (row[0] or row[1])) or False
             if analytic_id:
                 analytic = self.env['account.analytic.account'].browse(analytic_id)
-        if analytic and analytic.code:
+        if not analytic:
+            return 'HO'
+        if analytic.code and analytic.code.strip():
             return analytic.code.strip().upper()
-        return 'HO'
+        # A project without its own Reference code must still never be
+        # numbered as HO — fall back to its site warehouse code (the same
+        # source _matracon_site_code() uses for PCR/EBC/TN references).
+        config = self.env['x.project.site.config'].sudo().search(
+            [('analytic_account_id', '=', analytic.id)], limit=1)
+        if config.warehouse_id.code:
+            return config.warehouse_id.code.strip().upper()
+        return 'P%s' % analytic.id
+
+    @api.depends('x_project_analytic_account_id')
+    def _compute_name_placeholder(self):
+        # The site segment of the draft preview number (e.g. BILL/PSH/...)
+        # comes from the project — refresh it when the project changes.
+        return super()._compute_name_placeholder()
 
     def _get_starting_sequence(self):
         """First-ever number for a given (doc type, site, year): NNNN/SITE/YYYY/000000

@@ -75,7 +75,9 @@
             <field name="groups" eval="[(4, ref('site_operations.group_site_accountant'))]"/>
         </record>
 
-        <!-- HO / CEO / Admin / Finance HO cannot see Draft petty cash requests.
+        <!-- HO / Procurement HO cannot see Draft petty cash requests.
+             CEO, Finance HO, Matracon Admin and System Administrator are removed
+             with (3, ...): they have full access, drafts included.
              Site accountants are NOT in any of these groups so they keep full
              draft visibility (scoped to their own site by the rule above). -->
         <record id="rule_petty_cash_request_no_draft_ho" model="ir.rule">
@@ -87,8 +89,8 @@
                 (4, ref('purchase_demand_raise.group_head_office')),
                 (3, ref('site_operations.group_finance_ho')),
                 (4, ref('purchase_demand_raise.group_procurement_ho')),
-                (4, ref('purchase_demand_raise.group_matracon_admin')),
-                (4, ref('base.group_system')),
+                (3, ref('purchase_demand_raise.group_matracon_admin')),
+                (3, ref('base.group_system')),
             ]"/>
         </record>
 
@@ -106,8 +108,8 @@
                 (4, ref('purchase_demand_raise.group_head_office')),
                 (3, ref('site_operations.group_finance_ho')),
                 (4, ref('purchase_demand_raise.group_procurement_ho')),
-                (4, ref('purchase_demand_raise.group_matracon_admin')),
-                (4, ref('base.group_system')),
+                (3, ref('purchase_demand_raise.group_matracon_admin')),
+                (3, ref('base.group_system')),
             ]"/>
             <field name="perm_read" eval="True"/>
             <field name="perm_write" eval="False"/>

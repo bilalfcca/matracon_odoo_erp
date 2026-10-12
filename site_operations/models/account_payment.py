@@ -1279,7 +1279,20 @@ class AccountPaymentSiteOps(models.Model):
         for payment in self.filtered(
             lambda p: p.state in _POSTED_STATES and p.x_petty_cash_request_id
         ):
-            payment.x_petty_cash_request_id.action_mark_released(payment.amount)
+            pcr = payment.x_petty_cash_request_id
+            # A request reset to Draft (or still awaiting approval / rejected) must go
+            # through CEO approval again — posting an old payment must not mark it
+            # Released and skip that approval.
+            if pcr.state not in ('ceo_approved', 'released', 'confirmed'):
+                state_label = dict(pcr._fields['state'].selection).get(pcr.state, pcr.state)
+                raise UserError(_(
+                    'Petty Cash Request %(pcr)s is in "%(state)s" — it was changed after '
+                    'this payment was created.\n\n'
+                    'Submit the request and get CEO approval again, then confirm this '
+                    'payment (or release it again from the request).',
+                    pcr=pcr.name, state=state_label,
+                ))
+            pcr.action_mark_released(payment.amount)
 
     def _matracon_fix_salary_ceo_state(self):
         """Ensure salary payments linked to approved/paid sheets are always CEO-approved.

@@ -318,7 +318,7 @@
               name="Petty Cash"
               parent="account.menu_finance"
               sequence="12"
-              groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_ceo_approval,base.group_system"/>
+              groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_ceo_approval,base.group_system,site_operations.group_accountant_ho"/>
 
     <!-- Single Requests menu for ALL roles. Draft visibility is controlled by a
          record rule (HO/CEO/Admin cannot see draft). Site accountants see their
@@ -335,7 +335,7 @@
               parent="site_operations.menu_petty_cash_root"
               action="site_operations.action_petty_cash_expense"
               sequence="20"
-              groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_ceo_approval,base.group_system"/>
+              groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_ceo_approval,base.group_system,site_operations.group_accountant_ho"/>
 
     <menuitem id="menu_petty_cash_funds"
               name="Cash Funds"
