@@ -901,7 +901,34 @@ class PettyCashExpenseLine(models.Model):
         domain="[('category_id.name', '=', 'Subcontractor')]",
         help='Subcontractor receiving this advance.')
 
+    # ── Partner (anyone from Contacts) ────────────────────────────────────────
+    partner_id = fields.Many2one(
+        'res.partner', string='Partner',
+        help='Employee, subcontractor, supplier or any contact this line is for. '
+             'Posted against the partner so it shows in the Partner Ledger.')
+
     # (no manual sync needed — parent amount is @api.depends computed)
+
+    @api.onchange('is_subcontractor_advance', 'advance_subcontractor_id')
+    def _onchange_sc_advance_partner(self):
+        if self.is_subcontractor_advance and self.advance_subcontractor_id:
+            self.partner_id = self.advance_subcontractor_id
+
+    @api.onchange('is_employee_advance', 'employee_id')
+    def _onchange_emp_advance_partner(self):
+        if self.is_employee_advance and self.employee_id.work_contact_id:
+            self.partner_id = self.employee_id.work_contact_id
+
+    def _mtr_partner(self):
+        """Partner posted on this line: the Partner column, else the advance payee."""
+        self.ensure_one()
+        if self.partner_id:
+            return self.partner_id
+        if self.is_subcontractor_advance and self.advance_subcontractor_id:
+            return self.advance_subcontractor_id
+        if self.is_employee_advance and self.employee_id.work_contact_id:
+            return self.employee_id.work_contact_id
+        return self.env['res.partner']
 
 
 class PettyCashExpense(models.Model):
@@ -1378,31 +1405,49 @@ class PettyCashExpense(models.Model):
             'other': '6290',
         }
 
+        # Partner Ledger only lists Payable / Receivable lines. When a line has a
+        # partner but its account is neither, the amount is also passed through
+        # the partner's payable account (Cr then Dr, nets to zero) so the
+        # partner shows the liability and its cash settlement in the ledger.
+        partner_ledger_types = ('liability_payable', 'asset_receivable')
         je_debit_lines = []
         for line in self.line_ids:
-            if line.is_subcontractor_advance and line.advance_subcontractor_id and line.expense_account_id:
-                debit_account = line.expense_account_id
-                debit_partner_id = line.advance_subcontractor_id.id
-            else:
-                debit_account = line.expense_account_id
-                if not debit_account:
-                    code = CATEGORY_ACCOUNT_MAP.get(self.category, '6290')
-                    debit_account = self.env['account.account'].search([
-                        ('code', 'like', code),
-                        ('company_id', '=', self.env.company.id),
-                    ], limit=1)
-                if not debit_account:
-                    debit_account = credit_account
-                debit_partner_id = False
+            debit_account = line.expense_account_id
+            if not debit_account:
+                code = CATEGORY_ACCOUNT_MAP.get(self.category, '6290')
+                debit_account = self.env['account.account'].search([
+                    ('code', 'like', code),
+                    ('company_id', '=', self.env.company.id),
+                ], limit=1)
+            if not debit_account:
+                debit_account = credit_account
+            partner = line._mtr_partner()
 
             je_debit_lines.append((0, 0, {
                 'name': line.name,
                 'account_id': debit_account.id,
-                'partner_id': debit_partner_id or False,
+                'partner_id': partner.id or False,
                 'debit': line.amount,
                 'credit': 0.0,
                 'analytic_distribution': analytic_distribution or False,
             }))
+
+            if partner and debit_account.account_type not in partner_ledger_types:
+                payable = partner.with_company(self.env.company).property_account_payable_id
+                if not payable:
+                    raise UserError(_(
+                        'Line "%(line)s": partner %(partner)s has no Account Payable set.\n\n'
+                        'Set it on the contact (Accounting tab) and post again.'
+                    ) % {'line': line.name, 'partner': partner.display_name})
+                for debit, credit in ((0.0, line.amount), (line.amount, 0.0)):
+                    je_debit_lines.append((0, 0, {
+                        'name': line.name,
+                        'account_id': payable.id,
+                        'partner_id': partner.id,
+                        'debit': debit,
+                        'credit': credit,
+                        'analytic_distribution': analytic_distribution or False,
+                    }))
 
         # Credit-line label: a manually-typed Journal Entry normally carries a
         # real description on BOTH sides of the transaction. This used to be a
