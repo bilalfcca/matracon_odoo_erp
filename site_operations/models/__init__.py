@@ -31,6 +31,7 @@ from . import payment_allocation
 from . import batch_payment
 from . import liability_sheet
 from . import project_project
+from . import stock_picking_po_receipt
 from . import project_site_config
 from . import account_move
 from . import account_move_negative_invoice  # allow posting Customer Invoices with a negative total
