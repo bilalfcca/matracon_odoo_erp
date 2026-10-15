@@ -30,8 +30,17 @@ class PurchaseOrderToReceive(models.Model):
 
     @api.model
     def _search_x_mtr_to_receive(self, operator, value):
-        if operator not in ('=', '!='):
-            return []
+        # Odoo 19 normalises ('x', '=', True) to ('x', 'in', [True]) before
+        # calling this, so handle both forms.
+        if operator in ('=', '!='):
+            wanted, negate = {bool(value)}, operator == '!='
+        elif operator in ('in', 'not in'):
+            wanted, negate = {bool(v) for v in value}, operator == 'not in'
+        else:
+            raise NotImplementedError(operator)
+        if wanted == {True, False} or not wanted:
+            # matches everything (or nothing)
+            return [] if bool(wanted) != negate else [('id', '=', False)]
         self.env['purchase.order.line'].flush_model(['product_qty', 'qty_received', 'display_type'])
         self.env.cr.execute("""
             SELECT DISTINCT pol.order_id
@@ -43,7 +52,7 @@ class PurchaseOrderToReceive(models.Model):
                AND pol.product_qty - COALESCE(pol.qty_received, 0) > 0.00001
         """)
         ids = [row[0] for row in self.env.cr.fetchall()]
-        positive = (operator == '=') == bool(value)
+        positive = (True in wanted) != negate
         return [('id', 'in' if positive else 'not in', ids)]
 
 
@@ -109,6 +118,7 @@ class StockPickingPoReceipt(models.Model):
         pickings = super().create(vals_list)
         pickings._mtr_link_po_lines()
         pickings._mtr_trim_po_pending_moves()
+        pickings._mtr_confirm_po_receipt()
         return pickings
 
     def write(self, vals):
@@ -116,7 +126,18 @@ class StockPickingPoReceipt(models.Model):
         if 'move_ids' in vals or 'x_source_po_id' in vals:
             self._mtr_link_po_lines()
             self._mtr_trim_po_pending_moves()
+            self._mtr_confirm_po_receipt()
         return res
+
+    def _mtr_confirm_po_receipt(self):
+        """Confirm a draft receipt made from a PO, like the one Odoo creates on
+        PO confirmation: it opens at Ready with an editable "Receiving Now", and
+        receiving less than the demand offers a backorder."""
+        to_confirm = self.filtered(
+            lambda p: p.x_source_po_id and p.state == 'draft'
+            and p.picking_type_code == 'incoming' and p.move_ids)
+        if to_confirm:
+            to_confirm.action_confirm()
 
     def _mtr_link_po_lines(self):
         """Link lines to their PO line when the client did not send it.
