@@ -221,37 +221,37 @@
 
                     </group>
 
-                    <!-- e) Back Charges (auto-populated) -->
-                    <group string="e)  Back Charges (auto-populated for this Subcontractor &amp; Project)">
-                        <div class="mb-2" invisible="state != 'draft'">
-                            <button name="action_refresh_backcharges"
-                                    type="object"
-                                    string="↺  Refresh Backcharges"
-                                    class="btn btn-sm btn-secondary"/>
-                        </div>
-                        <field name="backcharge_line_ids"
-                               nolabel="1"
-                               readonly="state != 'draft'">
-                            <list editable="bottom">
-                                <!-- Optional: pick a registered back charge, or leave empty
-                                     and type Description / Date / Amount manually. -->
-                                <field name="backcharge_id"
-                                       string="Back Charge (optional)"
-                                       domain="[('subcontractor_id', '=', parent.subcontractor_id), ('project_analytic_account_id', '=', parent.project_analytic_account_id), ('state', '=', 'pending')]"
-                                       options="{'no_create': True}"/>
-                                <field name="description"
-                                       readonly="backcharge_id"
-                                       required="not backcharge_id"/>
-                                <field name="date" readonly="backcharge_id"/>
-                                <field name="amount" readonly="backcharge_id" sum="Total"/>
-                                <field name="currency_id" column_invisible="1"/>
-                            </list>
-                        </field>
-                        <div class="o_field_widget ms-auto pe-2 text-end" style="min-width:200px;">
-                            <strong>Total Back Charges: </strong>
-                            <field name="backcharge_total" readonly="1" class="oe_inline fw-bold"/>
-                        </div>
-                    </group>
+                    <!-- e) Back Charges (auto-populated) — full width (not inside a
+                         2-column group, where the list kept resizing itself). -->
+                    <separator string="e)  Back Charges (auto-populated for this Subcontractor &amp; Project)"/>
+                    <div class="mb-2" invisible="state != 'draft'">
+                        <button name="action_refresh_backcharges"
+                                type="object"
+                                string="↺  Refresh Backcharges"
+                                class="btn btn-sm btn-secondary"/>
+                    </div>
+                    <field name="backcharge_line_ids"
+                           nolabel="1"
+                           readonly="state != 'draft'">
+                        <list editable="bottom">
+                            <!-- Optional: pick a registered back charge, or leave empty
+                                 and type Description / Date / Amount manually. -->
+                            <field name="backcharge_id"
+                                   string="Back Charge (optional)"
+                                   domain="[('subcontractor_id', '=', parent.subcontractor_id), ('project_analytic_account_id', '=', parent.project_analytic_account_id), ('state', '=', 'pending')] + ([('date', '&lt;=', parent.ipc_date)] if parent.ipc_date else [])"
+                                   options="{'no_create': True}"/>
+                            <field name="description"
+                                   readonly="backcharge_id"
+                                   required="not backcharge_id"/>
+                            <field name="date" readonly="backcharge_id"/>
+                            <field name="amount" readonly="backcharge_id" sum="Total"/>
+                            <field name="currency_id" column_invisible="1"/>
+                        </list>
+                    </field>
+                    <div class="text-end pe-2 mb-3">
+                        <strong>Total Back Charges: </strong>
+                        <field name="backcharge_total" readonly="1" class="oe_inline fw-bold"/>
+                    </div>
 
                     <!-- Back charge deduction: Full / Manual, balance carried to next IPC -->
                     <group string="Back Charge Deduction">

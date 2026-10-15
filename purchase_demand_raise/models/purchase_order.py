@@ -1159,6 +1159,15 @@ class PurchaseOrder(models.Model):
             if _has_open_incoming(order):
                 continue
 
+            # Every goods line already fully received — nothing left to
+            # receive, so don't create an empty receipt.
+            goods = order.order_line.filtered(
+                lambda l: not l.display_type and l.product_id.type == 'consu')
+            if goods and all(
+                    l.product_uom_id.compare(l.qty_received, l.product_qty) >= 0
+                    for l in goods):
+                continue
+
             if order.state == 'to approve' and hasattr(order, 'button_approve'):
                 order.sudo().button_approve()
                 continue
