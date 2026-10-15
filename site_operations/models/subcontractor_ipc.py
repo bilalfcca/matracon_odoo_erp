@@ -1105,7 +1105,8 @@ class SubcontractorIPC(models.Model):
             for line in ipc.backcharge_line_ids:
                 bc = line.backcharge_id
                 if bc and bc.ipc_id == ipc and bc.state == 'processed':
-                    bc.sudo().write({'state': 'pending', 'ipc_id': False})
+                    bc.sudo().with_context(matracon_ipc_reset=True).write(
+                        {'state': 'pending', 'ipc_id': False})
 
             # ── 3. Reset IPC fields ───────────────────────────────────────────
             ipc.write({
