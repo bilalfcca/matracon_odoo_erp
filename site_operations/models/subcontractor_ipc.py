@@ -665,6 +665,38 @@ class SubcontractorIPC(models.Model):
         if not self.x_journal_id and cfg.journal_id:
             self.x_journal_id = cfg.journal_id
 
+    def _mtr_cumulative_shortfall_message(self):
+        self.ensure_one()
+        if (self.previous_gross_work_done
+                and self.currency_id.compare_amounts(
+                    self.gross_work_done, self.previous_gross_work_done) < 0):
+            fmt = lambda v: '{:,.2f}'.format(v)
+            return _(
+                'Gross Work Done is CUMULATIVE (total work done since the start, '
+                'including all previous IPCs).\n\n'
+                'Entered: %(entered)s\n'
+                'Work done up to previous IPC %(prev_ipc)s: %(prev)s\n\n'
+                'It cannot be less than the previous total. If %(entered)s is the '
+                'work done in this period only, enter %(suggested)s instead.',
+                entered=fmt(self.gross_work_done),
+                prev_ipc=self.previous_ipc_id.name or '',
+                prev=fmt(self.previous_gross_work_done),
+                suggested=fmt(self.previous_gross_work_done + self.gross_work_done),
+            )
+        return False
+
+    def _mtr_check_cumulative_work_done(self):
+        for ipc in self:
+            message = ipc._mtr_cumulative_shortfall_message()
+            if message:
+                raise UserError(message)
+
+    @api.onchange('gross_work_done', 'previous_gross_work_done')
+    def _onchange_gross_work_done_cumulative(self):
+        message = self._mtr_cumulative_shortfall_message()
+        if message:
+            return {'warning': {'title': _('Gross Work Done is cumulative'), 'message': message}}
+
     @api.onchange('subcontractor_id', 'project_analytic_account_id', 'ipc_date')
     def _onchange_fetch_backcharges(self):
         """Auto-populate back charge lines from the pending back charges for
@@ -758,6 +790,7 @@ class SubcontractorIPC(models.Model):
                     'Please attach the signed IPC document before submitting.\n\n'
                     'Upload the signed/stamped IPC file using the "IPC Document" field.'
                 ))
+            ipc._mtr_check_cumulative_work_done()
             # Auto-fill accounts from global config if not already set on the IPC
             cfg = self.env['x.ipc.account.config'].sudo()._get_config()
             if not ipc.x_expense_account_id and cfg.expense_account_id:
