@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Receipts: Source Document is picked from confirmed POs still to be
+         received (instead of free text); selecting one fills in the lines. -->
+    <record id="view_picking_form_po_receipt" model="ir.ui.view">
+        <field name="name">stock.picking.form.po.receipt</field>
+        <field name="model">stock.picking</field>
+        <field name="inherit_id" ref="stock.view_picking_form"/>
+        <field name="priority">30</field>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='origin']" position="before">
+                <field name="x_source_po_id"
+                       invisible="picking_type_code != 'incoming' or x_transfer_purpose"
+                       readonly="state != 'draft'"
+                       options="{'no_create': True, 'no_quick_create': True}"
+                       placeholder="Select a Purchase Order"/>
+            </xpath>
+            <!-- Keep each line's PO-line link when lines come from the selected PO. -->
+            <xpath expr="//field[@name='move_ids']/list/field[@name='product_uom_qty']" position="after">
+                <field name="purchase_line_id" column_invisible="1" force_save="1"/>
+            </xpath>
+            <xpath expr="//field[@name='origin']" position="attributes">
+                <attribute name="invisible">x_transfer_purpose in ['material_issuance', 'site_to_site'] or (picking_type_code == 'incoming' and not x_transfer_purpose)</attribute>
+            </xpath>
+        </field>
+    </record>
+</odoo>

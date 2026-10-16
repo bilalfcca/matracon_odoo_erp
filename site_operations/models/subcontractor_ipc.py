@@ -567,18 +567,27 @@ class SubcontractorIPC(models.Model):
             if not ipc.subcontractor_id or not ipc.project_analytic_account_id:
                 continue
             already_linked = ipc.backcharge_line_ids.mapped('backcharge_id').ids
-            pending = self.env['x.subcontractor.backcharge'].search([
-                ('subcontractor_id', '=', ipc.subcontractor_id.id),
-                ('project_analytic_account_id', '=',
-                 ipc.project_analytic_account_id.id),
-                ('state', '=', 'pending'),
-                ('id', 'not in', already_linked),
-            ])
+            pending = self.env['x.subcontractor.backcharge'].search(
+                ipc._mtr_pending_backcharge_domain(already_linked))
             if pending:
                 ipc.write({'backcharge_line_ids': [
                     (0, 0, {'backcharge_id': bc.id}) for bc in pending
                 ]})
         return ipcs
+
+    def _mtr_pending_backcharge_domain(self, exclude_ids=()):
+        """Pending back charges for this subcontractor + project, dated on or
+        before the IPC Date (Period To). Later ones wait for the next IPC."""
+        domain = [
+            ('subcontractor_id', '=', self.subcontractor_id.id),
+            ('project_analytic_account_id', '=', self.project_analytic_account_id.id),
+            ('state', '=', 'pending'),
+        ]
+        if self.ipc_date:
+            domain.append(('date', '<=', self.ipc_date))
+        if exclude_ids:
+            domain.append(('id', 'not in', list(exclude_ids)))
+        return domain
 
     # ─────────────────────────────────────────────────────────────────────────
     # ONCHANGE
@@ -656,18 +665,48 @@ class SubcontractorIPC(models.Model):
         if not self.x_journal_id and cfg.journal_id:
             self.x_journal_id = cfg.journal_id
 
-    @api.onchange('subcontractor_id', 'project_analytic_account_id')
+    def _mtr_cumulative_shortfall_message(self):
+        self.ensure_one()
+        if (self.previous_gross_work_done
+                and self.currency_id.compare_amounts(
+                    self.gross_work_done, self.previous_gross_work_done) < 0):
+            fmt = lambda v: '{:,.2f}'.format(v)
+            return _(
+                'Gross Work Done is CUMULATIVE (total work done since the start, '
+                'including all previous IPCs).\n\n'
+                'Entered: %(entered)s\n'
+                'Work done up to previous IPC %(prev_ipc)s: %(prev)s\n\n'
+                'It cannot be less than the previous total. If %(entered)s is the '
+                'work done in this period only, enter %(suggested)s instead.',
+                entered=fmt(self.gross_work_done),
+                prev_ipc=self.previous_ipc_id.name or '',
+                prev=fmt(self.previous_gross_work_done),
+                suggested=fmt(self.previous_gross_work_done + self.gross_work_done),
+            )
+        return False
+
+    def _mtr_check_cumulative_work_done(self):
+        for ipc in self:
+            message = ipc._mtr_cumulative_shortfall_message()
+            if message:
+                raise UserError(message)
+
+    @api.onchange('gross_work_done', 'previous_gross_work_done')
+    def _onchange_gross_work_done_cumulative(self):
+        message = self._mtr_cumulative_shortfall_message()
+        if message:
+            return {'warning': {'title': _('Gross Work Done is cumulative'), 'message': message}}
+
+    @api.onchange('subcontractor_id', 'project_analytic_account_id', 'ipc_date')
     def _onchange_fetch_backcharges(self):
-        """Auto-populate back charge lines from all pending back charges
-        for this subcontractor + project combination."""
+        """Auto-populate back charge lines from the pending back charges for
+        this subcontractor + project dated up to the IPC Date (Period To)."""
         if not self.subcontractor_id or not self.project_analytic_account_id:
             return
-        pending_bc = self.env['x.subcontractor.backcharge'].search([
-            ('subcontractor_id', '=', self.subcontractor_id.id),
-            ('project_analytic_account_id', '=',
-             self.project_analytic_account_id.id),
-            ('state', '=', 'pending'),
-        ])
+        if self.state not in ('draft', False):
+            return
+        pending_bc = self.env['x.subcontractor.backcharge'].search(
+            self._mtr_pending_backcharge_domain())
         new_lines = [(0, 0, {'backcharge_id': bc.id}) for bc in pending_bc]
         # Keep manually added lines; re-fetch registered ones so we don't
         # double-add on subcontractor/project change.
@@ -690,26 +729,28 @@ class SubcontractorIPC(models.Model):
                     'sticky': False,
                 },
             }
-        already_linked = self.backcharge_line_ids.mapped('backcharge_id').ids
-        pending = self.env['x.subcontractor.backcharge'].search([
-            ('subcontractor_id', '=', self.subcontractor_id.id),
-            ('project_analytic_account_id', '=',
-             self.project_analytic_account_id.id),
-            ('state', '=', 'pending'),
-            ('id', 'not in', already_linked),
-        ])
+        # Drop register back charges dated after the IPC Date (Period To) —
+        # they stay pending for the next IPC. Manual lines are left alone.
+        too_late = self.backcharge_line_ids.filtered(
+            lambda l: l.backcharge_id and self.ipc_date
+            and l.backcharge_id.date and l.backcharge_id.date > self.ipc_date)
+        already_linked = (self.backcharge_line_ids - too_late).mapped('backcharge_id').ids
+        pending = self.env['x.subcontractor.backcharge'].search(
+            self._mtr_pending_backcharge_domain(already_linked))
+        commands = [(2, l.id) for l in too_late]
+        commands += [(0, 0, {'backcharge_id': bc.id}) for bc in pending]
+        if commands:
+            self.write({'backcharge_line_ids': commands})
+        messages = []
         if pending:
-            self.write({'backcharge_line_ids': [
-                (0, 0, {'backcharge_id': bc.id}) for bc in pending
-            ]})
+            messages.append(_('%d backcharge(s) added.') % len(pending))
+        if too_late:
+            messages.append(_('%d backcharge(s) dated after the IPC Date removed.') % len(too_late))
         return {
             'type': 'ir.actions.client', 'tag': 'display_notification',
             'params': {
-                'type': 'success' if pending else 'info',
-                'message': (
-                    _('%d backcharge(s) added.') % len(pending)
-                    if pending else _('No new pending backcharges found.')
-                ),
+                'type': 'success' if commands else 'info',
+                'message': ' '.join(messages) or _('No new pending backcharges found.'),
                 'sticky': False,
             },
         }
@@ -749,6 +790,7 @@ class SubcontractorIPC(models.Model):
                     'Please attach the signed IPC document before submitting.\n\n'
                     'Upload the signed/stamped IPC file using the "IPC Document" field.'
                 ))
+            ipc._mtr_check_cumulative_work_done()
             # Auto-fill accounts from global config if not already set on the IPC
             cfg = self.env['x.ipc.account.config'].sudo()._get_config()
             if not ipc.x_expense_account_id and cfg.expense_account_id:
@@ -1096,7 +1138,8 @@ class SubcontractorIPC(models.Model):
             for line in ipc.backcharge_line_ids:
                 bc = line.backcharge_id
                 if bc and bc.ipc_id == ipc and bc.state == 'processed':
-                    bc.sudo().write({'state': 'pending', 'ipc_id': False})
+                    bc.sudo().with_context(matracon_ipc_reset=True).write(
+                        {'state': 'pending', 'ipc_id': False})
 
             # ── 3. Reset IPC fields ───────────────────────────────────────────
             ipc.write({

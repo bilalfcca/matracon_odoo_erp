@@ -1388,6 +1388,14 @@ class AccountMoveSiteOps(models.Model):
                 and l.analytic_distribution
             )
         )
+        # A partner whose payable lines cancel out within this entry (e.g. a petty
+        # cash line passed through the partner's payable account) has no
+        # outstanding liability — don't add an empty row to the sheet for them.
+        net_by_partner = {}
+        for aml in payable_lines:
+            net_by_partner[aml.partner_id] = net_by_partner.get(aml.partner_id, 0.0) + aml.balance
+        payable_lines = payable_lines.filtered(
+            lambda l: not self.company_currency_id.is_zero(net_by_partner[l.partner_id]))
         if not payable_lines:
             return
 
