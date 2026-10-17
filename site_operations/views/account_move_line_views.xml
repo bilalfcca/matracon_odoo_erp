@@ -19,7 +19,7 @@
                        string="Cheque No. (Series)"
                        optional="show"
                        options="{'no_create': True, 'no_open': True}"
-                       groups="purchase_demand_raise.group_head_office,site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"/>
+                       groups="purchase_demand_raise.group_head_office,site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_ceo_approval"/>
                 <!-- Manual cheque number: all users -->
                 <field name="x_cheque_number"
                        string="Cheque No. (Manual)"

@@ -3,6 +3,12 @@
 <template id="report_bank_payment_voucher_document">
 <t t-call="web.html_container">
 <t t-foreach="docs" t-as="o">
+<!-- Money received (customer receipts) → Payment Receipt layout below.
+     Everything in the t-else is the vendor Bank Payment Voucher, unchanged. -->
+<t t-if="o.payment_type == 'inbound'">
+    <t t-call="site_operations.report_payment_receipt_article"/>
+</t>
+<t t-else="">
 <!-- No layout wrapper here. _prepare_html() extracts every div.article and
      wraps it in web.minimal_layout automatically (passing content as `body`).
      padding-top:12mm clears the ~14mm invisible zone wkhtmltopdf introduces
@@ -518,5 +524,183 @@
 </div>
 </t>
 </t>
+</t>
+</template>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     PAYMENT RECEIPT — money received from a customer (payment_type inbound)
+     Rows are read straight from the posted journal entry, so the printed
+     receipt always matches the accounting:  Dr Bank/Cash  /  Cr Customer.
+     Before posting (no journal entry yet) the selected Debit / Credit
+     accounts are shown instead.
+═══════════════════════════════════════════════════════════════════════ -->
+<template id="report_payment_receipt_article">
+<div class="article" style="font-family:Arial,sans-serif; font-size:9pt; padding-top:6mm;">
+
+    <t t-set="pm" t-value="o.date.month if o.date else 1"/>
+    <t t-set="py" t-value="o.date.year  if o.date else 2026"/>
+    <t t-set="fy_start" t-value="py if pm >= 7 else py - 1"/>
+    <t t-set="fy_end"   t-value="fy_start + 1"/>
+    <t t-set="rc_project" t-value="o.x_fund_project_id or o.x_destination_project_id"/>
+
+    <t t-set="rc_lines"  t-value="o.move_id.line_ids.filtered(lambda l: l.display_type not in ('line_section', 'line_subsection', 'line_note')) if o.move_id else o.env['account.move.line'].browse()"/>
+    <t t-set="rc_debits"  t-value="rc_lines.filtered(lambda l: l.debit > 0)"/>
+    <t t-set="rc_credits" t-value="rc_lines.filtered(lambda l: l.credit > 0)"/>
+    <t t-set="rc_bank_account"     t-value="o.x_debit_account_id or o.outstanding_account_id or o.journal_id.default_account_id"/>
+    <t t-set="rc_customer_account" t-value="o.x_credit_account_id or o.destination_account_id"/>
+    <t t-set="rc_total" t-value="sum(rc_debits.mapped('debit')) if rc_debits else o.amount"/>
+
+    <t t-if="o.x_payment_status == 'reversed'">
+        <div style="background:#dc3545; color:#fff; text-align:center; padding:7px 10px; font-size:12pt; font-weight:700; letter-spacing:2px; margin-bottom:8px; border-radius:3px;">
+            ⚠&#160;&#160;THIS RECEIPT HAS BEEN REVERSED&#160;&#160;⚠
+        </div>
+    </t>
+
+    <!-- HEADER -->
+    <div class="row mb-1" style="align-items:center;">
+        <div class="col-8">
+            <div style="font-size:13pt; font-weight:700; letter-spacing:0.3px;">
+                Payment Receipt
+                <t t-if="o.x_payment_status == 'reversed'">
+                    &#160;<span style="font-size:9pt; background:#dc3545; color:#fff; padding:2px 8px; border-radius:3px; font-weight:700; letter-spacing:1px;">REVERSED</span>
+                </t>
+            </div>
+        </div>
+        <div class="col-4 text-end">
+            <t t-if="o.company_id.logo">
+                <img t-att-src="image_data_uri(o.company_id.logo)"
+                     style="height:75px; max-width:200px; object-fit:contain;"/>
+            </t>
+        </div>
+    </div>
+
+    <!-- META INFO -->
+    <div class="row mb-1">
+        <div class="col-6">
+            <table style="font-size:9pt; width:100%;">
+                <tr>
+                    <td style="font-weight:600; width:32%; padding:0px 4px 0px 0;">Received From</td>
+                    <td style="padding:0px 0;"><t t-esc="o.partner_id.name or '—'"/></td>
+                </tr>
+                <t t-if="rc_project">
+                    <tr>
+                        <td style="font-weight:600; padding:0px 4px 0px 0;">Project</td>
+                        <td style="padding:0px 0;"><t t-esc="rc_project.name"/></td>
+                    </tr>
+                </t>
+                <t t-if="o.memo">
+                    <tr>
+                        <td style="font-weight:600; padding:0px 4px 0px 0; vertical-align:top;">Narration</td>
+                        <td style="padding:0px 0;"><t t-esc="o.memo"/></td>
+                    </tr>
+                </t>
+            </table>
+        </div>
+        <div class="col-6">
+            <table style="font-size:9pt; border-collapse:collapse; width:100%; border:1.5px solid #333;">
+                <tr style="background:#f0f0f0;">
+                    <td style="font-weight:700; padding:2px 6px; border:1px solid #aaa; width:50%;">Financial Year</td>
+                    <td style="padding:2px 6px; border:1px solid #aaa;"><t t-esc="fy_start"/>&#160;–&#160;<t t-esc="fy_end"/></td>
+                </tr>
+                <tr>
+                    <td style="font-weight:700; padding:2px 6px; border:1px solid #aaa;">Receipt No</td>
+                    <td style="padding:2px 6px; border:1px solid #aaa;"><t t-esc="o.name or '—'"/></td>
+                </tr>
+                <tr style="background:#f0f0f0;">
+                    <td style="font-weight:700; padding:2px 6px; border:1px solid #aaa;">Date</td>
+                    <td style="padding:2px 6px; border:1px solid #aaa;"><t t-esc="o.date.strftime('%d/%m/%Y') if o.date else '—'"/></td>
+                </tr>
+            </table>
+        </div>
+    </div>
+
+    <!-- MAIN TABLE: debits first (bank/cash), then credits (customer) -->
+    <table style="width:100%; border-collapse:collapse; font-size:8.5pt; margin-top:2px;">
+        <thead>
+            <tr style="background:#222; color:#fff;">
+                <th style="padding:3px 5px; border:1px solid #555; width:10%; text-align:left;">Acct Code</th>
+                <th style="padding:3px 5px; border:1px solid #555; text-align:left;">Title / Narration</th>
+                <th style="padding:3px 5px; border:1px solid #555; width:12%; text-align:right;">Debit</th>
+                <th style="padding:3px 5px; border:1px solid #555; width:12%; text-align:right;">Credit</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- DEBIT: Bank / Cash -->
+            <t t-foreach="rc_debits or [False]" t-as="dl">
+                <t t-set="dl_account" t-value="dl.account_id if dl else rc_bank_account"/>
+                <tr style="border-bottom:1px solid #dee2e6;">
+                    <td style="padding:2px 4px; border:1px solid #ccc; font-family:monospace; font-size:9pt; vertical-align:top;">
+                        <t t-esc="dl_account.code or '—'"/>
+                    </td>
+                    <td style="padding:2px 4px; border:1px solid #ccc; vertical-align:top;">
+                        <div style="font-weight:600;"><t t-esc="dl_account.name or o.journal_id.name"/></div>
+                        <t t-if="o.memo">
+                            <div style="font-size:8pt; color:#444; margin-top:1px;"><t t-esc="o.memo"/></div>
+                        </t>
+                        <table style="margin-top:3px; font-size:8pt; border-collapse:collapse; width:auto;">
+                            <tr>
+                                <td style="border:1px solid #aaa; padding:2px 5px; background:#f8f8f8; font-weight:600;">Bank</td>
+                                <td style="border:1px solid #aaa; padding:2px 7px; min-width:110px;"><t t-esc="o.journal_id.name or ''"/></td>
+                                <td style="border:1px solid #aaa; padding:2px 5px; background:#f8f8f8; font-weight:600;">Cheque No</td>
+                                <td style="border:1px solid #aaa; padding:2px 7px; min-width:90px;"><t t-esc="o.x_cheque_number or ''"/></td>
+                                <td style="border:1px solid #aaa; padding:2px 5px; background:#f8f8f8; font-weight:600;">Date</td>
+                                <td style="border:1px solid #aaa; padding:2px 7px; min-width:75px;"><t t-esc="o.date.strftime('%d/%m/%Y') if o.date else ''"/></td>
+                            </tr>
+                        </table>
+                    </td>
+                    <td style="padding:2px 4px; border:1px solid #ccc; text-align:right; font-weight:600; vertical-align:top;">
+                        <t t-esc="'{:,.2f}'.format(dl.debit if dl else o.amount)"/>
+                    </td>
+                    <td style="padding:2px 4px; border:1px solid #ccc; text-align:right; color:#aaa; vertical-align:top;">—</td>
+                </tr>
+            </t>
+            <!-- CREDIT: Customer / selected credit account -->
+            <t t-foreach="rc_credits or [False]" t-as="cl">
+                <t t-set="cl_account" t-value="cl.account_id if cl else rc_customer_account"/>
+                <tr style="border-bottom:1px solid #dee2e6;">
+                    <td style="padding:2px 4px; border:1px solid #ccc; font-family:monospace; font-size:9pt; vertical-align:top;">
+                        <t t-esc="cl_account.code or '—'"/>
+                    </td>
+                    <td style="padding:2px 4px; border:1px solid #ccc; vertical-align:top;">
+                        <div style="font-weight:600;"><t t-esc="(cl.partner_id.name if cl and cl.partner_id else o.partner_id.name) or '—'"/></div>
+                        <div style="font-size:8pt; color:#666; margin-top:1px;"><t t-esc="cl_account.name or ''"/></div>
+                        <t t-if="o.memo">
+                            <div style="font-size:8pt; color:#444; margin-top:1px;"><t t-esc="o.memo"/></div>
+                        </t>
+                        <t t-if="rc_project">
+                            <div style="font-size:8pt; color:#666; margin-top:1px;">Project: <t t-esc="rc_project.name"/></div>
+                        </t>
+                    </td>
+                    <td style="padding:2px 4px; border:1px solid #ccc; text-align:right; color:#aaa; vertical-align:top;">—</td>
+                    <td style="padding:2px 4px; border:1px solid #ccc; text-align:right; font-weight:600; vertical-align:top;">
+                        <t t-esc="'{:,.2f}'.format(cl.credit if cl else o.amount)"/>
+                    </td>
+                </tr>
+            </t>
+            <!-- TOTAL -->
+            <tr style="background:#f0f0f0; font-weight:700;">
+                <td colspan="2" style="padding:2px 5px; border:1.5px solid #888; text-align:right;">Total</td>
+                <td style="padding:2px 5px; border:1.5px solid #888; text-align:right;">
+                    <t t-esc="'{:,.2f}'.format(sum(rc_debits.mapped('debit')) if rc_debits else o.amount)"/>
+                </td>
+                <td style="padding:2px 5px; border:1.5px solid #888; text-align:right;">
+                    <t t-esc="'{:,.2f}'.format(sum(rc_credits.mapped('credit')) if rc_credits else o.amount)"/>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div style="margin-top:4px; border:1px solid #ccc; border-radius:3px; overflow:hidden;">
+        <div style="padding:3px 8px; background:#fafafa; font-size:8.5pt;">
+            <span style="font-weight:700; margin-right:6px;">Amount Received in Words:</span>
+            <t t-esc="o.currency_id.amount_to_text(rc_total)"/>
+        </div>
+    </div>
+
+    <t t-call="site_operations.report_sig_4col">
+        <t t-set="sig_prepared_user" t-value="o.sudo().create_uid"/>
+    </t>
+
+</div>
 </template>
 </odoo>

@@ -217,7 +217,7 @@
                         type="object"
                         class="btn-secondary"
                         confirm="Full reset: ALL approval statuses will be cleared and PR returned to Draft. Continue?"
-                        groups="purchase_demand_raise.group_matracon_admin,base.group_system"
+                        groups="purchase_demand_raise.group_matracon_admin,base.group_system,purchase_demand_raise.group_ceo_approval"
                         invisible="x_pr_state == 'draft'"/>
 
             </xpath>
@@ -404,12 +404,13 @@
                 <attribute name="column_invisible">parent.x_is_pr_document or parent.x_is_site_store or parent.x_is_alternative_rfq</attribute>
             </field>
 
-            <!-- Requested Qty: PR docs + site store (site store edits); alternatives (HO edits freely)
-                 Hidden for HO-created PRs (x_pr_origin='procurement_ho') — HO fills Recommended Qty directly -->
+            <!-- Requested Qty: PR docs + site store (site store edits); alternatives (HO edits freely).
+                 Also shown on HO-created PRs so Procurement enters the real quantity
+                 instead of the hidden default of 1. -->
             <field name="product_qty" position="before">
                 <field name="x_requested_qty"
                        string="Requested Qty"
-                       column_invisible="(not parent.x_is_pr_document and not parent.x_is_site_store and not parent.x_is_alternative_rfq) or (parent.x_is_ho and parent.x_pr_origin == 'procurement_ho')"
+                       column_invisible="not parent.x_is_pr_document and not parent.x_is_site_store and not parent.x_is_alternative_rfq"
                        readonly="not parent.x_is_site_store and not (parent.x_is_ho and parent.x_pr_state in ('draft', 'submitted')) and not parent.x_is_alternative_rfq"
                        optional="show"/>
             </field>

@@ -17,6 +17,7 @@ from . import bg_facility_amendment_import
 from . import tax_notice
 from . import matracon_notifications
 from . import app_visibility
+from . import res_company
 from . import interproject_accounting  # must load before stock_picking (imported at module level)
 from . import stock_picking
 from . import purchase_order
@@ -30,6 +31,7 @@ from . import payment_allocation
 from . import batch_payment
 from . import liability_sheet
 from . import project_project
+from . import stock_picking_po_receipt
 from . import project_site_config
 from . import account_move
 from . import account_move_negative_invoice  # allow posting Customer Invoices with a negative total
@@ -55,3 +57,4 @@ from . import account_report_ext  # lock analytic filter for site accountants
 from . import uom_ext  # UoM alternative name search aliases
 from . import product_category_ext  # x_add_to_dashboard flag on product category
 from . import uom_change_wizard  # Change product UoM + convert all open quantities
+from . import ir_ui_menu  # Accountant HO: only Petty Cash → Expenses in the Invoicing app

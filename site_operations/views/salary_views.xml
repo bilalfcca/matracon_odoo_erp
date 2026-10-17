@@ -19,7 +19,7 @@
                             string="Download for Signing"
                             class="btn-secondary"
                             invisible="state != 'draft'"
-                            groups="site_operations.group_site_accountant,purchase_demand_raise.group_matracon_admin"/>
+                            groups="site_operations.group_site_accountant,purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_ceo_approval"/>
                     <!-- ── Submit — only shown when signed doc is uploaded ── -->
                     <button name="action_submit" type="object"
                             string="Submit for CEO Approval" class="btn-primary"
@@ -38,7 +38,7 @@
                             string="Issue WHT Certificates (Sec 149)"
                             class="btn-secondary"
                             invisible="state not in ('approved', 'paid') or total_wht == 0"
-                            groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"/>
+                            groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_ceo_approval"/>
                     <!-- ── Download PDF for non-draft states ── -->
                     <button name="action_download_pdf" type="object"
                             string="⬇ Download PDF"

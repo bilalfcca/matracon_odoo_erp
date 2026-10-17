@@ -1033,22 +1033,21 @@ class AccountPaymentSiteOps(models.Model):
             if moves:
                 payment.x_interproject_move_ids = [(6, 0, moves.ids)]
 
-    def _get_deduction_account(self, xmlid):
-        """Safely resolve an account by xmlid, fall back to code search."""
-        account = self.env.ref(f'site_operations.{xmlid}', raise_if_not_found=False)
-        if account:
-            return account
-        # Fallback: search by code (handles installs where data wasn't reloaded)
-        code_map = {
-            'account_wht_payable': '252100',
-            'account_retention_payable': '211200',
-        }
-        code = code_map.get(xmlid)
-        if code:
-            return self.env['account.account'].search(
-                [('code', '=', code), ('company_id', '=', self.company_id.id)], limit=1
-            )
-        return self.env['account.account']
+    def _get_deduction_account(self, field_name):
+        """Default deduction account chosen on the Company form
+        (x_wht_payable_account_id / x_retention_payable_account_id)."""
+        return self.company_id[field_name] or self.env.company[field_name]
+
+    def _raise_missing_deduction_account(self, label):
+        raise UserError(_(
+            'No %(label)s account is set, so the deduction on payment %(pay)s '
+            'cannot be posted.\n\n'
+            'Set it on Settings → Companies → %(company)s → Matracon Accounts.'
+        ) % {
+            'label': label,
+            'pay': self.name or '',
+            'company': (self.company_id or self.env.company).name,
+        })
 
     def _create_tax_deduction_entries(self):
         """For each WHT / Retention deduction line, post a journal entry that:
@@ -1079,17 +1078,9 @@ class AccountPaymentSiteOps(models.Model):
         # WHT: prefer the per-exemption account stored on each tax line so that
         # the Credit here (liability created) and the Debit on the FBR companion
         # payment both land on the SAME account (e.g. 420402 Income Tax 153(1)(A)).
-        # Falls back to the system-level default (xmlid / code 252100).
-        wht_account_default = self._get_deduction_account('account_wht_payable')
-        retention_account = self._get_deduction_account('account_retention_payable')
-
-        has_wht = wht_account_default or any(
-            tl.x_exemption_id and tl.x_exemption_id.x_wht_payable_account_id
-            for tl in deduction_lines
-            if tl.tax_type == 'wht'
-        )
-        if not has_wht and not retention_account:
-            return  # Nothing to post — accounts not set up
+        # Falls back to the company's Default WHT Payable Account.
+        wht_account_default = self._get_deduction_account('x_wht_payable_account_id')
+        retention_account = self._get_deduction_account('x_retention_payable_account_id')
 
         # Vendor AP account — read from the existing payment JE
         ap_account = self.env['account.account']
@@ -1133,7 +1124,7 @@ class AccountPaymentSiteOps(models.Model):
                     or wht_account_default
                 )
                 if not credit_account:
-                    continue
+                    self._raise_missing_deduction_account(_('WHT Payable'))
                 label = _('WHT — %s') % (tl.tax_id.name if tl.tax_id else 'WHT')
                 # Dr AP (vendor) — reduces their payable balance
                 # Cr WHT Payable (FBR as partner) — creates the WHT liability in
@@ -1166,7 +1157,7 @@ class AccountPaymentSiteOps(models.Model):
             elif tl.tax_type == 'retention':
                 credit_account = retention_account
                 if not credit_account:
-                    continue
+                    self._raise_missing_deduction_account(_('Retention Payable'))
                 label = _('Retention — %s') % self.partner_id.name
                 # Dr AP (vendor) — removes from current AP
                 # Cr Retention Payable (vendor) — creates new payable back to them
@@ -1288,7 +1279,20 @@ class AccountPaymentSiteOps(models.Model):
         for payment in self.filtered(
             lambda p: p.state in _POSTED_STATES and p.x_petty_cash_request_id
         ):
-            payment.x_petty_cash_request_id.action_mark_released(payment.amount)
+            pcr = payment.x_petty_cash_request_id
+            # A request reset to Draft (or still awaiting approval / rejected) must go
+            # through CEO approval again — posting an old payment must not mark it
+            # Released and skip that approval.
+            if pcr.state not in ('ceo_approved', 'released', 'confirmed'):
+                state_label = dict(pcr._fields['state'].selection).get(pcr.state, pcr.state)
+                raise UserError(_(
+                    'Petty Cash Request %(pcr)s is in "%(state)s" — it was changed after '
+                    'this payment was created.\n\n'
+                    'Submit the request and get CEO approval again, then confirm this '
+                    'payment (or release it again from the request).',
+                    pcr=pcr.name, state=state_label,
+                ))
+            pcr.action_mark_released(payment.amount)
 
     def _matracon_fix_salary_ceo_state(self):
         """Ensure salary payments linked to approved/paid sheets are always CEO-approved.
@@ -1520,7 +1524,10 @@ class AccountPaymentSiteOps(models.Model):
 
     def _matracon_tag_payment_move_analytic(self):
         self.ensure_one()
-        analytic = self.x_destination_project_id or self.x_fund_project_id
+        if self.payment_type == 'inbound':
+            analytic = self.x_fund_project_id
+        else:
+            analytic = self.x_destination_project_id or self.x_fund_project_id
         if not analytic or not self.move_id:
             return
         # Stamp x_project_analytic_account_id on the payment journal entry so
@@ -1546,11 +1553,17 @@ class AccountPaymentSiteOps(models.Model):
             if alloc.journal_id and alloc.journal_id.default_account_id:
                 bank_acct_ids.add(alloc.journal_id.default_account_id.id)
         dist = self._analytic_distribution_for_account(analytic)
-        lines = self.move_id.line_ids.filtered(
-            lambda l: l.account_id.id not in bank_acct_ids
-        )
+        # Customer receipts: the receiving bank is the project's own money, so
+        # every line (bank/debit side included) carries the project analytic —
+        # Finance should never have to reset the JE to add it by hand.
+        if self.payment_type == 'inbound':
+            lines = self.move_id.line_ids
+        else:
+            lines = self.move_id.line_ids.filtered(
+                lambda l: l.account_id.id not in bank_acct_ids
+            )
         if lines:
-            lines.write({'analytic_distribution': dist})
+            lines.sudo().write({'analytic_distribution': dist})
 
     def _matracon_propagate_cheque_to_move(self):
         """Copy x_cheque_number / x_account_title from this payment to its JE.
@@ -1729,7 +1742,10 @@ class AccountPaymentSiteOps(models.Model):
                 bank_acct_ids.add(alloc.journal_id.default_account_id.id)
         dist = self._analytic_distribution_for_account(analytic)
         for vals in line_vals_list:
-            if vals.get('account_id') not in bank_acct_ids:
+            # Inbound receipts tag the bank/debit line too (see
+            # _matracon_tag_payment_move_analytic).
+            if (self.payment_type == 'inbound'
+                    or vals.get('account_id') not in bank_acct_ids):
                 vals['analytic_distribution'] = dist
         return line_vals_list
 
@@ -1812,7 +1828,7 @@ class AccountPaymentSiteOps(models.Model):
         # correctly debits it when posted (Dr WHT Payable / Cr Bank).
         # Without this, the companion would debit FBR's default AP account
         # instead, leaving the WHT payable account unbalanced.
-        wht_account = self._get_deduction_account('account_wht_payable')
+        wht_account = self._get_deduction_account('x_wht_payable_account_id')
 
         memo = _('WHT — %s | %s') % (origin_label, self.name or '')
 
@@ -2113,7 +2129,7 @@ class AccountPaymentSiteOps(models.Model):
         if self.x_petty_cash_request_id:
             pcr = self.x_petty_cash_request_id
             if pcr.state in ('released', 'confirmed'):
-                pcr.state = 'approved'
+                pcr.state = 'ceo_approved'
                 pcr.payment_id = False
                 pcr.message_post(
                     body=Markup('PCR reset to Approved — payment <b>%s</b> reversed.') % payment_name

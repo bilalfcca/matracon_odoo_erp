@@ -75,7 +75,9 @@
             <field name="groups" eval="[(4, ref('site_operations.group_site_accountant'))]"/>
         </record>
 
-        <!-- HO / CEO / Admin / Finance HO cannot see Draft petty cash requests.
+        <!-- HO / Procurement HO cannot see Draft petty cash requests.
+             CEO, Finance HO, Matracon Admin and System Administrator are removed
+             with (3, ...): they have full access, drafts included.
              Site accountants are NOT in any of these groups so they keep full
              draft visibility (scoped to their own site by the rule above). -->
         <record id="rule_petty_cash_request_no_draft_ho" model="ir.rule">
@@ -83,13 +85,36 @@
             <field name="model_id" ref="model_x_petty_cash_request"/>
             <field name="domain_force">[('state', '!=', 'draft')]</field>
             <field name="groups" eval="[
-                (4, ref('purchase_demand_raise.group_ceo_approval')),
+                (3, ref('purchase_demand_raise.group_ceo_approval')),
                 (4, ref('purchase_demand_raise.group_head_office')),
-                (4, ref('site_operations.group_finance_ho')),
+                (3, ref('site_operations.group_finance_ho')),
                 (4, ref('purchase_demand_raise.group_procurement_ho')),
-                (4, ref('purchase_demand_raise.group_matracon_admin')),
-                (4, ref('base.group_system')),
+                (3, ref('purchase_demand_raise.group_matracon_admin')),
+                (3, ref('base.group_system')),
             ]"/>
+        </record>
+
+        <!-- ...except a draft request that a payment still points at (e.g. the
+             site accountant reset the request to Draft after it was released).
+             Read-only: lets HO roles open that payment without an access error;
+             editing the draft request stays with the site accountant. Rules for
+             the same user are OR-ed, so for read this widens the rule above. -->
+        <record id="rule_petty_cash_request_read_linked_ho" model="ir.rule">
+            <field name="name">Petty Cash Request: HO/CEO/Admin can read Draft linked to a payment</field>
+            <field name="model_id" ref="model_x_petty_cash_request"/>
+            <field name="domain_force">['|', ('state', '!=', 'draft'), ('x_payment_ids', '!=', False)]</field>
+            <field name="groups" eval="[
+                (3, ref('purchase_demand_raise.group_ceo_approval')),
+                (4, ref('purchase_demand_raise.group_head_office')),
+                (3, ref('site_operations.group_finance_ho')),
+                (4, ref('purchase_demand_raise.group_procurement_ho')),
+                (3, ref('purchase_demand_raise.group_matracon_admin')),
+                (3, ref('base.group_system')),
+            ]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
         </record>
 
         <record id="rule_petty_cash_expense_site_accountant" model="ir.rule">
@@ -106,9 +131,9 @@
             <field name="model_id" ref="model_x_petty_cash_expense"/>
             <field name="domain_force">[('state', '=', 'posted')]</field>
             <field name="groups" eval="[
-                (4, ref('purchase_demand_raise.group_ceo_approval')),
+                (3, ref('purchase_demand_raise.group_ceo_approval')),
                 (4, ref('purchase_demand_raise.group_head_office')),
-                (4, ref('site_operations.group_finance_ho')),
+                (3, ref('site_operations.group_finance_ho')),
                 (4, ref('purchase_demand_raise.group_procurement_ho')),
             ]"/>
         </record>
@@ -427,6 +452,10 @@
              Draft sheets are for SA only — CEO/FO should not see them until submitted. -->
         <record id="rule_liability_sheet_ceo" model="ir.rule">
             <field name="name">Liability Sheet: CEO sees submitted+ only</field>
+            <!-- Deactivated 2026-10-06: CEO has admin-level access in every app
+                 shown to them, drafts included. Not emptied — a rule without
+                 groups would apply to everyone. -->
+            <field name="active" eval="False"/>
             <field name="model_id" ref="model_x_liability_sheet"/>
             <field name="groups" eval="[(4, ref('purchase_demand_raise.group_ceo_approval'))]"/>
             <field name="domain_force">[('state', '!=', 'draft')]</field>
@@ -437,6 +466,9 @@
         </record>
         <record id="rule_liability_sheet_finance_ho" model="ir.rule">
             <field name="name">Liability Sheet: Finance HO sees submitted+ only</field>
+            <!-- Deactivated: Finance HO has full accounting access incl. drafts.
+                 Not deleted/emptied — a rule without groups would apply to everyone. -->
+            <field name="active" eval="False"/>
             <field name="model_id" ref="model_x_liability_sheet"/>
             <field name="groups" eval="[(4, ref('site_operations.group_finance_ho'))]"/>
             <field name="domain_force">[('state', '!=', 'draft')]</field>
@@ -612,6 +644,12 @@
             <field name="perm_unlink" eval="False"/>
         </record>
 
+        <!-- Finance HO has full accounting access, drafts included (2026-10-06):
+             FO is removed with (3, ...) — not (4, ...) — from the accounting
+             no-draft rules (account move/line, petty cash request/expense,
+             subcontractor IPC/backcharge, WHT certificate) so the link is also
+             dropped from existing databases on upgrade; the FO-only liability
+             sheet rule is deactivated. -->
         <!-- ═══════════════════════════════════════════════════════════════════
              HO / CEO — NO DRAFT VISIBILITY (A to Z)
              CEO, Head Office, Finance HO, Procurement HO see only submitted /
@@ -633,9 +671,9 @@
                 '|', ('move_type', '!=', 'entry'), ('create_uid', '=', user.id)
             ]</field>
             <field name="groups" eval="[
-                (4, ref('purchase_demand_raise.group_ceo_approval')),
+                (3, ref('purchase_demand_raise.group_ceo_approval')),
                 (4, ref('purchase_demand_raise.group_head_office')),
-                (4, ref('site_operations.group_finance_ho')),
+                (3, ref('site_operations.group_finance_ho')),
                 (4, ref('purchase_demand_raise.group_procurement_ho')),
             ]"/>
         </record>
@@ -651,9 +689,9 @@
                 '|', ('move_id.move_type', '!=', 'entry'), ('move_id.create_uid', '=', user.id)
             ]</field>
             <field name="groups" eval="[
-                (4, ref('purchase_demand_raise.group_ceo_approval')),
+                (3, ref('purchase_demand_raise.group_ceo_approval')),
                 (4, ref('purchase_demand_raise.group_head_office')),
-                (4, ref('site_operations.group_finance_ho')),
+                (3, ref('site_operations.group_finance_ho')),
                 (4, ref('purchase_demand_raise.group_procurement_ho')),
             ]"/>
         </record>
@@ -667,7 +705,7 @@
             <field name="model_id" ref="stock.model_stock_picking"/>
             <field name="domain_force">[('state', '!=', 'draft')]</field>
             <field name="groups" eval="[
-                (4, ref('purchase_demand_raise.group_ceo_approval')),
+                (3, ref('purchase_demand_raise.group_ceo_approval')),
                 (4, ref('purchase_demand_raise.group_head_office')),
                 (4, ref('site_operations.group_finance_ho')),
             ]"/>
@@ -727,7 +765,7 @@
             <field name="model_id" ref="model_x_salary_sheet"/>
             <field name="domain_force">[('state', '!=', 'draft')]</field>
             <field name="groups" eval="[
-                (4, ref('purchase_demand_raise.group_ceo_approval')),
+                (3, ref('purchase_demand_raise.group_ceo_approval')),
                 (4, ref('purchase_demand_raise.group_head_office')),
                 (4, ref('site_operations.group_finance_ho')),
                 (4, ref('purchase_demand_raise.group_procurement_ho')),
@@ -740,7 +778,7 @@
             <field name="model_id" ref="model_x_attendance_sheet"/>
             <field name="domain_force">[('state', '!=', 'draft')]</field>
             <field name="groups" eval="[
-                (4, ref('purchase_demand_raise.group_ceo_approval')),
+                (3, ref('purchase_demand_raise.group_ceo_approval')),
                 (4, ref('purchase_demand_raise.group_head_office')),
                 (4, ref('site_operations.group_finance_ho')),
                 (4, ref('purchase_demand_raise.group_procurement_ho')),
@@ -753,7 +791,7 @@
             <field name="model_id" ref="model_x_bank_guarantee"/>
             <field name="domain_force">[('state', '!=', 'draft')]</field>
             <field name="groups" eval="[
-                (4, ref('purchase_demand_raise.group_ceo_approval')),
+                (3, ref('purchase_demand_raise.group_ceo_approval')),
                 (4, ref('purchase_demand_raise.group_head_office')),
                 (4, ref('site_operations.group_finance_ho')),
                 (4, ref('purchase_demand_raise.group_procurement_ho')),
@@ -766,9 +804,9 @@
             <field name="model_id" ref="model_x_subcontractor_ipc"/>
             <field name="domain_force">[('state', '!=', 'draft')]</field>
             <field name="groups" eval="[
-                (4, ref('purchase_demand_raise.group_ceo_approval')),
+                (3, ref('purchase_demand_raise.group_ceo_approval')),
                 (4, ref('purchase_demand_raise.group_head_office')),
-                (4, ref('site_operations.group_finance_ho')),
+                (3, ref('site_operations.group_finance_ho')),
                 (4, ref('purchase_demand_raise.group_procurement_ho')),
             ]"/>
         </record>
@@ -779,9 +817,9 @@
             <field name="model_id" ref="model_x_subcontractor_backcharge"/>
             <field name="domain_force">[('state', '!=', 'draft')]</field>
             <field name="groups" eval="[
-                (4, ref('purchase_demand_raise.group_ceo_approval')),
+                (3, ref('purchase_demand_raise.group_ceo_approval')),
                 (4, ref('purchase_demand_raise.group_head_office')),
-                (4, ref('site_operations.group_finance_ho')),
+                (3, ref('site_operations.group_finance_ho')),
                 (4, ref('purchase_demand_raise.group_procurement_ho')),
             ]"/>
         </record>
@@ -792,7 +830,7 @@
             <field name="model_id" ref="model_x_employee_backcharge"/>
             <field name="domain_force">[('state', '!=', 'draft')]</field>
             <field name="groups" eval="[
-                (4, ref('purchase_demand_raise.group_ceo_approval')),
+                (3, ref('purchase_demand_raise.group_ceo_approval')),
                 (4, ref('purchase_demand_raise.group_head_office')),
                 (4, ref('site_operations.group_finance_ho')),
                 (4, ref('purchase_demand_raise.group_procurement_ho')),
@@ -805,9 +843,9 @@
             <field name="model_id" ref="model_x_wht_certificate"/>
             <field name="domain_force">[('state', '!=', 'draft')]</field>
             <field name="groups" eval="[
-                (4, ref('purchase_demand_raise.group_ceo_approval')),
+                (3, ref('purchase_demand_raise.group_ceo_approval')),
                 (4, ref('purchase_demand_raise.group_head_office')),
-                (4, ref('site_operations.group_finance_ho')),
+                (3, ref('site_operations.group_finance_ho')),
                 (4, ref('purchase_demand_raise.group_procurement_ho')),
             ]"/>
         </record>
@@ -818,7 +856,7 @@
             <field name="model_id" ref="model_x_tax_notice_order"/>
             <field name="domain_force">[('state', '!=', 'draft')]</field>
             <field name="groups" eval="[
-                (4, ref('purchase_demand_raise.group_ceo_approval')),
+                (3, ref('purchase_demand_raise.group_ceo_approval')),
                 (4, ref('purchase_demand_raise.group_head_office')),
                 (4, ref('site_operations.group_finance_ho')),
                 (4, ref('purchase_demand_raise.group_procurement_ho')),
@@ -854,6 +892,10 @@
              which fall through to ACL-only gating (already full, same as admin). -->
         <record id="rule_stock_move_ceo" model="ir.rule">
             <field name="name">Stock Move: CEO — admin parity, drafts hidden</field>
+            <!-- Deactivated 2026-10-06: CEO has admin-level access in every app
+                 shown to them, drafts included. Not emptied — a rule without
+                 groups would apply to everyone. -->
+            <field name="active" eval="False"/>
             <field name="model_id" ref="stock.model_stock_move"/>
             <field name="groups" eval="[(4, ref('purchase_demand_raise.group_ceo_approval'))]"/>
             <field name="domain_force">[('state', '!=', 'draft')]</field>
@@ -866,6 +908,10 @@
         <!-- read-only: same reasoning as rule_stock_move_ceo above. -->
         <record id="rule_stock_move_line_ceo" model="ir.rule">
             <field name="name">Stock Move Line: CEO — admin parity, drafts hidden</field>
+            <!-- Deactivated 2026-10-06: CEO has admin-level access in every app
+                 shown to them, drafts included. Not emptied — a rule without
+                 groups would apply to everyone. -->
+            <field name="active" eval="False"/>
             <field name="model_id" ref="stock.model_stock_move_line"/>
             <field name="groups" eval="[(4, ref('purchase_demand_raise.group_ceo_approval'))]"/>
             <field name="domain_force">[('state', '!=', 'draft')]</field>
@@ -884,6 +930,10 @@
              fall through to ACL-only gating (already full, same as admin). -->
         <record id="rule_account_payment_ceo" model="ir.rule">
             <field name="name">Account Payment: CEO — admin parity, drafts hidden</field>
+            <!-- Deactivated 2026-10-06: CEO has admin-level access in every app
+                 shown to them, drafts included. Not emptied — a rule without
+                 groups would apply to everyone. -->
+            <field name="active" eval="False"/>
             <field name="model_id" ref="account.model_account_payment"/>
             <field name="groups" eval="[(4, ref('purchase_demand_raise.group_ceo_approval'))]"/>
             <field name="domain_force">[('state', '!=', 'draft')]</field>

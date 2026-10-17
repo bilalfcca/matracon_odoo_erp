@@ -604,13 +604,7 @@ class CSVendor(models.Model):
         pr = cs.x_purchase_order_id
         lines = []
         for pr_line in pr.order_line.filtered(lambda l: l.product_id and not l.display_type):
-            qty = (
-                pr_line.x_approved_qty
-                or pr_line.x_recommended_qty
-                or pr_line.x_requested_qty
-                or pr_line.product_qty
-                or 1.0
-            )
+            qty = pr_line._x_effective_qty() or 1.0
             lines.append(Command.create({
                 'x_product_id': pr_line.product_id.id,
                 'x_qty': qty,
@@ -927,13 +921,7 @@ class CSVendor(models.Model):
                     lambda l: l.product_id and not l.display_type
                 ):
                     # Priority: approved → recommended → requested → product_qty
-                    qty = (
-                        pr_line.x_approved_qty
-                        or pr_line.x_recommended_qty
-                        or pr_line.x_requested_qty
-                        or pr_line.product_qty
-                        or 1.0
-                    )
+                    qty = pr_line._x_effective_qty() or 1.0
                     lines.append(Command.create({
                         'x_product_id': pr_line.product_id.id,
                         'x_qty': qty,
@@ -1023,13 +1011,7 @@ class CSVendor(models.Model):
         for pr_line in pr.order_line.filtered(lambda l: l.product_id and not l.display_type):
             if pr_line.product_id in existing_products:
                 continue
-            qty = (
-                pr_line.x_approved_qty
-                or pr_line.x_recommended_qty
-                or pr_line.x_requested_qty
-                or pr_line.product_qty
-                or 1.0
-            )
+            qty = pr_line._x_effective_qty() or 1.0
             to_create.append({
                 'x_cs_vendor_id': self.id,
                 'x_product_id': pr_line.product_id.id,
@@ -1075,6 +1057,7 @@ class CSVendorLine(models.Model):
 
     @api.depends(
         'x_pr_line_id',
+        'x_pr_line_id.x_approved_qty',
         'x_pr_line_id.x_recommended_qty',
         'x_pr_line_id.x_requested_qty',
         'x_pr_line_id.product_qty',
@@ -1083,13 +1066,8 @@ class CSVendorLine(models.Model):
         for line in self:
             pr = line.x_pr_line_id
             if pr:
-                # Priority: recommended → requested → product_qty
-                line.x_qty = (
-                    pr.x_recommended_qty
-                    or pr.x_requested_qty
-                    or pr.product_qty
-                    or 1.0
-                )
+                # Priority: approved → recommended → requested → product_qty
+                line.x_qty = pr._x_effective_qty() or 1.0
             else:
                 # No PR link (manually added line) — default to 1.0
                 # NOTE: cannot read the field being computed; always assign a value
