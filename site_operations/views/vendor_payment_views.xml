@@ -135,7 +135,7 @@
                         type="object"
                         string="▶ Submit to CEO"
                         class="btn-warning"
-                        groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"
+                        groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_ceo_approval"
                         invisible="x_ceo_approval_state != 'pending' or payment_type != 'outbound' or x_payment_category != 'vendor'"/>
 
                 <!-- Finance HO: re-notify CEO if they haven't acted yet.
@@ -144,7 +144,7 @@
                         type="object"
                         string="↻ Re-notify CEO"
                         class="btn-secondary"
-                        groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"
+                        groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_ceo_approval"
                         invisible="x_ceo_approval_state != 'submitted' or payment_type != 'outbound' or x_payment_category != 'vendor'"/>
 
                 <field name="x_payment_category" invisible="1"/>
@@ -204,7 +204,7 @@
                         type="object"
                         string="↩ Reverse Payment"
                         class="btn-danger"
-                        groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"
+                        groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_ceo_approval"
                         invisible="state not in ('in_process', 'paid', 'partial')"
                         confirm="Reverse this payment? ALL accounting entries (JE, WHT deduction, bank splits, analytic tags) will be cancelled and the payment reset to Draft. This cannot be undone automatically — continue?"/>
             </xpath>
@@ -447,7 +447,7 @@
                                 type="object"
                                 string="Generate WHT Certificate"
                                 class="btn-warning"
-                                groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"/>
+                                groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_ceo_approval"/>
                     </div>
                 </page>
             </xpath>

@@ -81,6 +81,6 @@
               parent="account.menu_finance_configuration"
               action="action_ipc_account_config"
               sequence="95"
-              groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin,base.group_system,purchase_demand_raise.group_ceo_approval"/>
 
 </odoo>

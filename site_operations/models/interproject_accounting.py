@@ -3,23 +3,26 @@
 Each project has an internal res.partner (its accounting identity).
 When project A funds project B's vendor payment or journal entry:
 
-  DR  13100  Inter-Project Receivables    (partner = B)   analytic = A
-  CR  21100  Inter-Project Payables       (partner = A)   analytic = B
+  DR  Inter-Project Account   (partner = B)   analytic = A
+  CR  Inter-Project Account   (partner = A)   analytic = B
+
+The account is the one chosen on Site Project Configuration →
+Inter-Project Account — nothing is hardcoded or auto-created.
 
 Reading the partner ledger:
   • Filter by partner B  →  A sees a receivable *from* B  (B owes A)
   • Filter by partner A  →  B sees a payable  *to*   A  (B owes A)
 
-Accounts use asset_receivable / liability_payable so they appear in the
-standard partner ledger.  Standard vendor / client AR-AP is NOT mixed with
-inter-project balances because the project partners are flagged as
-x_is_project_entity = True and carry no real invoicing rank.
+Standard vendor / client AR-AP is NOT mixed with inter-project balances
+because the project partners are flagged as x_is_project_entity = True and
+carry no real invoicing rank.
 
 Both account.payment and account.move (journal entries) can trigger
 inter-project entries — helpers are defined once here and used by both.
 """
 
 from odoo import models, fields, _
+from odoo.exceptions import UserError
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -41,56 +44,30 @@ def _get_or_create_interproject_journal(env):
     return journal
 
 
-def _get_or_create_interproject_account(env, account_type):
-    """Inter-project accounts: asset_receivable (13100) / liability_payable (21100).
+def _get_interproject_account(env, *analytics):
+    """Inter-Project Account from Site Project Configuration.
 
-    Search order:
-      1. By code — fastest, unique, survives chart-of-account renames.
-      2. By name (ilike) — fallback for installs where the code was manually changed.
-      3. Create — only when neither lookup succeeds.
-
-    Using code as the primary key avoids a ValidationError on production databases
-    that already have an account with the same code but a different name: a
-    name-only lookup would find nothing → try to create → Odoo 19's
-    _ensure_code_is_unique detects the existing record → raises "Account codes must
-    be unique: XXXXX".
+    Prefers the config of the projects involved; otherwise any site config
+    that has one set (the account is shared across all sites).
     """
-    Account = env['account.account'].sudo()
-    if account_type == 'receivable':
-        code, name, acct_type = '13100', 'Inter-Project Receivables', 'asset_receivable'
-    else:
-        code, name, acct_type = '21100', 'Inter-Project Payables', 'liability_payable'
-
-    # 1. Look up by code (authoritative — code is unique per company in Odoo 19).
-    account = Account.search([('code', '=', code)], limit=1)
-
-    # 2. Fallback: name search for installs where the code may differ.
-    if not account:
-        account = Account.search([('name', 'ilike', name[:20])], limit=1)
-
-    if account:
-        # Ensure correct account_type and reconcile flag regardless of how we found it.
-        if account.account_type != acct_type or not account.reconcile:
-            account.write({'account_type': acct_type, 'reconcile': True})
-        return account
-
-    # 3. Create the account — it doesn't exist yet.
-    from odoo.exceptions import ValidationError as OdooValidationError
-    try:
-        account = Account.create({
-            'name': name,
-            'code': code,
-            'account_type': acct_type,
-            'reconcile': True,
-        })
-    except OdooValidationError:
-        # Another concurrent call in the same batch may have just created this
-        # account.  Invalidate caches and retry the code lookup.
-        Account.invalidate_model(['code', 'code_store'])
-        account = Account.search([('code', '=', code)], limit=1)
-        if not account:
-            raise
-    return account
+    Config = env['x.project.site.config'].sudo()
+    analytic_ids = [a.id for a in analytics if a]
+    config = Config.browse()
+    if analytic_ids:
+        config = Config.search([
+            ('analytic_account_id', 'in', analytic_ids),
+            ('x_inter_project_account_id', '!=', False),
+        ], limit=1)
+    if not config:
+        config = Config.search(
+            [('x_inter_project_account_id', '!=', False)], limit=1)
+    if not config:
+        raise UserError(_(
+            'No Inter-Project Account is configured.\n\n'
+            'Set it on Site Project Configuration → Inter-Project Account, '
+            'then try again.'
+        ))
+    return config.x_inter_project_account_id
 
 
 def _get_project_partner(analytic):
@@ -101,11 +78,11 @@ def _build_interproject_entry(env, source_analytic, dest_analytic, amount, ref, 
     """Post a balanced inter-project GL entry and return the account.move record.
 
     Source project (the one that GAVE money):
-      DR 13100  partner = dest_project   analytic = source
+      DR Inter-Project Account  partner = dest_project   analytic = source
       → Source shows a receivable *from* dest in its partner ledger
 
     Destination project (the one that RECEIVED money):
-      CR 21100  partner = source_project  analytic = dest
+      CR Inter-Project Account  partner = source_project  analytic = dest
       → Dest shows a payable *to* source in its partner ledger
     """
     if not source_analytic or not dest_analytic or amount <= 0:
@@ -113,8 +90,8 @@ def _build_interproject_entry(env, source_analytic, dest_analytic, amount, ref, 
     if source_analytic == dest_analytic:
         return env['account.move']
 
-    receivable_account = _get_or_create_interproject_account(env, 'receivable')
-    payable_account = _get_or_create_interproject_account(env, 'payable')
+    interproject_account = _get_interproject_account(
+        env, source_analytic, dest_analytic)
     journal = _get_or_create_interproject_journal(env)
 
     source_partner = _get_project_partner(source_analytic)
@@ -125,7 +102,7 @@ def _build_interproject_entry(env, source_analytic, dest_analytic, amount, ref, 
     aml_vals = [
         # Source records: "I am owed by [dest]"
         {
-            'account_id': receivable_account.id,
+            'account_id': interproject_account.id,
             'partner_id': dest_partner.id,
             'name': _('Due from %s (funded JE payment)') % dest_analytic.name,
             'debit': amount,
@@ -134,7 +111,7 @@ def _build_interproject_entry(env, source_analytic, dest_analytic, amount, ref, 
         },
         # Dest records: "I owe [source]"
         {
-            'account_id': payable_account.id,
+            'account_id': interproject_account.id,
             'partner_id': source_partner.id,
             'name': _('Due to %s (received funding)') % source_analytic.name,
             'debit': 0.0,
@@ -171,8 +148,8 @@ class AccountPaymentInterproject(models.Model):
     def _get_or_create_interproject_journal(self):
         return _get_or_create_interproject_journal(self.env)
 
-    def _get_or_create_interproject_account(self, account_type):
-        return _get_or_create_interproject_account(self.env, account_type)
+    def _get_interproject_account(self, *analytics):
+        return _get_interproject_account(self.env, *analytics)
 
     def _get_project_partner(self, analytic):
         return _get_project_partner(analytic)

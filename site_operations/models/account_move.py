@@ -788,6 +788,33 @@ class AccountMoveSiteOps(models.Model):
 
         return False
 
+    def _matracon_align_line_prices_to_amounts(self):
+        """Set price_unit on invoice/bill lines whose price no longer
+        reproduces their Debit/Credit (older entries, or amounts typed in the
+        Journal Items tab before the sign fix), so Odoo's re-sync on reset to
+        draft keeps the posted amounts instead of zeroing or flipping them.
+        """
+        Line = self.env['account.move.line']
+        for move in self.filtered(lambda m: m.is_invoice(include_receipts=True)):
+            company_currency = move.company_id.currency_id
+            for line in move.invoice_line_ids:
+                if (
+                    not Line._matracon_amount_drives_price(
+                        move, line.display_type, line.currency_id.id, line.discount)
+                    or line.tax_ids.filtered('price_include')
+                ):
+                    continue
+                expected = (
+                    move.direction_sign * line.quantity * line.price_unit
+                    * (1.0 - (line.discount or 0.0) / 100.0)
+                )
+                if company_currency.compare_amounts(expected, line.balance) == 0:
+                    continue
+                line.sudo().with_context(skip_invoice_sync=True).write({
+                    'price_unit': Line._matracon_price_for_balance(
+                        move, line.balance, line.quantity, line.discount),
+                })
+
     def button_draft(self):
         # Capture customer-invoice analytics BEFORE state changes to draft so
         # projects that lose a posted invoice are correctly updated afterwards.
@@ -802,6 +829,9 @@ class AccountMoveSiteOps(models.Model):
             lambda m: m.move_type == 'in_invoice' and m.x_liability_registered
         ):
             move._reverse_liability_sheet_from_bill()
+        # Reset to draft re-syncs every invoice/bill line from its price; make
+        # sure each price reproduces the amount that was actually posted first.
+        self._matracon_align_line_prices_to_amounts()
         res = super().button_draft()
         # Release cheque leaves back to available when JE is reset to draft
         for move in self.filtered(
@@ -887,8 +917,10 @@ class AccountMoveSiteOps(models.Model):
         return None
 
     def _matracon_sequence_site_code(self):
-        """SITE_CODE segment: the project analytic account's own `code`, or
-        'HO' when the move has no project (Head Office document).
+        """SITE_CODE segment: the project analytic account's own `code`
+        (falling back to its site warehouse code when the analytic has no
+        code), or 'HO' only when the move has no project (Head Office
+        document).
 
         For a payment-originated move, falls back to the payment's own
         destination/fund project directly when the move's own header field
@@ -912,9 +944,24 @@ class AccountMoveSiteOps(models.Model):
             analytic_id = (row and (row[0] or row[1])) or False
             if analytic_id:
                 analytic = self.env['account.analytic.account'].browse(analytic_id)
-        if analytic and analytic.code:
+        if not analytic:
+            return 'HO'
+        if analytic.code and analytic.code.strip():
             return analytic.code.strip().upper()
-        return 'HO'
+        # A project without its own Reference code must still never be
+        # numbered as HO — fall back to its site warehouse code (the same
+        # source _matracon_site_code() uses for PCR/EBC/TN references).
+        config = self.env['x.project.site.config'].sudo().search(
+            [('analytic_account_id', '=', analytic.id)], limit=1)
+        if config.warehouse_id.code:
+            return config.warehouse_id.code.strip().upper()
+        return 'P%s' % analytic.id
+
+    @api.depends('x_project_analytic_account_id')
+    def _compute_name_placeholder(self):
+        # The site segment of the draft preview number (e.g. BILL/PSH/...)
+        # comes from the project — refresh it when the project changes.
+        return super()._compute_name_placeholder()
 
     def _get_starting_sequence(self):
         """First-ever number for a given (doc type, site, year): NNNN/SITE/YYYY/000000
@@ -1341,6 +1388,14 @@ class AccountMoveSiteOps(models.Model):
                 and l.analytic_distribution
             )
         )
+        # A partner whose payable lines cancel out within this entry (e.g. a petty
+        # cash line passed through the partner's payable account) has no
+        # outstanding liability — don't add an empty row to the sheet for them.
+        net_by_partner = {}
+        for aml in payable_lines:
+            net_by_partner[aml.partner_id] = net_by_partner.get(aml.partner_id, 0.0) + aml.balance
+        payable_lines = payable_lines.filtered(
+            lambda l: not self.company_currency_id.is_zero(net_by_partner[l.partner_id]))
         if not payable_lines:
             return
 
@@ -1696,20 +1751,44 @@ class AccountMoveLineSiteOps(models.Model):
         })
         return False
 
-    def _fix_direct_debit_credit(self, vals):
-        """If the caller supplied debit/credit directly (without price_unit) on
-        an invoice line that has no product, back-fill price_unit so that
-        Odoo's _compute_totals → _sync_dynamic_lines chain produces the correct
-        price_subtotal and therefore the correct AP/AR counterpart balance.
+    @api.model
+    def _matracon_price_for_balance(self, move, balance, quantity, discount):
+        """Unit price that makes Odoo's invoice re-sync reproduce ``balance``.
 
-        Without this, price_unit stays 0 → price_subtotal = 0 → needed_terms = 0
-        → the AP line carries 0 → the entry stores balance = 0 for the user line.
+        Odoo recomputes an invoice/bill line's journal amount as
+        direction_sign x quantity x price x (1 - discount%) — direction_sign is
+        +1 on vendor bills and -1 on customer invoices — so the price must carry
+        that sign or the amount flips side on the next re-sync.
+        """
+        quantity = quantity or 1.0
+        return move.direction_sign * balance / quantity / (1.0 - (discount or 0.0) / 100.0)
+
+    @api.model
+    def _matracon_amount_drives_price(self, move, display_type, currency_id, discount):
+        return (
+            move.is_invoice(include_receipts=True)
+            and (display_type or 'product') == 'product'
+            and (not currency_id or currency_id == move.company_id.currency_id.id)
+            and (discount or 0.0) < 100.0
+        )
+
+    def _fix_direct_debit_credit(self, vals, move):
+        """Debit/Credit supplied without a price (Journal Items tab, imports):
+        back-fill price_unit so Odoo's re-sync keeps exactly that Debit/Credit
+        instead of recomputing it from a zero / wrong-signed price.
         """
         debit = vals.get('debit') or 0
         credit = vals.get('credit') or 0
-        if (debit or credit) and not vals.get('product_id') and 'price_unit' not in vals:
-            vals['price_unit'] = debit - credit        # sign preserved
+        if (
+            (debit or credit)
+            and 'price_unit' not in vals
+            and not vals.get('product_id')
+            and self._matracon_amount_drives_price(
+                move, vals.get('display_type'), vals.get('currency_id'), vals.get('discount'))
+        ):
             vals.setdefault('quantity', 1.0)
+            vals['price_unit'] = self._matracon_price_for_balance(
+                move, debit - credit, vals['quantity'], vals.get('discount'))
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -1723,7 +1802,7 @@ class AccountMoveLineSiteOps(models.Model):
                 if move_id not in move_cache:
                     move_cache[move_id] = self.env['account.move'].browse(move_id)
                 if move_cache[move_id].is_invoice(include_receipts=True):
-                    self._fix_direct_debit_credit(vals)
+                    self._fix_direct_debit_credit(vals, move_cache[move_id])
 
             # ── Fix 2: auto-fill analytic_distribution on draft invoice / entry lines.
             if vals.get('analytic_distribution'):
@@ -1780,25 +1859,30 @@ class AccountMoveLineSiteOps(models.Model):
         return records
 
     def write(self, vals):
-        """When the user edits debit/credit directly on an existing invoice line
-        (through the Journal Items tab), keep price_unit in sync so
-        _compute_totals → needed_terms produces the right AP/AR balance.
+        """Debit/Credit edited on an existing invoice/bill line (Journal Items
+        tab) without a price: set the matching price so Odoo's re-sync keeps
+        what was typed. Signed per document (see _matracon_price_for_balance)
+        and per line — a value missing from ``vals`` keeps the line's own.
         """
         if ('debit' in vals or 'credit' in vals) and 'price_unit' not in vals:
-            # Identify lines that have no product and are on invoices
-            invoice_lines = self.filtered(
-                lambda l: not l.product_id and l.move_id.is_invoice(include_receipts=True)
+            synced = self.filtered(
+                lambda l: l.move_id.state == 'draft'
+                and not l.tax_ids.filtered('price_include')
+                and self._matracon_amount_drives_price(
+                    l.move_id, l.display_type, l.currency_id.id, l.discount)
             )
-            if invoice_lines:
-                debit = vals.get('debit') or 0
-                credit = vals.get('credit') or 0
-                balance = debit - credit
-                # Write with price_unit for the no-product invoice lines
-                super(AccountMoveLineSiteOps, invoice_lines).write(
-                    dict(vals, price_unit=balance, quantity=vals.get('quantity') or 1.0)
-                )
-                other_lines = self - invoice_lines
-                if other_lines:
-                    return super(AccountMoveLineSiteOps, other_lines).write(vals)
-                return True
+            for line in synced:
+                debit = vals['debit'] if 'debit' in vals else line.debit
+                credit = vals['credit'] if 'credit' in vals else line.credit
+                quantity = vals.get('quantity') or line.quantity or 1.0
+                super(AccountMoveLineSiteOps, line).write(dict(
+                    vals,
+                    quantity=quantity,
+                    price_unit=self._matracon_price_for_balance(
+                        line.move_id, (debit or 0) - (credit or 0), quantity, line.discount),
+                ))
+            rest = self - synced
+            if rest:
+                return super(AccountMoveLineSiteOps, rest).write(vals)
+            return True
         return super().write(vals)

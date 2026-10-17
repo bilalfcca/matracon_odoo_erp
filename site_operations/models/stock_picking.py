@@ -9,7 +9,7 @@ from odoo.exceptions import UserError
 from . import matracon_notifications as matracon_notify
 from .interproject_accounting import (
     _get_or_create_interproject_journal as _ipr_journal,
-    _get_or_create_interproject_account as _ipr_account,
+    _get_interproject_account as _ipr_account,
 )
 
 
@@ -1660,8 +1660,8 @@ class StockPickingSiteOps(models.Model):
         dst_project = self.x_dest_project_id
         if not src_project or not dst_project:
             return
-        receivable_account = self._get_or_create_interproject_account('receivable')
-        payable_account = self._get_or_create_interproject_account('payable')
+        interproject_account = self._get_interproject_account(
+            src_project, dst_project)
         journal = self._get_or_create_interproject_journal()
         total_value = sum(
             m.quantity * (m.product_id.standard_price or 0.0)
@@ -1672,7 +1672,7 @@ class StockPickingSiteOps(models.Model):
         # Source is owed (receivable); destination owes source (payable)
         aml_vals = [
             {
-                'account_id': receivable_account.id,
+                'account_id': interproject_account.id,
                 'name': _('Inter-project receivable: %s from %s') % (
                     src_project.name, dst_project.name),
                 'debit': total_value,
@@ -1680,7 +1680,7 @@ class StockPickingSiteOps(models.Model):
                 'analytic_distribution': {str(src_project.id): 100},
             },
             {
-                'account_id': payable_account.id,
+                'account_id': interproject_account.id,
                 'name': _('Inter-project payable: %s to %s') % (
                     dst_project.name, src_project.name),
                 'debit': 0.0,
@@ -2020,9 +2020,9 @@ class StockPickingSiteOps(models.Model):
         """Delegate to the shared helper in interproject_accounting.py."""
         return _ipr_journal(self.env)
 
-    def _get_or_create_interproject_account(self, account_type):
+    def _get_interproject_account(self, *analytics):
         """Delegate to the shared helper in interproject_accounting.py."""
-        return _ipr_account(self.env, account_type)
+        return _ipr_account(self.env, *analytics)
 
     # ─────────────────────────────────────────────────────────────────────────
     # ACTIONS

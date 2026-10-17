@@ -230,6 +230,20 @@ class PurchaseOrderLine(models.Model):
             else:
                 line.x_qty_on_hand = line.product_id.qty_available
 
+    def _x_effective_qty(self):
+        """Quantity that counts for this line in the CS, PO and reports:
+        Approved → Recommended → Requested → standard product_qty.
+        A later stage always wins over an earlier one, so a hidden default
+        Requested Qty (1.0) never overrides an Approved Qty."""
+        self.ensure_one()
+        return (
+            self.x_approved_qty
+            or self.x_recommended_qty
+            or self.x_requested_qty
+            or self.product_qty
+            or 0.0
+        )
+
     def _get_ceo_qty_base(self):
         """Quantity base for CEO % decisions — recommended if set, else requested."""
         self.ensure_one()

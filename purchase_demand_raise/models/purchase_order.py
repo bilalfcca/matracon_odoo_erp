@@ -1159,6 +1159,15 @@ class PurchaseOrder(models.Model):
             if _has_open_incoming(order):
                 continue
 
+            # Every goods line already fully received — nothing left to
+            # receive, so don't create an empty receipt.
+            goods = order.order_line.filtered(
+                lambda l: not l.display_type and l.product_id.type == 'consu')
+            if goods and all(
+                    l.product_uom_id.compare(l.qty_received, l.product_qty) >= 0
+                    for l in goods):
+                continue
+
             if order.state == 'to approve' and hasattr(order, 'button_approve'):
                 order.sudo().button_approve()
                 continue
@@ -1509,13 +1518,31 @@ class PurchaseOrder(models.Model):
             subtype_xmlid='mail.mt_log_note',
         )
 
+    def _find_existing_comparative_statement(self):
+        """CS already created for this PR (e.g. from the CS menu, or the link was
+        cleared). Prefer the latest one that has vendor quotations."""
+        self.ensure_one()
+        existing = self.env['x.comparative.statement'].search(
+            [('x_purchase_order_id', '=', self.id)], order='id desc')
+        return existing.filtered('x_vendor_line_ids')[:1] or existing[:1]
+
     def action_create_comparative_statement(self):
         self.ensure_one()
-        cs = self.env['x.comparative.statement'].create({
-            'x_purchase_order_id': self.id,
-            'name': _('CS - %s') % self.name,
-        })
-        self.x_comparative_statement_id = cs
+        # Never create a duplicate: re-link and open an existing CS for this PR.
+        # A linked CS with quotations wins; an empty linked CS gives way to one
+        # that has them (e.g. an empty duplicate created by an earlier bug).
+        linked = self.x_comparative_statement_id
+        if linked and linked.x_vendor_line_ids:
+            cs = linked
+        else:
+            cs = self._find_existing_comparative_statement() or linked
+        if not cs:
+            cs = self.env['x.comparative.statement'].create({
+                'x_purchase_order_id': self.id,
+                'name': _('CS - %s') % self.name,
+            })
+        if self.x_comparative_statement_id != cs:
+            self.x_comparative_statement_id = cs
         return {
             'type': 'ir.actions.act_window',
             'res_model': 'x.comparative.statement',
@@ -1526,7 +1553,7 @@ class PurchaseOrder(models.Model):
 
     def action_open_comparative_statement(self):
         self.ensure_one()
-        if not self.x_comparative_statement_id:
+        if not self.x_comparative_statement_id or not self.x_comparative_statement_id.x_vendor_line_ids:
             return self.action_create_comparative_statement()
         return {
             'type': 'ir.actions.act_window',
