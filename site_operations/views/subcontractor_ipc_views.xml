@@ -19,7 +19,7 @@
                 <field name="ipc_date" string="IPC Date"/>
                 <field name="gross_work_done" string="Gross (Cumulative)"/>
                 <field name="this_ipc_gross" string="This IPC Work" optional="show"/>
-                <field name="net_payable" string="Net Payable"/>
+                <field name="net_payable" string="Net Payable" decoration-danger="net_payable &lt; 0"/>
                 <field name="currency_id" column_invisible="1"/>
                 <field name="state" widget="badge"
                        decoration-muted="state == 'draft'"
@@ -325,6 +325,13 @@
                                    string="NET PAYABLE"
                                    readonly="1"
                                    class="fw-bold text-success"
+                                   invisible="net_payable &lt; 0"
+                                   style="font-size:1.1em;"/>
+                            <field name="net_payable"
+                                   string="NET PAYABLE (subcontractor owes us)"
+                                   readonly="1"
+                                   class="fw-bold text-danger"
+                                   invisible="net_payable &gt;= 0"
                                    style="font-size:1.1em;"/>
                         </group>
                     </group>
