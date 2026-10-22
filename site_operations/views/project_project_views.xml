@@ -34,6 +34,104 @@
         <field name="model">project.project</field>
         <field name="inherit_id" ref="project.edit_project"/>
         <field name="arch" type="xml">
+            <!-- Smart buttons: every Matracon record tagged to this project.
+                 Hidden when the count is 0 (no records, or no read access). -->
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_mtr_view_site_stock" type="object" class="oe_stat_button"
+                        icon="fa-cubes" string="Site Stock" invisible="not x_site_config_id"/>
+                <button name="action_mtr_open" type="object" class="oe_stat_button"
+                        icon="fa-shopping-cart" context="{'mtr_key': 'po'}" invisible="not x_mtr_po_count">
+                    <field name="x_mtr_po_count" widget="statinfo" string="Requisitions / POs"/>
+                </button>
+                <button name="action_mtr_open" type="object" class="oe_stat_button"
+                        icon="fa-balance-scale" context="{'mtr_key': 'cs'}" invisible="not x_mtr_cs_count">
+                    <field name="x_mtr_cs_count" widget="statinfo" string="Comparative Statements"/>
+                </button>
+                <button name="action_mtr_open" type="object" class="oe_stat_button"
+                        icon="fa-truck" context="{'mtr_key': 'receipt'}" invisible="not x_mtr_receipt_count">
+                    <field name="x_mtr_receipt_count" widget="statinfo" string="Goods Receipts"/>
+                </button>
+                <button name="action_mtr_open" type="object" class="oe_stat_button"
+                        icon="fa-sign-out" context="{'mtr_key': 'issuance'}" invisible="not x_mtr_issuance_count">
+                    <field name="x_mtr_issuance_count" widget="statinfo" string="Issuances"/>
+                </button>
+                <button name="action_mtr_open" type="object" class="oe_stat_button"
+                        icon="fa-undo" context="{'mtr_key': 'return'}" invisible="not x_mtr_return_count">
+                    <field name="x_mtr_return_count" widget="statinfo" string="Returns"/>
+                </button>
+                <button name="action_mtr_open" type="object" class="oe_stat_button"
+                        icon="fa-exchange" context="{'mtr_key': 's2s'}" invisible="not x_mtr_s2s_count">
+                    <field name="x_mtr_s2s_count" widget="statinfo" string="Site Transfers"/>
+                </button>
+                <button name="action_mtr_open" type="object" class="oe_stat_button"
+                        icon="fa-file-text-o" context="{'mtr_key': 'bill'}" invisible="not x_mtr_bill_count">
+                    <field name="x_mtr_bill_count" widget="statinfo" string="Vendor Bills"/>
+                </button>
+                <button name="action_mtr_open" type="object" class="oe_stat_button"
+                        icon="fa-file-text" context="{'mtr_key': 'invoice'}" invisible="not x_mtr_invoice_count">
+                    <field name="x_mtr_invoice_count" widget="statinfo" string="Customer Invoices"/>
+                </button>
+                <button name="action_mtr_open" type="object" class="oe_stat_button"
+                        icon="fa-list-alt" context="{'mtr_key': 'liability'}" invisible="not x_mtr_liability_count">
+                    <field name="x_mtr_liability_count" widget="statinfo" string="Liability Sheets"/>
+                </button>
+                <button name="action_mtr_open" type="object" class="oe_stat_button"
+                        icon="fa-certificate" context="{'mtr_key': 'ipc'}" invisible="not x_mtr_ipc_count">
+                    <field name="x_mtr_ipc_count" widget="statinfo" string="IPCs"/>
+                </button>
+                <button name="action_mtr_open" type="object" class="oe_stat_button"
+                        icon="fa-minus-circle" context="{'mtr_key': 'sub_bc'}" invisible="not x_mtr_sub_bc_count">
+                    <field name="x_mtr_sub_bc_count" widget="statinfo" string="Sub. Back Charges"/>
+                </button>
+                <button name="action_mtr_open" type="object" class="oe_stat_button"
+                        icon="fa-user-times" context="{'mtr_key': 'emp_bc'}" invisible="not x_mtr_emp_bc_count">
+                    <field name="x_mtr_emp_bc_count" widget="statinfo" string="Emp. Back Charges"/>
+                </button>
+                <button name="action_mtr_open" type="object" class="oe_stat_button"
+                        icon="fa-money" context="{'mtr_key': 'payment'}" invisible="not x_mtr_payment_count">
+                    <field name="x_mtr_payment_count" widget="statinfo" string="Vendor Payments"/>
+                </button>
+                <button name="action_mtr_open" type="object" class="oe_stat_button"
+                        icon="fa-download" context="{'mtr_key': 'client_receipt'}" invisible="not x_mtr_client_receipt_count">
+                    <field name="x_mtr_client_receipt_count" widget="statinfo" string="Receipts"/>
+                </button>
+                <button name="action_mtr_open" type="object" class="oe_stat_button"
+                        icon="fa-book" context="{'mtr_key': 'je'}" invisible="not x_mtr_je_count">
+                    <field name="x_mtr_je_count" widget="statinfo" string="Journal Entries"/>
+                </button>
+                <button name="action_mtr_open" type="object" class="oe_stat_button"
+                        icon="fa-list" context="{'mtr_key': 'aml'}" invisible="not x_mtr_aml_count">
+                    <field name="x_mtr_aml_count" widget="statinfo" string="Journal Items"/>
+                </button>
+                <button name="action_mtr_open" type="object" class="oe_stat_button"
+                        icon="fa-random" context="{'mtr_key': 'ipt'}" invisible="not x_mtr_ipt_count">
+                    <field name="x_mtr_ipt_count" widget="statinfo" string="Inter-Project"/>
+                </button>
+                <button name="action_mtr_open" type="object" class="oe_stat_button"
+                        icon="fa-shield" context="{'mtr_key': 'bg'}" invisible="not x_mtr_bg_count">
+                    <field name="x_mtr_bg_count" widget="statinfo" string="Bank Guarantees"/>
+                </button>
+                <button name="action_mtr_open" type="object" class="oe_stat_button"
+                        icon="fa-hand-paper-o" context="{'mtr_key': 'pcr'}" invisible="not x_mtr_pcr_count">
+                    <field name="x_mtr_pcr_count" widget="statinfo" string="Petty Cash Requests"/>
+                </button>
+                <button name="action_mtr_open" type="object" class="oe_stat_button"
+                        icon="fa-shopping-basket" context="{'mtr_key': 'pce'}" invisible="not x_mtr_pce_count">
+                    <field name="x_mtr_pce_count" widget="statinfo" string="Petty Cash Expenses"/>
+                </button>
+                <button name="action_mtr_open" type="object" class="oe_stat_button"
+                        icon="fa-users" context="{'mtr_key': 'employee'}" invisible="not x_mtr_employee_count">
+                    <field name="x_mtr_employee_count" widget="statinfo" string="Employees"/>
+                </button>
+                <button name="action_mtr_open" type="object" class="oe_stat_button"
+                        icon="fa-calendar-check-o" context="{'mtr_key': 'attendance'}" invisible="not x_mtr_attendance_count">
+                    <field name="x_mtr_attendance_count" widget="statinfo" string="Attendance"/>
+                </button>
+                <button name="action_mtr_open" type="object" class="oe_stat_button"
+                        icon="fa-credit-card" context="{'mtr_key': 'salary'}" invisible="not x_mtr_salary_count">
+                    <field name="x_mtr_salary_count" widget="statinfo" string="Salary Sheets"/>
+                </button>
+            </xpath>
             <xpath expr="//sheet/group[1]" position="before">
                 <group string="Project Fund Summary" name="matracon_fund_summary">
                     <group>
@@ -43,14 +141,39 @@
                         <field name="x_balance_adjustment"
                                string="Balance Correction (+ / −)"
                                help="One-time offset for historical transactions not in Odoo. Negative = past untracked spends; Positive = untracked fund receipts. No journal entry is created — this is a pure balance adjustment."/>
-                        <field name="x_funds_received" readonly="1"/>
-                        <field name="x_total_spent" readonly="1"/>
+                        <label for="x_funds_received"/>
+                        <div class="o_row">
+                            <field name="x_funds_received" readonly="1"/>
+                            <button name="action_mtr_view_funds_received" type="object" string="View"
+                                    icon="fa-arrow-right" class="btn-link p-0"
+                                    title="Show the records behind this total"/>
+                        </div>
+                        <label for="x_total_spent"/>
+                        <div class="o_row">
+                            <field name="x_total_spent" readonly="1"/>
+                            <button name="action_mtr_view_total_spent" type="object" string="View"
+                                    icon="fa-arrow-right" class="btn-link p-0"
+                                    title="Show the records behind this total"/>
+                        </div>
                     </group>
                     <group>
                         <field name="x_available_balance" readonly="1"/>
-                        <field name="x_total_vendor_liability" readonly="1"/>
-                        <field name="x_total_sub_liability" readonly="1"/>
+                        <label for="x_total_vendor_liability"/>
+                        <div class="o_row">
+                            <field name="x_total_vendor_liability" readonly="1"/>
+                            <button name="action_mtr_view_vendor_liability" type="object" string="View"
+                                    icon="fa-arrow-right" class="btn-link p-0"
+                                    title="Show the records behind this total"/>
+                        </div>
+                        <label for="x_total_sub_liability"/>
+                        <div class="o_row">
+                            <field name="x_total_sub_liability" readonly="1"/>
+                            <button name="action_mtr_view_sub_liability" type="object" string="View"
+                                    icon="fa-arrow-right" class="btn-link p-0"
+                                    title="Show the records behind this total"/>
+                        </div>
                         <field name="currency_id" invisible="1"/>
+                        <field name="x_site_config_id" invisible="1"/>
                     </group>
                 </group>
                 <group string="Site Team" name="matracon_site_team">
@@ -60,8 +183,14 @@
                 <group string="Contract &amp; Progress" name="matracon_contract_progress">
                     <group>
                         <field name="x_contract_value"/>
-                        <field name="x_billed_to_client" readonly="1"
-                               help="Auto: sum of posted Customer Invoices linked to this project."/>
+                        <label for="x_billed_to_client"/>
+                        <div class="o_row">
+                            <field name="x_billed_to_client" readonly="1"
+                                   help="Auto: sum of posted Customer Invoices linked to this project."/>
+                            <button name="action_mtr_view_billed" type="object" string="View"
+                                    icon="fa-arrow-right" class="btn-link p-0"
+                                    title="Show the records behind this total"/>
+                        </div>
                     </group>
                     <group/>
                     <!-- Single progress bar: Billed ÷ Contract × 100 % -->

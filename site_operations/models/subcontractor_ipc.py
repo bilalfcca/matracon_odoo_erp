@@ -521,7 +521,10 @@ class SubcontractorIPC(models.Model):
                 + bc_applied
                 + ipc.other_deductions_amount
             )
-            net = max(this_gross - total_ded + ipc.other_additions_amount, 0.0)
+            # Not floored at 0: when deductions exceed the work done the net is
+            # negative (the subcontractor owes us) and is posted as such — the
+            # journal entry debits the payable for the excess.
+            net = this_gross - total_ded + ipc.other_additions_amount
 
             ipc.this_ipc_gross = this_gross
             ipc.total_retention_cumulative = total_ret
