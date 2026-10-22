@@ -316,38 +316,81 @@ Safe to run multiple times - already-converted documents are left alone.</field>
          again in Production before any Phase 2/3/4 import or fix code is
          written. Repeat per site as each site's file is provided. -->
     <record id="action_server_site_opening_balance_discovery" model="ir.actions.server">
-        <field name="name">Site Opening Balance — Discovery Report</field>
+        <field name="name">Site Opening Balance — Discovery Report &amp; Valuation Import</field>
         <field name="model_id" ref="site_operations.model_x_project_site_config"/>
         <field name="state">code</field>
         <field name="code">action = {
     'type': 'ir.actions.act_window',
-    'name': 'Site Opening Balance — Discovery Report',
+    'name': 'Site Opening Balance — Discovery &amp; Valuation Import',
     'res_model': 'x.site.opening.balance.discovery.wizard',
     'view_mode': 'form',
     'target': 'new',
 }</field>
         <field name="x_is_fix_tool" eval="True"/>
-        <field name="x_fix_tool_description">READ-ONLY — creates/changes/deletes nothing.
-Upload a site's "MAIN SUMMARY" opening-inventory workbook and pick the site;
-reports back (on screen + a downloadable CSV): current costing method and
-valuation account per product category vs. company defaults; this site's own
-GL account wiring (Material Issue Account, issue-location and
-warehouse-location valuation accounts); item-by-item matching of every
-non-zero balance row against existing products (exact / fuzzy / no match);
-an on-hand quantity cross-check flagging any matched product that already
-has system stock (double-count risk); and a Purchase-Receipts GL account
-audit since a chosen date, flagging receipts that posted to no account or a
-different account than the product's category is configured for.
-Run in Staging first, review the report, then run again in Production —
-same tool, no code difference — before writing or running any of the
-opening-balance import / historical-receipt-correction / FIFO-alignment
-steps that follow.</field>
+        <field name="x_fix_tool_description">Phase 1 (Discovery) &amp; Phase 2 (Valuation Import):
+Upload a site's opening inventory workbook (.xlsx / .xls) and select the site.
+Discovery Report: Validates item-to-product matches, checks on-hand stock, category valuation, and audits receipts.
+Valuation Import: Records opening inventory valuation as of 30 June into stock valuation layers and updates product unit costs (standard_price) so Inventory &gt; Reporting &gt; Stock displays the correct valuation, WITHOUT re-importing or altering physical on-hand stock. Optionally posts an opening GL journal entry.</field>
         <field name="group_ids" eval="[Command.set([
             ref('purchase_demand_raise.group_matracon_admin'),
             ref('site_operations.group_finance_ho'),
             ref('base.group_system'),
         ])]"/>
         <field name="sequence">110</field>
+    </record>
+
+    <!-- Direct Import Opening Inventory Valuations for All 3 Sites (MCH, STP, RWASA) -->
+    <record id="action_server_direct_import_all_site_opening_valuations" model="ir.actions.server">
+        <field name="name">Direct Import Opening Inventory Valuations (MCH, STP, RWASA)</field>
+        <field name="model_id" ref="site_operations.model_x_project_site_config"/>
+        <field name="state">code</field>
+        <field name="code">action = env['x.site.opening.balance.discovery.wizard'].action_direct_import_all_projects_server()</field>
+        <field name="x_is_fix_tool" eval="True"/>
+        <field name="x_fix_tool_description">Directly imports the 30 June opening inventory valuations for all 3 Matracon sites (MCH - BAHAWALNAGAR, STP - MARDAN, RWASA) using bundled verified opening valuation datasets. Updates product unit costs (standard_price) across companies, enables location valuation, updates incoming move valuation layers, and ensures Inventory &gt; Reporting &gt; Stock displays correct non-zero valuations WITHOUT altering physical on-hand quantities (stock.quant).</field>
+        <field name="group_ids" eval="[Command.set([
+            ref('purchase_demand_raise.group_matracon_admin'),
+            ref('site_operations.group_finance_ho'),
+            ref('base.group_system'),
+        ])]"/>
+        <field name="sequence">115</field>
+    </record>
+
+    <!-- Force Fix PO Price & Inventory Valuation (P-STP-0140) in Settings > Fix Tools -->
+    <record id="action_server_force_fix_po_price" model="ir.actions.server">
+        <field name="name">Force Fix PO Price &amp; Inventory Valuation (P-STP-0140)</field>
+        <field name="model_id" ref="purchase.model_purchase_order"/>
+        <field name="state">code</field>
+        <field name="code">action = env['x.po.price.fix.wizard'].action_force_fix_po_stp_0140_server()</field>
+        <field name="x_is_fix_tool" eval="True"/>
+        <field name="x_fix_tool_description">Forcefully updates the unit price on Purchase Order P-STP-0140 to 398.76 Rs (Total: PKR 7,975,200.00), and synchronizes all linked inventory receipts (stock.move, stock.valuation.layer, and GL entries) so inventory valuation reflects 398.76 Rs without requiring PO unlocking or receipt reversal.</field>
+        <field name="group_ids" eval="[Command.set([
+            ref('purchase_demand_raise.group_matracon_admin'),
+            ref('site_operations.group_finance_ho'),
+            ref('base.group_system'),
+        ])]"/>
+        <field name="sequence">120</field>
+    </record>
+
+    <!-- Action Menu on Purchase Order Form: Force Change PO Price & Inventory Valuation -->
+    <record id="action_server_po_force_price_wizard_action_menu" model="ir.actions.server">
+        <field name="name">Force Change PO Price &amp; Inventory Valuation</field>
+        <field name="model_id" ref="purchase.model_purchase_order"/>
+        <field name="binding_model_id" ref="purchase.model_purchase_order"/>
+        <field name="binding_view_types">form</field>
+        <field name="state">code</field>
+        <field name="code">action = {
+    'type': 'ir.actions.act_window',
+    'name': 'Force Change PO Price &amp; Inventory Valuation',
+    'res_model': 'x.po.price.fix.wizard',
+    'view_mode': 'form',
+    'target': 'new',
+    'context': {'default_purchase_order_id': record.id},
+}</field>
+        <field name="group_ids" eval="[Command.set([
+            ref('purchase_demand_raise.group_matracon_admin'),
+            ref('site_operations.group_finance_ho'),
+            ref('base.group_system'),
+        ])]"/>
     </record>
 
 </odoo>

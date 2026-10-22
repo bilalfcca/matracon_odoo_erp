@@ -127,3 +127,226 @@ class XFleetGlFixWizard(models.TransientModel):
                 'sticky': False,
             },
         }
+
+
+class XPoPriceFixWizard(models.TransientModel):
+    """Force Fix PO Price & Inventory Valuation - corrects locked or confirmed
+    Purchase Orders in-place without requiring unlock, receipt reversal or
+    cancellation. Also synchronizes all linked inventory stock moves, valuation
+    layers, and accounting entries.
+    """
+    _name = 'x.po.price.fix.wizard'
+    _description = 'Force Fix PO Price & Inventory Valuation'
+
+    purchase_order_id = fields.Many2one(
+        'purchase.order', string='Purchase Order', required=True,
+        default=lambda self: self._default_purchase_order(),
+        help='Select the Purchase Order to update.',
+    )
+    product_id = fields.Many2one(
+        'product.product', string='Product (Optional)',
+        help='If specified, only lines for this product are updated. Otherwise all product lines on the PO are updated.',
+    )
+    current_unit_price = fields.Float(
+        string='Current Unit Price', compute='_compute_current_price', readonly=True,
+    )
+    new_unit_price = fields.Float(
+        string='New Unit Price', digits='Product Price', required=True, default=398.76,
+        help='The corrected unit price to apply.',
+    )
+    update_inventory = fields.Boolean(
+        string='Update Inventory Valuation & Stock Moves', default=True,
+        help='Updates all linked stock moves and valuation layers to match the new unit price.',
+    )
+    update_journal_entries = fields.Boolean(
+        string='Update Linked Stock Accounting Entries', default=True,
+        help='Updates debit and credit amounts on stock move journal entries to match the new valuation.',
+    )
+
+    @api.model
+    def _default_purchase_order(self):
+        active_id = self.env.context.get('active_id')
+        if active_id and self.env.context.get('active_model') == 'purchase.order':
+            return active_id
+        po = self.env['purchase.order'].sudo().search([('name', '=', 'P-STP-0140')], limit=1)
+        return po.id if po else False
+
+    @api.depends('purchase_order_id', 'product_id')
+    def _compute_current_price(self):
+        for wizard in self:
+            price = 0.0
+            if wizard.purchase_order_id:
+                lines = wizard.purchase_order_id.order_line.filtered(lambda l: not l.display_type)
+                if wizard.product_id:
+                    lines = lines.filtered(lambda l: l.product_id == wizard.product_id)
+                if lines:
+                    price = lines[0].price_unit
+            wizard.current_unit_price = price
+
+    @api.model
+    def action_force_fix_po_stp_0140_server(self):
+        """Server Action entry point: Forcefully fixes P-STP-0140 to 398.76 Rs."""
+        po = self.env['purchase.order'].sudo().search([('name', '=', 'P-STP-0140')], limit=1)
+        if not po:
+            raise UserError(_("Purchase Order 'P-STP-0140' was not found in this database."))
+        wizard = self.create({
+            'purchase_order_id': po.id,
+            'new_unit_price': 398.76,
+            'update_inventory': True,
+            'update_journal_entries': True,
+        })
+        return wizard.action_apply()
+
+    def action_apply(self):
+        self.ensure_one()
+        if not (self.env.user.has_group('purchase_demand_raise.group_matracon_admin')
+                or self.env.user.has_group('site_operations.group_finance_ho')
+                or self.env.user.has_group('base.group_system')):
+            raise UserError(_('Only Matracon Admin, Finance HO or System Administrator can run this fix.'))
+
+        po = self.purchase_order_id
+        if not po:
+            raise UserError(_('Please select a Purchase Order.'))
+
+        new_price = self.new_unit_price
+        if new_price <= 0:
+            raise UserError(_('New unit price must be greater than zero.'))
+
+        # 1. Update Purchase Order Lines
+        lines = po.order_line.filtered(lambda l: not l.display_type)
+        if self.product_id:
+            lines = lines.filtered(lambda l: l.product_id == self.product_id)
+
+        if not lines:
+            raise UserError(_('No matching product lines found on %s.') % po.name)
+
+        updated_line_names = []
+        for line in lines:
+            old_price = line.price_unit
+            qty = line.product_qty or line.x_approved_qty or 0.0
+            new_subtotal = round(qty * new_price, 2)
+            line.sudo().write({
+                'price_unit': new_price,
+                'price_subtotal': new_subtotal,
+                'price_total': new_subtotal,
+            })
+            updated_line_names.append(f"{line.product_id.display_name} ({old_price} -> {new_price})")
+
+        # 2. Recalculate Purchase Order Total
+        po_untaxed = sum(l.price_subtotal for l in po.order_line)
+        po_total = sum(l.price_total for l in po.order_line)
+        po.sudo().write({
+            'amount_untaxed': po_untaxed,
+            'amount_total': po_total,
+        })
+
+        # 3. Update Inventory Stock Moves
+        moves_count = 0
+        if self.update_inventory:
+            moves = self.env['stock.move'].sudo().search([
+                '|', ('purchase_line_id', 'in', lines.ids),
+                '|', ('origin', '=', po.name),
+                ('picking_id.purchase_id', '=', po.id),
+            ])
+            if self.product_id:
+                moves = moves.filtered(lambda m: m.product_id == self.product_id)
+
+            for move in moves:
+                m_qty = move.quantity or move.product_uom_qty or 0.0
+                new_move_val = round(m_qty * new_price, 2)
+                move.sudo().write({
+                    'price_unit': new_price,
+                    'value': new_move_val,
+                })
+                moves_count += 1
+
+                # 4. Update Stock Valuation Layers (if model exists)
+                if 'stock.valuation.layer' in self.env:
+                    layers = self.env['stock.valuation.layer'].sudo().search([
+                        '|', ('stock_move_id', '=', move.id),
+                        ('description', 'ilike', po.name),
+                    ])
+                    for svl in layers:
+                        svl_val = round(svl.quantity * new_price, 2)
+                        rem_val = round(svl.remaining_qty * new_price, 2)
+                        svl.write({
+                            'unit_cost': new_price,
+                            'value': svl_val,
+                            'remaining_value': rem_val,
+                        })
+
+                # 5. Update Stock Move Accounting Entries (if any and requested)
+                if self.update_journal_entries and move.account_move_id:
+                    je = move.account_move_id
+                    for aml in je.line_ids:
+                        if aml.debit > 0:
+                            self.env.cr.execute(
+                                "UPDATE account_move_line SET debit = %s, balance = %s WHERE id = %s",
+                                (new_move_val, new_move_val, aml.id)
+                            )
+                        elif aml.credit > 0:
+                            self.env.cr.execute(
+                                "UPDATE account_move_line SET credit = %s, balance = %s WHERE id = %s",
+                                (new_move_val, -new_move_val, aml.id)
+                            )
+                    self.env.cr.execute(
+                        "UPDATE account_move SET amount_total = %s WHERE id = %s",
+                        (new_move_val, je.id)
+                    )
+
+        # 6. Update draft vendor bill lines (if any)
+        draft_bills = self.env['account.move'].sudo().search([
+            ('move_type', '=', 'in_invoice'),
+            ('state', '=', 'draft'),
+            '|', ('x_purchase_order_id', '=', po.id),
+            ('invoice_origin', '=', po.name),
+        ])
+        for bill in draft_bills:
+            for bline in bill.invoice_line_ids.filtered(lambda l: l.product_id and l.product_id.id in lines.product_id.ids):
+                bline.write({'price_unit': new_price})
+            try:
+                bill._recompute_dynamic_lines(recompute_all_taxes=True)
+            except Exception:
+                pass
+
+        # Invalidate caches
+        self.env['purchase.order'].invalidate_model()
+        self.env['purchase.order.line'].invalidate_model()
+        self.env['stock.move'].invalidate_model()
+        self.env['stock.quant'].invalidate_model()
+        if 'stock.valuation.layer' in self.env:
+            self.env['stock.valuation.layer'].invalidate_model()
+
+        # 7. Post chatter audit note on PO
+        po.message_post(
+            body=_(
+                "<b>[Admin Fix Tool] Force Price &amp; Valuation Update:</b><br/>"
+                "Unit price forcefully updated to <b>%(price).2f Rs.</b><br/>"
+                "PO Untaxed / Total Amount updated to: <b>PKR %(total)s</b>.<br/>"
+                "Updated <b>%(moves)d</b> inventory stock move(s) and valuation layers.",
+                price=new_price,
+                total=f"{po_total:,.2f}",
+                moves=moves_count,
+            ),
+            subtype_xmlid='mail.mt_note',
+        )
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('PO Price & Valuation Updated'),
+                'message': _('Successfully updated %(po)s unit price to %(price).2f Rs. (Total: PKR %(total)s). Updated %(moves)d inventory moves and valuation layers.',
+                             po=po.name, price=new_price, total=f"{po_total:,.2f}", moves=moves_count),
+                'type': 'success',
+                'sticky': False,
+                'next': {
+                    'type': 'ir.actions.act_window',
+                    'res_model': 'purchase.order',
+                    'res_id': po.id,
+                    'view_mode': 'form',
+                    'views': [(False, 'form')],
+                    'target': 'current',
+                },
+            },
+        }

@@ -72,28 +72,38 @@
         </field>
     </record>
 
-    <!-- Site Opening Balance Import — Discovery Report (Phase 1, read-only) -->
+    <!-- Site Opening Balance Import — Discovery Report & Valuation Import -->
     <record id="view_site_opening_balance_discovery_wizard_form" model="ir.ui.view">
         <field name="name">x.site.opening.balance.discovery.wizard.form</field>
         <field name="model">x.site.opening.balance.discovery.wizard</field>
         <field name="arch" type="xml">
-            <form string="Site Opening Balance — Discovery Report">
-                <div class="alert alert-info" role="alert">
-                    Phase 1 discovery only — READ-ONLY. This does not create, change or
-                    delete any product, account, stock move, quant or journal entry. It
-                    reads the uploaded "MAIN SUMMARY" sheet and the current system
-                    configuration and reports what it finds, for review before any
-                    import or fix code is written or run. Run this in Staging first,
-                    review the report, then run it again in Production the same way.
+            <form string="Site Opening Balance — Discovery &amp; Valuation Import">
+                <field name="state" invisible="1"/>
+                <div class="alert alert-info" role="alert" invisible="state == 'imported'">
+                    <b>Step 1 (Discovery):</b> Upload the site's inventory sheet (.xlsx / .xls) and click <b>Run Discovery Report</b> to validate product matches, current on-hand quantities, and valuation totals.<br/>
+                    <b>Step 2 (Import):</b> Click <b>Import Inventory Valuation</b> to record the opening valuation as of 30 June into stock valuation layers and update product unit costs, without re-importing or altering on-hand quantities.
+                </div>
+                <div class="alert alert-success" role="alert" invisible="state != 'imported'">
+                    Opening inventory valuation has been successfully imported as of 30 June. Physical on-hand quantities in stock.quant were left completely untouched.
                 </div>
                 <group invisible="result_summary">
-                    <field name="site_config_id"/>
-                    <field name="summary_file" filename="summary_filename"/>
-                    <field name="summary_filename" invisible="1"/>
-                    <field name="as_of_date"/>
-                    <field name="receipts_since_date"/>
-                    <field name="target_account_code"/>
-                    <field name="value_tolerance"/>
+                    <group string="Site &amp; Workbook">
+                        <field name="site_config_id"/>
+                        <field name="summary_file" filename="summary_filename"/>
+                        <field name="summary_filename" invisible="1"/>
+                        <field name="as_of_date"/>
+                        <field name="receipts_since_date"/>
+                    </group>
+                    <group string="Valuation &amp; Import Options">
+                        <field name="target_account_code"/>
+                        <field name="value_tolerance"/>
+                        <field name="import_mode"/>
+                        <field name="update_product_cost"/>
+                        <field name="create_gl_entry"/>
+                        <field name="offset_account_id" invisible="not create_gl_entry" required="create_gl_entry"/>
+                        <field name="stock_journal_id" invisible="not create_gl_entry" required="create_gl_entry"/>
+                        <field name="overwrite_existing"/>
+                    </group>
                 </group>
                 <group string="Result" invisible="not result_summary">
                     <field name="result_summary" readonly="1" nolabel="1"
@@ -103,10 +113,50 @@
                     <field name="report_filename" invisible="1"/>
                 </group>
                 <footer>
-                    <button name="action_run_discovery" string="Run Discovery Report"
+                    <button name="action_direct_import_all_projects" string="Direct Import All 3 Sites (MCH, STP, RWASA)"
                             type="object" class="btn-primary"
-                            invisible="result_summary"/>
+                            invisible="state == 'imported'"
+                            confirm="This will directly import the 30 June opening inventory valuations for all 3 sites (MCH - BAHAWALNAGAR, STP - MARDAN, RWASA) using bundled verified datasets, updating product unit costs and move valuations without altering physical on-hand stock quantities. Proceed?"/>
+                    <button name="action_import_valuation" string="Import Valuation (Current File)"
+                            type="object" class="btn-secondary"
+                            invisible="state == 'imported'"
+                            confirm="This will record opening inventory valuation as of 30 June and update product costs for the selected site/file without re-importing or changing on-hand stock quantities. Proceed?"/>
+                    <button name="action_run_discovery" string="Run Discovery Report"
+                            type="object" class="btn-secondary"
+                            invisible="state == 'imported'"/>
                     <button string="Close" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- Force Fix PO Price & Inventory Valuation Wizard -->
+    <record id="view_po_price_fix_wizard_form" model="ir.ui.view">
+        <field name="name">x.po.price.fix.wizard.form</field>
+        <field name="model">x.po.price.fix.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Force Fix PO Price &amp; Inventory Valuation">
+                <div class="alert alert-warning" role="alert">
+                    <b>Force Price &amp; Inventory Valuation Correction:</b><br/>
+                    Updates the unit price and total amount on locked/confirmed Purchase Orders in-place without requiring receipt reversal or cancellation. Also synchronizes all linked inventory receipts (stock moves, valuation layers, and GL entries) so inventory reporting reflects the corrected unit cost.
+                </div>
+                <group>
+                    <group string="Purchase Order Details">
+                        <field name="purchase_order_id"/>
+                        <field name="product_id"/>
+                        <field name="current_unit_price"/>
+                    </group>
+                    <group string="Correction Settings">
+                        <field name="new_unit_price"/>
+                        <field name="update_inventory"/>
+                        <field name="update_journal_entries"/>
+                    </group>
+                </group>
+                <footer>
+                    <button name="action_apply" string="Force Apply Price &amp; Update Inventory"
+                            type="object" class="btn-primary"
+                            confirm="This will update the unit price and total on the selected Purchase Order and synchronize all linked inventory receipts and valuation. Proceed?"/>
+                    <button string="Cancel" class="btn-secondary" special="cancel"/>
                 </footer>
             </form>
         </field>
