@@ -355,4 +355,42 @@ Valuation Import: Records opening inventory valuation as of 30 June into stock v
         <field name="sequence">115</field>
     </record>
 
+    <!-- Force Fix PO Price & Inventory Valuation (P-STP-0140) in Settings > Fix Tools -->
+    <record id="action_server_force_fix_po_price" model="ir.actions.server">
+        <field name="name">Force Fix PO Price &amp; Inventory Valuation (P-STP-0140)</field>
+        <field name="model_id" ref="purchase.model_purchase_order"/>
+        <field name="state">code</field>
+        <field name="code">action = env['x.po.price.fix.wizard'].action_force_fix_po_stp_0140_server()</field>
+        <field name="x_is_fix_tool" eval="True"/>
+        <field name="x_fix_tool_description">Forcefully updates the unit price on Purchase Order P-STP-0140 to 398.76 Rs (Total: PKR 7,975,200.00), and synchronizes all linked inventory receipts (stock.move, stock.valuation.layer, and GL entries) so inventory valuation reflects 398.76 Rs without requiring PO unlocking or receipt reversal.</field>
+        <field name="group_ids" eval="[Command.set([
+            ref('purchase_demand_raise.group_matracon_admin'),
+            ref('site_operations.group_finance_ho'),
+            ref('base.group_system'),
+        ])]"/>
+        <field name="sequence">120</field>
+    </record>
+
+    <!-- Action Menu on Purchase Order Form: Force Change PO Price & Inventory Valuation -->
+    <record id="action_server_po_force_price_wizard_action_menu" model="ir.actions.server">
+        <field name="name">Force Change PO Price &amp; Inventory Valuation</field>
+        <field name="model_id" ref="purchase.model_purchase_order"/>
+        <field name="binding_model_id" ref="purchase.model_purchase_order"/>
+        <field name="binding_view_types">form</field>
+        <field name="state">code</field>
+        <field name="code">action = {
+    'type': 'ir.actions.act_window',
+    'name': 'Force Change PO Price &amp; Inventory Valuation',
+    'res_model': 'x.po.price.fix.wizard',
+    'view_mode': 'form',
+    'target': 'new',
+    'context': {'default_purchase_order_id': record.id},
+}</field>
+        <field name="group_ids" eval="[Command.set([
+            ref('purchase_demand_raise.group_matracon_admin'),
+            ref('site_operations.group_finance_ho'),
+            ref('base.group_system'),
+        ])]"/>
+    </record>
+
 </odoo>

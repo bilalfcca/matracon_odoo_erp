@@ -130,4 +130,36 @@
         </field>
     </record>
 
+    <!-- Force Fix PO Price & Inventory Valuation Wizard -->
+    <record id="view_po_price_fix_wizard_form" model="ir.ui.view">
+        <field name="name">x.po.price.fix.wizard.form</field>
+        <field name="model">x.po.price.fix.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Force Fix PO Price &amp; Inventory Valuation">
+                <div class="alert alert-warning" role="alert">
+                    <b>Force Price &amp; Inventory Valuation Correction:</b><br/>
+                    Updates the unit price and total amount on locked/confirmed Purchase Orders in-place without requiring receipt reversal or cancellation. Also synchronizes all linked inventory receipts (stock moves, valuation layers, and GL entries) so inventory reporting reflects the corrected unit cost.
+                </div>
+                <group>
+                    <group string="Purchase Order Details">
+                        <field name="purchase_order_id"/>
+                        <field name="product_id"/>
+                        <field name="current_unit_price"/>
+                    </group>
+                    <group string="Correction Settings">
+                        <field name="new_unit_price"/>
+                        <field name="update_inventory"/>
+                        <field name="update_journal_entries"/>
+                    </group>
+                </group>
+                <footer>
+                    <button name="action_apply" string="Force Apply Price &amp; Update Inventory"
+                            type="object" class="btn-primary"
+                            confirm="This will update the unit price and total on the selected Purchase Order and synchronize all linked inventory receipts and valuation. Proceed?"/>
+                    <button string="Cancel" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
 </odoo>
