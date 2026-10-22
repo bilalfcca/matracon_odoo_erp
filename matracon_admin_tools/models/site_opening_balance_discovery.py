@@ -77,8 +77,8 @@ class XSiteOpeningBalanceDiscoveryWizard(models.TransientModel):
     ], default='draft', readonly=True)
 
     site_config_id = fields.Many2one(
-        'x.project.site.config', string='Site', required=True,
-        help='Which site this opening inventory workbook belongs to.',
+        'x.project.site.config', string='Site', required=False,
+        help='Which site this opening inventory workbook belongs to (optional when running all-sites direct import).',
     )
     summary_file = fields.Binary(
         string='Inventory File (.xlsx / .xls)', attachment=False,
@@ -969,7 +969,9 @@ class XSiteOpeningBalanceDiscoveryWizard(models.TransientModel):
     @api.model
     def action_direct_import_all_projects_server(self):
         """Server Action entrypoint: Runs direct opening valuation import for MCH, STP, and RWASA."""
+        first_site = self.env['x.project.site.config'].sudo().search([], limit=1)
         wizard = self.create({
+            'site_config_id': first_site.id if first_site else False,
             'as_of_date': fields.Date.from_string('2026-06-30'),
             'create_gl_entry': True,
         })
