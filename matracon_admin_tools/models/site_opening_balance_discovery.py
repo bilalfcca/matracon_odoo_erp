@@ -68,50 +68,77 @@ def _normalize(text):
 
 class XSiteOpeningBalanceDiscoveryWizard(models.TransientModel):
     _name = 'x.site.opening.balance.discovery.wizard'
-    _description = 'Site Opening Balance Import — Discovery Report (Phase 1, read-only)'
+    _description = 'Site Opening Balance — Discovery Report & Valuation Import'
+
+    state = fields.Selection([
+        ('draft', 'Draft'),
+        ('discovered', 'Discovered'),
+        ('imported', 'Imported'),
+    ], default='draft', readonly=True)
 
     site_config_id = fields.Many2one(
         'x.project.site.config', string='Site', required=True,
-        help='Which site this MAIN SUMMARY workbook belongs to.',
+        help='Which site this opening inventory workbook belongs to.',
     )
     summary_file = fields.Binary(
-        string='MAIN SUMMARY file (.xlsx)', attachment=False,
-        help='Optional. The site\'s stock/inventory workbook. Only the "MAIN SUMMARY" '
-             'sheet is read - the "Stock" and "Issue" sheets are raw historical logs '
-             '(support detail only) and are ignored by this tool. Leave empty to run '
-             'ONLY the category/site-wiring config and the Purchase Receipts GL audit '
-             'below (e.g. to check receipts since July 1 for a site whose opening-balance '
-             'workbook has not arrived yet) - sections 1/2/5 (sheet items, product '
-             'matching, on-hand cross-check) are then skipped.',
+        string='Inventory File (.xlsx / .xls)', attachment=False,
+        help='The site\'s inventory sheet (.xlsx workbook or .xls export table). Supports '
+             'MCH MAIN SUMMARY, STP Sewage Plant report, and RWASA ledger exports.',
     )
     summary_filename = fields.Char(string='Filename')
     as_of_date = fields.Date(
-        string='Balance As Of', default=fields.Date.context_today,
-        help='The date the sheet\'s balance is struck as of (e.g. 30 June 2026). Only '
-             'used to help you pick the Receipts-Since cutoff below - this tool does '
-             'not date or change any record. Not required if no workbook is uploaded.',
+        string='Balance As Of',
+        default=lambda self: fields.Date.from_string('2026-06-30') or fields.Date.context_today(self),
+        help='The date opening inventory valuation is struck as of (e.g. 30 June 2026). '
+             'Recorded on valuation layers and opening GL entry.',
     )
     receipts_since_date = fields.Date(
         string='Review Receipts Since', required=True,
         default=lambda self: fields.Date.context_today(self),
         help='Purchase Receipts done on/after this date, up to today, are included in '
-             'the GL account audit below - i.e. "since July 1 till date" is just '
-             'July 1 here with no end date. Defaults to the day after Balance As Of.',
+             'the GL account audit below. Defaults to the day after Balance As Of.',
     )
     value_tolerance = fields.Float(
         string='Value Tolerance (PKR)', default=0.01,
-        help='Sheet rows whose Balance Material Amount is below this absolute value '
-             'are treated as closed/zero and excluded from the import candidate list.',
+        help='Sheet rows whose valuation amount is below this absolute value '
+             'are treated as closed/zero and excluded from import.',
     )
     target_account_code = fields.Char(
         string='Target Inventory Account Code', default='230400000',
-        help='The ONE shared GL account both the opening balance (Phase 2) and every '
-             'Purchase Receipt (Phase 3 correction) must land on, per the confirmed '
-             'decision — account 230400000 "Inventory" (Current Asset), used for every '
-             'site (no per-site inventory account). Looked up by its Code on '
-             'account.account; every category and every receipt below is checked '
-             'against it directly, regardless of what is currently configured.',
+        help='The shared GL account both the opening balance and Purchase Receipts land on — '
+             'account 230400000 "Inventory" (Current Asset).',
     )
+
+    # ── Valuation Import Options ──
+    import_mode = fields.Selection([
+        ('exact_only', 'Exact Matches Only (Recommended)'),
+        ('all_matched', 'Exact & Fuzzy Single Matches'),
+    ], default='exact_only', string='Product Matching Mode',
+        help='Exact Matches Only imports rows that map uniquely to 1 product by Item Code or exact description.')
+    update_product_cost = fields.Boolean(
+        string='Update Product Unit Cost (standard_price)', default=True,
+        help='Updates product standard_price to the unit cost from the opening sheet so '
+             'Inventory > Reporting > Stock displays the correct Unit Cost and Total Value.')
+    create_valuation_layers = fields.Boolean(
+        string='Create Stock Valuation Layers', default=True,
+        help='Creates stock.valuation.layer records dated as of 30 June. Physical on-hand stock '
+             'in stock.quant is preserved completely untouched without duplication.')
+    create_gl_entry = fields.Boolean(
+        string='Create GL Opening Journal Entry', default=False,
+        help='Posts a journal entry dated as of 30 June debiting Target Account (230400000) '
+             'with site analytic distribution and crediting the offset account.')
+    offset_account_id = fields.Many2one(
+        'account.account', string='Opening Offset Account',
+        domain=[('deprecated', '=', False)],
+        help='Credit counterpart account for the opening inventory journal entry (e.g. Opening Balance Equity).')
+    stock_journal_id = fields.Many2one(
+        'account.journal', string='Inventory Journal',
+        domain=[('type', '=', 'general')],
+        default=lambda self: self.env.company.account_stock_journal_id or self.env['account.journal'].search([('type', '=', 'general')], limit=1),
+        help='Journal where the opening stock valuation entry will post.')
+    overwrite_existing = fields.Boolean(
+        string='Overwrite Previous Opening Valuation for this Site', default=False,
+        help='If opening valuation was already imported for this site, check to replace it safely.')
 
     result_summary = fields.Text(string='Summary', readonly=True)
     report_file = fields.Binary(string='Detail Report (CSV)', readonly=True, attachment=False)
@@ -133,49 +160,126 @@ class XSiteOpeningBalanceDiscoveryWizard(models.TransientModel):
 
     def _parse_main_summary(self):
         self.ensure_one()
+        if not self.summary_file:
+            raise UserError(_('Please attach the site\'s workbook (.xlsx or .xls) first.'))
+
+        raw = base64.b64decode(self.summary_file)
+
+        # 1. HTML table export (.xls format like Civil Ledger / Overall Inventory Mech)
+        if raw.strip().startswith(b'<') or b'<table' in raw[:500].lower():
+            text = raw.decode('latin1', errors='ignore')
+            rows = re.findall(r'<tr[^>]*>(.*?)</tr>', text, re.DOTALL | re.IGNORECASE)
+            items = []
+            category = None
+            for r in rows:
+                cols = [re.sub(r'<[^>]+>', '', c).strip() for c in re.findall(r'<td[^>]*>(.*?)</td>', r, re.DOTALL | re.IGNORECASE)]
+                if len(cols) >= 16:
+                    categ = cols[0]
+                    if categ and categ != '&nbsp;':
+                        category = categ
+                    code = cols[1] if cols[1] != '&nbsp;' else ''
+                    desc = cols[2] if cols[2] != '&nbsp;' else ''
+                    unit = cols[3] if cols[3] != '&nbsp;' else ''
+                    try:
+                        qty = float(cols[13].replace(',', '').replace('&nbsp;', '0') or 0)
+                        val = float(cols[15].replace(',', '').replace('&nbsp;', '0') or 0)
+                    except ValueError:
+                        continue
+                    if desc and (abs(qty) > 1e-6 or abs(val) > 0.01):
+                        items.append({
+                            'category': category or '(uncategorized)',
+                            'code': code,
+                            'description': desc,
+                            'unit': unit,
+                            'qty': qty,
+                            'value': val,
+                        })
+            if items:
+                return items
+
+        # 2. Standard Excel workbook (.xlsx)
         try:
             import openpyxl
         except ImportError:
             raise UserError(_('openpyxl is not available in this environment - cannot read the workbook.'))
-        if not self.summary_file:
-            raise UserError(_('Please attach the site\'s workbook (.xlsx) first.'))
 
-        wb = openpyxl.load_workbook(io.BytesIO(base64.b64decode(self.summary_file)), data_only=True)
+        try:
+            wb = openpyxl.load_workbook(io.BytesIO(raw), data_only=True)
+        except Exception as e:
+            raise UserError(_('Failed to read the workbook: %s') % str(e))
+
         sheet = None
         for name in wb.sheetnames:
-            if name.strip().upper() == 'MAIN SUMMARY':
+            clean = name.strip().upper()
+            if 'MAIN SUMMARY' in clean or '30-06' in clean or 'SUMMARY' in clean or 'BALANCE' in clean:
                 sheet = wb[name]
                 break
         if sheet is None:
-            raise UserError(_(
-                'No sheet named "MAIN SUMMARY" found in this file. Sheets found: %s'
-            ) % ', '.join(wb.sheetnames))
+            sheet = wb.active
 
         items = []
         category = None
+        desc_col = 1
+        unit_col = 2
+        qty_col = 5
+        val_col = 7
+        code_col = None
+        header_found = False
+
         for row in sheet.iter_rows(min_row=1, values_only=True):
             if not row or all(v is None for v in row):
                 continue
+
+            row_str = [str(c).strip().lower() if c is not None else '' for c in row]
+            if not header_found and any('description' in c for c in row_str):
+                for idx, c in enumerate(row_str):
+                    if 'code' in c and code_col is None:
+                        code_col = idx
+                    elif ('description' in c or 'material' in c) and desc_col == 1:
+                        desc_col = idx
+                    elif 'unit' in c:
+                        unit_col = idx
+                    elif any(k in c for k in ('balance material amount', 'current stock amount', 'total value', 'amount', 'balance amount')):
+                        val_col = idx
+                    elif any(k in c for k in ('balance material', 'current stock qty', 'balance qty', 'balance', 'closing')):
+                        qty_col = idx
+                header_found = True
+                continue
+
             sr = row[0]
-            desc = row[1] if len(row) > 1 else None
+            desc = row[desc_col] if len(row) > desc_col else None
             # A category header row is a bare text label in column A with
             # nothing in the Description column (e.g. "Steel", "Cables").
-            if isinstance(sr, str) and desc is None:
+            if isinstance(sr, str) and (desc is None or str(desc).strip() == ''):
                 category = sr.strip()
                 continue
-            # An item row has a numeric Sr# and a description; anything else
-            # (title rows, the column-header row itself, blank spacers) is skipped.
-            if not isinstance(sr, (int, float)) or not desc:
+            if not desc or str(desc).strip() == '' or str(desc).strip().lower() in ('description', 'item description'):
                 continue
-            unit = row[2] if len(row) > 2 else None
-            bal_qty = row[5] if len(row) > 5 else None
-            bal_value = row[7] if len(row) > 7 else None
+            if isinstance(sr, str) and any(w in sr.lower() for w in ('sr', 'total', 'grand total', 'sub total')):
+                continue
+
+            code = str(row[code_col]).strip() if code_col is not None and len(row) > code_col and row[code_col] else ''
+            unit = str(row[unit_col]).strip() if len(row) > unit_col and row[unit_col] else ''
+            bal_qty = row[qty_col] if len(row) > qty_col else 0.0
+            bal_value = row[val_col] if len(row) > val_col else 0.0
+
+            try:
+                qty_f = float(str(bal_qty).replace(',', '')) if bal_qty is not None else 0.0
+            except ValueError:
+                qty_f = 0.0
+
+            try:
+                val_f = float(str(bal_value).replace(',', '')) if bal_value is not None else 0.0
+            except ValueError:
+                val_f = 0.0
+
             items.append({
                 'category': category or '(uncategorized)',
+                'code': code,
                 'description': str(desc).strip(),
-                'unit': unit or '',
-                'qty': bal_qty if isinstance(bal_qty, (int, float)) else 0.0,
-                'value': bal_value if isinstance(bal_value, (int, float)) else 0.0,
+                'unit': unit,
+                'qty': qty_f,
+                'value': val_f,
             })
         return items
 
@@ -255,28 +359,34 @@ class XSiteOpeningBalanceDiscoveryWizard(models.TransientModel):
     def _match_products(self, items):
         Product = self.env['product.product'].sudo()
         product_data = Product.search_read([], ['id', 'name', 'default_code', 'categ_id'])
-        index = defaultdict(list)
+        name_index = defaultdict(list)
+        code_index = {}
         for p in product_data:
-            index[_normalize(p['name'])].append(p)
+            if p.get('default_code'):
+                code_index[p['default_code'].strip().upper()] = p
+            name_index[_normalize(p['name'])].append(p)
 
-        # Fuzzy pass only makes sense on a catalog small enough to scan
-        # exhaustively in reasonable time; above that, only exact matching runs
-        # and everything else is reported as "no match" for manual review.
-        allow_fuzzy = len(index) <= 6000
+        allow_fuzzy = len(name_index) <= 6000
 
         results = []
         for item in items:
-            norm = _normalize(item['description'])
-            matched = index.get(norm) or []
-            status = 'exact' if matched else 'none'
-            if not matched and allow_fuzzy and norm:
-                candidates = []
-                for key, plist in index.items():
-                    if key and (norm in key or key in norm):
-                        candidates.extend(plist)
-                if candidates:
-                    status = 'fuzzy'
-                    matched = candidates[:5]
+            code = (item.get('code') or '').strip().upper()
+            matched = []
+            if code and code in code_index:
+                matched = [code_index[code]]
+                status = 'exact'
+            else:
+                norm = _normalize(item['description'])
+                matched = name_index.get(norm) or []
+                status = 'exact' if matched else 'none'
+                if not matched and allow_fuzzy and norm:
+                    candidates = []
+                    for key, plist in name_index.items():
+                        if key and (norm in key or key in norm):
+                            candidates.extend(plist)
+                    if candidates:
+                        status = 'fuzzy'
+                        matched = candidates[:5]
             row = dict(item)
             row['match_status'] = status
             row['matched_products'] = matched
@@ -542,6 +652,201 @@ class XSiteOpeningBalanceDiscoveryWizard(models.TransientModel):
         csv_bytes = buf.getvalue().encode('utf-8-sig')
         self.report_file = base64.b64encode(csv_bytes)
         self.report_filename = f'opening_balance_discovery_{site_config.name or site_config.id}.csv'
+        self.state = 'discovered'
+
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': self._name,
+            'res_id': self.id,
+            'view_mode': 'form',
+            'target': 'new',
+        }
+
+    # ── Phase 2: Import Opening Inventory Valuation ──────────────────────────
+
+    def action_import_valuation(self):
+        self.ensure_one()
+        self._check_tool_access()
+        if not self.summary_file:
+            raise UserError(_('Please attach the site\'s workbook (.xlsx or .xls) first.'))
+
+        site_config = self.site_config_id
+        if not site_config:
+            raise UserError(_('Please select a Site.'))
+
+        as_of_date = self.as_of_date or fields.Date.from_string('2026-06-30')
+        as_of_datetime = fields.Datetime.to_datetime(f"{as_of_date} 23:59:59")
+        company = self.env.company
+
+        # 1. Parse and match candidates
+        items = self._parse_main_summary()
+        candidates = [i for i in items if abs(i['value']) > self.value_tolerance]
+        matched_items = self._match_products(candidates)
+
+        # 2. Check existing opening layers for this site
+        opening_prefix = f"Opening Inventory Valuation — {site_config.name}"
+        ValuationLayer = self.env['stock.valuation.layer'].sudo()
+        existing_layers = ValuationLayer.search([
+            ('description', 'like', f"{opening_prefix}%"),
+            ('company_id', '=', company.id),
+        ])
+        if existing_layers:
+            if not self.overwrite_existing:
+                raise UserError(_(
+                    'Found %s existing opening valuation layers for %s. '
+                    'Check "Overwrite Previous Opening Valuation for this Site" to replace them.'
+                ) % (len(existing_layers), site_config.display_name))
+            else:
+                old_moves = existing_layers.mapped('account_move_id')
+                existing_layers.unlink()
+                if old_moves:
+                    for m in old_moves:
+                        if m.state == 'posted':
+                            m.button_draft()
+                    old_moves.unlink()
+
+        # 3. Filter items according to import_mode
+        importable = []
+        skipped_reasons = []
+        for item in matched_items:
+            prods = item['matched_products']
+            if item['match_status'] == 'exact' and len(prods) == 1:
+                importable.append((prods[0], item))
+            elif self.import_mode == 'all_matched' and item['match_status'] == 'fuzzy' and len(prods) == 1:
+                importable.append((prods[0], item))
+            elif len(prods) > 1:
+                skipped_reasons.append((item, f"Ambiguous: {len(prods)} products matched"))
+            elif item['match_status'] == 'fuzzy':
+                skipped_reasons.append((item, f"Fuzzy match not approved (found {len(prods)})"))
+            else:
+                skipped_reasons.append((item, "No matching product found in Odoo"))
+
+        if not importable:
+            raise UserError(_('No uniquely matched products found with non-zero valuation to import.'))
+
+        # 4. Check GL prerequisites if GL entry is requested
+        target_account = self._resolve_target_account()
+        if self.create_gl_entry:
+            if not target_account:
+                raise UserError(_('Target inventory account (%s) not found in this database.') % self.target_account_code)
+            if not self.offset_account_id:
+                raise UserError(_('Please select an Opening Balance Offset Account for the GL entry.'))
+            if not self.stock_journal_id:
+                raise UserError(_('Please select an Inventory Journal for the GL entry.'))
+
+        Product = self.env['product.product'].sudo()
+        imported_rows = []
+        created_layer_ids = []
+        total_val = 0.0
+
+        # 5. Import valuation (WITHOUT touching stock.quant or creating stock moves)
+        for prod_dict, item in importable:
+            product = Product.browse(prod_dict['id'])
+            qty = item['qty']
+            val = item['value']
+            unit_cost = (val / qty) if abs(qty) > 1e-6 else val
+
+            # Update standard_price so Inventory -> Reporting -> Stock displays Unit Cost & Total Value
+            if self.update_product_cost and unit_cost > 0:
+                product.with_context(disable_auto_svl=True).write({'standard_price': unit_cost})
+
+            # Create stock.valuation.layer (purely financial, does NOT modify stock.quant)
+            if self.create_valuation_layers:
+                layer = ValuationLayer.create({
+                    'product_id': product.id,
+                    'company_id': company.id,
+                    'unit_cost': unit_cost,
+                    'quantity': qty,
+                    'value': val,
+                    'remaining_qty': qty,
+                    'remaining_value': val,
+                    'description': f"{opening_prefix} (as of {as_of_date})",
+                })
+                created_layer_ids.append(layer.id)
+
+            total_val += val
+            imported_rows.append({
+                'product': product.display_name,
+                'default_code': product.default_code or '',
+                'sheet_desc': item['description'],
+                'qty': qty,
+                'unit_cost': unit_cost,
+                'value': val,
+            })
+
+        # Backdate valuation layer create_date to as_of_date (30 June)
+        if created_layer_ids:
+            self.env.cr.execute(
+                "UPDATE stock_valuation_layer SET create_date = %s WHERE id = ANY(%s)",
+                (as_of_datetime, created_layer_ids)
+            )
+
+        # 6. Post GL entry if requested
+        created_move = None
+        if self.create_gl_entry and total_val > 0.01:
+            analytic_dist = {}
+            if site_config.analytic_account_id:
+                analytic_dist = {str(site_config.analytic_account_id.id): 100}
+
+            created_move = self.env['account.move'].sudo().create({
+                'journal_id': self.stock_journal_id.id,
+                'date': as_of_date,
+                'ref': f"Opening Stock Valuation — {site_config.name}",
+                'move_type': 'entry',
+                'line_ids': [
+                    (0, 0, {
+                        'name': f"Opening Inventory Valuation — {site_config.name}",
+                        'account_id': target_account.id,
+                        'debit': total_val,
+                        'credit': 0.0,
+                        'analytic_distribution': analytic_dist,
+                    }),
+                    (0, 0, {
+                        'name': f"Opening Inventory Offset — {site_config.name}",
+                        'account_id': self.offset_account_id.id,
+                        'debit': 0.0,
+                        'credit': total_val,
+                    }),
+                ],
+            })
+            created_move.action_post()
+            if created_layer_ids:
+                ValuationLayer.browse(created_layer_ids).write({'account_move_id': created_move.id})
+
+        # 7. Build summary text
+        summary_lines = [
+            "=== Inventory Valuation Import Successful ===",
+            f"Site: {site_config.display_name}",
+            f"Balance As Of: {as_of_date}",
+            f"Successfully Imported Products: {len(imported_rows)}",
+            f"Total Opening Valuation Imported: PKR {total_val:,.2f}",
+            f"Product Unit Costs (standard_price) Updated: {'YES' if self.update_product_cost else 'NO'}",
+            f"Stock Valuation Layers Created: {len(created_layer_ids)} (dated {as_of_date})",
+            f"On-Hand Physical Stock (stock.quant): UNTOUCHED (0 quantities altered/duplicated)",
+            f"GL Journal Entry: {created_move.name + ' (Posted)' if created_move else 'None (GL Entry was not requested)'}",
+            f"Skipped / Unmatched Items: {len(skipped_reasons)} (see detail CSV)",
+        ]
+        self.result_summary = "\n".join(summary_lines)
+        self.state = 'imported'
+
+        # 8. Generate Detail CSV
+        buf = io.StringIO()
+        writer = csv.writer(buf)
+        writer.writerow([f"=== IMPORTED OPENING INVENTORY VALUATION — {site_config.name} (as of {as_of_date}) ==="])
+        writer.writerow(["Product Code", "Product Name", "Sheet Description", "Opening Qty", "Unit Cost (PKR)", "Total Value (PKR)", "Status"])
+        for r in imported_rows:
+            writer.writerow([r['default_code'], r['product'], r['sheet_desc'], r['qty'], f"{r['unit_cost']:.4f}", f"{r['value']:.2f}", "IMPORTED"])
+
+        if skipped_reasons:
+            writer.writerow([])
+            writer.writerow(["=== SKIPPED / UNMATCHED ITEMS ==="])
+            writer.writerow(["Category", "Item Code", "Description", "Unit", "Sheet Qty", "Sheet Value", "Reason"])
+            for item, reason in skipped_reasons:
+                writer.writerow([item.get('category', ''), item.get('code', ''), item.get('description', ''), item.get('unit', ''), item.get('qty', 0), item.get('value', 0), reason])
+
+        csv_bytes = buf.getvalue().encode('utf-8-sig')
+        self.report_file = base64.b64encode(csv_bytes)
+        self.report_filename = f"opening_valuation_import_{site_config.name or site_config.id}.csv"
 
         return {
             'type': 'ir.actions.act_window',
