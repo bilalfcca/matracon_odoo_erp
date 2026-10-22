@@ -113,10 +113,14 @@
                     <field name="report_filename" invisible="1"/>
                 </group>
                 <footer>
-                    <button name="action_import_valuation" string="Import Inventory Valuation"
+                    <button name="action_direct_import_all_projects" string="Direct Import All 3 Sites (MCH, STP, RWASA)"
                             type="object" class="btn-primary"
                             invisible="state == 'imported'"
-                            confirm="This will record opening inventory valuation as of 30 June and update product costs without re-importing or changing on-hand stock quantities. Proceed?"/>
+                            confirm="This will directly import the 30 June opening inventory valuations for all 3 sites (MCH - BAHAWALNAGAR, STP - MARDAN, RWASA) using bundled verified datasets, updating product unit costs and move valuations without altering physical on-hand stock quantities. Proceed?"/>
+                    <button name="action_import_valuation" string="Import Valuation (Current File)"
+                            type="object" class="btn-secondary"
+                            invisible="state == 'imported'"
+                            confirm="This will record opening inventory valuation as of 30 June and update product costs for the selected site/file without re-importing or changing on-hand stock quantities. Proceed?"/>
                     <button name="action_run_discovery" string="Run Discovery Report"
                             type="object" class="btn-secondary"
                             invisible="state == 'imported'"/>

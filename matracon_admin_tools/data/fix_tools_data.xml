@@ -339,4 +339,20 @@ Valuation Import: Records opening inventory valuation as of 30 June into stock v
         <field name="sequence">110</field>
     </record>
 
+    <!-- Direct Import Opening Inventory Valuations for All 3 Sites (MCH, STP, RWASA) -->
+    <record id="action_server_direct_import_all_site_opening_valuations" model="ir.actions.server">
+        <field name="name">Direct Import Opening Inventory Valuations (MCH, STP, RWASA)</field>
+        <field name="model_id" ref="site_operations.model_x_project_site_config"/>
+        <field name="state">code</field>
+        <field name="code">action = env['x.site.opening.balance.discovery.wizard'].action_direct_import_all_projects_server()</field>
+        <field name="x_is_fix_tool" eval="True"/>
+        <field name="x_fix_tool_description">Directly imports the 30 June opening inventory valuations for all 3 Matracon sites (MCH - BAHAWALNAGAR, STP - MARDAN, RWASA) using bundled verified opening valuation datasets. Updates product unit costs (standard_price) across companies, enables location valuation, updates incoming move valuation layers, and ensures Inventory &gt; Reporting &gt; Stock displays correct non-zero valuations WITHOUT altering physical on-hand quantities (stock.quant).</field>
+        <field name="group_ids" eval="[Command.set([
+            ref('purchase_demand_raise.group_matracon_admin'),
+            ref('site_operations.group_finance_ho'),
+            ref('base.group_system'),
+        ])]"/>
+        <field name="sequence">115</field>
+    </record>
+
 </odoo>
