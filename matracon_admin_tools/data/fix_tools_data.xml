@@ -316,32 +316,21 @@ Safe to run multiple times - already-converted documents are left alone.</field>
          again in Production before any Phase 2/3/4 import or fix code is
          written. Repeat per site as each site's file is provided. -->
     <record id="action_server_site_opening_balance_discovery" model="ir.actions.server">
-        <field name="name">Site Opening Balance — Discovery Report</field>
+        <field name="name">Site Opening Balance — Discovery Report &amp; Valuation Import</field>
         <field name="model_id" ref="site_operations.model_x_project_site_config"/>
         <field name="state">code</field>
         <field name="code">action = {
     'type': 'ir.actions.act_window',
-    'name': 'Site Opening Balance — Discovery Report',
+    'name': 'Site Opening Balance — Discovery &amp; Valuation Import',
     'res_model': 'x.site.opening.balance.discovery.wizard',
     'view_mode': 'form',
     'target': 'new',
 }</field>
         <field name="x_is_fix_tool" eval="True"/>
-        <field name="x_fix_tool_description">READ-ONLY — creates/changes/deletes nothing.
-Upload a site's "MAIN SUMMARY" opening-inventory workbook and pick the site;
-reports back (on screen + a downloadable CSV): current costing method and
-valuation account per product category vs. company defaults; this site's own
-GL account wiring (Material Issue Account, issue-location and
-warehouse-location valuation accounts); item-by-item matching of every
-non-zero balance row against existing products (exact / fuzzy / no match);
-an on-hand quantity cross-check flagging any matched product that already
-has system stock (double-count risk); and a Purchase-Receipts GL account
-audit since a chosen date, flagging receipts that posted to no account or a
-different account than the product's category is configured for.
-Run in Staging first, review the report, then run again in Production —
-same tool, no code difference — before writing or running any of the
-opening-balance import / historical-receipt-correction / FIFO-alignment
-steps that follow.</field>
+        <field name="x_fix_tool_description">Phase 1 (Discovery) &amp; Phase 2 (Valuation Import):
+Upload a site's opening inventory workbook (.xlsx / .xls) and select the site.
+Discovery Report: Validates item-to-product matches, checks on-hand stock, category valuation, and audits receipts.
+Valuation Import: Records opening inventory valuation as of 30 June into stock valuation layers and updates product unit costs (standard_price) so Inventory &gt; Reporting &gt; Stock displays the correct valuation, WITHOUT re-importing or altering physical on-hand stock. Optionally posts an opening GL journal entry.</field>
         <field name="group_ids" eval="[Command.set([
             ref('purchase_demand_raise.group_matracon_admin'),
             ref('site_operations.group_finance_ho'),
