@@ -973,7 +973,7 @@ class XSiteOpeningBalanceDiscoveryWizard(models.TransientModel):
         wizard = self.create({
             'site_config_id': first_site.id if first_site else False,
             'as_of_date': fields.Date.from_string('2026-06-30'),
-            'create_gl_entry': True,
+            'create_gl_entry': False,
         })
         return wizard.action_direct_import_all_projects()
 
@@ -1017,10 +1017,7 @@ class XSiteOpeningBalanceDiscoveryWizard(models.TransientModel):
 
         SiteConfig = self.env['x.project.site.config'].sudo()
         target_account = self._resolve_target_account()
-        offset_account = self.offset_account_id or self.env['account.account'].sudo().search([
-            ('account_type', '=', 'equity'),
-            ('company_ids', 'in', company.id),
-        ], limit=1)
+        offset_account = self.offset_account_id
         stock_journal = self.stock_journal_id or self.env['account.journal'].sudo().search([
             ('type', '=', 'general'),
             ('company_id', '=', company.id),
@@ -1106,7 +1103,7 @@ class XSiteOpeningBalanceDiscoveryWizard(models.TransientModel):
                 })
 
             # Optional GL Journal Entry per site
-            posted_move_str = "None"
+            posted_move_str = "None (Valuation only — GL entry not requested)"
             if self.create_gl_entry and target_account and offset_account and stock_journal and site_val > 0.01:
                 ref_str = f"Opening Stock Valuation — {site_config.name}"
                 existing_move = self.env['account.move'].sudo().search([
