@@ -370,12 +370,15 @@ class XSiteOpeningBalanceDiscoveryWizard(models.TransientModel):
         results = []
         for item in items:
             code = (item.get('code') or '').strip().upper()
+            norm = _normalize(item.get('description') or '')
             matched = []
             if code and code in code_index:
-                matched = [code_index[code]]
-                status = 'exact'
-            else:
-                norm = _normalize(item['description'])
+                cand = code_index[code]
+                cand_norm = _normalize(cand.get('name') or '')
+                if cand_norm == norm or (norm and cand_norm and (norm in cand_norm or cand_norm in norm)):
+                    matched = [cand]
+                    status = 'exact'
+            if not matched:
                 matched = name_index.get(norm) or []
                 status = 'exact' if matched else 'none'
                 if not matched and allow_fuzzy and norm:
@@ -742,34 +745,46 @@ class XSiteOpeningBalanceDiscoveryWizard(models.TransientModel):
         total_val = 0.0
 
         # 5. Import valuation (WITHOUT touching stock.quant or creating stock moves)
+        grouped_importable = defaultdict(list)
         for prod_dict, item in importable:
-            product = Product.browse(prod_dict['id'])
-            qty = item['qty']
-            val = item['value']
-            unit_cost = (val / qty) if abs(qty) > 1e-6 else val
+            grouped_importable[prod_dict['id']].append((prod_dict, item))
 
-            layer_id = self._apply_product_valuation(
-                product=product,
-                unit_cost=unit_cost,
-                val=val,
-                qty=qty,
-                site_config=site_config,
-                as_of_datetime=as_of_datetime,
-                internal_locs=internal_locs,
-                update_cost=self.update_product_cost,
-            )
-            if layer_id:
-                created_layer_ids.append(layer_id)
+        for pid, p_entries in grouped_importable.items():
+            product = Product.browse(pid)
+            tot_qty = sum(it['qty'] for _, it in p_entries)
+            tot_val = sum(it['value'] for _, it in p_entries)
+            if tot_qty > 1e-6 and tot_val > 0.01:
+                unit_cost = round(tot_val / tot_qty, 4)
+            else:
+                rates = [((it['value'] / it['qty']) if abs(it['qty']) > 1e-6 else 0.0) for _, it in p_entries]
+                pos_rates = [r for r in rates if r > 0.0001]
+                unit_cost = round(sum(pos_rates) / len(pos_rates), 4) if pos_rates else 0.0
 
-            total_val += val
-            imported_rows.append({
-                'product': product.display_name,
-                'default_code': product.default_code or '',
-                'sheet_desc': item['description'],
-                'qty': qty,
-                'unit_cost': unit_cost,
-                'value': val,
-            })
+            for prod_dict, item in p_entries:
+                qty = item['qty']
+                val = item['value']
+                layer_id = self._apply_product_valuation(
+                    product=product,
+                    unit_cost=unit_cost,
+                    val=val,
+                    qty=qty,
+                    site_config=site_config,
+                    as_of_datetime=as_of_datetime,
+                    internal_locs=internal_locs,
+                    update_cost=self.update_product_cost,
+                )
+                if layer_id:
+                    created_layer_ids.append(layer_id)
+
+                total_val += val
+                imported_rows.append({
+                    'product': product.display_name,
+                    'default_code': product.default_code or '',
+                    'sheet_desc': item['description'],
+                    'qty': qty,
+                    'unit_cost': unit_cost,
+                    'value': val,
+                })
 
         # Invalidate model caches so compute_value updates immediately
         self.env['stock.quant'].invalidate_model()
@@ -905,7 +920,16 @@ class XSiteOpeningBalanceDiscoveryWizard(models.TransientModel):
                 ('date', '<=', as_of_datetime),
                 ('company_id', '=', company.id),
             ], limit=1)
-            if not pv_exists:
+            if pv_exists:
+                try:
+                    pv_exists.write({
+                        'new_cost': unit_cost,
+                        'value': unit_cost,
+                        'new_value': val,
+                    })
+                except Exception:
+                    pass
+            else:
                 try:
                     PV.create({
                         'product_id': product.id,
@@ -1027,6 +1051,11 @@ class XSiteOpeningBalanceDiscoveryWizard(models.TransientModel):
         all_imported_rows = []
         all_skipped_rows = []
 
+        # Step 1: Match and collect items across all 3 sites
+        site_matched_entries = defaultdict(list)
+        product_entries = defaultdict(list)
+        resolved_sites = {}
+
         for site_key in ['MCH', 'STP', 'RWASA']:
             items = bundled_data.get(site_key, [])
             if not items:
@@ -1045,43 +1074,86 @@ class XSiteOpeningBalanceDiscoveryWizard(models.TransientModel):
                 continue
 
             internal_locs = self._prepare_site_locations_and_quants(site_config.warehouse_id)
-
-            site_imported = 0
-            site_val = 0.0
+            resolved_sites[site_key] = (site_config, internal_locs)
 
             for item in items:
                 code = (item.get('code') or '').strip().upper()
                 desc = item.get('desc') or ''
                 qty = item.get('qty', 0.0)
                 val = item.get('val', 0.0)
-                unit_cost = item.get('unit_cost', 0.0) or ((val / qty) if abs(qty) > 1e-6 else val)
+                site_unit_cost = item.get('unit_cost', 0.0) or ((val / qty) if abs(qty) > 1e-6 else 0.0)
 
-                # Match product
+                # Match product: exact name first, guarded code fallback
+                norm = _normalize(desc)
                 matched_p = None
-                if code and code in code_index:
-                    matched_p = code_index[code]
-                else:
-                    norm = _normalize(desc)
-                    plist = name_index.get(norm)
-                    if plist and len(plist) == 1:
-                        matched_p = plist[0]
-                    elif not plist:
-                        # Fuzzy search
-                        fuzzy_matches = []
-                        for key, candidates in name_index.items():
-                            if key and (norm in key or key in norm):
-                                fuzzy_matches.extend(candidates)
-                        if len(fuzzy_matches) == 1:
-                            matched_p = fuzzy_matches[0]
+                plist = name_index.get(norm)
+                if plist and len(plist) == 1:
+                    matched_p = plist[0]
+                elif code and code in code_index:
+                    cand = code_index[code]
+                    cand_norm = _normalize(cand.get('name') or '')
+                    if cand_norm == norm or (norm and cand_norm and (norm in cand_norm or cand_norm in norm)):
+                        matched_p = cand
+                elif not plist:
+                    fuzzy_matches = []
+                    for key, candidates in name_index.items():
+                        if key and (norm in key or key in norm):
+                            fuzzy_matches.extend(candidates)
+                    if len(fuzzy_matches) == 1:
+                        matched_p = fuzzy_matches[0]
 
                 if not matched_p:
                     all_skipped_rows.append((site_config.name, item, 'No uniquely matched product'))
                     continue
 
                 product = Product.browse(matched_p['id'])
+                entry = {
+                    'site_key': site_key,
+                    'site_config': site_config,
+                    'internal_locs': internal_locs,
+                    'item': item,
+                    'qty': qty,
+                    'val': val,
+                    'site_unit_cost': site_unit_cost,
+                    'product': product,
+                }
+                product_entries[product.id].append(entry)
+                site_matched_entries[site_key].append(entry)
+
+        # Step 2: For each unique matched product, compute the weighted average unit price
+        product_avg_costs = {}
+        for pid, entries in product_entries.items():
+            tot_qty = sum(e['qty'] for e in entries)
+            tot_val = sum(e['val'] for e in entries)
+            if tot_qty > 1e-6 and tot_val > 0.01:
+                avg_cost = round(tot_val / tot_qty, 4)
+            else:
+                rates = [e['site_unit_cost'] for e in entries if e['site_unit_cost'] > 0.0001]
+                avg_cost = round(sum(rates) / len(rates), 4) if rates else 0.0
+            product_avg_costs[pid] = avg_cost
+
+        # Step 3: Apply valuations per site
+        for site_key in ['MCH', 'STP', 'RWASA']:
+            if site_key not in resolved_sites:
+                continue
+            site_config, internal_locs = resolved_sites[site_key]
+            entries = site_matched_entries.get(site_key, [])
+
+            site_imported = 0
+            site_val = 0.0
+
+            for e in entries:
+                product = e['product']
+                qty = e['qty']
+                val = e['val']
+                site_unit_cost = e['site_unit_cost']
+                # If product has multiple prices, standard_price gets the weighted average
+                avg_cost = product_avg_costs.get(product.id, site_unit_cost)
+                unit_cost_to_apply = avg_cost if avg_cost > 0 else (site_unit_cost if site_unit_cost > 0 else 0.0)
+
                 self._apply_product_valuation(
                     product=product,
-                    unit_cost=unit_cost,
+                    unit_cost=unit_cost_to_apply,
                     val=val,
                     qty=qty,
                     site_config=site_config,
@@ -1096,9 +1168,9 @@ class XSiteOpeningBalanceDiscoveryWizard(models.TransientModel):
                     'site': site_config.name,
                     'code': product.default_code or '',
                     'name': product.display_name,
-                    'sheet_desc': desc,
+                    'sheet_desc': e['item'].get('desc', ''),
                     'qty': qty,
-                    'unit_cost': unit_cost,
+                    'unit_cost': unit_cost_to_apply,
                     'value': val,
                 })
 
