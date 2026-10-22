@@ -120,9 +120,8 @@ class XSiteOpeningBalanceDiscoveryWizard(models.TransientModel):
         help='Updates product standard_price to the unit cost from the opening sheet so '
              'Inventory > Reporting > Stock displays the correct Unit Cost and Total Value.')
     create_valuation_layers = fields.Boolean(
-        string='Create Stock Valuation Layers', default=True,
-        help='Creates stock.valuation.layer records dated as of 30 June. Physical on-hand stock '
-             'in stock.quant is preserved completely untouched without duplication.')
+        string='Create Stock Valuation Layers (Legacy)', default=False,
+        help='Only applicable if stock.valuation.layer model exists. In Odoo 19, valuation is stored directly on products and moves.')
     create_gl_entry = fields.Boolean(
         string='Create GL Opening Journal Entry', default=False,
         help='Posts a journal entry dated as of 30 June debiting Target Account (230400000) '
@@ -683,27 +682,29 @@ class XSiteOpeningBalanceDiscoveryWizard(models.TransientModel):
         candidates = [i for i in items if abs(i['value']) > self.value_tolerance]
         matched_items = self._match_products(candidates)
 
-        # 2. Check existing opening layers for this site
+        # 2. Check existing opening layers for this site (if SVL model exists)
         opening_prefix = f"Opening Inventory Valuation — {site_config.name}"
-        ValuationLayer = self.env['stock.valuation.layer'].sudo()
-        existing_layers = ValuationLayer.search([
-            ('description', 'like', f"{opening_prefix}%"),
-            ('company_id', '=', company.id),
-        ])
-        if existing_layers:
-            if not self.overwrite_existing:
-                raise UserError(_(
-                    'Found %s existing opening valuation layers for %s. '
-                    'Check "Overwrite Previous Opening Valuation for this Site" to replace them.'
-                ) % (len(existing_layers), site_config.display_name))
-            else:
-                old_moves = existing_layers.mapped('account_move_id')
-                existing_layers.unlink()
-                if old_moves:
-                    for m in old_moves:
-                        if m.state == 'posted':
-                            m.button_draft()
-                    old_moves.unlink()
+        has_svl = 'stock.valuation.layer' in self.env
+        ValuationLayer = self.env['stock.valuation.layer'].sudo() if has_svl else None
+        if has_svl and ValuationLayer is not None:
+            existing_layers = ValuationLayer.search([
+                ('description', 'like', f"{opening_prefix}%"),
+                ('company_id', '=', company.id),
+            ])
+            if existing_layers:
+                if not self.overwrite_existing:
+                    raise UserError(_(
+                        'Found %s existing opening valuation layers for %s. '
+                        'Check "Overwrite Previous Opening Valuation for this Site" to replace them.'
+                    ) % (len(existing_layers), site_config.display_name))
+                else:
+                    old_moves = existing_layers.mapped('account_move_id')
+                    existing_layers.unlink()
+                    if old_moves:
+                        for m in old_moves:
+                            if m.state == 'posted':
+                                m.button_draft()
+                        old_moves.unlink()
 
         # 3. Filter items according to import_mode
         importable = []
@@ -750,8 +751,8 @@ class XSiteOpeningBalanceDiscoveryWizard(models.TransientModel):
             if self.update_product_cost and unit_cost > 0:
                 product.with_context(disable_auto_svl=True).write({'standard_price': unit_cost})
 
-            # Create stock.valuation.layer (purely financial, does NOT modify stock.quant)
-            if self.create_valuation_layers:
+            # Create stock.valuation.layer if model exists (purely financial, does NOT modify stock.quant)
+            if has_svl and ValuationLayer is not None and self.create_valuation_layers:
                 layer = ValuationLayer.create({
                     'product_id': product.id,
                     'company_id': company.id,
@@ -774,8 +775,8 @@ class XSiteOpeningBalanceDiscoveryWizard(models.TransientModel):
                 'value': val,
             })
 
-        # Backdate valuation layer create_date to as_of_date (30 June)
-        if created_layer_ids:
+        # Backdate valuation layer create_date to as_of_date (30 June) if layers exist
+        if has_svl and created_layer_ids:
             self.env.cr.execute(
                 "UPDATE stock_valuation_layer SET create_date = %s WHERE id = ANY(%s)",
                 (as_of_datetime, created_layer_ids)
@@ -810,7 +811,7 @@ class XSiteOpeningBalanceDiscoveryWizard(models.TransientModel):
                 ],
             })
             created_move.action_post()
-            if created_layer_ids:
+            if has_svl and created_layer_ids and ValuationLayer is not None:
                 ValuationLayer.browse(created_layer_ids).write({'account_move_id': created_move.id})
 
         # 7. Build summary text
@@ -821,7 +822,7 @@ class XSiteOpeningBalanceDiscoveryWizard(models.TransientModel):
             f"Successfully Imported Products: {len(imported_rows)}",
             f"Total Opening Valuation Imported: PKR {total_val:,.2f}",
             f"Product Unit Costs (standard_price) Updated: {'YES' if self.update_product_cost else 'NO'}",
-            f"Stock Valuation Layers Created: {len(created_layer_ids)} (dated {as_of_date})",
+            f"Stock Valuation Layers: {'Created ' + str(len(created_layer_ids)) + f' (dated {as_of_date})' if has_svl else 'N/A (Odoo 19 native move & product cost model)'}",
             f"On-Hand Physical Stock (stock.quant): UNTOUCHED (0 quantities altered/duplicated)",
             f"GL Journal Entry: {created_move.name + ' (Posted)' if created_move else 'None (GL Entry was not requested)'}",
             f"Skipped / Unmatched Items: {len(skipped_reasons)} (see detail CSV)",
