@@ -99,7 +99,6 @@
                         <field name="value_tolerance"/>
                         <field name="import_mode"/>
                         <field name="update_product_cost"/>
-                        <field name="create_valuation_layers"/>
                         <field name="create_gl_entry"/>
                         <field name="offset_account_id" invisible="not create_gl_entry" required="create_gl_entry"/>
                         <field name="stock_journal_id" invisible="not create_gl_entry" required="create_gl_entry"/>
