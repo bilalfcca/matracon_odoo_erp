@@ -22,6 +22,28 @@
             <xpath expr="//field[@name='origin']" position="attributes">
                 <attribute name="invisible">x_transfer_purpose in ['material_issuance', 'site_to_site'] or (picking_type_code == 'incoming' and not x_transfer_purpose)</attribute>
             </xpath>
+            <!-- Make "Receiving Now" and "Original Demand" visible and editable when x_source_po_id is set, even in draft -->
+            <xpath expr="//field[@name='move_ids']/list/field[@name='quantity'][@string='Receiving Now']" position="attributes">
+                <attribute name="column_invisible">parent.picking_type_code != 'incoming' or (not parent.purchase_id and not parent.x_source_po_id)</attribute>
+                <attribute name="readonly">parent.state in ('done', 'cancel')</attribute>
+            </xpath>
+            <xpath expr="//field[@name='move_ids']/list/field[@name='product_uom_qty'][@string='Original Demand']" position="attributes">
+                <attribute name="column_invisible">parent.picking_type_code != 'incoming' or (not parent.purchase_id and not parent.x_source_po_id)</attribute>
+            </xpath>
+            <!-- Ensure duplicate fallback original columns remain hidden when x_source_po_id is set -->
+            <xpath expr="//field[@name='move_ids']/list/field[@name='quantity'][1]" position="attributes">
+                <attribute name="column_invisible">parent.state == 'draft' or (parent.picking_type_code == 'incoming' and (bool(parent.purchase_id) or bool(parent.x_source_po_id)))</attribute>
+            </xpath>
+            <xpath expr="//field[@name='move_ids']/list/field[@name='product_uom_qty'][1]" position="attributes">
+                <attribute name="column_invisible">parent.picking_type_code == 'incoming' and (bool(parent.purchase_id) or bool(parent.x_source_po_id))</attribute>
+            </xpath>
+            <!-- "Mark Received" buttons: ensure visible when x_source_po_id is set -->
+            <xpath expr="//button[@name='button_validate'][hasclass('oe_highlight')][hasclass('o_btn_mark_received')]" position="attributes">
+                <attribute name="invisible">picking_type_code != 'incoming' or (not purchase_id and not x_source_po_id) or state in ('draft', 'confirmed', 'done', 'cancel')</attribute>
+            </xpath>
+            <xpath expr="//button[@name='button_validate'][hasclass('o_btn_validate')][hasclass('o_btn_mark_received')]" position="attributes">
+                <attribute name="invisible">picking_type_code != 'incoming' or (not purchase_id and not x_source_po_id) or state in ('waiting', 'assigned', 'done', 'cancel')</attribute>
+            </xpath>
         </field>
     </record>
 </odoo>
