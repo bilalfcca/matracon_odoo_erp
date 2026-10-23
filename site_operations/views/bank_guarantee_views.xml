@@ -165,6 +165,7 @@
                 <field name="journal_id" string="Bank" optional="show"/>
                 <field name="nature_id" string="Nature" optional="show"/>
                 <field name="project_id" string="Project" optional="show"/>
+                <field name="project_name" string="Manual Project" optional="hide"/>
                 <field name="beneficiary_name" string="Beneficiary" optional="show"/>
                 <field name="issue_date" string="Issue Date" optional="show"/>
                 <field name="expiry_date" string="Expiry Date" optional="show"/>
@@ -252,7 +253,7 @@
                     <group>
                         <group string="Guarantee Details">
                             <field name="sr_no" readonly="1"/>
-                            <field name="journal_id" string="Bank"/>
+                            <field name="journal_id" string="Bank" domain="[('type', '=', 'bank'), ('bg_facility_ids', '!=', False)]"/>
                             <field name="facility_id" readonly="1"/>
                             <field name="nature_id"/>
                             <field name="guarantee_number"/>
@@ -260,6 +261,7 @@
                             <field name="jv_name" invisible="jv_type != 'jv'" required="jv_type == 'jv'"/>
                             <field name="on_behalf_entity" invisible="jv_type != 'on_behalf'" required="jv_type == 'on_behalf'" placeholder="e.g. ZKB"/>
                             <field name="project_id"/>
+                            <field name="project_name" placeholder="Type manually if not in registered projects"/>
                             <field name="beneficiary_id"/>
                             <field name="beneficiary_name"/>
                         </group>
@@ -345,6 +347,7 @@
                 <field name="guarantee_number"/>
                 <field name="journal_id" string="Bank"/>
                 <field name="project_id"/>
+                <field name="project_name" string="Project (Manual)"/>
                 <field name="beneficiary_name"/>
                 <field name="jv_name"/>
                 <filter string="Active" name="filter_active" domain="[('state', '=', 'active')]"/>

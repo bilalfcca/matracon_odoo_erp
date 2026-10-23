@@ -213,7 +213,7 @@ class BankGuarantee(models.Model):
         help='Serial number within the financial year.')
     journal_id = fields.Many2one(
         'account.journal', string='Bank', required=True, tracking=True,
-        index=True, domain=[('type', '=', 'bank')],
+        index=True, domain="[('type', '=', 'bank'), ('bg_facility_ids', '!=', False)]",
     )
     facility_id = fields.Many2one(
         'x.bank.guarantee.facility', string='Bank Facility',
@@ -254,6 +254,20 @@ class BankGuarantee(models.Model):
         'project.project', string='Project', tracking=True, index=True)
     project_analytic_account_id = fields.Many2one(
         related='project_id.account_id', store=True, readonly=True)
+    project_name = fields.Char(
+        string='Project (Manual / Other)', tracking=True,
+        help='Manual project name if the project is not from our registered projects.',
+    )
+    project_display = fields.Char(
+        string='Project Display', compute='_compute_project_display', store=True,
+        help='Display project name: either manual project name or linked project name.',
+    )
+
+    @api.depends('project_id', 'project_name')
+    def _compute_project_display(self):
+        for rec in self:
+            rec.project_display = rec.project_name or rec.project_id.name or ''
+
     beneficiary_id = fields.Many2one(
         'res.partner', string='Beneficiary', tracking=True, index=True)
     beneficiary_name = fields.Char(
@@ -463,6 +477,11 @@ class BankGuarantee(models.Model):
                     # No slabs on facility — use the simple flat rate
                     self.cash_margin_slab_ids = [(5, 0, 0)]
                     self.cash_margin_percent = facility.cash_margin_percent
+
+    @api.onchange('project_id')
+    def _onchange_project_id(self):
+        if self.project_id and not self.project_name:
+            self.project_name = self.project_id.name
 
     @api.onchange('beneficiary_id')
     def _onchange_beneficiary_id(self):
@@ -743,7 +762,7 @@ class BankGuarantee(models.Model):
                 name=rec.name,
                 gno=rec.guarantee_number or '-',
                 bank=rec.journal_id.name or '-',
-                project=rec.project_id.name or '-',
+                project=rec.project_display or rec.project_name or rec.project_id.name or '-',
                 nature=rec.nature_id.name or '-',
                 amount=f'{rec.bg_amount:,.0f} {rec.currency_id.symbol}',
                 expiry=rec.expiry_date.strftime('%d %b %Y') if rec.expiry_date else '-',
