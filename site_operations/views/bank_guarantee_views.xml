@@ -260,8 +260,8 @@
                             <field name="jv_type" widget="radio" string="Bidder"/>
                             <field name="jv_name" invisible="jv_type != 'jv'" required="jv_type == 'jv'"/>
                             <field name="on_behalf_entity" invisible="jv_type != 'on_behalf'" required="jv_type == 'on_behalf'" placeholder="e.g. ZKB"/>
-                            <field name="project_id"/>
-                            <field name="project_name" placeholder="Type manually if not in registered projects"/>
+                            <field name="project_id" string="Project (Registered)"/>
+                            <field name="project_name" string="Manual Project Name" placeholder="Type project name manually if not in registered projects"/>
                             <field name="beneficiary_id"/>
                             <field name="beneficiary_name"/>
                         </group>
