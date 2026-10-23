@@ -255,7 +255,7 @@ class BankGuarantee(models.Model):
     project_analytic_account_id = fields.Many2one(
         related='project_id.account_id', store=True, readonly=True)
     project_name = fields.Char(
-        string='Project (Manual / Other)', tracking=True,
+        string='Manual Project Name', tracking=True,
         help='Manual project name if the project is not from our registered projects.',
     )
     project_display = fields.Char(
