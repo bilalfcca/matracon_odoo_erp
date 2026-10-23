@@ -105,11 +105,11 @@ class StockPickingPoReceipt(models.Model):
             qty = line._mtr_qty_to_receive()
             if not qty:
                 continue
-            product_qty, product_uom = line.product_uom_id._adjust_uom_quantities(
-                qty, line.product_id.uom_id)
             vals = line._prepare_stock_move_vals(
-                self, line._get_stock_move_price_unit(), product_qty, product_uom)
+                self, line._get_stock_move_price_unit(), qty, line.product_uom_id)
             vals.pop('picking_id', None)
+            if not vals.get('location_id') and self.location_id:
+                vals['location_id'] = self.location_id.id
             commands.append(Command.create(vals))
         self.move_ids = commands
 
