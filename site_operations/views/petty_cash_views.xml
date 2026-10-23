@@ -195,14 +195,14 @@
                     <button name="action_post" type="object" string="Post Expense"
                             class="btn-primary" invisible="state != 'draft'"
                             groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_head_office,site_operations.group_accountant_ho"/>
-                    <!-- Reset to Draft — Finance HO / Admin only.
-                         Cancels the linked JE and reverses any employee advance balance. -->
+                    <!-- Reset to Draft — Site Accountant / Finance HO / Admin.
+                         Resets the linked JE to draft and reverses any employee advance balance. -->
                     <button name="action_reset_to_draft" type="object"
                             string="↩ Reset to Draft"
                             class="btn-secondary"
                             invisible="state != 'posted'"
-                            groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin,base.group_system,purchase_demand_raise.group_ceo_approval"
-                            confirm="Reset this expense to Draft? The linked journal entry will be cancelled and the GL reversed. This cannot be undone automatically — you will need to re-post or delete the expense."/>
+                            groups="site_operations.group_site_accountant,site_operations.group_accountant_ho,site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin,base.group_system,purchase_demand_raise.group_ceo_approval"
+                            confirm="Reset this expense to Draft? The linked journal entry will be reset to draft so you can make changes and re-post."/>
                     <field name="state" widget="statusbar"/>
                     <button name="action_delete_draft" type="object"
                             string="Delete" class="btn-danger"
@@ -212,6 +212,14 @@
                 <sheet>
                     <!-- Smart buttons -->
                     <div class="oe_button_box" name="button_box">
+                        <button type="object" class="oe_stat_button" icon="fa-book"
+                                name="action_view_journal_entry"
+                                invisible="not x_account_move_id">
+                            <div class="o_field_widget o_stat_info">
+                                <span class="o_stat_text">Journal</span>
+                                <span class="o_stat_text">Entry</span>
+                            </div>
+                        </button>
                         <button type="object" class="oe_stat_button" icon="fa-shopping-cart"
                                 name="action_view_pr_from_expense"
                                 invisible="not x_purchase_order_id">

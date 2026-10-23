@@ -99,7 +99,6 @@
                         <field name="value_tolerance"/>
                         <field name="import_mode"/>
                         <field name="update_product_cost"/>
-                        <field name="create_valuation_layers"/>
                         <field name="create_gl_entry"/>
                         <field name="offset_account_id" invisible="not create_gl_entry" required="create_gl_entry"/>
                         <field name="stock_journal_id" invisible="not create_gl_entry" required="create_gl_entry"/>
@@ -114,14 +113,50 @@
                     <field name="report_filename" invisible="1"/>
                 </group>
                 <footer>
-                    <button name="action_import_valuation" string="Import Inventory Valuation"
+                    <button name="action_direct_import_all_projects" string="Direct Import All 3 Sites (MCH, STP, RWASA)"
                             type="object" class="btn-primary"
                             invisible="state == 'imported'"
-                            confirm="This will record opening inventory valuation as of 30 June and update product costs without re-importing or changing on-hand stock quantities. Proceed?"/>
+                            confirm="This will directly import the 30 June opening inventory valuations for all 3 sites (MCH - BAHAWALNAGAR, STP - MARDAN, RWASA) using bundled verified datasets, updating product unit costs and move valuations without altering physical on-hand stock quantities. Proceed?"/>
+                    <button name="action_import_valuation" string="Import Valuation (Current File)"
+                            type="object" class="btn-secondary"
+                            invisible="state == 'imported'"
+                            confirm="This will record opening inventory valuation as of 30 June and update product costs for the selected site/file without re-importing or changing on-hand stock quantities. Proceed?"/>
                     <button name="action_run_discovery" string="Run Discovery Report"
                             type="object" class="btn-secondary"
                             invisible="state == 'imported'"/>
                     <button string="Close" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- Force Fix PO Price & Inventory Valuation Wizard -->
+    <record id="view_po_price_fix_wizard_form" model="ir.ui.view">
+        <field name="name">x.po.price.fix.wizard.form</field>
+        <field name="model">x.po.price.fix.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Force Fix PO Price &amp; Inventory Valuation">
+                <div class="alert alert-warning" role="alert">
+                    <b>Force Price &amp; Inventory Valuation Correction:</b><br/>
+                    Updates the unit price and total amount on locked/confirmed Purchase Orders in-place without requiring receipt reversal or cancellation. Also synchronizes all linked inventory receipts (stock moves, valuation layers, and GL entries) so inventory reporting reflects the corrected unit cost.
+                </div>
+                <group>
+                    <group string="Purchase Order Details">
+                        <field name="purchase_order_id"/>
+                        <field name="product_id"/>
+                        <field name="current_unit_price"/>
+                    </group>
+                    <group string="Correction Settings">
+                        <field name="new_unit_price"/>
+                        <field name="update_inventory"/>
+                        <field name="update_journal_entries"/>
+                    </group>
+                </group>
+                <footer>
+                    <button name="action_apply" string="Force Apply Price &amp; Update Inventory"
+                            type="object" class="btn-primary"
+                            confirm="This will update the unit price and total on the selected Purchase Order and synchronize all linked inventory receipts and valuation. Proceed?"/>
+                    <button string="Cancel" class="btn-secondary" special="cancel"/>
                 </footer>
             </form>
         </field>

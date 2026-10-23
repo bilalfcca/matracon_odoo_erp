@@ -30,7 +30,7 @@ _BASE_COLUMNS = [
     ('Guarantee No',       'guarantee_number',     18, 'text'),
     ('Nature',             'nature_id.name',       15, 'text'),
     ('Bank',               'journal_id.name',      20, 'text'),
-    ('Project',            'project_id.name',      22, 'text'),
+    ('Project',            'project_display',      22, 'text'),
     ('Beneficiary',        'beneficiary_name',     24, 'text'),
     ('Type',               'bidder_display',        10, 'text'),
     ('Issue Date',         'issue_date',           12, 'date'),
