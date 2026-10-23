@@ -1491,26 +1491,44 @@ class PettyCashExpense(models.Model):
             ))
         # Created with system rights: posting an expense is what authorises this entry,
         # and Accountant HO has no accounting role of its own. create_uid stays the user.
-        move = self.env['account.move'].sudo().create(move_vals)
-        move.action_post()
-        self.x_account_move_id = move
+        existing_move = self.x_account_move_id.sudo()
+        if existing_move and existing_move.state == 'draft':
+            existing_move.write({
+                'journal_id': cash_journal.id if cash_journal else False,
+                'date': self.expense_date,
+                'ref': _('Petty Cash: %s') % ref_label,
+                'line_ids': [(5, 0, 0)] + je_debit_lines + [
+                    (0, 0, {
+                        'name': credit_line_name,
+                        'account_id': credit_account.id,
+                        'debit': 0.0,
+                        'credit': self.amount,
+                        'analytic_distribution': analytic_distribution or False,
+                    }),
+                ],
+            })
+            existing_move.action_post()
+        else:
+            move = self.env['account.move'].sudo().create(move_vals)
+            move.action_post()
+            self.x_account_move_id = move
 
     def action_reset_to_draft(self):
         """Reset a posted petty cash expense back to Draft.
 
         Steps:
-          1. Cancel/reverse the linked journal entry (if any) so the GL is clean.
+          1. Reset the linked journal entry (if any) to draft so the GL is clean.
           2. If this was an employee advance, subtract the amount from the
              employee's outstanding advance balance.
-          3. Clear snapshot fields (balance_before / balance_after) and the
-             link to the journal entry.
+          3. Clear snapshot fields (balance_before / balance_after). The link
+             to x_account_move_id is preserved so changes can be made and re-posted.
           4. Set state → 'draft'.
 
-        Access: Finance HO, Matracon Admin, System Administrator.
-        Site Accountants are intentionally excluded — they can post but cannot
-        undo a posting without Finance HO involvement.
+        Access: Site Accountants, Accountant HO, Finance HO, Matracon Admin, System Administrator.
         """
         allowed_groups = [
+            'site_operations.group_site_accountant',
+            'site_operations.group_accountant_ho',
             'site_operations.group_finance_ho',
             'purchase_demand_raise.group_ceo_approval',
             'purchase_demand_raise.group_matracon_admin',
@@ -1518,20 +1536,17 @@ class PettyCashExpense(models.Model):
         ]
         if not any(self.env.user.has_group(g) for g in allowed_groups):
             raise UserError(_(
-                'Only Finance HO, CEO or Matracon Admin can reset a petty cash expense to Draft.'
+                'Only Site Accountants, Finance HO, CEO or Matracon Admin can reset a petty cash expense to Draft.'
             ))
 
         for expense in self:
             if expense.state == 'draft':
                 continue  # already draft, skip silently
 
-            # ── 1. Cancel the journal entry ───────────────────────────────────
+            # ── 1. Reset the linked journal entry to draft ───────────────────
             move = expense.x_account_move_id
-            if move and move.state == 'posted':
-                move.button_cancel()   # resets the JE to cancel state
-            elif move and move.state != 'cancel':
-                # Draft JE — just unlink it
-                move.unlink()
+            if move and move.state != 'draft':
+                move.sudo().button_draft()
 
             # ── 2. Reverse employee advance balance for each advance line ─────
             for line in expense.line_ids:
@@ -1548,15 +1563,14 @@ class PettyCashExpense(models.Model):
                         'amount': f'{line.amount:,.2f}',
                     })
 
-            # ── 3. Clear snapshot & JE link ───────────────────────────────────
+            # ── 3. Clear snapshot fields ──────────────────────────────────────
             expense.write({
                 'state': 'draft',
-                'x_account_move_id': False,
                 'x_balance_before': 0.0,
                 'x_balance_after': 0.0,
             })
 
-            expense.message_post(body=_('Expense reset to Draft.'))
+            expense.message_post(body=_('Expense reset to Draft. Linked journal entry reset to Draft.'))
 
     def action_print_expense_voucher(self):
         return self.env.ref(
@@ -1576,6 +1590,8 @@ class PettyCashExpense(models.Model):
         for rec in self:
             if rec.state != 'draft':
                 raise UserError(_('Only draft petty cash expenses can be deleted.'))
+            if rec.x_account_move_id and rec.x_account_move_id.state == 'draft':
+                rec.x_account_move_id.sudo().unlink()
         return super().unlink()
 
     @api.model
@@ -1682,6 +1698,18 @@ class PettyCashExpense(models.Model):
     def action_delete_draft(self):
         self.unlink()
         return {'type': 'ir.actions.act_window_close'}
+
+    def action_view_journal_entry(self):
+        self.ensure_one()
+        if not self.x_account_move_id:
+            return
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Journal Entry'),
+            'res_model': 'account.move',
+            'view_mode': 'form',
+            'res_id': self.x_account_move_id.id,
+        }
 
     def action_view_pr_from_expense(self):
         self.ensure_one()
