@@ -350,3 +350,74 @@ class XPoPriceFixWizard(models.TransientModel):
                 },
             },
         }
+
+
+class XBgAccountingRepairWizard(models.TransientModel):
+    """Admin Fix Tool: Audit & Repair Bank Guarantee Accounting Entries.
+    Provides a preview/audit report, duplicate detection, and execution summary.
+    """
+    _name = 'x.bg.accounting.repair.wizard'
+    _description = 'Bank Guarantee Accounting Repair Wizard'
+
+    total_scanned = fields.Integer(string='Scanned Guarantees', readonly=True)
+    total_created = fields.Integer(string='Entries Created', readonly=True)
+    total_repaired = fields.Integer(string='Entries Linked/Repaired', readonly=True)
+    total_skipped = fields.Integer(string='Guarantees Skipped', readonly=True)
+    total_failed = fields.Integer(string='Failed / Needs Attention', readonly=True)
+    audit_report_html = fields.Html(string='Audit Report', readonly=True)
+
+    @api.model
+    def default_get(self, fields_list):
+        res = super().default_get(fields_list)
+        audit_res = self.env['x.bank.guarantee'].action_admin_repair_bg_accounting(dry_run=True)
+        res.update({
+            'total_scanned': audit_res.get('total_scanned', 0),
+            'total_created': audit_res.get('total_created', 0),
+            'total_repaired': audit_res.get('total_repaired', 0),
+            'total_skipped': audit_res.get('total_skipped', 0),
+            'total_failed': audit_res.get('total_failed', 0),
+            'audit_report_html': audit_res.get('report_html', ''),
+        })
+        return res
+
+    def action_preview(self):
+        self.ensure_one()
+        audit_res = self.env['x.bank.guarantee'].action_admin_repair_bg_accounting(dry_run=True)
+        self.write({
+            'total_scanned': audit_res.get('total_scanned', 0),
+            'total_created': audit_res.get('total_created', 0),
+            'total_repaired': audit_res.get('total_repaired', 0),
+            'total_skipped': audit_res.get('total_skipped', 0),
+            'total_failed': audit_res.get('total_failed', 0),
+            'audit_report_html': audit_res.get('report_html', ''),
+        })
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': self._name,
+            'res_id': self.id,
+            'view_mode': 'form',
+            'target': 'new',
+        }
+
+    def action_apply_repair(self):
+        self.ensure_one()
+        if not (self.env.user.has_group('site_operations.group_finance_ho')
+                or self.env.user.has_group('purchase_demand_raise.group_matracon_admin')
+                or self.env.user.has_group('base.group_system')):
+            raise UserError(_('Only Finance HO, Matracon Admin or System Administrator can run this repair.'))
+        repair_res = self.env['x.bank.guarantee'].action_admin_repair_bg_accounting(dry_run=False)
+        self.write({
+            'total_scanned': repair_res.get('total_scanned', 0),
+            'total_created': repair_res.get('total_created', 0),
+            'total_repaired': repair_res.get('total_repaired', 0),
+            'total_skipped': repair_res.get('total_skipped', 0),
+            'total_failed': repair_res.get('total_failed', 0),
+            'audit_report_html': repair_res.get('report_html', ''),
+        })
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': self._name,
+            'res_id': self.id,
+            'view_mode': 'form',
+            'target': 'new',
+        }

@@ -162,4 +162,50 @@
         </field>
     </record>
 
+    <!-- Bank Guarantee Accounting Repair Wizard -->
+    <record id="view_bg_accounting_repair_wizard_form" model="ir.ui.view">
+        <field name="name">x.bg.accounting.repair.wizard.form</field>
+        <field name="model">x.bg.accounting.repair.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Repair Bank Guarantee Accounting Entries">
+                <div class="alert alert-info" role="alert">
+                    <strong>Bank Guarantee Accounting Audit &amp; Repair Tool</strong><br/>
+                    Audits all active, locked, and released Bank Guarantees to ensure their
+                    Cash Margin entries are properly reflected in the Chart of Accounts under
+                    the configured Bank and Cash Margin accounts.
+                    <ul class="mb-0 mt-1">
+                        <li><strong>Active / Locked:</strong> Posts Dr Cash Margin, Cr Bank Operational Account.</li>
+                        <li><strong>Released:</strong> Posts Dr Bank Operational Account, Cr Cash Margin.</li>
+                        <li><strong>Duplicate Detection:</strong> Detects and links existing entries without creating duplicates.</li>
+                    </ul>
+                </div>
+                <group>
+                    <group string="Audit Scan Counts">
+                        <field name="total_scanned"/>
+                        <field name="total_created"/>
+                        <field name="total_repaired"/>
+                    </group>
+                    <group string="Exceptions &amp; Status">
+                        <field name="total_skipped"/>
+                        <field name="total_failed"/>
+                    </group>
+                </group>
+                <notebook>
+                    <page string="Audit Report &amp; Records Breakdown" name="report">
+                        <field name="audit_report_html" widget="html" readonly="1" nolabel="1"/>
+                    </page>
+                </notebook>
+                <footer>
+                    <button name="action_preview" string="Re-run Audit (Preview)" type="object"
+                            class="btn-secondary"/>
+                    <button name="action_apply_repair" string="Execute Repair (Live)" type="object"
+                            class="btn-primary"
+                            confirm="This will create and post missing Cash Margin journal entries for eligible guarantees. Continue?"/>
+                    <button string="Close" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
 </odoo>
+

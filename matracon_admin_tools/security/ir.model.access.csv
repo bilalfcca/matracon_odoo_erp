@@ -13,3 +13,6 @@ access_site_opening_balance_discovery_wizard_finance_ho,site.opening.balance.dis
 access_po_price_fix_wizard_admin,po.price.fix.wizard.admin,model_x_po_price_fix_wizard,purchase_demand_raise.group_matracon_admin,1,1,1,1
 access_po_price_fix_wizard_system,po.price.fix.wizard.system,model_x_po_price_fix_wizard,base.group_system,1,1,1,1
 access_po_price_fix_wizard_finance_ho,po.price.fix.wizard.finance.ho,model_x_po_price_fix_wizard,site_operations.group_finance_ho,1,1,1,1
+access_bg_accounting_repair_wizard_admin,bg.accounting.repair.wizard.admin,model_x_bg_accounting_repair_wizard,purchase_demand_raise.group_matracon_admin,1,1,1,1
+access_bg_accounting_repair_wizard_system,bg.accounting.repair.wizard.system,model_x_bg_accounting_repair_wizard,base.group_system,1,1,1,1
+access_bg_accounting_repair_wizard_finance_ho,bg.accounting.repair.wizard.finance.ho,model_x_bg_accounting_repair_wizard,site_operations.group_finance_ho,1,1,1,1

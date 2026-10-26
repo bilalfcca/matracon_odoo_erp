@@ -393,4 +393,24 @@ Valuation Import: Records opening inventory valuation as of 30 June into stock v
         ])]"/>
     </record>
 
+    <!-- Audit & Repair Bank Guarantee Accounting Entries in Settings > Fix Tools -->
+    <record id="action_server_fix_bg_accounting" model="ir.actions.server">
+        <field name="name">Audit &amp; Repair Bank Guarantee Accounting Entries</field>
+        <field name="model_id" ref="site_operations.model_x_bank_guarantee"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_open_bg_repair_wizard()</field>
+        <field name="x_is_fix_tool" eval="True"/>
+        <field name="x_fix_tool_description">Audit and repair accounting entries for active, locked, and released Bank Guarantees.
+- Identifies active and locked BGs lacking Cash Margin entries and posts Dr Cash Margin / Cr Bank.
+- Identifies released BGs lacking release entries and posts Dr Bank / Cr Cash Margin.
+- Automatically checks for existing posted entries to prevent duplicates.
+- Provides a full audit report preview before executing the repair.</field>
+        <field name="group_ids" eval="[Command.set([
+            ref('purchase_demand_raise.group_matracon_admin'),
+            ref('site_operations.group_finance_ho'),
+            ref('base.group_system'),
+        ])]"/>
+        <field name="sequence">105</field>
+    </record>
+
 </odoo>
