@@ -128,7 +128,8 @@
 
     .card-body {
         max-width: 100%;
-        overflow: hidden;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
 
         .d-flex.flex-column.gap-2 {
             margin-top: 0.25rem;
@@ -150,10 +151,19 @@
         .o_list_renderer,
         .o_list_view {
             max-width: 100%;
+            width: 100%;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
         }
 
         table.o_list_table {
+            width: max-content;
+            min-width: 100%;
             margin-bottom: 0;
+
+            th, td {
+                white-space: nowrap;
+            }
         }
     }
 
@@ -302,23 +312,21 @@
             }
         }
 
-        /* Hide low-priority list columns on very small screens */
-        .matracon-dash-table-wrap--compact {
-            th[data-name="x_category_id"],
-            td[name="x_category_id"],
-            th[data-name="x_initiator_id"],
-            td[name="x_initiator_id"],
-            th[data-name="x_ho_status"],
-            td[name="x_ho_status"],
-            th[data-name="x_has_tender_alternatives"],
-            td[name="x_has_tender_alternatives"],
-            th[data-name="date_order"],
-            td[name="date_order"],
-            th[data-name="origin"],
-            td[name="origin"],
-            th[data-name="scheduled_date"],
-            td[name="scheduled_date"] {
-                display: none;
+        /* All list columns remain visible and horizontally scrollable on mobile portrait */
+        .matracon-dash-table-wrap,
+        .matracon-dash-table-wrap--compact,
+        .card-body {
+            overflow-x: auto !important;
+            -webkit-overflow-scrolling: touch !important;
+
+            table.o_list_table {
+                width: max-content !important;
+                min-width: 100% !important;
+
+                th, td {
+                    display: table-cell !important;
+                    white-space: nowrap !important;
+                }
             }
         }
     }

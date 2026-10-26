@@ -1,0 +1,300 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   MATRACON ODOO ERP — GLOBAL MOBILE PORTRAIT RESPONSIVE SUITE
+   ═══════════════════════════════════════════════════════════════════════════
+   Target: Screens <= 767.98px (Mobile Portrait).
+   Preserves all existing desktop and mobile landscape layouts without regression.
+   Ensures all custom fields, views, forms, lists, buttons, and UI elements
+   remain 100% visible, fully accessible, and comfortably interactable.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 767.98px) {
+
+    /* ── 1. Form Sheet & Layout ─────────────────────────────────────────── */
+    .o_form_view {
+        width: 100% !important;
+        max-width: 100% !important;
+
+        .o_form_sheet_bg {
+            max-width: 100% !important;
+            padding: 0.25rem !important;
+        }
+
+        .o_form_sheet {
+            width: 100% !important;
+            max-width: 100% !important;
+            padding: 0.75rem 0.65rem !important;
+            margin: 0 auto !important;
+            box-sizing: border-box !important;
+        }
+
+        /* Title block: never cut off or push buttons offscreen */
+        .oe_title {
+            width: 100% !important;
+            max-width: 100% !important;
+            word-break: break-word !important;
+            overflow-wrap: anywhere !important;
+
+            h1 {
+                font-size: clamp(1.15rem, 5vw, 1.6rem) !important;
+                line-height: 1.25 !important;
+                word-break: break-word !important;
+            }
+
+            p, h2, h3 {
+                word-break: break-word !important;
+            }
+        }
+    }
+
+    /* ── 2. Smart Button Box (.oe_button_box) ────────────────────────────── */
+    .o_form_view .oe_button_box {
+        position: static !important;
+        float: none !important;
+        display: flex !important;
+        flex-wrap: wrap !important;
+        gap: 0.35rem !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        margin-bottom: 0.75rem !important;
+        justify-content: flex-start !important;
+
+        .oe_stat_button {
+            flex: 1 1 calc(50% - 0.35rem) !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            min-height: 44px !important;
+            height: auto !important;
+            padding: 0.35rem 0.5rem !important;
+            box-sizing: border-box !important;
+
+            .o_stat_info {
+                min-width: 0 !important;
+                max-width: 100% !important;
+                overflow: hidden !important;
+                text-overflow: ellipsis !important;
+                white-space: nowrap !important;
+
+                .o_stat_value {
+                    font-size: 0.92rem !important;
+                    font-weight: 700 !important;
+                    line-height: 1.2 !important;
+                }
+
+                .o_stat_text {
+                    font-size: 0.72rem !important;
+                    line-height: 1.15 !important;
+                }
+            }
+        }
+    }
+
+    /* ── 3. Form Statusbar & Header Buttons ──────────────────────────────── */
+    .o_form_view .o_form_statusbar {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        gap: 0.35rem !important;
+        padding: 0.45rem 0.65rem !important;
+        height: auto !important;
+        min-height: auto !important;
+
+        .o_statusbar_buttons {
+            display: flex !important;
+            flex-wrap: wrap !important;
+            gap: 0.3rem !important;
+            width: 100% !important;
+
+            .btn {
+                flex: 1 1 auto !important;
+                min-height: 38px !important;
+                padding: 0.35rem 0.65rem !important;
+                font-size: 0.85rem !important;
+                white-space: normal !important;
+                text-align: center !important;
+                display: inline-flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+            }
+        }
+
+        .o_statusbar_status {
+            display: flex !important;
+            width: 100% !important;
+            overflow-x: auto !important;
+            -webkit-overflow-scrolling: touch !important;
+            justify-content: flex-start !important;
+            margin-top: 0.25rem !important;
+            padding-bottom: 0.25rem !important;
+
+            .o_arrow_button {
+                white-space: nowrap !important;
+                flex-shrink: 0 !important;
+            }
+        }
+    }
+
+    /* ── 4. Embedded List / One2many / Many2many Tables ───────────────────── */
+    .o_form_view {
+        .o_field_x2many,
+        .o_field_x2many_list,
+        .o_field_one2many,
+        .o_field_many2many {
+            width: 100% !important;
+            max-width: 100% !important;
+
+            .o_list_renderer {
+                width: 100% !important;
+                max-width: 100% !important;
+                overflow-x: auto !important;
+                -webkit-overflow-scrolling: touch !important;
+                overscroll-behavior-x: contain !important;
+
+                table.o_list_table {
+                    width: max-content !important;
+                    min-width: 100% !important;
+                    table-layout: auto !important;
+
+                    th, td {
+                        white-space: nowrap !important;
+                        min-width: 65px;
+                        padding: 0.4rem 0.5rem !important;
+                    }
+
+                    .o_list_record_remove,
+                    .o_handle_cell {
+                        min-width: 36px !important;
+                        text-align: center !important;
+                    }
+                }
+            }
+        }
+    }
+
+    /* ── 5. Standalone List Views ────────────────────────────────────────── */
+    .o_list_view {
+        width: 100% !important;
+        max-width: 100% !important;
+
+        .o_list_renderer {
+            width: 100% !important;
+            max-width: 100% !important;
+            overflow-x: auto !important;
+            -webkit-overflow-scrolling: touch !important;
+
+            table.o_list_table {
+                width: max-content !important;
+                min-width: 100% !important;
+
+                th, td {
+                    white-space: nowrap !important;
+                    padding: 0.45rem 0.5rem !important;
+                }
+            }
+        }
+
+        .o_cp_buttons {
+            display: flex !important;
+            flex-wrap: wrap !important;
+            gap: 0.35rem !important;
+            width: 100% !important;
+
+            .btn {
+                flex: 1 1 auto !important;
+                min-height: 38px !important;
+            }
+        }
+    }
+
+    /* ── 6. Notebook Nav-Tabs: Horizontal Swipe ───────────────────────────── */
+    .o_notebook {
+        max-width: 100% !important;
+
+        .nav-tabs {
+            display: flex !important;
+            flex-wrap: nowrap !important;
+            overflow-x: auto !important;
+            -webkit-overflow-scrolling: touch !important;
+            max-width: 100% !important;
+            border-bottom: 1px solid var(--o-border-color, #dee2e6);
+
+            .nav-item {
+                flex: 0 0 auto !important;
+                white-space: nowrap !important;
+            }
+        }
+    }
+
+    /* ── 7. Modals and Wizards ───────────────────────────────────────────── */
+    .modal-dialog {
+        max-width: 96vw !important;
+        margin: 0.5rem auto !important;
+    }
+
+    .modal-content {
+        max-width: 100% !important;
+
+        .modal-body {
+            padding: 0.75rem !important;
+            overflow-x: auto !important;
+            -webkit-overflow-scrolling: touch !important;
+        }
+
+        .modal-footer {
+            flex-wrap: wrap !important;
+            gap: 0.35rem !important;
+
+            .btn {
+                flex: 1 1 calc(50% - 0.25rem) !important;
+                min-height: 40px !important;
+            }
+        }
+    }
+
+    /* ── 8. Form Inputs, Selects, and Custom Components ─────────────────── */
+    .o_form_view {
+        .matracon-tax-compliance {
+            grid-template-columns: 1fr !important;
+            gap: 0.5rem !important;
+            padding: 0.5rem 0.65rem !important;
+
+            .matracon-tax-compliance__totals {
+                gap: 0.75rem 1rem !important;
+
+                .o_field_widget {
+                    min-width: 0 !important;
+                    width: 100% !important;
+                }
+            }
+        }
+
+        .o_field_widget {
+            max-width: 100% !important;
+        }
+
+        .o_field_many2one,
+        .o_field_selection,
+        .o_field_char,
+        .o_field_date,
+        .o_field_datetime,
+        .o_field_monetary,
+        .o_field_integer,
+        .o_field_float {
+            max-width: 100% !important;
+            min-width: 0 !important;
+        }
+    }
+
+    /* ── 9. Alerts and Notifications ─────────────────────────────────────── */
+    .alert {
+        padding: 0.5rem 0.75rem !important;
+        font-size: 0.82rem !important;
+        word-break: break-word !important;
+        overflow-wrap: anywhere !important;
+    }
+
+    /* ── 10. Chatter ─────────────────────────────────────────────────────── */
+    .o_chatter {
+        width: 100% !important;
+        max-width: 100% !important;
+        overflow-x: hidden !important;
+    }
+}

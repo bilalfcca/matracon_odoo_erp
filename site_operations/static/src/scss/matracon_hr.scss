@@ -74,10 +74,26 @@
 }
 
 .o_form_view .matracon-attendance-grid {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+
+    .o_list_renderer {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch;
+    }
+
     .o_list_table {
+        width: max-content !important;
+        min-width: 100%;
+
         th, td {
             text-align: center;
             min-width: 2.25rem;
+            white-space: nowrap;
         }
         th[data-name^="day_"] {
             font-size: 0.75rem;
@@ -101,5 +117,31 @@
 }
 
 .o_form_view .matracon-attendance-form .o_progressbar {
-    min-width: 12rem;
+    min-width: 0;
+    max-width: 16rem;
+    width: 100%;
+}
+
+@media (max-width: 767.98px) {
+    .matracon-attendance-legend {
+        gap: 0.5rem 1rem;
+        padding: 0.5rem 0.75rem;
+
+        .matracon-attendance-legend__item {
+            font-size: 0.78rem;
+        }
+    }
+
+    .o_form_view .matracon-attendance-grid {
+        .o_list_table {
+            th[data-name="employee_id"],
+            td[name="employee_id"] {
+                position: sticky !important;
+                left: 0 !important;
+                z-index: 2 !important;
+                background-color: var(--o-view-background-color, #ffffff) !important;
+                box-shadow: 2px 0 4px rgba(0, 0, 0, 0.08);
+            }
+        }
+    }
 }
