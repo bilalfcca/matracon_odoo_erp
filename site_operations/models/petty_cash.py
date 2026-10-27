@@ -1732,6 +1732,121 @@ class PettyCashExpense(models.Model):
             },
         }
 
+    @api.model
+    def action_admin_fix_employee_advance_partners(self):
+        """Admin Fix Tool: resolve/create partner for all employees used in Petty Cash
+        Expenses, and backfill the partner on both the expense lines and the posted
+        journal entry debit lines (account.move.line) in the General Ledger.
+        """
+        if not (self.env.user.has_group('purchase_demand_raise.group_matracon_admin')
+                or self.env.user.has_group('base.group_system')
+                or self.env.user.has_group('site_operations.group_finance_ho')):
+            raise UserError(_('Only Finance HO, Matracon Admin or System Administrator can run this action.'))
+
+        emp_advance_lines = self.env['x.petty.cash.expense.line'].sudo().search([
+            ('is_employee_advance', '=', True),
+            ('employee_id', '!=', False),
+        ])
+        fixed_emp_lines = 0
+        fixed_aml = 0
+        for eline in emp_advance_lines:
+            partner = eline.employee_id._get_or_create_partner()
+            if not partner:
+                continue
+            if not eline.partner_id:
+                eline.write({'partner_id': partner.id})
+                fixed_emp_lines += 1
+
+            move = eline.expense_id.x_account_move_id
+            if move:
+                self.env.cr.execute("""
+                    UPDATE account_move_line
+                       SET partner_id = %s
+                     WHERE id = (
+                         SELECT id FROM account_move_line
+                          WHERE move_id = %s
+                            AND debit > 0
+                            AND partner_id IS NULL
+                            AND abs(debit - %s) < 0.01
+                          ORDER BY id ASC
+                          LIMIT 1
+                     )
+                """, (partner.id, move.id, eline.amount))
+                if self.env.cr.rowcount == 0:
+                    self.env.cr.execute("""
+                        UPDATE account_move_line
+                           SET partner_id = %s
+                         WHERE id = (
+                             SELECT id FROM account_move_line
+                              WHERE move_id = %s
+                                AND debit > 0
+                                AND partner_id IS NULL
+                              ORDER BY id ASC
+                              LIMIT 1
+                         )
+                    """, (partner.id, move.id))
+                fixed_aml += self.env.cr.rowcount
+
+        sc_advance_lines = self.env['x.petty.cash.expense.line'].sudo().search([
+            ('is_subcontractor_advance', '=', True),
+            ('advance_subcontractor_id', '!=', False),
+        ])
+        fixed_sc_lines = 0
+        for scline in sc_advance_lines:
+            partner = scline.advance_subcontractor_id
+            if not scline.partner_id:
+                scline.write({'partner_id': partner.id})
+                fixed_sc_lines += 1
+
+            move = scline.expense_id.x_account_move_id
+            if move:
+                self.env.cr.execute("""
+                    UPDATE account_move_line
+                       SET partner_id = %s
+                     WHERE id = (
+                         SELECT id FROM account_move_line
+                          WHERE move_id = %s
+                            AND debit > 0
+                            AND partner_id IS NULL
+                            AND abs(debit - %s) < 0.01
+                          ORDER BY id ASC
+                          LIMIT 1
+                     )
+                """, (partner.id, move.id, scline.amount))
+                if self.env.cr.rowcount == 0:
+                    self.env.cr.execute("""
+                        UPDATE account_move_line
+                           SET partner_id = %s
+                         WHERE id = (
+                             SELECT id FROM account_move_line
+                              WHERE move_id = %s
+                                AND debit > 0
+                                AND partner_id IS NULL
+                              ORDER BY id ASC
+                              LIMIT 1
+                         )
+                    """, (partner.id, move.id))
+                fixed_aml += self.env.cr.rowcount
+
+        if fixed_aml:
+            self.env['account.move'].invalidate_model()
+            self.env['account.move.line'].invalidate_model()
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Employee Advance Partners Fixed'),
+                'message': _(
+                    'Done. Processed %d advance line(s). Stamped partner on %d expense line(s) '
+                    'and %d General Ledger debit line(s). Employee names will now show in '
+                    'the General Ledger and Partner Ledger.'
+                ) % (len(emp_advance_lines) + len(sc_advance_lines), fixed_emp_lines + fixed_sc_lines, fixed_aml),
+                'type': 'success',
+                'sticky': True,
+            },
+        }
+
     def action_delete_draft(self):
         self.unlink()
         return {'type': 'ir.actions.act_window_close'}
