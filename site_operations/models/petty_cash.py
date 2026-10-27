@@ -879,7 +879,6 @@ class PettyCashExpenseLine(models.Model):
     expense_account_id = fields.Many2one(
         'account.account',
         string='Account (Debit)',
-        options="{'no_create': True}",
         help='GL account to debit. Leave blank to use the expense category default.',
     )
 

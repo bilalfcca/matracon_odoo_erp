@@ -92,7 +92,7 @@ class BankGuaranteeFacility(models.Model):
         help='Bank commission / pricing rate applicable under this facility.')
     cash_margin_account_id = fields.Many2one(
         'account.account', string='Cash Margin Account',
-        domain="[('x_is_main', '=', False), ('deprecated', '=', False)]",
+        domain="[('x_is_main', '=', False)]",
         help='Override cash margin account for guarantees issued under this facility. '
              'If left empty, the bank journal\'s cash margin account is used.',
     )

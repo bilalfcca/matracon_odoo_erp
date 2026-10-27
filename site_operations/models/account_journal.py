@@ -10,7 +10,7 @@ class AccountJournalSiteOps(models.Model):
     x_cash_margin_account_id = fields.Many2one(
         'account.account',
         string='Cash Margin Account',
-        domain="[('x_is_main', '=', False), ('deprecated', '=', False)]",
+        domain="[('x_is_main', '=', False)]",
         help='Cash Margin account used for bank guarantees issued through this bank. '
              'If left empty, automatically determined from the bank\'s Cash Margin child account.',
     )
