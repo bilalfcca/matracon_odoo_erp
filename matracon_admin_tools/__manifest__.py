@@ -1,6 +1,6 @@
 {
     'name': 'Matracon Admin Tools — Fix Tools',
-    'version': '1.0.0',
+    'version': '1.0.1',
     'summary': 'Centralized Settings screen listing every custom admin/data-repair Server Action',
     'description': """
 Fix Tools — Centralized Server Action Registry

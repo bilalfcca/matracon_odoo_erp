@@ -268,6 +268,61 @@ class HrEmployeeMatracon(models.Model):
             'site_operations.action_report_employee_card'
         ).report_action(self)
 
+    def _get_or_create_partner(self):
+        """Return the res.partner representing this employee, finding or creating one if needed.
+
+        Resolution order:
+          1. work_contact_id (standard Odoo employee contact)
+          2. user_partner_id or user_id.partner_id (if employee has a linked user)
+          3. address_home_id or address_id
+          4. Search res.partner by exact / ilike name
+          5. Create a new res.partner and link to work_contact_id
+        """
+        self.ensure_one()
+        if self.work_contact_id:
+            return self.work_contact_id
+
+        partner = False
+        if getattr(self, 'user_partner_id', False):
+            partner = self.user_partner_id
+        elif self.user_id and self.user_id.partner_id:
+            partner = self.user_id.partner_id
+        elif getattr(self, 'address_home_id', False):
+            partner = self.address_home_id
+        elif getattr(self, 'address_id', False):
+            partner = self.address_id
+
+        if not partner and self.name:
+            partner = self.env['res.partner'].sudo().search([
+                ('name', '=ilike', self.name.strip()),
+            ], limit=1)
+
+        if not partner and self.name:
+            partner_vals = {
+                'name': self.name.strip(),
+                'company_id': self.company_id.id if self.company_id else self.env.company.id,
+                'x_description': _('Employee Advance Payee'),
+            }
+            tag = self.env['res.partner.category'].sudo().search([('name', 'ilike', 'Employee')], limit=1)
+            if tag:
+                partner_vals['category_id'] = [(4, tag.id)]
+            if getattr(self, 'mobile_phone', False):
+                partner_vals['phone'] = self.mobile_phone
+            elif getattr(self, 'work_phone', False):
+                partner_vals['phone'] = self.work_phone
+            if getattr(self, 'work_email', False):
+                partner_vals['email'] = self.work_email
+
+            partner = self.env['res.partner'].sudo().create(partner_vals)
+
+        if partner and not self.work_contact_id:
+            try:
+                self.sudo().write({'work_contact_id': partner.id})
+            except Exception:
+                pass
+
+        return partner
+
 
 class HrEmployeePublicMatracon(models.Model):
     """Expose custom salary fields on the public employee profile

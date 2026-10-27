@@ -24,7 +24,9 @@
                 <!-- Limits & utilization -->
                 <field name="total_limit" string="Sanctioned Limit" sum="Total Limit" optional="show"/>
                 <field name="utilized_amount" string="Utilized" sum="Utilized" optional="show"/>
+                <field name="utilized_margin_amount" string="Cash Margin Held" sum="Total Margin" optional="show"/>
                 <field name="available_limit" string="Available" sum="Available" optional="show"/>
+                <field name="released_amount" string="Released Amount" sum="Total Released" optional="hide"/>
                 <field name="guarantee_count" string="BG Count" optional="show"/>
                 <!-- Dates -->
                 <field name="date_of_issuance" string="Date of Issuance" optional="show"/>
@@ -67,6 +69,7 @@
                             <field name="expiry_date"/>
                         </group>
                         <group>
+                            <field name="cash_margin_account_id"/>
                             <field name="cash_margin_percent"/>
                             <field name="commission_percent"/>
                             <field name="currency_id" groups="base.group_multi_currency"/>
@@ -77,9 +80,11 @@
                         <group>
                             <field name="total_limit"/>
                             <field name="utilized_amount"/>
+                            <field name="utilized_margin_amount"/>
                         </group>
                         <group>
                             <field name="available_limit"/>
+                            <field name="released_amount"/>
                         </group>
                     </group>
                     <notebook>
@@ -188,6 +193,7 @@
                 <field name="available_limit" string="Available" sum="Available" optional="hide"/>
                 <field name="days_to_expiry" string="Days to Expiry" optional="hide"/>
                 <field name="release_date" string="Release Date" optional="hide"/>
+                <field name="released_amount" string="Released Amount" sum="Total Released" optional="hide"/>
                 <field name="release_notes" string="Release Notes" optional="hide"/>
                 <field name="validated" string="Validated" optional="hide"/>
                 <field name="validated_by_id" string="Validated By" optional="hide"/>
@@ -242,6 +248,13 @@
                             confirm="This bank guarantee will be permanently deleted. Are you sure?"/>
                 </header>
                 <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_journal_entries" type="object"
+                                class="oe_stat_button" icon="fa-book"
+                                invisible="x_move_count == 0">
+                            <field name="x_move_count" widget="statinfo" string="Journal Entries"/>
+                        </button>
+                    </div>
                     <widget name="web_ribbon" title="Validated" bg_color="text-bg-success"
                             invisible="not validated"/>
                     <widget name="web_ribbon" title="Expiring Soon" bg_color="text-bg-warning"
@@ -279,6 +292,7 @@
                             <field name="fed_amount" string="FED Amount" readonly="1"/>
                             <field name="days_to_expiry" invisible="state not in ('active', 'locked', 'pending')"/>
                             <field name="release_date" invisible="state != 'released'"/>
+                            <field name="released_amount" invisible="state != 'released'"/>
                             <field name="currency_id" groups="base.group_multi_currency"/>
                         </group>
                     </group>
@@ -323,6 +337,12 @@
                                     <field name="currency_id" column_invisible="True"/>
                                 </list>
                             </field>
+                        </page>
+                        <page string="Accounting" name="accounting" invisible="x_move_count == 0">
+                            <group string="Linked Journal Entries">
+                                <field name="x_margin_move_id" readonly="1" invisible="not x_margin_move_id"/>
+                                <field name="x_margin_release_move_id" readonly="1" invisible="not x_margin_release_move_id"/>
+                            </group>
                         </page>
                         <page string="Notes" name="notes">
                             <field name="notes" placeholder="Internal finance notes..."/>

@@ -36,6 +36,7 @@ _BASE_COLUMNS = [
     ('Issue Date',         'issue_date',           12, 'date'),
     ('Expiry Date',        'expiry_date',          12, 'date'),
     ('BG Amount',          'bg_amount',            16, 'num'),
+    ('Released Amount',    'released_amount',      16, 'num'),
     ('Cash Margin %',      'cash_margin_percent',  12, 'pct'),
     ('Cash Margin Amt',    'margin_amount',        18, 'num'),
     ('Commission %',       'pricing_percent',      12, 'pct'),
