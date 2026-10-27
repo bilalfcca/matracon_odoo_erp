@@ -179,6 +179,9 @@
                 <button name="action_print_cheque" type="object"
                         string="Print Cheque" class="btn-secondary" icon="fa-print"
                         invisible="not x_is_cheque_payment or state == 'draft'"/>
+                <button name="action_print_bank_payment_voucher" type="object"
+                        string="Print Voucher" class="btn-secondary" icon="fa-print"
+                        invisible="state == 'draft' or payment_type != 'outbound'"/>
 
 
                 <!-- FO buttons (hidden from CEO-only viewers on their own direct payments) -->
@@ -337,15 +340,16 @@
                 <!-- Header cheque (single-bank path — no per-bank allocation lines) -->
                 <!-- Leaf dropdown replaces free-text cheque number -->
                 <field name="x_cheque_leaf_id"
-                       string="Cheque No."
+                       string="Cheque No. (Series)"
                        options="{'no_create': True, 'no_open': True}"
                        domain="[('bank_journal_id', '=', journal_id), ('state', '=', 'available')]"
                        invisible="payment_type != 'outbound' or not x_is_cheque_payment or (x_ceo_direct_payment and x_viewer_is_ceo_only) or x_bank_allocation_ids"/>
-                <!-- Keep x_cheque_number visible read-only for already-posted payments -->
+                <!-- Manual cheque number — editable in draft, read-only when posted -->
                 <field name="x_cheque_number"
-                       string="Cheque Ref"
-                       readonly="1"
-                       invisible="payment_type != 'outbound' or not x_is_cheque_payment or not x_cheque_number or x_bank_allocation_ids"/>
+                       string="Cheque No. (Manual)"
+                       placeholder="e.g. 123456 / Ref#"
+                       readonly="state == 'posted'"
+                       invisible="payment_type != 'outbound' or (x_ceo_direct_payment and x_viewer_is_ceo_only) or x_bank_allocation_ids"/>
                 <!-- Account Title — shown when no per-bank allocation lines (single bank) -->
                 <field name="x_account_title"
                        string="Account Title"
@@ -397,10 +401,14 @@
                                    placeholder="Account holder name (for voucher)"/>
                             <!-- Cheque No.: leaf dropdown when payment is cheque type -->
                             <field name="x_cheque_leaf_id"
-                                   string="Cheque No."
+                                   string="Cheque No. (Series)"
                                    options="{'no_create': True, 'no_open': True}"
                                    domain="[('bank_journal_id', '=', journal_id), ('state', '=', 'available')]"
                                    invisible="not parent.x_is_cheque_payment"/>
+                            <!-- Manual cheque number for per-bank allocation -->
+                            <field name="x_cheque_number"
+                                   string="Cheque No. (Manual)"
+                                   placeholder="Manual Cheque #"/>
                             <!-- Discard button: visible when a leaf is assigned -->
                             <button name="action_discard_leaf"
                                     type="object"

@@ -1292,6 +1292,8 @@ class AccountPaymentSiteOps(models.Model):
                     'payment (or release it again from the request).',
                     pcr=pcr.name, state=state_label,
                 ))
+            if payment.x_cheque_number and not pcr.x_cheque_number:
+                pcr.sudo().write({'x_cheque_number': payment.x_cheque_number})
             pcr.action_mark_released(payment.amount)
 
     def _matracon_fix_salary_ceo_state(self):
@@ -1753,6 +1755,11 @@ class AccountPaymentSiteOps(models.Model):
         return self.env.ref(
             'site_operations.action_report_cheque').report_action(self)
 
+    def action_print_bank_payment_voucher(self):
+        """Print Bank Payment Voucher for this payment."""
+        self.ensure_one()
+        return self.env.ref('site_operations.action_report_bank_payment_voucher').report_action(self)
+
     def action_direct_print_bpv(self):
         """Open the Bank Payment Voucher in a new tab and auto-trigger print dialog."""
         self.ensure_one()
@@ -1919,6 +1926,11 @@ class AccountPaymentSiteOps(models.Model):
         # Self-heal: if a salary sheet payment somehow ended up pending, fix it.
         if 'x_salary_sheet_id' in vals or 'x_ceo_approval_state' in vals:
             self._matracon_fix_salary_ceo_state()
+        if 'x_cheque_number' in vals:
+            for payment in self:
+                if (payment.x_petty_cash_request_id
+                        and payment.x_petty_cash_request_id.x_cheque_number != payment.x_cheque_number):
+                    payment.x_petty_cash_request_id.sudo().write({'x_cheque_number': payment.x_cheque_number})
         return res
 
     # ─────────────────────────────────────────────────────────────────────────

@@ -268,6 +268,12 @@ class PettyCashRequest(models.Model):
         'account.payment', 'x_petty_cash_request_id', string='Payments', readonly=True)
     currency_id = fields.Many2one(
         'res.currency', default=lambda self: self.env.company.currency_id)
+    x_cheque_number = fields.Char(
+        string='Cheque Number',
+        tracking=True,
+        copy=False,
+        help='Cheque number or payment transaction reference for petty cash release.',
+    )
 
     # ── Approval tracking for digital signatures on PDF ───────────────────
     x_ceo_approved_by_id = fields.Many2one(
@@ -391,7 +397,12 @@ class PettyCashRequest(models.Model):
                     super(PettyCashRequest, rest).write(vals)
                 return True
 
-        return super().write(vals)
+        res = super().write(vals)
+        if 'x_cheque_number' in vals:
+            for req in self:
+                if req.payment_id and req.payment_id.x_cheque_number != req.x_cheque_number:
+                    req.payment_id.sudo().write({'x_cheque_number': req.x_cheque_number})
+        return res
 
     def action_ceo_approve(self):
         for req in self:
@@ -630,7 +641,12 @@ class PettyCashRequest(models.Model):
             'x_payment_category': 'petty_cash',
             'x_ceo_approval_state': 'approved',
             'x_destination_project_id': analytic.id if analytic else False,
+            'x_cheque_number': self.x_cheque_number or False,
+            'memo': _('Petty Cash Release — %s') % self.name,
+            'x_account_title': self.fund_id.name or (analytic.name if analytic else ''),
         }
+        if self.create_uid and self.create_uid.partner_id:
+            payment_vals['partner_id'] = self.create_uid.partner_id.id
         payment = Payment.create(payment_vals)
 
         # Set destination_account_id as a UI hint so Finance HO sees the correct
@@ -659,6 +675,25 @@ class PettyCashRequest(models.Model):
             'res_id': self.fund_id.id,
             'target': 'new',
         }
+
+    def action_view_payment(self):
+        self.ensure_one()
+        if not self.payment_id:
+            raise UserError(_('No release payment found for this request.'))
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Release Payment'),
+            'res_model': 'account.payment',
+            'view_mode': 'form',
+            'res_id': self.payment_id.id,
+        }
+
+    def action_print_payment_voucher(self):
+        """Print Bank Payment Voucher for the linked release payment."""
+        self.ensure_one()
+        if not self.payment_id:
+            raise UserError(_('No release payment found for this petty cash request.'))
+        return self.env.ref('site_operations.action_report_bank_payment_voucher').report_action(self.payment_id)
 
     def action_confirm_receipt(self):
         for req in self:

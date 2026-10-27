@@ -205,8 +205,6 @@ class PaymentBankAllocation(models.Model):
         """Auto-fill the cheque number char from the selected leaf."""
         if self.x_cheque_leaf_id:
             self.x_cheque_number = self.x_cheque_leaf_id.cheque_number
-        else:
-            self.x_cheque_number = False
 
     # ── ORM: reserve / release leaf on write/create/unlink ───────────────────
 
