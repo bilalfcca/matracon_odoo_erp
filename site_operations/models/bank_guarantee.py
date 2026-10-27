@@ -1104,14 +1104,14 @@ class BankGuarantee(models.Model):
                         ('journal_id', '=', bg.journal_id.id),
                         ('state', '=', 'posted'),
                         ('ref', 'ilike', bg.guarantee_number),
-                        ('ref', 'notilike', 'Released'),
+                        ('ref', 'not ilike', 'Released'),
                     ], limit=1)
                 if not dup_move and bg.name:
                     dup_move = Move.search([
                         ('journal_id', '=', bg.journal_id.id),
                         ('state', '=', 'posted'),
                         ('ref', 'ilike', bg.name),
-                        ('ref', 'notilike', 'Released'),
+                        ('ref', 'not ilike', 'Released'),
                     ], limit=1)
 
                 if dup_move:

@@ -99,6 +99,24 @@ run multiple times.</field>
         <field name="sequence">25</field>
     </record>
 
+    <!-- Fix Employee Advance Partners in GL: ensures all employees used in Petty Cash
+         Expenses have a partner contact and backfills partner_id on expense lines
+         and posted General Ledger debit lines (Advances against Salary). -->
+    <record id="action_server_fix_petty_cash_employee_partners" model="ir.actions.server">
+        <field name="name">Fix Employee Partners on Petty Cash Advances &amp; General Ledger</field>
+        <field name="model_id" ref="site_operations.model_x_petty_cash_expense"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_admin_fix_employee_advance_partners()</field>
+        <field name="x_is_fix_tool" eval="True"/>
+        <field name="x_fix_tool_description">Scans all employee advances in Petty Cash Expenses, ensures each employee has a contact (res.partner), and stamps the employee partner on both the expense lines and the posted General Ledger debit lines (account.move.line) in Advances against Salary. Run this to make employee names appear in the Partner column of the General Ledger.</field>
+        <field name="group_ids" eval="[Command.set([
+            ref('purchase_demand_raise.group_matracon_admin'),
+            ref('base.group_system'),
+            ref('site_operations.group_finance_ho'),
+        ])]"/>
+        <field name="sequence">26</field>
+    </record>
+
     <!-- Was: the wizard's second button ("Fix GL Analytic Distribution") -
          method relocated unchanged to account.payment (models/account_payment.py)
          since the wizard it lived on took no input and is now retired. -->
