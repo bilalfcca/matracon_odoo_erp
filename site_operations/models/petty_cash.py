@@ -916,8 +916,10 @@ class PettyCashExpenseLine(models.Model):
 
     @api.onchange('is_employee_advance', 'employee_id')
     def _onchange_emp_advance_partner(self):
-        if self.is_employee_advance and self.employee_id.work_contact_id:
-            self.partner_id = self.employee_id.work_contact_id
+        if self.is_employee_advance and self.employee_id:
+            partner = self.employee_id._get_or_create_partner()
+            if partner:
+                self.partner_id = partner
 
     def _mtr_partner(self):
         """Partner posted on this line: the Partner column, else the advance payee."""
@@ -926,9 +928,32 @@ class PettyCashExpenseLine(models.Model):
             return self.partner_id
         if self.is_subcontractor_advance and self.advance_subcontractor_id:
             return self.advance_subcontractor_id
-        if self.is_employee_advance and self.employee_id.work_contact_id:
-            return self.employee_id.work_contact_id
+        if self.is_employee_advance and self.employee_id:
+            return self.employee_id._get_or_create_partner()
         return self.env['res.partner']
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        for vals in vals_list:
+            if vals.get('is_employee_advance') and vals.get('employee_id') and not vals.get('partner_id'):
+                emp = self.env['hr.employee'].browse(vals['employee_id'])
+                partner = emp._get_or_create_partner()
+                if partner:
+                    vals['partner_id'] = partner.id
+            elif vals.get('is_subcontractor_advance') and vals.get('advance_subcontractor_id') and not vals.get('partner_id'):
+                vals['partner_id'] = vals['advance_subcontractor_id']
+        return super().create(vals_list)
+
+    def write(self, vals):
+        res = super().write(vals)
+        for line in self:
+            if line.is_employee_advance and line.employee_id and not line.partner_id:
+                partner = line.employee_id._get_or_create_partner()
+                if partner:
+                    super(PettyCashExpenseLine, line).write({'partner_id': partner.id})
+            elif line.is_subcontractor_advance and line.advance_subcontractor_id and not line.partner_id:
+                super(PettyCashExpenseLine, line).write({'partner_id': line.advance_subcontractor_id.id})
+        return res
 
 
 class PettyCashExpense(models.Model):
@@ -1422,6 +1447,11 @@ class PettyCashExpense(models.Model):
             if not debit_account:
                 debit_account = credit_account
             partner = line._mtr_partner()
+            if partner and not line.partner_id:
+                try:
+                    line.sudo().write({'partner_id': partner.id})
+                except Exception:
+                    pass
 
             je_debit_lines.append((0, 0, {
                 'name': line.name,
@@ -1435,19 +1465,27 @@ class PettyCashExpense(models.Model):
             if partner and debit_account.account_type not in partner_ledger_types:
                 payable = partner.with_company(self.env.company).property_account_payable_id
                 if not payable:
-                    raise UserError(_(
-                        'Line "%(line)s": partner %(partner)s has no Account Payable set.\n\n'
-                        'Set it on the contact (Accounting tab) and post again.'
-                    ) % {'line': line.name, 'partner': partner.display_name})
-                for debit, credit in ((0.0, line.amount), (line.amount, 0.0)):
-                    je_debit_lines.append((0, 0, {
-                        'name': line.name,
-                        'account_id': payable.id,
-                        'partner_id': partner.id,
-                        'debit': debit,
-                        'credit': credit,
-                        'analytic_distribution': analytic_distribution or False,
-                    }))
+                    payable = self.env['account.account'].search([
+                        ('account_type', '=', 'liability_payable'),
+                        ('company_id', '=', self.env.company.id),
+                    ], limit=1)
+                    if payable:
+                        try:
+                            partner.sudo().with_company(self.env.company).write({
+                                'property_account_payable_id': payable.id
+                            })
+                        except Exception:
+                            pass
+                if payable:
+                    for debit, credit in ((0.0, line.amount), (line.amount, 0.0)):
+                        je_debit_lines.append((0, 0, {
+                            'name': line.name,
+                            'account_id': payable.id,
+                            'partner_id': partner.id,
+                            'debit': debit,
+                            'credit': credit,
+                            'analytic_distribution': analytic_distribution or False,
+                        }))
 
         # Credit-line label: a manually-typed Journal Entry normally carries a
         # real description on BOTH sides of the transaction. This used to be a
