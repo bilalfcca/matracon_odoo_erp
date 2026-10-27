@@ -128,7 +128,7 @@ class XSiteOpeningBalanceDiscoveryWizard(models.TransientModel):
              'with site analytic distribution and crediting the offset account.')
     offset_account_id = fields.Many2one(
         'account.account', string='Opening Offset Account',
-        domain=[('deprecated', '=', False)],
+        domain=[('x_is_main', '=', False)],
         help='Credit counterpart account for the opening inventory journal entry (e.g. Opening Balance Equity).')
     stock_journal_id = fields.Many2one(
         'account.journal', string='Inventory Journal',

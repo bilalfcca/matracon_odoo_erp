@@ -75,6 +75,36 @@
             }
         }
     }
+
+    @media (max-width: 767.98px) {
+        .matracon-mgmt-kpi-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem 0;
+
+            > [class*="col-"] {
+                flex: 1 1 calc(50% - 0.5rem);
+                max-width: 100%;
+                min-width: 140px;
+            }
+        }
+
+        .matracon-dash-card {
+            .card-body {
+                overflow-x: auto !important;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            table.o_list_table {
+                width: max-content !important;
+                min-width: 100%;
+
+                th, td {
+                    white-space: nowrap !important;
+                }
+            }
+        }
+    }
 }
 
 

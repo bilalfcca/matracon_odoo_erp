@@ -1,6 +1,6 @@
 {
     'name': 'Site Operations',
-    'version': '19.0.2.5.1',
+    'version': '19.0.2.5.4',
     'summary': 'Material Issuance, Finance HO, Compliance (BG & Tax Notices), Attendance & Petty Cash',
     'author': 'Matracon Pakistan',
     'depends': [
@@ -126,6 +126,7 @@
             'site_operations/static/src/scss/matracon_payment_form.scss',
             'site_operations/static/src/scss/matracon_hr.scss',
             'site_operations/static/src/scss/matracon_management_dashboard.scss',
+            'site_operations/static/src/scss/matracon_responsive.scss',
             'site_operations/static/src/js/attendance_grid_colors.js',
             # Real-time thousand-separator formatting for all numeric inputs
             'site_operations/static/src/js/realtime_thousand_sep.js',
