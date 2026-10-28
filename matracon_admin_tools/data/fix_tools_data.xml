@@ -412,8 +412,7 @@ Valuation Import: Records opening inventory valuation as of 30 June into stock v
     </record>
 
     <!-- Audit & Repair Bank Guarantee Accounting Entries in Settings > Fix Tools -->
-    <record id="action_server_fix_bg_accounting" model="ir.actions.server">
-        <field name="name">Audit &amp; Repair Bank Guarantee Accounting Entries</field>
+    <record id="action_server_fix_bg_accounting" model="ir.actions.server">        <field name="name">Audit &amp; Repair Bank Guarantee Accounting Entries</field>
         <field name="model_id" ref="site_operations.model_x_bank_guarantee"/>
         <field name="state">code</field>
         <field name="code">action = model.action_open_bg_repair_wizard()</field>
@@ -429,6 +428,26 @@ Valuation Import: Records opening inventory valuation as of 30 June into stock v
             ref('base.group_system'),
         ])]"/>
         <field name="sequence">105</field>
+    </record>
+
+    <!-- Fix BG Bank Journal Chart of Accounts in Settings > Fix Tools -->
+    <record id="action_server_fix_bg_journal_accounts" model="ir.actions.server">
+        <field name="name">Fix BG Bank Journal Chart of Accounts</field>
+        <field name="model_id" ref="site_operations.model_x_bank_guarantee"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_open_bg_journal_fix_wizard()</field>
+        <field name="x_is_fix_tool" eval="True"/>
+        <field name="x_fix_tool_description">Ensures each bank journal used in Bank Guarantee Facilities has the correct sub-account structure (Useable Balance / Cash Margin / PO) in the Chart of Accounts.
+- Marks the journal's bank account as a Main (group) account.
+- Creates missing child accounts: code+1 Useable Balance, code+2 Cash Margin, code+3 PO.
+- Wires journal Default Account → code+1 and Cash Margin Account → code+2.
+- Idempotent — never modifies existing accounts or posted entries.</field>
+        <field name="group_ids" eval="[Command.set([
+            ref('purchase_demand_raise.group_matracon_admin'),
+            ref('site_operations.group_finance_ho'),
+            ref('base.group_system'),
+        ])]"/>
+        <field name="sequence">106</field>
     </record>
 
 </odoo>

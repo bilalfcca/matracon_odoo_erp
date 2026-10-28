@@ -1,0 +1,1457 @@
+﻿=== CATEGORY CONFIGURATION vs. target account 230400000 ===
+Category,Cost Method,Valuation,Valuation Account,On Target Account?,Stock Variation Account,Stock Journal
+Civil,standard,periodic,0000004 Stock in Hand,NO,0000011 Purchases,Inventory Valuation
+Civil / Cables,standard,periodic,0000004 Stock in Hand,NO,0000011 Purchases,Inventory Valuation
+Civil / Cement,standard,periodic,0000004 Stock in Hand,NO,0000011 Purchases,Inventory Valuation
+Civil / Cleaning Material,standard,periodic,0000004 Stock in Hand,NO,0000011 Purchases,Inventory Valuation
+Civil / Computer & Printer,standard,periodic,0000004 Stock in Hand,NO,0000011 Purchases,Inventory Valuation
+Civil / Conduit Material,standard,periodic,0000004 Stock in Hand,NO,0000011 Purchases,Inventory Valuation
+Civil / Construction Material,standard,periodic,0000004 Stock in Hand,NO,0000011 Purchases,Inventory Valuation
+Civil / Dispansary,standard,periodic,0000004 Stock in Hand,NO,0000011 Purchases,Inventory Valuation
+Civil / Electrical Items,standard,periodic,0000004 Stock in Hand,NO,0000011 Purchases,Inventory Valuation
+Civil / Elevator Material,standard,periodic,0000004 Stock in Hand,NO,0000011 Purchases,Inventory Valuation
+Civil / Floor Tiles,standard,periodic,0000004 Stock in Hand,NO,0000011 Purchases,Inventory Valuation
+Civil / Furniture & Fixtures,standard,periodic,0000004 Stock in Hand,NO,0000011 Purchases,Inventory Valuation
+Civil / GI Material,standard,periodic,0000004 Stock in Hand,NO,0000011 Purchases,Inventory Valuation
+Civil / General Hardware,standard,periodic,0000004 Stock in Hand,NO,0000011 Purchases,Inventory Valuation
+Civil / Hanging Material,standard,periodic,0000004 Stock in Hand,NO,0000011 Purchases,Inventory Valuation
+Civil / Laboratory,standard,periodic,0000004 Stock in Hand,NO,0000011 Purchases,Inventory Valuation
+Civil / Lights,standard,periodic,0000004 Stock in Hand,NO,0000011 Purchases,Inventory Valuation
+Civil / Locks & Latches,standard,periodic,0000004 Stock in Hand,NO,0000011 Purchases,Inventory Valuation
+Civil / MS Material,standard,periodic,0000004 Stock in Hand,NO,0000011 Purchases,Inventory Valuation
+Civil / Messing & Tentage,standard,periodic,0000004 Stock in Hand,NO,0000011 Purchases,Inventory Valuation
+Civil / Motor Vehicles (Assets),standard,periodic,0000004 Stock in Hand,NO,0000011 Purchases,Inventory Valuation
+Civil / PPRC Pipe & Fittings,standard,periodic,0000004 Stock in Hand,NO,0000011 Purchases,Inventory Valuation
+Civil / Paints & Chemical,standard,periodic,0000004 Stock in Hand,NO,0000011 Purchases,Inventory Valuation
+Civil / Piping & Fittings,standard,periodic,0000004 Stock in Hand,NO,0000011 Purchases,Inventory Valuation
+Civil / Plant & Machinery (Assets),standard,periodic,0000004 Stock in Hand,NO,0000011 Purchases,Inventory Valuation
+Civil / Power Electrical,standard,periodic,0000004 Stock in Hand,NO,0000011 Purchases,Inventory Valuation
+Civil / Safety,standard,periodic,0000004 Stock in Hand,NO,0000011 Purchases,Inventory Valuation
+Civil / Sanitary & Fittings,standard,periodic,0000004 Stock in Hand,NO,0000011 Purchases,Inventory Valuation
+"Civil / Screws, Nails, Nuts, Bolts & Washers",standard,periodic,0000004 Stock in Hand,NO,0000011 Purchases,Inventory Valuation
+Civil / Shuttering Material,standard,periodic,0000004 Stock in Hand,NO,0000011 Purchases,Inventory Valuation
+Civil / Stationary (Printed & Office),standard,periodic,0000004 Stock in Hand,NO,0000011 Purchases,Inventory Valuation
+Civil / Steel Bars & Profiles,standard,periodic,0000004 Stock in Hand,NO,0000011 Purchases,Inventory Valuation
+Civil / Survey Material,standard,periodic,0000004 Stock in Hand,NO,0000011 Purchases,Inventory Valuation
+Civil / Tools (General & Specials),standard,periodic,0000004 Stock in Hand,NO,0000011 Purchases,Inventory Valuation
+Civil / UPVC Pipe & Fittings,standard,periodic,0000004 Stock in Hand,NO,0000011 Purchases,Inventory Valuation
+Civil / Water Supply,standard,periodic,0000004 Stock in Hand,NO,0000011 Purchases,Inventory Valuation
+Civil / Welding (Electrodes & Gases),standard,periodic,0000004 Stock in Hand,NO,0000011 Purchases,Inventory Valuation
+Electrical,standard,periodic,0000004 Stock in Hand,NO,0000011 Purchases,Inventory Valuation
+Expenses,standard,periodic,0000004 Stock in Hand,NO,0000011 Purchases,Inventory Valuation
+Goods,standard,periodic,0000004 Stock in Hand,NO,0000011 Purchases,Inventory Valuation
+Mechanical,standard,periodic,0000004 Stock in Hand,NO,0000011 Purchases,Inventory Valuation
+Mechanical / Filters,standard,periodic,0000004 Stock in Hand,NO,0000011 Purchases,Inventory Valuation
+Mechanical / Lubricants,standard,periodic,0000004 Stock in Hand,NO,0000011 Purchases,Inventory Valuation
+Mechanical / Spare Parts,standard,periodic,0000004 Stock in Hand,NO,0000011 Purchases,Inventory Valuation
+Oil Filter,standard,periodic,0000004 Stock in Hand,NO,0000011 Purchases,Inventory Valuation
+Services,standard,periodic,0000004 Stock in Hand,NO,0000011 Purchases,Inventory Valuation
+green,standard,periodic,0000004 Stock in Hand,NO,0000011 Purchases,Inventory Valuation
+
+=== SITE GL ACCOUNT WIRING ===
+Site,MCH - BAHAWALNAGAR
+Warehouse,MCH Site Warehouse
+Analytic Account,[MCH-BHW] MCH - BAHAWALNAGAR - INFRASTRUCTURE DEVELOPMENT AUTHORITY OF PUNJAB
+Material Issue Account (x_material_issue_account_id),230400000 Inventory (ASSETS)
+Employee Issue Location — Valuation Account,230400000 Inventory
+Subcontractor Issue Location — Valuation Account,230400000 Inventory
+Warehouse Stock Location — Valuation Account,(not set — falls back to product category account)
+Receiving Location — Valuation Account,(not set — falls back to product category account)
+
+=== OPENING BALANCE ITEM MAPPING (non-zero value rows) ===
+Category,Description,Unit,Balance Qty,Balance Value,Match Status,Matched Product(s)
+Steel,Deformed Steel Bar 10MM,Kgs,21996.599999999977,1217125.606773489,exact,Deformed Steel Bar 10MM [020-00035]
+Steel,Deformed Steel Bar 12MM,Kgs,2400,1643.1644601779556,exact,Deformed Steel Bar 12MM [020-00036]
+Steel,Deformed Steel Bar 20MM,Kgs,327,7796.746159700053,exact,Deformed Steel Bar 20MM [020-00038]
+Steel,Deformed Steel Bar 25MM,Kgs,5000,70049.1478013633,exact,Deformed Steel Bar 25MM [020-00039]
+Steel,Bending Wire,Kgs,1.7999999999974534,479.9802054752189,exact,Bending Wire [020-00024]
+Floor Tile,"Floor Tile 24""x24""",Mtr,563.04,2970036,exact,"Floor Tile 24""x24"" [028-00001]"
+Floor Tile,"Floor Tile 24""x24""",Mtr,563.04,2970036,exact,"Floor Tile 24""x24"" [028-00001]"
+Construction Material,Pan Crush 2/8,CFT,8226,599814.4747481359,exact,Pan Crush 2/8 [003-00062]
+Construction Material,Crush 3/8,CFT,7296,615890.1857228859,exact,Crush 3/8 [003-00027]
+Construction Material,Marble Chips,Bags,8,1760,exact,Marble Chips [003-00054]
+Construction Material,Marble Chips Powder,Bags,10,2200,exact,Marble Chips Powder [003-00055]
+Construction Material,Marbal Strip,Rft,27,433.5882352941176,exact,Marbal Strip [003-00053]
+Construction Material,Local Sand,CFT,1362,22343.478403843783,exact,Local Sand [003-00048]
+Construction Material,Stone Dust,CFT,5810,216066.68579757676,exact,Stone Dust [003-00098]
+Construction Material,Brick Blast,Trolly,2500,107429.28404323196,exact,Brick Blast [003-00003]
+Construction Material,White Cement,Kgs,62,2672.7127447063526,exact,White Cement [003-00114]
+Construction Material,O.P Cement,Bags,893,657414.8605103013,exact,O.P Cement [003-00061]
+Construction Material,Water Stoper D5,Rft,228,7689.818181818182,exact,Water Stoper D5 [003-00111]
+Construction Material,Plaster Of Paris,Kgs,1,342.7718832891247,exact,Plaster of Paris [012-00052]
+Construction Material,Lime powder,Kgs,10,340,exact,Lime Powder [012-00034]
+Construction Material,Tile Bond,Bags,160,95203.6866359447,exact,Tile Bond [003-00101]
+Oil&Luricant,HS Diesel,Ltr,17.000000007203198,4403.787280834952,none,
+Oil&Luricant,Petrol,Ltr,-0.00272288989253866,-0.7341921189533004,exact,Petrol [103-00020]
+Oil&Luricant,Gear Oil,Ltr,64,57845.15695150116,exact,Gear Oil [103-00009]
+Oil&Luricant,Brake Oil,No's,2,638.1818181818181,exact,Brake Oil [103-00001]
+Oil&Luricant,Hydraulic Oil,Ltr,10,4543.238023811755,exact,Hydraulic Oil [103-00014]
+Oil&Luricant,Mobil Oil For Petrol Eng,Ltr,9.499999999999986,7581.82208774583,exact,Mobil Oil For Petrol Eng [103-00018]
+Oil&Luricant,Ultra Lock E3G,Kgs,6,10419.512195121952,exact,Ultra Lock E3G [103-00024]
+Chemical,Ultra Grout,Bags,759,682877.4193548388,exact,Ultra Grout [012-00084]
+Chemical,Anti Termite,Ltr,17,39476.88679245283,exact,Anti Termite [012-00006]
+Chemical,Varnish,Bottle,2,252,exact,Varnish [012-00087]
+Conduite Material,"PVC Pipe 3/4""",No's,70,2059.6153846153848,exact,"PVC  Pipe 3/4"" [005-00244]; PVC Pipe 3""/4 [013-00086]; PVC Pipe 3/4"" [026-00010]"
+Conduite Material,"PVC Pipe 1""",Rft,6731,163733.45392454969,exact,"PVC  Pipe 1"" [005-00243]; PVC Pipe 1"" [013-00083]"
+Conduite Material,"PVC Pipe 1.5""",Rft,1049,89429.03401360544,exact,"PVC Pipe 1.5"" [026-00008]"
+Conduite Material,"PVC Pipe 2""",Rft,1350,177930.00000000003,exact,"PVC PIPE  2"" [013-00078]; PVC Pipe 2"" [013-00085]"
+Conduite Material,PVC Saddle Clip,No's,1638,29879.23754605263,exact,PVC Saddle Clip [026-00012]
+Conduite Material,"Pvc Bend 1""",No's,4150,55739.32904314801,exact,"Pvc Bend 1"" [005-00293]; PVC Bend ""1 [013-00057]"
+Conduite Material,"Pvc Bend 1.5""",No's,69,5934,exact,"Pvc Bend 1.5"" [026-00017]"
+Conduite Material,"PVC Socket 1""",No's,12741,86210.8983939692,exact,"Pvc Socket 1"" [005-00302]"
+Conduite Material,"PVC Socket 1.5""",No's,47,1880,exact,"PVC Socket 1.5"" [026-00013]"
+Conduite Material,"PVC Socket 2""",No's,100,6100,exact,"PVC Socket 2"" [013-00089]"
+Conduite Material,"PVC Roof Joint Box 1""",No's,3869,177841.4544094547,exact,"PVC Roof Joint Box 1"" [026-00011]"
+Conduite Material,Pvc Wall Joint Box,No's,77,45.294117647058826,exact,Pvc Wall Joint Box [026-00018]
+Conduite Material,PVC Wall Box 4x4,No's,3,250.39839999999998,exact,PVC Wall Box 4x4 [026-00014]
+Conduite Material,Light Glass,No's,5010,52310.29411764706,exact,Light Glass [026-00001]
+Conduite Material,"PVC End Cap 1""",No's,1804,21465.81778265642,exact,"PVC End Cap 1"" [026-00007]"
+Conduite Material,PVC Board,No's,1,101.42857142857143,exact,PVC Board [026-00002]
+Conduite Material,Wooden Board 7x4,No's,5,910,exact,Wooden Board 7x4 [026-00021]
+UPVC Material,"UPVC Pipe 2""",Rft,237,18785.333719717168,exact,"UPVC Pipe 2"" [013-00145]"
+UPVC Material,"UPVC Pipe 3""",Rft,117,12910.129411764705,exact,"UPVC PIPE 3"" [013-00142]"
+UPVC Material,"UPVC Pipe 4""",Rft,3377.869999999999,607326.7881887398,exact,"UPVC PIPE 4"" [013-00143]"
+UPVC Material,"UPVC Pipe 6""",Rft,609.96,257891.98867165943,exact,"UPVC PIPE 6"" [013-00144]"
+UPVC Material,"UPVC Bend 4""",No's,7,1890,exact,"UPVC Bend 4"" [036-00005]"
+UPVC Material,"UPVC Elbow 90° 2""",No's,462,65607.80104712042,exact,"UPVC Elbow 90° 2"" [036-00016]"
+UPVC Material,"UPVC Elbow 90° 3""",No's,68,92657.08333333334,exact,"UPVC Elbow 90° 3"" [036-00017]"
+UPVC Material,"UPVC Elbow 90° 6""",No's,43,95013.875,exact,"UPVC Elbow 90° 6"" [036-00019]"
+UPVC Material,"UPVC Elbow 45° 2""",No's,37,9649.816849816849,exact,"UPVC Elbow 45° 2"" [036-00012]"
+UPVC Material,"UPVC Elbow 45° 3""",No's,53,44865.825,exact,"UPVC Elbow 45° 3"" [036-00013]"
+UPVC Material,"UPVC Elbow 45° 4""",No's,2,476.3632538569425,exact,"UPVC Elbow 45° 4"" [036-00014]"
+UPVC Material,"UPVC Plug Elbow 4""",No's,10,3700,exact,"UPVC Plug Elbow 4"" [036-00024]"
+UPVC Material,"UPVC Plug Elbow 6""",No's,6,5940,exact,"UPVC Plug Elbow 6"" [036-00025]"
+UPVC Material,"UPVC Socket 2""",No's,38,4069.3239560439556,exact,"UPVC Socket 2"" [036-00026]"
+UPVC Material,"UPVC Socket 3""",No's,45,28890,exact,"UPVC Socket 3"" [036-00027]"
+UPVC Material,"UPVC Socket 4""",No's,32,6430.476190476191,exact,"UPVC Socket 4"" [036-00028]"
+UPVC Material,"UPVC Socket 6""",No's,33,76693.60975609756,exact,"UPVC Socket 6"" [013-00148]"
+UPVC Material,"UPVC Bush 3""x2""",No's,6,1050,exact,"UPVC Bush 3""x2"" [036-00007]"
+UPVC Material,"UPVC Bush 4""x3""",No's,14,5579.677419354839,exact,"UPVC Bush 4""x3"" [036-00009]"
+UPVC Material,"UPVC Tee 3""",No's,1,2140.5714285714284,exact,"UPVC Tee 3"" [036-00029]"
+UPVC Material,"Upvc Tee 4""x2""",No's,4,920.0582524271845,exact,"Upvc Tee 4""x2"" [036-00039]"
+UPVC Material,"UPVC Tee 3""x4""",No's,1,553.4285714285714,exact,"UPVC Tee 3""x4"" [036-00030]"
+UPVC Material,"UPVC Y Tee 2""",No's,20,4177.428571428572,exact,"UPVC Y Tee 2"" [036-00032]"
+UPVC Material,"UPVC Y Tee 3""",No's,34,14110,exact,"UPVC Y Tee 3"" [036-00033]"
+UPVC Material,"UPVC Y Tee 4""",No's,60,27224.314185228603,exact,"UPVC Y Tee 4"" [036-00034]"
+UPVC Material,"UPVC Y Tee 6""",No's,11,12357.326666666668,exact,"UPVC Y Tee 6"" [036-00036]"
+UPVC Material,"UPVC Y Tee 6""x4""",No's,1,1142,exact,"UPVC Y Tee 6""x4"" [036-00037]"
+UPVC Material,"UPVC Y Tee 4""x3""",No's,17,10696.578947368422,exact,"UPVC Y Tee 4""x3"" [036-00035]"
+UPVC Material,"UPVC End Cap 2""",No's,11,409.32914046121596,exact,"UPVC End Cap 2"" [036-00020]"
+UPVC Material,"UPVC End Cap 3""",No's,8,1845.44,exact,"UPVC End Cap 3"" [036-00021]"
+UPVC Material,"UPVC End Cap 6""",No's,104,65189.94011976048,exact,"UPVC End Cap 6"" [013-00138]"
+UPVC Material,Jointing Solution,No's,99,47523.74328358209,exact,Jointing Solution [036-00001]
+UPVC Material,Multi Floor Trap,No's,13,4810.464285714285,exact,Multi Floor Trap [036-00002]
+UPVC Material,"UPVC P Trap 4""",No's,67,33424.794292508916,exact,"UPVC P Trap 4"" [036-00023]"
+UPVC Material,"P Trap Ceramic 4""",No's,1,373.57142857142856,exact,"P Trap Ceramic 4"" [036-00003]"
+UPVC Material,"UPVC Boss Pipe Connector 4x2""",No's,55,107250,exact,"UPVC Boss Pipe Connector 4x2"" [013-00130]"
+PPRC Material,PPRC Pipe 25mm,Rft,1052.1599999999999,53004.1162964838,exact,PPRC Pipe 25mm [011-00082]
+PPRC Material,PPRC Pipe 32mm,Rft,935.8000000000002,64681.855900465875,exact,PPRC Pipe 32mm [011-00083]
+PPRC Material,PPRC Pipe 40mm,Rft,481,64383.096234309625,exact,PPRC Pipe 40mm [011-00084]
+PPRC Material,PPRC Pipe 50mm,Rft,156,31040.682926829268,exact,PPRC Pipe 50mm [011-00086]
+PPRC Material,PPRC Pipe 63mm,Rft,237,74151.47128927411,exact,PPRC Pipe 63mm [011-00087]
+PPRC Material,PPRC Pipe 75mm,Rft,26,9700.10101010101,exact,PPRC Pipe 75mm [011-00088]
+PPRC Material,PPRC Pipe 90mm,Rft,156,99684,exact,PPRC Pipe 90mm [011-00089]
+PPRC Material,PPRC Pipe 110mm,Rft,26,25220,exact,PPRC Pipe 110mm [011-00081]
+PPRC Material,PPRC Elbow 25mm,No's,227,5866.812131423757,exact,PPRC Elbow 25mm [011-00040]
+PPRC Material,PPRC Elbow 32mm,No's,202,6712.214022140222,exact,PPRC elbow 32mm [011-00166]
+PPRC Material,PPRC Elbow 40mm,No's,38,2660,exact,PPRC Elbow 40mm [011-00047]
+PPRC Material,PPRC Elbow 50mm,No's,24,2520,exact,PPRC Elbow 50mm [011-00057]
+PPRC Material,PPRC Elbow 63mm,No's,4,1096,exact,PPRC Elbow 63mm [011-00058]
+PPRC Material,PPRC Elbow 75mm,No's,30,14400,exact,PPRC Elbow 75mm [011-00059]
+PPRC Material,PPRC Elbow 90mm,No's,16,21744,exact,PPRC Elbow 90mm [011-00060]
+PPRC Material,PPRC Elbow 110mm,No's,8,16752,exact,PPRC Elbow 110mm [011-00037]
+PPRC Material,PPRC Elbow 45°x25mm,No's,6,84,exact,PPRC Elbow 45°x25mm [011-00050]
+PPRC Material,PPRC Elbow 45°x32mm,No's,6,162,exact,PPRC Elbow 45°x32mm [011-00051]
+PPRC Material,PPRC Elbow 45°x40mm,No's,19,817,exact,PPRC Elbow 45°x40mm [011-00052]
+PPRC Material,PPRC Elbow 45°x50mm,No's,6,462,exact,PPRC Elbow 45°x50mm [011-00053]
+PPRC Material,PPRC Elbow 45°x63mm,No's,9,1233,exact,PPRC Elbow 45°x63mm [011-00054]
+PPRC Material,PPRC Elbow 45°x75mm,No's,18,4320,exact,PPRC Elbow 45°x75mm [011-00055]
+PPRC Material,PPRC Elbow 45°x90mm,No's,24,20071.384615384613,exact,PPRC Elbow 45°x90mm [011-00056]
+PPRC Material,PPRC Elbow 45°x110mm,No's,9,18846,exact,PPRC Elbow 45°x110mm [011-00049]
+PPRC Material,PPRC Elbow 25x32mm,No's,20,1552,exact,PPRC Elbow 25x32mm [011-00041]
+PPRC Material,PPRC Elbow 40x32mm,No's,7,840,exact,PPRC Elbow 40x32mm [011-00048]
+PPRC Material,"PPRC Elbow 25X1/2""",No's,356,50571.48905109489,exact,"PPRC Elbow 25X1/2"" [011-00038]"
+PPRC Material,PPRC Tee 32mm,No's,118,7960.883720930232,exact,PPRC Tee 32mm [011-00143]
+PPRC Material,PPRC Tee 40mm,No's,13,1399.6666666666667,exact,PPRC Tee 40mm [011-00146]
+PPRC Material,PPRC Tee 50mm,No's,12,2541.677419354839,exact,PPRC Tee 50mm [011-00147]
+PPRC Material,PPRC Tee 75mm,No's,7,3864,exact,PPRC Tee 75mm [011-00156]
+PPRC Material,PPRC Tee 90mm,No's,9,10928.571428571428,exact,PPRC Tee 90mm [011-00160]
+PPRC Material,PPRC Tee 25x32mm,No's,40,1401.8604651162789,exact,PPRC Tee 25x32mm [011-00137]
+PPRC Material,PPRC Tee 25x40mm,No's,6,828,exact,PPRC Tee 25x40mm [011-00138]
+PPRC Material,PPRC Tee 32x40mm,No's,31,3273.2352941176473,exact,PPRC Tee 32x40mm [011-00144]
+PPRC Material,PPRC Tee 25X1/2,No's,9,1312.5,exact,PPRC Tee 25X1/2 [011-00135]
+PPRC Material,PPRC Tee 50x25mm,No's,28,4875.2941176470595,exact,PPRC Tee 50x25mm [011-00148]
+PPRC Material,PPRC Tee 50x32mm,No's,1,256,exact,PPRC Tee 50x32mm [011-00149]
+PPRC Material,PPRC Tee 50x40mm,No's,7,1974,exact,PPRC Tee 50x40mm [011-00150]
+PPRC Material,PPRC Tee 63x25mm,No's,25,5914.634146341464,exact,PPRC Tee 63x25mm [011-00152]
+PPRC Material,PPRC Tee 63x32mm,No's,12,2833.3333333333335,exact,PPRC Tee 63x32mm [011-00153]
+PPRC Material,PPRC Tee 63x40mm,No's,1,290,exact,PPRC Tee 63x40mm [011-00154]
+PPRC Material,PPRC Tee 63x50mm,No's,6,2934,exact,PPRC Tee 63x50mm [011-00155]
+PPRC Material,PPRC Tee 75x40mm,No's,13,6769.285714285714,exact,PPRC Tee 75x40mm [011-00157]
+PPRC Material,PPRC Tee 75x50mm,No's,12,6315.230769230769,exact,PPRC Tee 75x50mm [011-00158]
+PPRC Material,PPRC Tee 75x63mm,No's,12,3820.5,exact,PPRC Tee 75x63mm [011-00159]
+PPRC Material,PPRC Socket 25mm,No's,66,996.5082174462706,exact,PPRC Socket 25mm [011-00108]
+PPRC Material,PPRC Socket 32mm,No's,117,3295.3488372093025,exact,PPRC Socket 32mm [011-00114]
+PPRC Material,PPRC Socket 40mm,No's,80,2622.9787234042556,exact,PPRC Socket 40mm [011-00119]
+PPRC Material,PPRC Socket 50mm,No's,21,1710,exact,PPRC Socket 50mm [011-00123]
+PPRC Material,PPRC Socket 63mm,No's,4,474.42424242424244,exact,PPRC Socket 63mm [011-00126]
+PPRC Material,PPRC Socket 75mm,No's,18,2876.210526315789,exact,PPRC Socket 75mm [011-00130]
+PPRC Material,PPRC Socket 110mm,No's,7,7623,exact,PPRC Socket 110mm [011-00107]
+PPRC Material,PPRC Socket 25x32mm,No's,228,7196.786610878661,exact,PPRC Socket 25x32mm [011-00111]
+PPRC Material,PPRC Socket 25x50mm,No's,19,1400.818181818182,exact,PPRC Socket 25x50mm [011-00112]
+PPRC Material,PPRC Socket 32x50mm,No's,19,1742.472727272727,exact,PPRC Socket 32x50mm [011-00118]
+PPRC Material,PPRC Socket 50x40mm,No's,24,1209.2631578947367,exact,PPRC Socket 50x40mm [011-00125]
+PPRC Material,PPRC Socket 63x25mm,No's,15,656.25,exact,PPRC Socket 63x25mm [011-00128]
+PPRC Material,PPRC Socket 63x32mm,No's,19,1585.6363636363635,exact,PPRC Socket 63x32mm [011-00129]
+PPRC Material,"PPRC Socket 25x1/2""",No's,2,212.12121212121212,exact,"PPRC Socket 25x1/2"" [011-00109]"
+PPRC Material,"PPRC Socket 25x3/4""",No's,410,113169.99999999999,exact,"PPRC Socket 25x3/4"" [011-00110]"
+PPRC Material,"PPRC Socket 32x1""",No's,200,88860,exact,"PPRC Socket 32x1"" [011-00116]"
+PPRC Material,"PPRC Socket 40x1-/4""",No's,80,55200,exact,"PPRC Socket 40x1-/4"" [011-00121]"
+PPRC Material,"PPRC Socket 50x1.5""",No's,82,142296,exact,"PPRC Socket 50x1.5"" [011-00124]"
+PPRC Material,"PPRC Socket 63x2""",No's,66,153648,exact,"PPRC Socket 63x2"" [011-00127]"
+PPRC Material,"PPRC Socket 75x2.5""",No's,18,118710,exact,"PPRC Socket 75x2.5"" [011-00131]"
+PPRC Material,PPRC Reducer Socket 32x40mm,No's,25,685.2272727272727,exact,PPRC Reducer Socket 32x40mm [011-00093]
+PPRC Material,PPRC Reducer Socket 25x40mm,No's,2,90,exact,PPRC Reducer Socket 25x40mm [011-00092]
+PPRC Material,PPRC Reducer Socket 90x50mm,No's,12,3992.727272727273,exact,PPRC Reducer Socket 90x50mm [011-00101]
+PPRC Material,PPRC Reducer Socket 90x63mm,No's,10,3350,exact,PPRC Reducer Socket 90x63mm [011-00102]
+PPRC Material,PPRC Reducer Socket 90x75mm,No's,9,3750,exact,PPRC Reducer Socket 90x75mm [011-00103]
+PPRC Material,PPRC Reducer Socket 75x63mm,No's,15,2376,exact,PPRC Reducer Socket 75x63mm [011-00100]
+PPRC Material,PPRC Reducer Socket 75x50mm,No's,21,3179.0769230769233,exact,PPRC Reducer Socket 75x50mm [011-00099]
+PPRC Material,PPRC Reducer Socket 75x40mm,No's,20,4560,exact,PPRC Reducer Socket 75x40mm [011-00098]
+PPRC Material,PPRC Reducer Socket 75x32mm,No's,30,6480,exact,PPRC Reducer Socket 75x32mm [011-00097]
+PPRC Material,PPRC Reducer Socket 75x25mm,No's,25,5100,exact,PPRC Reducer Socket 75x25mm [011-00096]
+PPRC Material,PPRC Reducer Socket 50x63mm,No's,18,2304,exact,PPRC Reducer Socket 50x63mm [011-00094]
+PPRC Material,PPRC Reducer Socket 63x40mm,No's,12,1440,exact,PPRC Reducer Socket 63x40mm [011-00095]
+PPRC Material,"PPRC Plug 1/2""",No's,801,13147.11246200608,exact,"PPRC Plug 1/2"" [011-00091]"
+PPRC Material,PPRC Over Cross 25mm,No's,30,2693.5135135135138,exact,PPRC Over Cross 25mm [011-00078]
+PPRC Material,PPRC Over Cross 32mm,No's,18,2520,exact,PPRC Over Cross 32mm [011-00080]
+PPRC Material,PPRC End Cap 32mm,No's,51,1664.4545454545453,exact,PPRC End Cap 32mm [011-00062]
+PPRC Material,PPRC End Cap 40mm,No's,31,1581,exact,PPRC End Cap 40mm [011-00063]
+PPRC Material,PPRC End Cap 50mm,No's,38,4285,exact,PPRC End Cap 50mm [011-00064]
+PPRC Material,PPRC End Cap 63mm,No's,18,4001.538461538462,exact,PPRC End Cap 63mm [011-00065]
+PPRC Material,PPRC End Cap 75mm,No's,20,8760,exact,PPRC End Cap 75mm [011-00066]
+PPRC Material,PPRC End Cap 90mm,No's,10,6880,exact,PPRC End Cap 90mm [011-00067]
+PPRC Material,PPRC Gate Valve 25mm,No's,8,2943.157894736842,exact,PPRC Gate Valve 25mm [011-00070]
+PPRC Material,PPRC Gate Valve 63mm,No's,2,740,exact,PPRC Gate Valve 63mm [011-00075]
+PPRC Material,PPRC Pipe Cutter,No's,1,283.3333333333333,exact,PPRC Pipe Cutter [011-00090]
+PPRC Material,PPRC Adaptor 25x3/4,No's,210,38724.65625,exact,PPRC Adaptor 25x3/4 [011-00029]
+PPRC Material,PPRC Adaptor 32x1'',No's,160,69600,exact,"PPRC Adaptor 32x1"" [011-00030]"
+PPRC Material,PPRC Adaptor 40x1-1/4,No's,295,127650,exact,PPRC Adaptor 40x1-1/4 [011-00031]
+PPRC Material,PPRC Adaptor 50x1-1/2,No's,105,302190,exact,PPRC Adaptor 50x1-1/2 [011-00032]
+PPRC Material,"PPRC Adaptor 63x2""",No's,52,121056,exact,"PPRC Adaptor 63x2"" [011-00033]"
+PPRC Material,"PPRC Adaptor 75x2-1/2""",No's,9,59355,exact,"PPRC Adaptor 75x2-1/2"" [011-00034]"
+PPRC Material,"Ms Dead Plug 1/2""",No's,1000,25000,exact,"Ms Dead Plug 1/2"" [011-00003]"
+GI Material,"GI Socket 1/2""",No's,17,1289.1666666666665,exact,"GI Socket 1/2"" [029-00023]"
+GI Material,"GI Pipe Nipple 1/2""",No's,3,227.62886597938143,exact,"GI Pipe Nipple 1/2"" [029-00022]"
+GI Material,"GI Pipe Nipple 3/4""",No's,1,96.22950819672131,exact,"Gi Pipe Nipple 3/4"" [013-00039]"
+GI Material,"Barrel Nipple 1/2""",No's,8,646.6666666666666,exact,"Barrel Nipple 1/2"" [029-00003]"
+GI Material,Tanki Bush,No's,2,418.1818181818182,exact,Tanki Bush [029-00033]
+GI Material,"Handle Valve 1/2""",No's,1,485.88235294117646,exact,"Handle Valve 1/2"" [029-00030]"
+MS Material,"MS Seamless Sch-40 Pipe 6""",Rft,6,459780,exact,"MS Seamless Sch-40 Pipe 6"" [033-00011]"
+MS Material,Ms Drain Cowl Doom Type,No's,1,10200,exact,Ms Drain Cowl Doom Type [033-00016]
+MS Material,Ms Drain Cowl Angle Type,No's,35,308000,exact,Ms Drain Cowl Angle Type [033-00015]
+Hanging Material,"Isofonic Pipe Clamp 1""",No's,37,455.3846153846154,exact,"Isofonic Pipe Clamp 1"" [030-00019]"
+Hanging Material,"Isofonic Pipe Clamp 1 1/4""",No's,278,19130.169491525423,exact,"Isofonic Pipe Clamp 1 1/4"" [030-00018]"
+Hanging Material,"Isofonic Pipe Clamp 1 1/2""",No's,275,13302.32558139535,exact,"Isofonic Pipe Clamp 1 1/2"" [030-00017]"
+Hanging Material,"Isofonic Pipe Clamp 2""",No's,21,1050,exact,"Isofonic Pipe Clamp 2"" [030-00021]"
+Hanging Material,"Isofonic Pipe Clamp 2 1/2""",No's,425,26408.959537572257,exact,"Isofonic Pipe Clamp 2 1/2"" [030-00020]"
+Hanging Material,"Isofonic Pipe Clamp 3""",No's,378,30240,exact,"Isofonic Pipe Clamp 3"" [030-00022]"
+Hanging Material,"Isofonic Pipe Clamp 4""",No's,891,55393.077436582105,exact,"Isofonic Pipe Clamp 4"" [030-00024]"
+Hanging Material,"Isofonic Pipe Clamp 6""",No's,158,23808.219178082192,exact,"Isofonic Pipe Clamp 6"" [030-00025]"
+Hanging Material,Perfected Channal 27x18x1.25,MTR,412,45777.77777777778,exact,Perfected Channal 27x18x1.25 [030-00026]
+Hanging Material,Perfected Channal 41x21x2,MTR,30,21214.285714285714,exact,Perfected Channal 41x21x2 [030-00027]
+Hanging Material,GI Threaded Rod M-8,MTR,1143,26835.652173913044,exact,GI Threaded Rod M-8 [030-00012]
+Hanging Material,GI Threaded Rod M-10,MTR,1188,67360.82474226804,exact,GI Threaded Rod M-10 [030-00011]
+Hanging Material,Drop In Anchor Bolt M-8,No's,370,1492.7586206896551,exact,Drop In Anchor Bolt M-8 [030-00002]
+Hanging Material,Drop In Anchor Bolt M-10,No's,722,6780.521739130435,exact,Drop In Anchor Bolt M-10 [030-00001]
+Hanging Material,GI Hex Nut M-8,No's,45.75,3186.160714285714,exact,GI Hex Nut M-8 [030-00006]
+Hanging Material,GI Hex Nut M-10,No's,40.8,7425.599999999999,exact,GI Hex Nut M-10 [030-00005]
+Hanging Material,GI Plain Washer M-10,Kgs,7.450000000000003,1876.8269230769238,exact,GI Plain Washer M-10 [030-00007]
+Hanging Material,Gi Nut Bolt,No's,450,905.1724137931035,exact,Gi Nut Bolt [030-00016]
+Lights,Torch Light,No's,1,1190.909090909091,exact,Torch Light [021-00235]
+Lights,Led Light 50w,No's,4,6145,exact,Led Light 50w [031-00029]
+Lights,LED Light 200w,No's,1,1986.4864864864865,exact,LED Light 200w [031-00020]
+Lights,LED Bulb 13W,No's,1,150,exact,LED Bulb 13W [031-00014]
+Lights,LED Bulb 20W,No's,3,1020,exact,LED Bulb 20W [031-00015]
+Cables,PVC Cable 7/36 2 Core,MTR,90,27800.000000000004,exact,PVC Cable 7/36 2 Core [015-00040]
+Cables,PVC Cable 7/36,MTR,254,19625.234017094015,exact,PVC Cable 7/36 [015-00039]
+Cables,PVC Cable 3/29x2Core,MTR,42,2018.7238493723848,exact,PVC Cable 3/29x2Core [015-00025]
+Cables,Pvc Cable 10mmx2core,MTR,180,18480,exact,Pvc Cable 10mmx2core [015-00044]
+Cables,PVC Cable 3/29x1Core,MTR,54,704.3478260869565,exact,PVC Cable 3/29x1Core [015-00024]
+Cables,PVC Cable 1.5mmx1Core Red,MTR,450,19835.999999999996,exact,PVC Cable 1.5mmx1Core Red [015-00008]
+Cables,PVC Cable 1.5mmx1Core Black,MTR,3600,158687.99999999997,exact,PVC Cable 1.5mmx1Core Black [015-00005]
+Cables,PVC Cable 1.5mmx1Core Blue,MTR,360,15868.8,exact,PVC Cable 1.5mmx1Core Blue [015-00006]
+Cables,PVC Cable 1.5mmx1Core Green,MTR,5120,225689.59999999995,exact,PVC Cable 1.5mmx1Core Green [015-00007]
+Cables,PVC Cable 2.5mmx1Core Red,MTR,7830,598995,exact,PVC Cable 2.5mmx1Core Red [015-00020]
+Cables,PVC Cable 2.5mmx1Core Black,MTR,22140,1693710,exact,PVC Cable 2.5mmx1Core Black [015-00017]
+Cables,PVC Cable 2.5mmx1Core Blue,MTR,9270,709155,exact,PVC Cable 2.5mmx1Core Blue [015-00018]
+Cables,PVC Cable 2.5mmx1Core Yellow,MTR,8460,647190,exact,PVC Cable 2.5mmx1Core Yellow [015-00021]
+Cables,PVC Cable 2.5mmx1Core Green,MTR,22230,1700595,exact,PVC Cable 2.5mmx1Core Green [015-00019]
+Cables,PVC Cable 4mmx1Core Red,MTR,2970,342233.10000000003,exact,PVC Cable 4mmx1Core Red [015-00030]
+Cables,PVC Cable 4mmx1Core Black,MTR,10800,1244484,exact,PVC Cable 4mmx1Core Black [015-00027]
+Cables,PVC Cable 4mmx1Core Blue,MTR,2970,342233.10000000003,exact,PVC Cable 4mmx1Core Blue [015-00028]
+Cables,PVC Cable 4mmx1Core Green,MTR,10800,1244484,exact,PVC Cable 4mmx1Core Green [015-00029]
+Cables,PVC Cable 4mmx1Core Yellow,MTR,2790,321491.7,exact,PVC Cable 4mmx1Core Yellow [015-00031]
+Cables,PVC Cable 6mmx1Core Red,MTR,540,91292.4,exact,PVC Cable 6mmx1Core Red [015-00036]
+Cables,PVC Cable 6mmx1Core Black,MTR,360,60861.6,exact,PVC Cable 6mmx1Core Black [015-00033]
+Cables,PVC Cable 6mmx1Core Blue,MTR,1260,213015.6,exact,PVC Cable 6mmx1Core Blue [015-00034]
+Cables,PVC Cable 6mmx1Core Yellow,MTR,90,15215.4,exact,PVC Cable 6mmx1Core Yellow [015-00037]
+Cables,PVC Cable 6mmx1Core Green,MTR,720,121723.20000000003,exact,PVC Cable 6mmx1Core Green [015-00035]
+Electrical,"Baby Grinder 4""",No's,3,21710,exact,"Baby Grinder 4"" [005-00020]"
+Electrical,"Grinder 9""",No's,5,89620,exact,"Grinder 9"" [007-00160]"
+Electrical,Ply Cutter,No's,9,88330.90909090909,exact,Ply Cutter [005-00284]
+Electrical,Bending Wire Cutter (Katera),No's,1,588.75,exact,Bending Wire Cutter (Katera) [005-00037]
+Electrical,Drill Hilti Machine Small,No's,1,15966.666666666666,exact,Drill Hilti Machine Small [005-00136]
+Electrical,Breaker 63Amp,No's,1,904.275,exact,Breaker 63Amp [005-00057]
+Electrical,Breaker 10Amp,No's,2,583.3333333333334,exact,Breaker 10Amp [005-00049]
+Electrical,Thimble 25mm,No's,12,720,exact,Thimble 25mm [005-00337]
+Electrical,Thimble 50mm,No's,2,180,exact,Thimble 50mm [005-00340]
+Electrical,Thimble Cover,No's,57,1710,exact,Thimble Cover [005-00344]
+Electrical,PVC Switch Socket,No's,20,916.3841807909604,exact,PVC Switch Socket [005-00272]
+Electrical,PVC Male Female Switch,No's,8,754.6122448979592,exact,PVC Male Female Switch [005-00267]
+Electrical,Switch On Off,No's,1,221.11111111111111,exact,Switch ON/OFF [005-00325]; Switch On Off [005-00326]; Switch On - Off [104-00648]
+Electrical,PVC Bed Switch,No's,11,636.4285714285714,exact,PVC Bed Switch [005-00245]
+Electrical,Bulb Holder,No's,22,1177.5456919060052,exact,Bulb HOlder [005-00061]
+Electrical,UPS,No's,1,25920,exact,UPS [005-00353]
+Electrical,Battery,No's,3,69525,exact,Battery [005-00021]
+Electrical,Battery XP 180 21 Plate,No's,1,31250,exact,Battery XP 180 21 Plate [005-00034]
+Electrical,"Ceiling Fan 56""",No's,4,21212.5,exact,"Ceiling Fan 56"" [005-00085]"
+Electrical,"DC Cabon Bracket Fan 12""",No's,1,950,exact,"DC Cabon Bracket Fan 12"" [005-00128]"
+Electrical,Carbon Bush,No's,21,2039.423076923077,exact,Carbon Bush [005-00084]
+Electrical,Dimmer Fan,No's,27,13151.625,exact,Dimmer Fan [005-00132]
+Electrical,Strip Wire,No's,17,5382.264150943396,exact,Strip Wire [005-00324]
+Electrical,Electric Iron,No's,2,8966.666666666666,exact,Electric Iron [005-00150]
+Electrical,Electric Heater,No's,4,7105.454545454545,exact,Electric Heater [005-00149]
+Electrical,Electric Rod For Heater,No's,1,161.42857142857142,exact,Electric Rod For Heater [005-00157]
+Electrical,Spring For Electric Heater,No's,17,1198.095238095238,exact,Spring For Electric Heater [005-00320]
+Electrical,Button For Electric Heater,No's,4,180,exact,Button For Electric Heater [005-00066]
+Electrical,Pvc Pipe For Air Cooler,No's,1,100,exact,Pvc Pipe For Air Cooler [005-00301]
+Electrical,Wings For Air Cooler,No's,1,493.75,exact,Wings For Air Cooler [005-00364]
+Electrical,PVC Sheet 8+2,No's,1,485,exact,PVC Sheet 8+2 [005-00270]
+Electrical,PVC Button,No's,6,204.8780487804878,exact,PVC Button [005-00246]
+Electrical,Bell Push Button,No's,1,84.19047619047619,exact,Bell Push Button [005-00035]
+Electrical,3 Pin Shoe,No's,2,190.30588235294118,exact,3 Pin Shoe [005-00003]
+Electrical,"Water Pump 1""",No's,5,56428.571428571435,exact,"Water Pump 1"" [005-00360]"
+Electrical,Ampere Meter,No's,1,1080,exact,Ampere Meter [005-00011]
+Electrical,Capacitor,No's,9,2166.265193370166,exact,Capacitor [005-00080]
+Electrical,Battery Terminal,No's,11,1545.1162790697676,exact,Battery Terminal [104-00052]
+Electrical,Cell For Remote,No's,44,1627.8358208955224,exact,Cell For Remote [005-00090]
+Electrical,Cell For Clock,No's,15,561,exact,Cell For Clock [005-00089]
+Electrical,Push Button,No's,1,442.5,exact,Push Button [104-00538]
+Electrical,MS Wall Box 3x3,No's,1057,16469.09797822706,exact,MS Wall Box 3x3 [005-00225]
+Electrical,MS Wall Box 3x5,No's,118,13208.955223880597,exact,MS Wall Box 3x5 [005-00226]
+Electrical,"Fan Box 6""",No's,144,18995.744680851065,exact,"Fan Box 6"" [005-00168]"
+Electrical,Charger For Car,No's,1,783.3333333333334,exact,Charger For Car [005-00096]
+Electrical,Battery Charger,No's,1,366.6666666666667,exact,Battery Charger [005-00027]; Battery Charger. [021-00016]
+Electrical,Two Pin Shoe,No's,7,383.8888888888889,exact,Two Pin Shoe [005-00352]
+Electrical,Fues,No's,10,217.64705882352942,exact,Fues [005-00178]
+Electrical,Light Plug,No's,29,16159.180327868851,exact,Light Plug [005-00220]
+Electrical,Ampiler,No's,1,512.8571428571429,exact,Ampiler [005-00012]
+Electrical,Timer For Washing Machine,No's,2,511.42857142857144,exact,Timer For Washing Machine [005-00348]
+Electrical,Iron Lead,No's,2,630,exact,Iron Lead [005-00192]
+Electrical,Charger For Scale,No's,1,333.3333333333333,exact,Charger For Scale [005-00097]
+Electrical,Male Female Plug,No's,2,283.3333333333333,exact,Male Female Plug [005-00231]
+Electrical,Female Plug,No's,1,150,exact,Female Plug [005-00173]
+Electric Board Sheet,2 Gang Sheet,No's,23,9683,exact,2 Gang Sheet [005-00001]
+Electric Board Sheet,3 Gang Sheet,No's,5,3000,exact,3 Gang Sheet [005-00002]
+Electric Board Sheet,4 Gang Sheet,No's,2,1410,exact,4 Gang Sheet [005-00004]
+Electric Board Sheet,6 Gang Sheet,No's,2,2300,exact,6 Gang Sheet [005-00005]
+Computer & Printer,VGA Cable,No's,2,637.4975,exact,VGA Cable [025-00046]
+Computer & Printer,Power Cable,No's,1,230.95238095238096,exact,Power Cable [019-00193]
+Computer & Printer,Cable For Mobile Charger,No's,1,300,exact,Cable For Mobile Charger [025-00005]
+Computer & Printer,Hp Laser Printer A3,No's,1,53333.333333333336,exact,Hp Laser Printer A3 [025-00019]
+Computer & Printer,USB Lead,No's,1,800,exact,USB Lead [025-00045]
+Computer & Printer,Ricoh Toner Set,Set,1,21333.333333333332,exact,Ricoh Toner Set [025-00033]
+Computer & Printer,Projector (View Sonic),No's,1,85000,exact,Projector (View Sonic) [025-00030]
+Computer & Printer,SSD Hard Disc 256 GB,No's,1,5500,exact,SSD Hard Disc 256 GB [025-00035]
+Computer & Printer,SSD Hard Disc 128 GB,No's,1,3500,exact,SSD Hard Disc 128 GB [025-00034]
+Computer & Printer,Hard Disc 128 GB,No's,1,3500,exact,Hard Disc 128 GB [025-00017]
+Computer & Printer,Mouse Pad,No's,2,382.85714285714283,exact,Mouse Pad [019-00149]
+Computer & Printer,Key Board,No's,3,3345.652173913043,exact,Key Board [025-00020]
+Paint,Paint Off White,Ltr,29.120000000000005,15122.357019064128,exact,Paint Off White [012-00047]
+Paint,Ash White Paint,Ltr,3.2800000000000002,1621.978021978022,exact,Ash White Paint [012-00007]
+Paint,Primer Paint,Ltr,0.21000000000000085,93.75000000000037,exact,Primer Paint [012-00057]
+Paint,Enamel Paint White,Ltr,4.549999999999997,8928.887740740736,exact,Enamel Paint White [012-00024]
+Paint,Enamel Paint Smoke Gray,Ltr,5.460000000000001,6080,exact,Enamel Paint Smoke Gray [012-00023]
+Paint,Spray Paint,No's,9,2858.746355685131,exact,Spray Paint [012-00073]
+Paint,Weater Shield Paint,No's,0.5600000000000023,929.3937068303951,exact,Weater Shield Paint [012-00091]
+Paint,Plato Spray,Ltr,1,1000,exact,Plato Spray [012-00053]
+Tools,Tester,No's,6,266.1290322580645,exact,Tester [021-00229]
+Tools,Adjustable Wrench 10'',No's,1,710,exact,"Adjustable Wrench 10"" [021-00003]"
+Tools,Adjustable Wrench 8'',No's,1,458,exact,"Adjustable Wrench 8"" [021-00008]"
+Tools,"Adjustable Wrench 18""",No's,1,1933.3333333333333,exact,"Adjustable Wrench 18"" [021-00006]"
+Tools,Ring Spanner #24,No's,1,500,exact,Ring Spanner #24 [021-00176]
+Tools,Ring Spanner #25,No's,1,600,exact,Ring Spanner #25 [021-00177]
+Tools,Goti Rod,No's,1,2100,exact,Goti Rod [021-00085]
+Tools,Goti 46#,No's,1,1100,exact,Goti 46# [021-00083]
+Tools,"Hand level 12""",No's,2,400,exact,"Hand level 12"" [021-00111]"
+Tools,"Hand level 18""",No's,1,408.3333333333333,exact,"Hand level 18"" [021-00112]"
+Tools,Oil Measuring Cane 10 ltr,No's,1,1320,exact,Oil Measuring Cane 10 ltr [021-00149]
+Tools,Aspirator Blower,No's,3,17475,exact,Aspirator Blower [021-00012]
+Tools,Grees Gun Adopter,No's,2,144,exact,Grees Gun Adopter [021-00092]
+Tools,Vibrator Shaft,No's,2,19652.63157894737,exact,Vibrator Shaft [014-00051]
+Tools,T Pana,No's,2,575,exact,T Pana [021-00225]
+Tools,Hilti Machine Small,No's,3,70440,exact,Hilti Machine Small [021-00116]
+Tools,Jack,No's,1,1175,exact,Jack [021-00121]
+Tools,Hand Oil Shift Pump,No's,1,3800,exact,Hand Oil Shift Pump [021-00107]
+Tools,Axe,No's,1,850,exact,Axe [021-00013]
+Tools,Silicone Gun,No's,1,750,exact,Silicone Gun [021-00201]
+Tools,Measuring Tape 5 Mtr,No's,9,1875.5195530726257,exact,Measuring Tape 5 Mtr [021-00137]
+Tools,Measuring Tape 30 Mtr,No's,2,2340,exact,Measuring Tape 30 Mtr [021-00136]
+Tools,Mason Hammer,No's,12,2830.344827586207,exact,Mason Hammer [021-00133]
+Tools,Hammer,No's,12,3527.3239436619715,exact,Hammer [021-00095]
+Stationary,Calculator,No's,4,3590.5263157894738,exact,Calculator [019-00028]
+Stationary,Paper Rim A4,Rim,19,20445.10278113664,exact,Paper Rim A4 [019-00169]
+Stationary,Log Book,No's,5,885,exact,Log Book [019-00127]
+Stationary,Material Requisition Book,No's,66,12220.87912087912,exact,Material Requisition (Book) [019-00144]; Material Requisition Book [019-00145]
+Stationary,Inspection Request Book,No's,21,18900,exact,Inspection Request Book [019-00107]
+Stationary,PR Book,No's,24,21600,exact,PR Book [019-00153]
+Stationary,Drafting Pad Large,No's,15,842.3076923076923,exact,Drafting Pad Large [019-00066]
+Stationary,Led Pencil,No's,54,890.8383233532933,exact,Led Pencil [019-00120]
+Stationary,Correction Pen,No's,14,764.5217391304348,exact,Correction Pen [019-00059]
+Stationary,Ball Pen Blue,No's,34,625.0734006734007,exact,Ball Pen Blue [019-00007]
+Stationary,Ball Pen Red,No's,19,356.77777777777777,exact,Ball Pen Red [019-00008]
+Stationary,Gel Ball Pen,No's,11,1080.9027777777778,exact,Gel Ball Pen [019-00092]
+Stationary,Notice Board Pin,Pkt,2,152.66666666666666,exact,Notice Board Pin [019-00152]
+Stationary,Sticky Notes,No's,8,622.4,exact,Sticky Notes [019-00239]
+Stationary,Attendance Register,No's,5,2097.5,exact,Attendance Register [019-00005]
+Stationary,Linning Register,No's,1,386.9655172413793,exact,Linning Register [019-00126]
+Stationary,Stock Register,No's,1,750,exact,Stock Register [019-00240]
+Stationary,Box File A4,No's,11,3165.9270516717324,exact,Box File A4 [019-00027]
+Stationary,Plastic File Cover,No's,32,1516.343891402715,exact,Plastic File Cover [019-00188]
+Stationary,File Seprator,No's,3,238.98876404494382,exact,File Seprator [019-00086]
+Stationary,Stapler Pin Remover,No's,3,323.1818181818182,exact,Stapler Pin Remover [019-00235]
+Stationary,Stapler,No's,1,370.6666666666667,exact,Stapler [019-00227]
+Stationary,Paper Clip,Box,6,335.1413793103448,exact,Paper Clip [019-00158]
+Stationary,Binder Clip,No's,24,561.9512195121952,exact,Binder Clip [019-00013]
+Stationary,Paper Cutter,No's,4,580.5714285714286,exact,Paper Cutter [019-00159]
+Stationary,Envelop Small,No's,130,1357.9823008849557,exact,Envelop Small [019-00077]
+Stationary,High Lighter,No's,25,1397.2115384615386,exact,High Lighter [019-00097]
+Stationary,Permanent Marker,No's,20,1080.9381165919283,exact,Permanent Marker [019-00184]
+Stationary,Ink For Stamp Pad,No's,3,200.625,exact,Ink for Stamp Pad [019-00106]
+Stationary,Stamp,No's,4,4036.3636363636365,exact,Stamp [019-00223]
+Stationary,Stamp Pad,No's,1,62.916666666666664,exact,Stamp Pad [019-00224]
+Stationary,Gum Stick,No's,2,216.15384615384616,exact,Gum Stick [019-00095]
+Stationary,Stabilizer,No's,1,5333.333333333333,exact,Stabilizer [019-00222]
+Stationary,Envelop A4,No's,121,903.3275862068966,exact,Envelop A4 [019-00076]
+Stationary,Leave Pad,No's,3,405.7142857142857,exact,Leave Pad [019-00118]
+Stationary,Cleanence Pad,No's,41,12080.357142857143,exact,Cleanence Pad [019-00048]
+Stationary,White Marker,No's,7,1620,exact,White Marker [019-00266]
+Stationary,Plastic Jar,No's,3,716,exact,Plastic Jar [019-00190]
+Stationary,Scale Steel,No's,4,248.88888888888889,exact,Scale Steel [019-00212]
+Stationary,Shapner,No's,15,131.12161514195583,exact,Shapner [019-00218]
+Stationary,Holy Quran,No's,1,1000,exact,Holy Quran [019-00100]
+Mechanical,Fan Belt A31,No's,5,476.5625,exact,Fan Belt A31 [104-00262]
+Mechanical,Fan Belt A32,No's,4,1024,exact,Fan Belt A32 [104-00263]
+Mechanical,Fan Belt A39,No's,2,456.8421052631579,exact,Fan Belt A39 [104-00266]
+Mechanical,Fan Belt A52,No's,1,340,exact,Fan Belt A52 [104-00269]
+Mechanical,Fan Belt,No's,8,4793.846153846154,exact,Fan Belt [104-00257]
+Mechanical,Fan Belt A36,No's,3,500,exact,Fan Belt A36 [104-00265]
+Mechanical,Fan Belt A35,No's,3,642.8571428571429,exact,Fan Belt A35 [104-00264]
+Mechanical,Air Filter,No's,6,7790.357142857143,exact,Air Filter [101-00003]
+Mechanical,Oil Filter 3000,No's,3,9000,exact,Oil Filter 3000 [104-00470]
+Mechanical,Oil filter LF 3349,No's,1,1800,exact,Oil filter LF 3349 [104-00494]
+Mechanical,Foam For Air Filter,No's,3,240,exact,Foam For Air Filter [104-00283]
+Mechanical,Petrol Vibrator Site Cover,No's,5,4750,exact,Petrol Vibrator Site Cover [104-00507]
+Mechanical,Air Filling Pipe,No's,2,420,exact,Air Filling Pipe [104-00016]
+Mechanical,Bearing 6203,No's,17,2691.1000000000004,exact,Bearing # 6203 [104-00061]; Bearing 6203 [104-00068]
+Mechanical,Bearing,No's,3,1756.4516129032259,exact,Bearing [104-00057]
+Mechanical,Bearing 608-2,No's,6,977.1428571428571,exact,Bearing 608-2 [104-00066]
+Mechanical,Bearing 6209,No's,4,2425,exact,Bearing 6209 [104-00072]
+Mechanical,Bearing 6202,No's,22,4251.627906976744,exact,Bearing # 6202 [104-00060]; Bearing 6202 [104-00067]
+Mechanical,Bearing 6206,No's,11,2046,exact,Bearing 6206 [104-00071]
+Mechanical,Tee Nozzle For Mobile Pump,No's,2,800,exact,Tee Nozzle For Mobile Pump [104-00665]
+Mechanical,Wall Plate For Donky Pump,No's,1,650,exact,Wall Plate For Donky Pump [104-00720]
+Mechanical,Boki For Donky Pump,No's,6,360,exact,Boki For Donky Pump [104-00084]
+Mechanical,Tube For Tyre #650-12,No's,4,2600,exact,Tube For Tyre #650-12 [104-00685]
+Mechanical,Washer For Spork Plug,No's,5,70,exact,Washer For Spork Plug [104-00724]
+Mechanical,Plug Holder,No's,10,469.71428571428567,exact,Plug Holder [104-00523]; Plug Holder. [104-00524]
+Mechanical,Spark Plug,No's,12,4595,exact,Spark Plug [104-00616]
+Mechanical,Rubber Seal 125 A,No's,15,1800,exact,Rubber Seal 125 A [104-00575]
+Mechanical,Compector Foundation,No's,27,18738,exact,Compector Foundation [104-00178]
+Mechanical,Compector Tanki,No's,3,5271.428571428572,exact,Compector Tanki [104-00180]
+Mechanical,Starting Kick For Compector,No's,11,7251.851851851851,exact,Starting Kick For Compector [104-00631]
+Mechanical,Cylincer For Plate Compector,No's,6,5100,exact,Cylincer For Plate Compector [104-00206]
+Mechanical,Kick Pully For Plate Compector,No's,6,13800,exact,Kick Pully For Plate Compector [104-00400]
+Mechanical,Tyre For Wheel Barrow,No's,7,13620.833333333332,exact,Tyre For (Wheel Barrow) [007-00410]; Tyre For Wheel Barrow [104-00700]
+Mechanical,Tyre W/Tube For Bike,No's,1,2550,exact,Tyre W/Tube For Bike [104-00707]
+Mechanical,Tyre Tube Rim For Wheel Barrow,No's,10,40000,exact,Tyre Tube Rim For Wheel Barrow [104-00705]
+Mechanical,Clutch Cylinder,No's,1,1080,exact,Clutch Cylinder [104-00167]
+Mechanical,Jan Kit,No's,1,236.36170212765958,exact,Jan Kit [104-00389]
+Mechanical,Bike Tube Old,No's,22,1059.6310091743119,exact,Bike Tube Old [104-00079]
+Mechanical,Bike Tube,No's,1,456.6666666666667,exact,Bike Tube [104-00078]
+Mechanical,Tube For Wheel Barrow,No's,12,4800,exact,Tube For (Wheel Barrow) [007-00409]; Tube For Wheel Barrow [104-00687]
+Mechanical,Spindle For Gate Valve,No's,6,1890,exact,Spindle For Gate Valve [104-00619]
+Mechanical,Hydraulic Pipe,No's,1,1008.4563043478261,exact,Hydraulic Pipe [104-00369]
+Mechanical,Gress Nipple,No's,24,1056.4485981308412,exact,Gress Nipple [104-00333]
+Mechanical,Hydraulic Pipe,Rft,1,1008.4563043478261,exact,Hydraulic Pipe [104-00369]
+Mechanical,Water Body,No's,2,2888.8888888888887,exact,Water Body [104-00725]
+Mechanical,Water Pump Seal,No's,1,267.36842105263156,exact,Water Pump Seal [104-00732]
+Mechanical,Connecting Rod,No's,1,533.3333333333334,exact,Connecting Rod [104-00184]
+Mechanical,Warm,No's,9,9829.459459459458,exact,Warm [104-00723]
+Mechanical,Wall Seal,Set,3,516.6923076923076,exact,Wall Seal [104-00722]
+Mechanical,Ring Piston Kit,Set,1,684.4444444444445,exact,Ring Piston Kit [104-00560]
+Mechanical,Carter  Pin,No's,2,172.72727272727272,exact,Carter  Pin [104-00138]
+Mechanical,Rubber For Pressure Cooker,No's,1,200,exact,Rubber For Pressure Cooker [104-00570]
+Mechanical,Carburetor Silai,No's,1,160,exact,Carburetor Silai [104-00135]
+Mechanical,Excel For Wheel Barrow,No's,16,4448,exact,Excel For Wheel Barrow [007-00124]
+Mechanical,Ms Nut For Wheel Barrow Exal,No's,52,799.2592592592592,exact,Ms Nut For Wheel Barrow Exal [104-00452]
+Mechanical,Hub For Mixer Machine,No's,2,13000,exact,Hub For Mixer Machine [104-00356]
+Mechanical,AVR Card,No's,1,18500,exact,AVR Card [104-00002]
+Mechanical,Brake Leather,No's,5,6623.076923076923,exact,Brake Leather [104-00096]
+Mechanical,Wheel Rim For Mixer Machine,No's,4,9000,exact,Wheel Rim For Mixer Machine [104-00743]
+Mechanical,Jain Seal,No's,10,855,exact,Jain Seal [104-00388]
+Mechanical,Water Filter,No's,1,116.66666666666667,exact,Water Filter [006-00138]
+Mechanical,Water Seal,No's,1,175,exact,Water Seal [104-00733]
+Mechanical,Jan Sheet,No's,1,885,exact,Jan Sheet [104-00390]
+Mechanical,Tee,No's,4,845.7142857142857,exact,Tee [104-00663]
+Shuttering Material,"Wooden Batten 3""x4""x8'",No's,123,38697.94359428355,exact,"Wooden Batten 3""x4""x8' [018-00042]"
+Shuttering Material,"Wooden Batten 3""x4""x4'",No's,2,592.4645696508815,exact,"Wooden Batten 3""x4""x4' [018-00040]"
+Shuttering Material,Wooden Planks,No's,100,172598.26589595375,exact,Wooden Planks [018-00045]
+Shuttering Material,Chamfer Gola,Rft,440,8285.748726075826,exact,Chamfer Gola [018-00001]
+Shuttering Material,Scaffolding Joint,No's,11059,657953.1695776216,exact,Scaffolding Joint [018-00008]
+"Screw,Nail,Bolt & Washer",Wooden Screw 1/2'',Box,1,59.5,exact,"Wooden Screw 1/2"" [001-00079]"
+"Screw,Nail,Bolt & Washer",Wooden Screw 1.5'',Box,2,372.6470588235294,exact,"Wooden Screw 1.5"" [001-00078]"
+"Screw,Nail,Bolt & Washer",China Screw,No's,14,455.53846153846155,exact,China Screw [001-00040]
+"Screw,Nail,Bolt & Washer","MS Nail 1.5""",Kgs,0.5,211.44385026737967,exact,"MS Nail 1.5"" [001-00045]"
+"Screw,Nail,Bolt & Washer","MS Nail 2""",Kgs,0.650000000000091,248.25524656263167,exact,"MS Nail 2"" [001-00013]"
+"Screw,Nail,Bolt & Washer","MS Nail 2.5""",Kgs,4,1202.884371029225,exact,"MS Nail 2.5"" [001-00046]"
+"Screw,Nail,Bolt & Washer","MS Nail 4""",Kgs,35,12556.93506080598,exact,"MS Nail 4"" [001-00047]"
+"Screw,Nail,Bolt & Washer","Steel Nail 1""",Box,3,887.2258064516129,exact,"Steel Nail 1"" [001-00022]"
+"Screw,Nail,Bolt & Washer",Steel Nail 1.5'',Box,7,1802.705882352941,exact,"Steel Nail 1.5"" [001-00071]"
+"Screw,Nail,Bolt & Washer",Nut,No's,40,1006.3492063492063,exact,Nut [001-00053]
+"Screw,Nail,Bolt & Washer",T Nut Bolt,Kgs,704,131833.96226415093,exact,T Nut Bolt [001-00074]
+"Screw,Nail,Bolt & Washer",Stud W/Nut,No's,20,3955.5555555555557,exact,Stud W/Nut [001-00073]
+"Screw,Nail,Bolt & Washer",Bolt Kit For Wash Bason,No's,24,1419.4285714285716,exact,Bolt Kit For Wash Bason [001-00038]
+"Screw,Nail,Bolt & Washer",L Key Bolt,No's,10,658.1395348837209,exact,L Key Bolt [001-00043]
+"Screw,Nail,Bolt & Washer",MS Bolt,Kgs,17.25999999999999,1485.9150550739294,exact,MS Bolt [001-00044]
+"Screw,Nail,Bolt & Washer",MS Nut,Kgs,0.5,12.528301886792454,exact,MS Nut [001-00048]
+"Screw,Nail,Bolt & Washer",MS Washer,Kgs,4.060000000000059,269.074088088395,exact,MS Washer [001-00049]
+"Screw,Nail,Bolt & Washer",Spring Washer,No's,25,378.47222222222223,exact,Spring Washer [001-00069]
+"Screw,Nail,Bolt & Washer",Seel Washer,No's,3,51.891891891891895,exact,Seel Washer [001-00068]
+General H/w Material,Hilty Bit,No's,8,4700,exact,Hilty Bit [007-00182]
+General H/w Material,Drill Bit 6mm,No's,10,1391.6666666666665,exact,Drill Bit 6mm [021-00052]
+General H/w Material,"Wooden Bit 1""",No's,11,1811.4516129032259,exact,"Wooden Bit 1"" [007-00431]"
+General H/w Material,"Wooden Bit 1-1/4""",No's,5,1000,exact,"Wooden Bit 1-1/4"" [007-00432]"
+General H/w Material,Teflon Tape,No's,1662,41870.12137203167,exact,Teflon Tape. [007-00403]; Teflon Tape [104-00667]
+General H/w Material,Pvc Tape,No's,48,2847.706098457017,exact,Pvc Tape [007-00331]
+General H/w Material,Banding Tape,No's,4,762.3728983688833,exact,Banding Tape [007-00012]
+General H/w Material,Double Tape,No's,1,185.1851851851852,exact,Double Tape [007-00095]
+General H/w Material,HT Tape,No's,5,1772.5806451612902,exact,HT Tape [007-00170]
+General H/w Material,"Masking Tape 1""",No's,25,2037.323943661972,exact,"Masking Tape 1"" [019-00143]"
+General H/w Material,Warning Tape,No's,27,5175,exact,Warning Tape [007-00415]
+General H/w Material,"Packing Tape 2""",No's,5,1543.75,exact,"Packing Tape 2"" [019-00154]"
+General H/w Material,Steel Floot,No's,10,1507.936507936508,exact,Steel Floot [007-00380]
+General H/w Material,Foam Floot,No's,29,3596.935483870968,exact,Foam Floot [007-00135]
+General H/w Material,"Wooden Floot 12""",No's,1,98.18181818181819,exact,"Wooden Floot 12"" [007-00436]"
+General H/w Material,Plastic China Floot,No's,48,6116.514522821577,exact,Plastic China Floot [007-00317]
+General H/w Material,"Concrete Cutting Disc 4""",No's,33,4690.4,exact,"Concrete Cutting Disc 4"" [007-00054]"
+General H/w Material,"Concrete Cutting Disc 7""",No's,31,41562.96296296296,exact,"concrete cutting Disc 7"" [007-00444]"
+General H/w Material,"Concrete Cutting Disc 9""",No's,13,22159.660579710144,exact,"Concrete Cutting Disc 9"" [007-00055]"
+General H/w Material,"Wood Cutting Disc 9""",No's,1,971.1666666666666,exact,"Wood Cutting Disc 9"" [007-00429]"
+General H/w Material,"Steel Cutting Disc 4""",No's,1,67.77546777546777,exact,"Steel Cutting Disc 4"" [007-00376]"
+General H/w Material,"Steel Cutting Disc 7""",No's,17,3208.9256198347107,exact,"Steel Cutting Disc 7"" [007-00377]"
+General H/w Material,"Steel Cutting Disc 9""",No's,14,5417.563150074294,exact,"Steel Cutting Disc 9"" [007-00378]"
+General H/w Material,"Grinding Disc 9""",No's,5,3250,exact,"Grinding Disc 9"" [007-00167]"
+General H/w Material,MS Chain,Kgs,11.39,3385.24025974026,exact,MS Chain [007-00231]
+General H/w Material,Grinder Wire Brush,No's,7,2500.4,exact,Grinder Wire Brush [007-00165]
+General H/w Material,Duster Cloth,No's,5,220.55961070559613,exact,Duster Cloth [007-00103]
+General H/w Material,Haison Cloth,Roll,6,27836.363636363632,exact,Haison Cloth [007-00171]
+General H/w Material,Cloth For Electric Iron,No's,1,850,exact,Cloth For Electric Iron [007-00050]
+General H/w Material,Chimta For Pratha,No's,1,150,exact,Chimta For Pratha [007-00045]
+General H/w Material,Filter Cloth For Boaring,No's,4,742.8571428571429,exact,Filter Cloth For Boaring [007-00127]
+General H/w Material,Cloth,MTR,2,400,exact,Cloth [007-00048]
+General H/w Material,Wire Brush,No's,54,6169.565217391305,exact,Wire Brush [007-00425]
+General H/w Material,"Paint Brush 2""",No's,1,100,exact,"Paint Brush 2"" [007-00299]"
+General H/w Material,Stick Brush,No's,1,112.08955223880596,exact,Stick Brush [007-00386]
+General H/w Material,Narial Brush,No's,77,7536.285046728972,exact,Narial Brush [007-00284]
+General H/w Material,Toilet Brush,No's,1,135.2941176470588,exact,Toilet Brush [007-00406]
+General H/w Material,Cloth Washing Brush,No's,1,100,exact,Cloth Washing Brush [007-00051]
+General H/w Material,Plastic Dori,No's,1,177.27989675939205,exact,Plastic Dori [007-00320]
+General H/w Material,Fish Dori,Pkt,6,613.6976047904192,exact,Fish Dori [007-00130]
+General H/w Material,MS Angle,Kgs,36.49999999999909,7444.088746921073,exact,MS Angle [007-00220]
+General H/w Material,"MS Flunch 2""",No's,2,1160,exact,"MS Flunch 2"" [007-00240]"
+General H/w Material,MS Panji,No's,1,800,exact,MS Panji [007-00249]
+General H/w Material,MS Wings For Water Pump,No's,2,189.23076923076923,exact,MS Wings For Water Pump [007-00264]
+General H/w Material,MS Plate,Kgs,161.75,24046.846825655015,exact,MS Plate [020-00054]
+General H/w Material,"Door Frame 5""x7'x2'-6""",No's,24,162360,exact,"Door Frame 5""x7'x2'-6"" [007-00082]"
+General H/w Material,"Door Frame 5""x7'x3'",No's,142,522750,exact,"Door Frame 5""x7'x3' [007-00083]"
+General H/w Material,"Door Frame 5""x7'x3'-6""",No's,172,667275,exact,"Door Frame 5""x7'x3'-6"" [007-00084]"
+General H/w Material,"Door Frame 5""x8'x3'-6""",No's,3,23985,exact,"Door Frame 5""x8'x3'-6"" [007-00086]"
+General H/w Material,"Door Frame 5""x6'x7'",No's,26,213200,exact,"Door Frame 5""x6'x7' [007-00075]"
+General H/w Material,"Door Frame 5""x5'x7'",No's,38,296020,exact,"Door Frame 5""x5'x7' [007-00074]"
+General H/w Material,"Door Frame 5""x4'x7'",No's,2,14760,exact,"Door Frame 5""x4'x7' [007-00072]"
+General H/w Material,"Door Frame 5""x4'x8'",No's,15,123000,exact,"Door Frame 5""x4'x8' [007-00073]"
+General H/w Material,"Door Frame 5""x8'x7'",No's,2,18040,exact,"Door Frame 5""x8'x7' [007-00087]"
+General H/w Material,"Door Frame 5""x7'-1""x-6'",No's,11,90921.6,exact,"Door Frame 5""x7'-1""x-6' [007-00078]"
+General H/w Material,"Door Frame 5""x8-1""'x3'-6""",No's,1,8060.6,exact,"Door Frame 5""x8-1""'x3'-6"" [007-00088]"
+General H/w Material,"Door Frame 5""x7'-1""x-3'-6""",No's,11,79646.6,exact,"Door Frame 5""x7'-1""x-3'-6"" [007-00077]"
+General H/w Material,"Door Frame 5""x7'-1""x-3'",No's,33,232174.80000000002,exact,"Door Frame 5""x7'-1""x-3' [007-00076]"
+General H/w Material,MS Clamp 125 A,No's,1,5000,exact,MS Clamp 125 A [007-00234]
+General H/w Material,MS Ring For Brommer,No's,3,515,exact,MS Ring For Brommer [007-00253]
+General H/w Material,MS Ring For Kassi,No's,12,240,exact,MS Ring For Kassi [007-00254]
+General H/w Material,Tarpal 18x30,No's,2,8910,exact,Tarpal 18x30 [007-00398]
+General H/w Material,Tarpal 18x21,No's,2,12474,exact,Tarpal 18x21 [007-00397]
+General H/w Material,Tarpal 36x40,No's,1,19760,exact,Tarpal 36x40 [007-00400]
+General H/w Material,Tarpal 10x12,No's,1,1800,exact,Tarpal 10x12 [007-00394]
+General H/w Material,Tarpal 40'x40',No's,3,35700,exact,Tarpal 40'x40' [007-00401]
+General H/w Material,Bed Sheet Single,No's,8,5051.239669421488,exact,Bed Sheet Single [007-00014]; Bed Sheet (Single) [009-00007]
+General H/w Material,Motor Pan,No's,27.180000000000007,9753.694822888287,exact,Motor Pan [007-00279]
+General H/w Material,Hand Shovel,No's,21,9032.530120481928,exact,Hand Shovel [007-00172]
+General H/w Material,Kassi with Handle,No's,8,5942.5,exact,Kassi with Handle [007-00207]
+General H/w Material,Polythene Sheet,Kgs,194.5,140696.9575909363,exact,Polythene Sheet [007-00327]
+General H/w Material,Polythene Sheet 500 Gauge,Roll,31,125397.62711864407,exact,Polythene Sheet 500 Gauge [007-00328]
+General H/w Material,Sponge Foam,No's,95,4862.462391822828,exact,Sponge Foam [007-00370]
+General H/w Material,Steel Cot,No's,39,124009.85130111524,exact,steel cot [006-00144]
+General H/w Material,Chisel,No's,7,1558.8275862068965,exact,Chisel [007-00046]
+General H/w Material,Mattress Cover Single,No's,1,1150,exact,Mattress Cover Single [007-00272]
+General H/w Material,Wheel Barrow,No's,4,36598,exact,Wheel Barrow [014-00055]
+General H/w Material,Cotton Waste,Kgs,103,15398.270820089003,exact,Cotton Waste [007-00063]
+General H/w Material,Hexa Blade,No's,24,1236.42,exact,Hexa Blade [007-00181]
+General H/w Material,Emery Paper,No's,21,1230.1935483870968,exact,Emery Paper [007-00108]
+General H/w Material,Emery Paper Roll,Rft,38,3800,exact,Emery Paper Roll [007-00109]
+General H/w Material,Mortein Spray,No's,1,504.44444444444446,exact,Mortein Spray [007-00277]
+General H/w Material,MS Bucket,No's,6,4800,exact,MS Bucket [007-00228]
+General H/w Material,Wooden Handle,No's,71,7810,exact,Wooden Handle [007-00441]
+General H/w Material,Elfy,No's,2,372.85714285714283,exact,Elfy [007-00107]
+General H/w Material,Samad Bond,Box,3,3155.2380952380954,exact,Samad Bond [104-00581]
+General H/w Material,Cotton Thread,No's,337,1531.5010351966873,exact,Cotton Thread [007-00062]
+General H/w Material,Air Freshner,No's,2,639.1304347826087,exact,Air Freshner [007-00001]
+General H/w Material,Rawal Plug,Pkt,109,3526.470588235294,exact,Rawal Plug [007-00333]
+General H/w Material,Silicone,No's,4,1354.5945945945946,exact,Silicone [007-00367]
+General H/w Material,Bed Sheet Double,No's,1,1392.5833333333333,exact,Bed Sheet Double [007-00013]
+General H/w Material,Surf,Pkt,10,4175.694444444444,exact,Surf [007-00388]
+General H/w Material,Plastic Chatai,No's,1,3500,exact,Plastic Chatai [009-00131]
+General H/w Material,Panaflex,No's,2,398.20112359550563,exact,Panaflex [006-00082]
+General H/w Material,Magic,No's,10,1564.7058823529412,exact,Magic [007-00265]
+General H/w Material,Handle For Hammer,No's,18,844.8979591836735,exact,Handle For Hammer [007-00174]
+General H/w Material,Rubber Gloves,Pair,57,6745.2506596306075,exact,Rubber Gloves [007-00341]
+General H/w Material,Cotton Gloves,Pair,247,2751.8597298074155,exact,Cotton Gloves [016-00003]
+General H/w Material,Leather Gloves,Pair,1,177.5,exact,Leather Gloves [007-00215]
+General H/w Material,Chalk,Box,11,370.3422982885086,exact,Chalk [007-00043]
+General H/w Material,Empty Plastic Can,No's,2,1018.5714285714286,exact,Empty Plastic Can [007-00120]
+General H/w Material,Wooden Stair,No's,1,4366.666666666667,exact,Wooden Stair [007-00442]
+General H/w Material,ICE Block,Block,1006,457961.8905585484,exact,ICE Block [007-00189]
+General H/w Material,Paint Roller,No's,3,1116,exact,Paint Roller [007-00305]
+General H/w Material,"Paint Roller Cover 4""",No's,4,320,exact,"Paint Roller Cover 4"" [007-00307]"
+General H/w Material,Plastic Choki,No's,1,440,exact,Plastic Choki [007-00318]
+General H/w Material,Plumb Bob (Saal),No's,2,278.57142857142856,exact,Plumb Bob (Saal) [007-00326]
+General H/w Material,Marbal Spacer,Kgs,20,214.2285714285714,exact,Marbal Spacer [007-00269]
+General H/w Material,Tile Spacer,Pkt,5,1000,exact,Tile Spacer [003-00105]
+General H/w Material,Marble,PCS,2,620,exact,Marble [007-00270]
+General H/w Material,Keef Plastic,No's,2,137.5,exact,Keef Plastic [007-00209]
+General H/w Material,Seaser,No's,1,455,exact,Seaser [007-00357]
+General H/w Material,Water For Battery,Ltr,15,1017.8571428571429,exact,Water For Battery [104-00728]
+General H/w Material,Grari For Joicer Machine,No's,3,262.5,exact,Grari For Joicer Machine [007-00152]
+General H/w Material,Blender Juicer Jug Bace,No's,1,533.3333333333334,exact,Blender Juicer Jug Bace [007-00020]
+General H/w Material,Dispenser Bottal Stand,No's,1,300,exact,Dispenser Bottal Stand [007-00068]
+General H/w Material,Dispenser Bottal nozzal,No's,1,300,exact,Dispenser Bottal nozzal [007-00069]
+General H/w Material,Bottle Shower,No's,1,140,exact,Bottle Shower [007-00022]
+General H/w Material,Sleeper,Pair,4,6319.555555555556,exact,Sleeper [007-00368]
+General H/w Material,Spring,No's,2,12.97872340425532,exact,Spring [007-00371]
+General H/w Material,Pipe For Cylinder,Rft,7,300,exact,Pipe For Cylinder [007-00312]
+General H/w Material,Water Pressure Nipple,No's,2,700,exact,Water Pressure Nipple [007-00417]
+General H/w Material,"Flexible Pipe 1""",Rft,24,608.0921052631579,exact,"Flexible Pipe 1"" [007-00132]"
+General H/w Material,Medican,Pkt,2,159.40823529411765,exact,Medican [004-00023]
+General H/w Material,ORS Sachet,Pkt,19,3012.015503875969,exact,ORS Sachet [004-00029]
+General H/w Material,Calcium,PKT,32,685.7142857142857,exact,Calcium [007-00035]
+General H/w Material,Curtain,No's,2,2215.757575757576,exact,Curtain [009-00038]
+General H/w Material,"Curring Pipe 1""",Rft,75,8156.25,exact,"Curring Pipe 1"" [007-00066]"
+General H/w Material,"Curring Pipe 3/4""",Rft,57,2453.8653500897663,exact,"CURRING PIPE 3/4"" [017-00026]"
+General H/w Material,U Clip,No's,12,1817.1428571428569,exact,U Clip [007-00411]
+General H/w Material,Medicine,No's,2,1956.857142857143,exact,Medicine [007-00273]
+General H/w Material,Grass For Bred Gaddi,No's,1,200,exact,Grass For Bred Gaddi [007-00153]
+General H/w Material,Plastic Shoping Bag,Kgs,5,2705.882352941176,exact,Plastic Shoping Bag [007-00322]
+Lock & Latches,Pad Lock,No's,18,6060,exact,Pad Lock [007-00297]
+Lock & Latches,Daraz Lock,No's,5,1440.4255319148936,exact,Daraz Lock [032-00003]
+Lock & Latches,Aluminum Jali,Sft,27,2500,exact,Aluminum Jali [032-00001]
+Lock & Latches,Aluminum Window Lock,No's,5,1500,exact,Aluminum Window Lock [032-00002]
+Lock & Latches,Key For Pad Lock,No's,2,200,exact,Key For Pad Lock [032-00014]
+Lock & Latches,Door Cylinder,No's,7,4623.5,exact,Door Cylinder [032-00006]
+Lock & Latches,Door Kundi,No's,2,100,exact,Door Kundi [032-00008]
+Lock & Latches,"Hapes & Staple 8""",No's,1,298.69565217391306,exact,"Hapes & Staple 8"" [032-00010]"
+Furniture,Visiter Chair,No's,3,15797.87234042553,exact,Visiter Chair [006-00131]
+Furniture,Office Table,No's,1,16214.285714285714,exact,Office Table [006-00077]
+Safety Material,Safety Shoes For Labour,Pair,144,172278.8203753351,exact,Safety Shoes For Labour [016-00037]
+Safety Material,Safety Shoes For Security,Pair,1,531.0344827586207,exact,Safety Shoes For Security [016-00038]
+Safety Material,Safety Jacket,No's,12,1684.8222565687788,exact,Safety Jacket [016-00034]
+Safety Material,Safety Halmet White,No's,36,24270.967741935485,exact,Safety Halmet White [016-00029]
+Safety Material,Safety Halmet Yellow,No's,157,32773.48586810229,exact,Safety Halmet Yellow [016-00030]
+Safety Material,Helmet For Bike,No's,2,6440,exact,Helmet For Bike [016-00013]
+Safety Material,Gum Shoes,Pair,11,6187.5,exact,Gum Shoes [007-00169]
+Safety Material,Round Cap For Staff,No's,1,440,exact,Round Cap For Staff [016-00021]
+Safety Material,Security Cap,No's,1,147.74193548387098,exact,Security Cap [009-00165]
+Safety Material,Stethoscope Master,No's,1,715,exact,Stethoscope Master [016-00041]
+Messing & Tentage,Tea Mug With Saucer,No's,11,4858.322804761905,exact,Tea Mug With Saucer [009-00212]
+Messing & Tentage,Tea Mug,No's,21,1414.1814246575343,exact,Tea Mug [009-00211]
+Messing & Tentage,Tea Strainer,No's,2,402.85714285714283,exact,Tea Strainer [009-00215]
+Messing & Tentage,Glass Crystal,No's,6,525.5356626506024,exact,Glass Crystal [009-00071]
+Messing & Tentage,Plastic Mug,No's,3,266.89655172413796,exact,Plastic Mug [009-00133]
+Messing & Tentage,Plastic Water Cooler,No's,2,3014.6153846153848,exact,Plastic Water Cooler [009-00136]
+Messing & Tentage,Plastic Plate,No's,6,837.6470588235293,exact,Plastic Plate [009-00134]
+Messing & Tentage,Plastic jug,No's,6,1986.9230769230767,exact,Plastic jug [009-00137]
+Messing & Tentage,Plastic Bowl,No's,2,314,exact,Plastic Bowl [009-00128]
+Messing & Tentage,Plastic Tokri,No's,1,505,exact,Plastic Tokri [009-00135]
+Messing & Tentage,Silver Patila,No's,1,15950,exact,Silver Patila [009-00175]
+Messing & Tentage,Hot Pot,No's,1,1400,exact,Hot Pot [009-00083]
+Messing & Tentage,Cutter For Potatos,No's,4,898.1818181818181,exact,Cutter For Potatos [009-00042]
+Messing & Tentage,Griddle,No's,2,2085,exact,Griddle [009-00077]
+Messing & Tentage,Burner,No's,1,4180,exact,Burner [009-00019]
+Messing & Tentage,Roti Romal,No's,6,462.7118644067797,exact,Roti Romal [009-00151]
+Messing & Tentage,Disposable Cap,Pkt,1,450,exact,Disposable Cap [009-00051]
+Messing & Tentage,Tandoor For Bred,No's,2,7600,exact,Tandoor For Bred [009-00203]
+Messing & Tentage,Tandoor Stick,No's,2,530,exact,Tandoor Stick [009-00205]
+Messing & Tentage,Kitchen Apron,No's,1,156.25,exact,Kitchen Apron [009-00098]
+Welding,Welding Rod 10#,Kgs,31.5,11775.901354637026,exact,Welding Rod 10# [023-00026]
+Welding,Welding Glass,No's,23,2400,exact,Welding Glass [023-00018]
+Welding,Glasses,No's,48,3479.245283018868,exact,Glasses [023-00008]
+Sanitary Fitting,Bib Cock Plastic,No's,8,1816.6423357664235,exact,Bib Cock Plastic [017-00014]
+Sanitary Fitting,Bib Cock Steel,No's,1,1009.0909090909091,exact,Bib Cock Steel [017-00015]
+Sanitary Fitting,Soap Dish,No's,8,240,exact,Soap Dish [017-00090]
+Sanitary Fitting,WC Indian,No's,9,15723.529411764706,exact,WC Indian [017-00108]
+Sanitary Fitting,Commode,No's,2,11000,exact,Commode [017-00029]
+Sanitary Fitting,Lever For Commod,No's,1,100,exact,Lever For Commod [017-00060]
+Sanitary Fitting,Shower Head,No's,4,1133.3333333333333,exact,Shower Head [017-00080]
+Sanitary Fitting,Wash Basin,No's,4,8475,exact,Wash Basin [017-00110]
+Sanitary Fitting,Wast Pipe,No's,1,225,exact,Wast Pipe [017-00113]
+Sanitary Fitting,Coupline Washal,No's,2,466.6666666666667,exact,Coupline Washal [017-00036]
+Sanitary Fitting,Machine For Flush Tank,No's,1,400,exact,Machine For Flush Tank [017-00062]
+Sanitary Fitting,Rubber Connection Pipe,No's,2,531.7241379310345,exact,Rubber Connection Pipe [017-00075]
+Sanitary Fitting,Basin Mixer,Set,12,9428.571428571428,exact,Basin Mixer [017-00005]
+Sanitary Fitting,Muslim Shower,No's,7,2964.705882352941,exact,Muslim Shower [017-00064]
+Sanitary Fitting,Looking Mirror,No's,1,700,exact,Looking Mirror [017-00061]
+Sanitary Fitting,Clip For Looking Mirrar,No's,6,100,exact,Clip For Looking Mirrar [017-00027]
+Cleaning Material,Plastic Bag For Dust Bin,No's,3,750,exact,Plastic Bag For Dust Bin [024-00029]
+Cleaning Material,Plastic Ewer,No's,8,1155.7446808510638,exact,Plastic Ewer [024-00035]
+Cleaning Material,Brommer Stick,No's,5.5,840.46875,exact,Brommer Stick [024-00002]
+Cleaning Material,Wiper,No's,7,2447.3584905660377,exact,Wiper [024-00059]
+Cleaning Material,Tissue,No's,2,460,exact,Tissue [024-00052]
+Cleaning Material,Phenyle,Ltr,5.500000000000085,574.7731092437064,exact,Phenyle [024-00028]
+Cleaning Material,Brommer,Kgs,4.5,1366.9565217391305,exact,Brommer [024-00001]
+Cleaning Material,Tower Bolt,No's,11,1657.3333333333333,exact,Tower Bolt [024-00054]
+Cleaning Material,Thermometer,No's,1,288.75,exact,Thermometer [004-00045]
+Cleaning Material,Crtrage For Water Filter,No's,1,458.3333333333333,exact,Crtrage For Water Filter [024-00006]
+
+=== ZERO-VALUE ROWS WITH NON-ZERO QTY (FYI — not in the value total) ===
+Category,Description,Unit,Balance Qty
+Construction Material,Stone Gravel,CFT,1938
+Construction Material,Stone Aggregate,CFT,5888
+Construction Material,Jumbolon Sheets,Sft,55278.53
+Construction Material,Protection Board,No's,98
+Hanging Material,Perfected Channal 41x41x2,MTR,90
+Hanging Material,GI Threaded Rod Connector M-8,No's,50
+Hanging Material,GI Threaded Rod Connector M-10,No's,50
+Hanging Material,Gi Cable Tray (450mmx100mm),Rft,250
+Hanging Material,Gi Cable Tray (300mmx100mm),Rft,260
+Hanging Material,Gi Joint Plates,No's,140
+Electrical,"Water Pump 2""",No's,1
+Electrical,"Water Pump 1-1/4""",No's,1
+Electrical,Filtartion Plant,No's,1
+Electrical,Lift Machine Complete,No's,1
+Electrical,MS Tower For Lift,No's,1
+Electrical,Electric Vibrator,No's,1
+Electrical,Electric DB,No's,108
+Electrical,UPS DB,No's,7
+Electrical,Auto Rellay,No's,3
+Tools,Teeth For Loader Bucket,No's,7
+Stationary,Puraches Demand Book,No's,3
+Stationary,Cash Payment Voucher,No's,19
+Mechanical,Oil Filter 1000424655,No's,1
+Mechanical,Oil Filter 1560-72281,No's,1
+Mechanical,Fuel Filter 40040300126,No's,7
+Mechanical,Fuel Filter Pwd 130,No's,1
+Mechanical,Oil Filter Pwo 124,No's,1
+Mechanical,Oil Filter Pwo 186,No's,6
+Mechanical,Oil Filter Pwo 127,No's,1
+Mechanical,Clutch Boster,No's,1
+Shuttering Material,"Wooden Batten 3""x4""x10'",No's,315
+Sanitary Fitting,Double Bib Cock,No's,6
+Sanitary Fitting,Coat Hook,No's,10
+Sanitary Fitting,Towel Rod,No's,2
+Sanitary Fitting,Tissue Paper Holder,No's,4
+Sanitary Fitting,Grip Bar,No's,4
+Sanitary Fitting,Botal Trap,No's,6
+Sanitary Fitting,Wash Basin Venety,No's,4
+Sanitary Fitting,Flush Tank Ceramic,No's,4
+Sanitary Fitting,Rubber Cuplin,No's,1
+Elevator Material (Lift M),Upper Beam & Lower Beam,No's,2
+Elevator Material (Lift M),Shaft Parts,No's,2
+Elevator Material (Lift M),Traction Machine,No's,2
+Elevator Material (Lift M),Bearing Beam,No's,2
+Elevator Material (Lift M),Door Machine,No's,3
+Elevator Material (Lift M),Counterweight,No's,2
+Elevator Material (Lift M),Catalog,No's,2
+Elevator Material (Lift M),Electrical Wires System & Control Cabinet,No's,2
+Elevator Material (Lift M),Car Roof & Car Buttom,No's,2
+Elevator Material (Lift M),Vertical Beam,No's,2
+Elevator Material (Lift M),Guide Rail,No's,2
+Elevator Material (Lift M),Machine Frame,No's,1
+Elevator Material (Lift M),Door Panels & Door Jamb,No's,2
+Elevator Material (Lift M),Landing Door Device,No's,1
+Elevator Material (Lift M),Counterweight Frame,No's,2
+Elevator Material (Lift M),Steel Rope,No's,3
+Elevator Material (Lift M),Machine Room,No's,2
+Survey Material,Presom,No's,1
+Survey Material,Staff For Surveyor,No's,1
+
+=== ON-HAND CROSS-CHECK (exact single-match items) ===
+Category,Description,Sheet Qty,System On-Hand Qty,Diff
+Steel,Deformed Steel Bar 10MM,21996.599999999977,16496.6,-5499.999999999978
+Steel,Deformed Steel Bar 12MM,2400,2400.0,0.0
+Steel,Deformed Steel Bar 20MM,327,327.0,0.0
+Steel,Deformed Steel Bar 25MM,5000,5000.0,0.0
+Steel,Bending Wire,1.7999999999974534,0,-1.7999999999974534
+Floor Tile,"Floor Tile 24""x24""",563.04,563.04,0.0
+Floor Tile,"Floor Tile 24""x24""",563.04,563.04,0.0
+Construction Material,Pan Crush 2/8,8226,8226.0,0.0
+Construction Material,Crush 3/8,7296,7296.0,0.0
+Construction Material,Marble Chips,8,8.0,0.0
+Construction Material,Marble Chips Powder,10,10.0,0.0
+Construction Material,Marbal Strip,27,27.0,0.0
+Construction Material,Local Sand,1362,1362.0,0.0
+Construction Material,Stone Dust,5810,5810.0,0.0
+Construction Material,Brick Blast,2500,2500.0,0.0
+Construction Material,White Cement,62,62.0,0.0
+Construction Material,O.P Cement,893,63.0,-830.0
+Construction Material,Water Stoper D5,228,228.0,0.0
+Construction Material,Plaster Of Paris,1,0,-1
+Construction Material,Lime powder,10,3.0,-7.0
+Construction Material,Tile Bond,160,160.0,0.0
+Oil&Luricant,Petrol,-0.00272288989253866,344.53,344.5327228898925
+Oil&Luricant,Gear Oil,64,56.0,-8.0
+Oil&Luricant,Brake Oil,2,1.0,-1.0
+Oil&Luricant,Hydraulic Oil,10,163.0,153.0
+Oil&Luricant,Mobil Oil For Petrol Eng,9.499999999999986,9.5,1.4210854715202004e-14
+Oil&Luricant,Ultra Lock E3G,6,3.0,-3.0
+Chemical,Ultra Grout,759,759.0,0.0
+Chemical,Anti Termite,17,15.0,-2.0
+Chemical,Varnish,2,2.0,0.0
+Conduite Material,"PVC Pipe 1.5""",1049,1049.0,0.0
+Conduite Material,PVC Saddle Clip,1638,1614.0,-24.0
+Conduite Material,"Pvc Bend 1.5""",69,69.0,0.0
+Conduite Material,"PVC Socket 1""",12741,12291.0,-450.0
+Conduite Material,"PVC Socket 1.5""",47,47.0,0.0
+Conduite Material,"PVC Socket 2""",100,100.0,0.0
+Conduite Material,"PVC Roof Joint Box 1""",3869,3869.0,0.0
+Conduite Material,Pvc Wall Joint Box,77,77.0,0.0
+Conduite Material,PVC Wall Box 4x4,3,4.0,1.0
+Conduite Material,Light Glass,5010,5010.0,0.0
+Conduite Material,"PVC End Cap 1""",1804,1804.0,0.0
+Conduite Material,PVC Board,1,0,-1
+Conduite Material,Wooden Board 7x4,5,5.0,0.0
+UPVC Material,"UPVC Pipe 2""",237,237.0,0.0
+UPVC Material,"UPVC Pipe 3""",117,117.0,0.0
+UPVC Material,"UPVC Pipe 4""",3377.869999999999,3357.87,-19.99999999999909
+UPVC Material,"UPVC Pipe 6""",609.96,609.96,0.0
+UPVC Material,"UPVC Bend 4""",7,7.0,0.0
+UPVC Material,"UPVC Elbow 90° 2""",462,462.0,0.0
+UPVC Material,"UPVC Elbow 90° 3""",68,68.0,0.0
+UPVC Material,"UPVC Elbow 90° 6""",43,43.0,0.0
+UPVC Material,"UPVC Elbow 45° 2""",37,37.0,0.0
+UPVC Material,"UPVC Elbow 45° 3""",53,53.0,0.0
+UPVC Material,"UPVC Elbow 45° 4""",2,2.0,0.0
+UPVC Material,"UPVC Plug Elbow 4""",10,10.0,0.0
+UPVC Material,"UPVC Plug Elbow 6""",6,6.0,0.0
+UPVC Material,"UPVC Socket 2""",38,33.0,-5.0
+UPVC Material,"UPVC Socket 3""",45,44.0,-1.0
+UPVC Material,"UPVC Socket 4""",32,30.0,-2.0
+UPVC Material,"UPVC Socket 6""",33,33.0,0.0
+UPVC Material,"UPVC Bush 3""x2""",6,6.0,0.0
+UPVC Material,"UPVC Bush 4""x3""",14,14.0,0.0
+UPVC Material,"UPVC Tee 3""",1,1.0,0.0
+UPVC Material,"Upvc Tee 4""x2""",4,4.0,0.0
+UPVC Material,"UPVC Tee 3""x4""",1,1.0,0.0
+UPVC Material,"UPVC Y Tee 2""",20,20.0,0.0
+UPVC Material,"UPVC Y Tee 3""",34,34.0,0.0
+UPVC Material,"UPVC Y Tee 4""",60,60.0,0.0
+UPVC Material,"UPVC Y Tee 6""",11,11.0,0.0
+UPVC Material,"UPVC Y Tee 6""x4""",1,1.0,0.0
+UPVC Material,"UPVC Y Tee 4""x3""",17,17.0,0.0
+UPVC Material,"UPVC End Cap 2""",11,7.0,-4.0
+UPVC Material,"UPVC End Cap 3""",8,8.0,0.0
+UPVC Material,"UPVC End Cap 6""",104,99.0,-5.0
+UPVC Material,Jointing Solution,99,92.0,-7.0
+UPVC Material,Multi Floor Trap,13,13.0,0.0
+UPVC Material,"UPVC P Trap 4""",67,67.0,0.0
+UPVC Material,"P Trap Ceramic 4""",1,1.0,0.0
+UPVC Material,"UPVC Boss Pipe Connector 4x2""",55,55.0,0.0
+PPRC Material,PPRC Pipe 25mm,1052.1599999999999,765.16,-286.9999999999999
+PPRC Material,PPRC Pipe 32mm,935.8000000000002,684.8,-251.00000000000023
+PPRC Material,PPRC Pipe 40mm,481,467.0,-14.0
+PPRC Material,PPRC Pipe 50mm,156,142.0,-14.0
+PPRC Material,PPRC Pipe 63mm,237,237.0,0.0
+PPRC Material,PPRC Pipe 75mm,26,26.0,0.0
+PPRC Material,PPRC Pipe 90mm,156,156.0,0.0
+PPRC Material,PPRC Pipe 110mm,26,26.0,0.0
+PPRC Material,PPRC Elbow 25mm,227,62.0,-165.0
+PPRC Material,PPRC Elbow 32mm,202,155.0,-47.0
+PPRC Material,PPRC Elbow 40mm,38,26.0,-12.0
+PPRC Material,PPRC Elbow 50mm,24,20.0,-4.0
+PPRC Material,PPRC Elbow 63mm,4,4.0,0.0
+PPRC Material,PPRC Elbow 75mm,30,30.0,0.0
+PPRC Material,PPRC Elbow 90mm,16,16.0,0.0
+PPRC Material,PPRC Elbow 110mm,8,8.0,0.0
+PPRC Material,PPRC Elbow 45°x25mm,6,6.0,0.0
+PPRC Material,PPRC Elbow 45°x32mm,6,6.0,0.0
+PPRC Material,PPRC Elbow 45°x40mm,19,19.0,0.0
+PPRC Material,PPRC Elbow 45°x50mm,6,6.0,0.0
+PPRC Material,PPRC Elbow 45°x63mm,9,9.0,0.0
+PPRC Material,PPRC Elbow 45°x75mm,18,18.0,0.0
+PPRC Material,PPRC Elbow 45°x90mm,24,24.0,0.0
+PPRC Material,PPRC Elbow 45°x110mm,9,9.0,0.0
+PPRC Material,PPRC Elbow 25x32mm,20,8.0,-12.0
+PPRC Material,PPRC Elbow 40x32mm,7,5.0,-2.0
+PPRC Material,"PPRC Elbow 25X1/2""",356,356.0,0.0
+PPRC Material,PPRC Tee 32mm,118,114.0,-4.0
+PPRC Material,PPRC Tee 40mm,13,13.0,0.0
+PPRC Material,PPRC Tee 50mm,12,12.0,0.0
+PPRC Material,PPRC Tee 75mm,7,7.0,0.0
+PPRC Material,PPRC Tee 90mm,9,9.0,0.0
+PPRC Material,PPRC Tee 25x32mm,40,35.0,-5.0
+PPRC Material,PPRC Tee 25x40mm,6,6.0,0.0
+PPRC Material,PPRC Tee 32x40mm,31,25.0,-6.0
+PPRC Material,PPRC Tee 25X1/2,9,9.0,0.0
+PPRC Material,PPRC Tee 50x25mm,28,27.0,-1.0
+PPRC Material,PPRC Tee 50x32mm,1,0,-1
+PPRC Material,PPRC Tee 50x40mm,7,7.0,0.0
+PPRC Material,PPRC Tee 63x25mm,25,25.0,0.0
+PPRC Material,PPRC Tee 63x32mm,12,12.0,0.0
+PPRC Material,PPRC Tee 63x40mm,1,1.0,0.0
+PPRC Material,PPRC Tee 63x50mm,6,6.0,0.0
+PPRC Material,PPRC Tee 75x40mm,13,13.0,0.0
+PPRC Material,PPRC Tee 75x50mm,12,12.0,0.0
+PPRC Material,PPRC Tee 75x63mm,12,12.0,0.0
+PPRC Material,PPRC Socket 25mm,66,40.0,-26.0
+PPRC Material,PPRC Socket 32mm,117,107.0,-10.0
+PPRC Material,PPRC Socket 40mm,80,71.0,-9.0
+PPRC Material,PPRC Socket 50mm,21,15.0,-6.0
+PPRC Material,PPRC Socket 63mm,4,4.0,0.0
+PPRC Material,PPRC Socket 75mm,18,18.0,0.0
+PPRC Material,PPRC Socket 110mm,7,7.0,0.0
+PPRC Material,PPRC Socket 25x32mm,228,218.0,-10.0
+PPRC Material,PPRC Socket 25x50mm,19,19.0,0.0
+PPRC Material,PPRC Socket 32x50mm,19,19.0,0.0
+PPRC Material,PPRC Socket 50x40mm,24,22.0,-2.0
+PPRC Material,PPRC Socket 63x25mm,15,15.0,0.0
+PPRC Material,PPRC Socket 63x32mm,19,19.0,0.0
+PPRC Material,"PPRC Socket 25x1/2""",2,2.0,0.0
+PPRC Material,"PPRC Socket 25x3/4""",410,410.0,0.0
+PPRC Material,"PPRC Socket 32x1""",200,200.0,0.0
+PPRC Material,"PPRC Socket 40x1-/4""",80,75.0,-5.0
+PPRC Material,"PPRC Socket 50x1.5""",82,81.0,-1.0
+PPRC Material,"PPRC Socket 63x2""",66,66.0,0.0
+PPRC Material,"PPRC Socket 75x2.5""",18,18.0,0.0
+PPRC Material,PPRC Reducer Socket 32x40mm,25,22.0,-3.0
+PPRC Material,PPRC Reducer Socket 25x40mm,2,0,-2
+PPRC Material,PPRC Reducer Socket 90x50mm,12,12.0,0.0
+PPRC Material,PPRC Reducer Socket 90x63mm,10,10.0,0.0
+PPRC Material,PPRC Reducer Socket 90x75mm,9,9.0,0.0
+PPRC Material,PPRC Reducer Socket 75x63mm,15,15.0,0.0
+PPRC Material,PPRC Reducer Socket 75x50mm,21,21.0,0.0
+PPRC Material,PPRC Reducer Socket 75x40mm,20,20.0,0.0
+PPRC Material,PPRC Reducer Socket 75x32mm,30,30.0,0.0
+PPRC Material,PPRC Reducer Socket 75x25mm,25,25.0,0.0
+PPRC Material,PPRC Reducer Socket 50x63mm,18,18.0,0.0
+PPRC Material,PPRC Reducer Socket 63x40mm,12,12.0,0.0
+PPRC Material,"PPRC Plug 1/2""",801,801.0,0.0
+PPRC Material,PPRC Over Cross 25mm,30,30.0,0.0
+PPRC Material,PPRC Over Cross 32mm,18,18.0,0.0
+PPRC Material,PPRC End Cap 32mm,51,51.0,0.0
+PPRC Material,PPRC End Cap 40mm,31,31.0,0.0
+PPRC Material,PPRC End Cap 50mm,38,38.0,0.0
+PPRC Material,PPRC End Cap 63mm,18,18.0,0.0
+PPRC Material,PPRC End Cap 75mm,20,20.0,0.0
+PPRC Material,PPRC End Cap 90mm,10,10.0,0.0
+PPRC Material,PPRC Gate Valve 25mm,8,8.0,0.0
+PPRC Material,PPRC Gate Valve 63mm,2,2.0,0.0
+PPRC Material,PPRC Pipe Cutter,1,1.0,0.0
+PPRC Material,PPRC Adaptor 25x3/4,210,210.0,0.0
+PPRC Material,PPRC Adaptor 32x1'',160,160.0,0.0
+PPRC Material,PPRC Adaptor 40x1-1/4,295,295.0,0.0
+PPRC Material,PPRC Adaptor 50x1-1/2,105,105.0,0.0
+PPRC Material,"PPRC Adaptor 63x2""",52,52.0,0.0
+PPRC Material,"PPRC Adaptor 75x2-1/2""",9,9.0,0.0
+PPRC Material,"Ms Dead Plug 1/2""",1000,1000.0,0.0
+GI Material,"GI Socket 1/2""",17,17.0,0.0
+GI Material,"GI Pipe Nipple 1/2""",3,3.0,0.0
+GI Material,"GI Pipe Nipple 3/4""",1,0,-1
+GI Material,"Barrel Nipple 1/2""",8,8.0,0.0
+GI Material,Tanki Bush,2,2.0,0.0
+GI Material,"Handle Valve 1/2""",1,0,-1
+MS Material,"MS Seamless Sch-40 Pipe 6""",6,6.0,0.0
+MS Material,Ms Drain Cowl Doom Type,1,1.0,0.0
+MS Material,Ms Drain Cowl Angle Type,35,29.0,-6.0
+Hanging Material,"Isofonic Pipe Clamp 1""",37,13.0,-24.0
+Hanging Material,"Isofonic Pipe Clamp 1 1/4""",278,258.0,-20.0
+Hanging Material,"Isofonic Pipe Clamp 1 1/2""",275,255.0,-20.0
+Hanging Material,"Isofonic Pipe Clamp 2""",21,13.0,-8.0
+Hanging Material,"Isofonic Pipe Clamp 2 1/2""",425,425.0,0.0
+Hanging Material,"Isofonic Pipe Clamp 3""",378,370.0,-8.0
+Hanging Material,"Isofonic Pipe Clamp 4""",891,891.0,0.0
+Hanging Material,"Isofonic Pipe Clamp 6""",158,158.0,0.0
+Hanging Material,Perfected Channal 27x18x1.25,412,394.0,-18.0
+Hanging Material,Perfected Channal 41x21x2,30,25.0,-5.0
+Hanging Material,GI Threaded Rod M-8,1143,1094.0,-49.0
+Hanging Material,GI Threaded Rod M-10,1188,1063.0,-125.0
+Hanging Material,Drop In Anchor Bolt M-8,370,269.0,-101.0
+Hanging Material,Drop In Anchor Bolt M-10,722,222.0,-500.0
+Hanging Material,GI Hex Nut M-8,45.75,42.25,-3.5
+Hanging Material,GI Hex Nut M-10,40.8,29.8,-10.999999999999996
+Hanging Material,GI Plain Washer M-10,7.450000000000003,7.45,-2.6645352591003757e-15
+Hanging Material,Gi Nut Bolt,450,285.0,-165.0
+Lights,Torch Light,1,1.0,0.0
+Lights,Led Light 50w,4,4.0,0.0
+Lights,LED Light 200w,1,1.0,0.0
+Lights,LED Bulb 13W,1,0,-1
+Lights,LED Bulb 20W,3,3.0,0.0
+Cables,PVC Cable 7/36 2 Core,90,90.0,0.0
+Cables,PVC Cable 7/36,254,254.0,0.0
+Cables,PVC Cable 3/29x2Core,42,42.0,0.0
+Cables,Pvc Cable 10mmx2core,180,180.0,0.0
+Cables,PVC Cable 3/29x1Core,54,54.0,0.0
+Cables,PVC Cable 1.5mmx1Core Red,450,450.0,0.0
+Cables,PVC Cable 1.5mmx1Core Black,3600,3600.0,0.0
+Cables,PVC Cable 1.5mmx1Core Blue,360,360.0,0.0
+Cables,PVC Cable 1.5mmx1Core Green,5120,5120.0,0.0
+Cables,PVC Cable 2.5mmx1Core Red,7830,7830.0,0.0
+Cables,PVC Cable 2.5mmx1Core Black,22140,21690.0,-450.0
+Cables,PVC Cable 2.5mmx1Core Blue,9270,9000.0,-270.0
+Cables,PVC Cable 2.5mmx1Core Yellow,8460,8370.0,-90.0
+Cables,PVC Cable 2.5mmx1Core Green,22230,21780.0,-450.0
+Cables,PVC Cable 4mmx1Core Red,2970,2790.0,-180.0
+Cables,PVC Cable 4mmx1Core Black,10800,10530.0,-270.0
+Cables,PVC Cable 4mmx1Core Blue,2970,2880.0,-90.0
+Cables,PVC Cable 4mmx1Core Green,10800,10530.0,-270.0
+Cables,PVC Cable 4mmx1Core Yellow,2790,2700.0,-90.0
+Cables,PVC Cable 6mmx1Core Red,540,540.0,0.0
+Cables,PVC Cable 6mmx1Core Black,360,360.0,0.0
+Cables,PVC Cable 6mmx1Core Blue,1260,1260.0,0.0
+Cables,PVC Cable 6mmx1Core Yellow,90,90.0,0.0
+Cables,PVC Cable 6mmx1Core Green,720,720.0,0.0
+Electrical,"Baby Grinder 4""",3,3.0,0.0
+Electrical,"Grinder 9""",5,5.0,0.0
+Electrical,Ply Cutter,9,8.0,-1.0
+Electrical,Bending Wire Cutter (Katera),1,1.0,0.0
+Electrical,Drill Hilti Machine Small,1,1.0,0.0
+Electrical,Breaker 63Amp,1,1.0,0.0
+Electrical,Breaker 10Amp,2,1.0,-1.0
+Electrical,Thimble 25mm,12,12.0,0.0
+Electrical,Thimble 50mm,2,2.0,0.0
+Electrical,Thimble Cover,57,57.0,0.0
+Electrical,PVC Switch Socket,20,7.0,-13.0
+Electrical,PVC Male Female Switch,8,0,-8
+Electrical,PVC Bed Switch,11,17.0,6.0
+Electrical,Bulb Holder,22,21.0,-1.0
+Electrical,UPS,1,1.0,0.0
+Electrical,Battery,3,3.0,0.0
+Electrical,Battery XP 180 21 Plate,1,1.0,0.0
+Electrical,"Ceiling Fan 56""",4,3.0,-1.0
+Electrical,"DC Cabon Bracket Fan 12""",1,1.0,0.0
+Electrical,Carbon Bush,21,23.0,2.0
+Electrical,Dimmer Fan,27,27.0,0.0
+Electrical,Strip Wire,17,16.0,-1.0
+Electrical,Electric Iron,2,2.0,0.0
+Electrical,Electric Heater,4,4.0,0.0
+Electrical,Electric Rod For Heater,1,1.0,0.0
+Electrical,Spring For Electric Heater,17,17.0,0.0
+Electrical,Button For Electric Heater,4,4.0,0.0
+Electrical,Pvc Pipe For Air Cooler,1,1.0,0.0
+Electrical,Wings For Air Cooler,1,2.0,1.0
+Electrical,PVC Sheet 8+2,1,1.0,0.0
+Electrical,PVC Button,6,2.0,-4.0
+Electrical,Bell Push Button,1,1.0,0.0
+Electrical,3 Pin Shoe,2,2.0,0.0
+Electrical,"Water Pump 1""",5,5.0,0.0
+Electrical,Ampere Meter,1,1.0,0.0
+Electrical,Capacitor,9,8.0,-1.0
+Electrical,Battery Terminal,11,9.0,-2.0
+Electrical,Cell For Remote,44,39.0,-5.0
+Electrical,Cell For Clock,15,0,-15
+Electrical,Push Button,1,1.0,0.0
+Electrical,MS Wall Box 3x3,1057,897.0,-160.0
+Electrical,MS Wall Box 3x5,118,118.0,0.0
+Electrical,"Fan Box 6""",144,144.0,0.0
+Electrical,Charger For Car,1,1.0,0.0
+Electrical,Two Pin Shoe,7,7.0,0.0
+Electrical,Fues,10,10.0,0.0
+Electrical,Light Plug,29,29.0,0.0
+Electrical,Ampiler,1,1.0,0.0
+Electrical,Timer For Washing Machine,2,2.0,0.0
+Electrical,Iron Lead,2,2.0,0.0
+Electrical,Charger For Scale,1,1.0,0.0
+Electrical,Male Female Plug,2,2.0,0.0
+Electrical,Female Plug,1,1.0,0.0
+Electric Board Sheet,2 Gang Sheet,23,23.0,0.0
+Electric Board Sheet,3 Gang Sheet,5,5.0,0.0
+Electric Board Sheet,4 Gang Sheet,2,2.0,0.0
+Electric Board Sheet,6 Gang Sheet,2,2.0,0.0
+Computer & Printer,VGA Cable,2,2.0,0.0
+Computer & Printer,Power Cable,1,1.0,0.0
+Computer & Printer,Cable For Mobile Charger,1,1.0,0.0
+Computer & Printer,Hp Laser Printer A3,1,1.0,0.0
+Computer & Printer,USB Lead,1,1.0,0.0
+Computer & Printer,Ricoh Toner Set,1,1.0,0.0
+Computer & Printer,Projector (View Sonic),1,1.0,0.0
+Computer & Printer,SSD Hard Disc 256 GB,1,1.0,0.0
+Computer & Printer,SSD Hard Disc 128 GB,1,1.0,0.0
+Computer & Printer,Hard Disc 128 GB,1,1.0,0.0
+Computer & Printer,Mouse Pad,2,2.0,0.0
+Computer & Printer,Key Board,3,3.0,0.0
+Paint,Paint Off White,29.120000000000005,29.12,-3.552713678800501e-15
+Paint,Ash White Paint,3.2800000000000002,3.28,-4.440892098500626e-16
+Paint,Primer Paint,0.21000000000000085,0.21,-8.604228440844963e-16
+Paint,Enamel Paint White,4.549999999999997,4.55,2.6645352591003757e-15
+Paint,Enamel Paint Smoke Gray,5.460000000000001,5.46,-8.881784197001252e-16
+Paint,Spray Paint,9,12.0,3.0
+Paint,Weater Shield Paint,0.5600000000000023,0.56,-2.220446049250313e-15
+Paint,Plato Spray,1,1.0,0.0
+Tools,Tester,6,11.0,5.0
+Tools,Adjustable Wrench 10'',1,1.0,0.0
+Tools,Adjustable Wrench 8'',1,1.0,0.0
+Tools,"Adjustable Wrench 18""",1,1.0,0.0
+Tools,Ring Spanner #24,1,1.0,0.0
+Tools,Ring Spanner #25,1,1.0,0.0
+Tools,Goti Rod,1,1.0,0.0
+Tools,Goti 46#,1,1.0,0.0
+Tools,"Hand level 12""",2,2.0,0.0
+Tools,"Hand level 18""",1,1.0,0.0
+Tools,Oil Measuring Cane 10 ltr,1,1.0,0.0
+Tools,Aspirator Blower,3,3.0,0.0
+Tools,Grees Gun Adopter,2,2.0,0.0
+Tools,Vibrator Shaft,2,2.0,0.0
+Tools,T Pana,2,2.0,0.0
+Tools,Hilti Machine Small,3,3.0,0.0
+Tools,Jack,1,1.0,0.0
+Tools,Hand Oil Shift Pump,1,1.0,0.0
+Tools,Axe,1,1.0,0.0
+Tools,Silicone Gun,1,1.0,0.0
+Tools,Measuring Tape 5 Mtr,9,7.0,-2.0
+Tools,Measuring Tape 30 Mtr,2,2.0,0.0
+Tools,Mason Hammer,12,12.0,0.0
+Tools,Hammer,12,12.0,0.0
+Stationary,Calculator,4,4.0,0.0
+Stationary,Paper Rim A4,19,15.0,-4.0
+Stationary,Log Book,5,9.0,4.0
+Stationary,Inspection Request Book,21,15.0,-6.0
+Stationary,PR Book,24,24.0,0.0
+Stationary,Drafting Pad Large,15,11.0,-4.0
+Stationary,Led Pencil,54,39.0,-15.0
+Stationary,Correction Pen,14,11.0,-3.0
+Stationary,Ball Pen Blue,34,75.0,41.0
+Stationary,Ball Pen Red,19,18.0,-1.0
+Stationary,Gel Ball Pen,11,16.0,5.0
+Stationary,Notice Board Pin,2,2.0,0.0
+Stationary,Sticky Notes,8,7.0,-1.0
+Stationary,Attendance Register,5,5.0,0.0
+Stationary,Linning Register,1,0,-1
+Stationary,Stock Register,1,1.0,0.0
+Stationary,Box File A4,11,5.0,-6.0
+Stationary,Plastic File Cover,32,32.0,0.0
+Stationary,File Seprator,3,3.0,0.0
+Stationary,Stapler Pin Remover,3,3.0,0.0
+Stationary,Stapler,1,1.0,0.0
+Stationary,Paper Clip,6,6.0,0.0
+Stationary,Binder Clip,24,24.0,0.0
+Stationary,Paper Cutter,4,4.0,0.0
+Stationary,Envelop Small,130,130.0,0.0
+Stationary,High Lighter,25,20.0,-5.0
+Stationary,Permanent Marker,20,16.0,-4.0
+Stationary,Ink For Stamp Pad,3,3.0,0.0
+Stationary,Stamp,4,4.0,0.0
+Stationary,Stamp Pad,1,1.0,0.0
+Stationary,Gum Stick,2,2.0,0.0
+Stationary,Stabilizer,1,1.0,0.0
+Stationary,Envelop A4,121,121.0,0.0
+Stationary,Leave Pad,3,0,-3
+Stationary,Cleanence Pad,41,41.0,0.0
+Stationary,White Marker,7,6.0,-1.0
+Stationary,Plastic Jar,3,3.0,0.0
+Stationary,Scale Steel,4,3.0,-1.0
+Stationary,Shapner,15,14.0,-1.0
+Stationary,Holy Quran,1,1.0,0.0
+Mechanical,Fan Belt A31,5,5.0,0.0
+Mechanical,Fan Belt A32,4,4.0,0.0
+Mechanical,Fan Belt A39,2,2.0,0.0
+Mechanical,Fan Belt A52,1,1.0,0.0
+Mechanical,Fan Belt,8,7.0,-1.0
+Mechanical,Fan Belt A36,3,2.0,-1.0
+Mechanical,Fan Belt A35,3,5.0,2.0
+Mechanical,Air Filter,6,5.0,-1.0
+Mechanical,Oil Filter 3000,3,3.0,0.0
+Mechanical,Oil filter LF 3349,1,1.0,0.0
+Mechanical,Foam For Air Filter,3,3.0,0.0
+Mechanical,Petrol Vibrator Site Cover,5,4.0,-1.0
+Mechanical,Air Filling Pipe,2,1.0,-1.0
+Mechanical,Bearing,3,5.0,2.0
+Mechanical,Bearing 608-2,6,5.0,-1.0
+Mechanical,Bearing 6209,4,2.0,-2.0
+Mechanical,Bearing 6206,11,11.0,0.0
+Mechanical,Tee Nozzle For Mobile Pump,2,2.0,0.0
+Mechanical,Wall Plate For Donky Pump,1,1.0,0.0
+Mechanical,Boki For Donky Pump,6,6.0,0.0
+Mechanical,Tube For Tyre #650-12,4,4.0,0.0
+Mechanical,Washer For Spork Plug,5,5.0,0.0
+Mechanical,Spark Plug,12,12.0,0.0
+Mechanical,Rubber Seal 125 A,15,13.0,-2.0
+Mechanical,Compector Foundation,27,27.0,0.0
+Mechanical,Compector Tanki,3,3.0,0.0
+Mechanical,Starting Kick For Compector,11,10.0,-1.0
+Mechanical,Cylincer For Plate Compector,6,6.0,0.0
+Mechanical,Kick Pully For Plate Compector,6,6.0,0.0
+Mechanical,Tyre W/Tube For Bike,1,1.0,0.0
+Mechanical,Tyre Tube Rim For Wheel Barrow,10,10.0,0.0
+Mechanical,Clutch Cylinder,1,1.0,0.0
+Mechanical,Jan Kit,1,1.0,0.0
+Mechanical,Bike Tube Old,22,0,-22
+Mechanical,Bike Tube,1,1.0,0.0
+Mechanical,Spindle For Gate Valve,6,6.0,0.0
+Mechanical,Hydraulic Pipe,1,1.0,0.0
+Mechanical,Gress Nipple,24,11.0,-13.0
+Mechanical,Hydraulic Pipe,1,1.0,0.0
+Mechanical,Water Body,2,2.0,0.0
+Mechanical,Water Pump Seal,1,1.0,0.0
+Mechanical,Connecting Rod,1,1.0,0.0
+Mechanical,Warm,9,10.0,1.0
+Mechanical,Wall Seal,3,3.0,0.0
+Mechanical,Ring Piston Kit,1,0,-1
+Mechanical,Carter  Pin,2,4.0,2.0
+Mechanical,Rubber For Pressure Cooker,1,0,-1
+Mechanical,Carburetor Silai,1,1.0,0.0
+Mechanical,Excel For Wheel Barrow,16,16.0,0.0
+Mechanical,Ms Nut For Wheel Barrow Exal,52,51.0,-1.0
+Mechanical,Hub For Mixer Machine,2,2.0,0.0
+Mechanical,AVR Card,1,1.0,0.0
+Mechanical,Brake Leather,5,5.0,0.0
+Mechanical,Wheel Rim For Mixer Machine,4,4.0,0.0
+Mechanical,Jain Seal,10,8.0,-2.0
+Mechanical,Water Filter,1,1.0,0.0
+Mechanical,Water Seal,1,1.0,0.0
+Mechanical,Jan Sheet,1,0,-1
+Mechanical,Tee,4,4.0,0.0
+Shuttering Material,"Wooden Batten 3""x4""x8'",123,123.0,0.0
+Shuttering Material,"Wooden Batten 3""x4""x4'",2,2.0,0.0
+Shuttering Material,Wooden Planks,100,100.0,0.0
+Shuttering Material,Chamfer Gola,440,440.0,0.0
+Shuttering Material,Scaffolding Joint,11059,11059.0,0.0
+"Screw,Nail,Bolt & Washer",Wooden Screw 1/2'',1,0,-1
+"Screw,Nail,Bolt & Washer",Wooden Screw 1.5'',2,1.0,-1.0
+"Screw,Nail,Bolt & Washer",China Screw,14,14.0,0.0
+"Screw,Nail,Bolt & Washer","MS Nail 1.5""",0.5,0.5,0.0
+"Screw,Nail,Bolt & Washer","MS Nail 2""",0.650000000000091,0,-0.650000000000091
+"Screw,Nail,Bolt & Washer","MS Nail 2.5""",4,4.0,0.0
+"Screw,Nail,Bolt & Washer","MS Nail 4""",35,35.0,0.0
+"Screw,Nail,Bolt & Washer","Steel Nail 1""",3,1.0,-2.0
+"Screw,Nail,Bolt & Washer",Steel Nail 1.5'',7,3.0,-4.0
+"Screw,Nail,Bolt & Washer",Nut,40,40.0,0.0
+"Screw,Nail,Bolt & Washer",T Nut Bolt,704,634.0,-70.0
+"Screw,Nail,Bolt & Washer",Stud W/Nut,20,20.0,0.0
+"Screw,Nail,Bolt & Washer",Bolt Kit For Wash Bason,24,24.0,0.0
+"Screw,Nail,Bolt & Washer",L Key Bolt,10,10.0,0.0
+"Screw,Nail,Bolt & Washer",MS Bolt,17.25999999999999,17.26,1.0658141036401503e-14
+"Screw,Nail,Bolt & Washer",MS Nut,0.5,0.5,0.0
+"Screw,Nail,Bolt & Washer",MS Washer,4.060000000000059,0.06,-4.0000000000000595
+"Screw,Nail,Bolt & Washer",Spring Washer,25,25.0,0.0
+"Screw,Nail,Bolt & Washer",Seel Washer,3,1.0,-2.0
+General H/w Material,Hilty Bit,8,14.0,6.0
+General H/w Material,Drill Bit 6mm,10,3.0,-7.0
+General H/w Material,"Wooden Bit 1""",11,11.0,0.0
+General H/w Material,"Wooden Bit 1-1/4""",5,5.0,0.0
+General H/w Material,Pvc Tape,48,64.0,16.0
+General H/w Material,Banding Tape,4,5.0,1.0
+General H/w Material,Double Tape,1,1.0,0.0
+General H/w Material,HT Tape,5,5.0,0.0
+General H/w Material,"Masking Tape 1""",25,22.0,-3.0
+General H/w Material,Warning Tape,27,25.0,-2.0
+General H/w Material,"Packing Tape 2""",5,10.0,5.0
+General H/w Material,Steel Floot,10,0,-10
+General H/w Material,Foam Floot,29,29.0,0.0
+General H/w Material,"Wooden Floot 12""",1,0,-1
+General H/w Material,Plastic China Floot,48,15.0,-33.0
+General H/w Material,"Concrete Cutting Disc 4""",33,33.0,0.0
+General H/w Material,"Concrete Cutting Disc 7""",31,29.0,-2.0
+General H/w Material,"Concrete Cutting Disc 9""",13,8.0,-5.0
+General H/w Material,"Wood Cutting Disc 9""",1,0,-1
+General H/w Material,"Steel Cutting Disc 4""",1,3.0,2.0
+General H/w Material,"Steel Cutting Disc 7""",17,17.0,0.0
+General H/w Material,"Steel Cutting Disc 9""",14,10.0,-4.0
+General H/w Material,"Grinding Disc 9""",5,4.0,-1.0
+General H/w Material,MS Chain,11.39,11.39,0.0
+General H/w Material,Grinder Wire Brush,7,7.0,0.0
+General H/w Material,Duster Cloth,5,0,-5
+General H/w Material,Haison Cloth,6,6.0,0.0
+General H/w Material,Cloth For Electric Iron,1,1.0,0.0
+General H/w Material,Chimta For Pratha,1,1.0,0.0
+General H/w Material,Filter Cloth For Boaring,4,4.0,0.0
+General H/w Material,Cloth,2,2.0,0.0
+General H/w Material,Wire Brush,54,39.0,-15.0
+General H/w Material,"Paint Brush 2""",1,1.0,0.0
+General H/w Material,Stick Brush,1,1.0,0.0
+General H/w Material,Narial Brush,77,67.0,-10.0
+General H/w Material,Toilet Brush,1,1.0,0.0
+General H/w Material,Cloth Washing Brush,1,1.0,0.0
+General H/w Material,Plastic Dori,1,0,-1
+General H/w Material,Fish Dori,6,0,-6
+General H/w Material,MS Angle,36.49999999999909,36.5,9.094947017729282e-13
+General H/w Material,"MS Flunch 2""",2,2.0,0.0
+General H/w Material,MS Panji,1,0,-1
+General H/w Material,MS Wings For Water Pump,2,2.0,0.0
+General H/w Material,MS Plate,161.75,113.95,-47.8
+General H/w Material,"Door Frame 5""x7'x2'-6""",24,24.0,0.0
+General H/w Material,"Door Frame 5""x7'x3'",142,142.0,0.0
+General H/w Material,"Door Frame 5""x7'x3'-6""",172,172.0,0.0
+General H/w Material,"Door Frame 5""x8'x3'-6""",3,3.0,0.0
+General H/w Material,"Door Frame 5""x6'x7'",26,26.0,0.0
+General H/w Material,"Door Frame 5""x5'x7'",38,38.0,0.0
+General H/w Material,"Door Frame 5""x4'x7'",2,2.0,0.0
+General H/w Material,"Door Frame 5""x4'x8'",15,15.0,0.0
+General H/w Material,"Door Frame 5""x8'x7'",2,2.0,0.0
+General H/w Material,"Door Frame 5""x7'-1""x-6'",11,11.0,0.0
+General H/w Material,"Door Frame 5""x8-1""'x3'-6""",1,1.0,0.0
+General H/w Material,"Door Frame 5""x7'-1""x-3'-6""",11,11.0,0.0
+General H/w Material,"Door Frame 5""x7'-1""x-3'",33,33.0,0.0
+General H/w Material,MS Clamp 125 A,1,0,-1
+General H/w Material,MS Ring For Brommer,3,3.0,0.0
+General H/w Material,MS Ring For Kassi,12,12.0,0.0
+General H/w Material,Tarpal 18x30,2,1.0,-1.0
+General H/w Material,Tarpal 18x21,2,2.0,0.0
+General H/w Material,Tarpal 36x40,1,1.0,0.0
+General H/w Material,Tarpal 10x12,1,1.0,0.0
+General H/w Material,Tarpal 40'x40',3,3.0,0.0
+General H/w Material,Motor Pan,27.180000000000007,25.18,-2.000000000000007
+General H/w Material,Hand Shovel,21,15.0,-6.0
+General H/w Material,Kassi with Handle,8,7.0,-1.0
+General H/w Material,Polythene Sheet,194.5,2.0,-192.5
+General H/w Material,Polythene Sheet 500 Gauge,31,17.2,-13.8
+General H/w Material,Sponge Foam,95,18.0,-77.0
+General H/w Material,Steel Cot,39,30.0,-9.0
+General H/w Material,Chisel,7,7.0,0.0
+General H/w Material,Mattress Cover Single,1,1.0,0.0
+General H/w Material,Wheel Barrow,4,0,-4
+General H/w Material,Cotton Waste,103,78.5,-24.5
+General H/w Material,Hexa Blade,24,15.0,-9.0
+General H/w Material,Emery Paper,21,21.0,0.0
+General H/w Material,Emery Paper Roll,38,38.0,0.0
+General H/w Material,Mortein Spray,1,1.0,0.0
+General H/w Material,MS Bucket,6,6.0,0.0
+General H/w Material,Wooden Handle,71,78.0,7.0
+General H/w Material,Elfy,2,2.0,0.0
+General H/w Material,Samad Bond,3,2.0,-1.0
+General H/w Material,Cotton Thread,337,335.0,-2.0
+General H/w Material,Air Freshner,2,2.0,0.0
+General H/w Material,Rawal Plug,109,108.0,-1.0
+General H/w Material,Silicone,4,0,-4
+General H/w Material,Bed Sheet Double,1,1.0,0.0
+General H/w Material,Surf,10,6.0,-4.0
+General H/w Material,Plastic Chatai,1,1.0,0.0
+General H/w Material,Panaflex,2,2.0,0.0
+General H/w Material,Magic,10,8.0,-2.0
+General H/w Material,Handle For Hammer,18,18.0,0.0
+General H/w Material,Rubber Gloves,57,28.0,-29.0
+General H/w Material,Cotton Gloves,247,210.0,-37.0
+General H/w Material,Leather Gloves,1,1.0,0.0
+General H/w Material,Chalk,11,11.0,0.0
+General H/w Material,Empty Plastic Can,2,3.0,1.0
+General H/w Material,Wooden Stair,1,1.0,0.0
+General H/w Material,ICE Block,1006,1161.5,155.5
+General H/w Material,Paint Roller,3,3.0,0.0
+General H/w Material,"Paint Roller Cover 4""",4,4.0,0.0
+General H/w Material,Plastic Choki,1,1.0,0.0
+General H/w Material,Plumb Bob (Saal),2,1.0,-1.0
+General H/w Material,Marbal Spacer,20,20.0,0.0
+General H/w Material,Tile Spacer,5,5.0,0.0
+General H/w Material,Marble,2,2.0,0.0
+General H/w Material,Keef Plastic,2,2.0,0.0
+General H/w Material,Seaser,1,2.0,1.0
+General H/w Material,Water For Battery,15,11.0,-4.0
+General H/w Material,Grari For Joicer Machine,3,3.0,0.0
+General H/w Material,Blender Juicer Jug Bace,1,1.0,0.0
+General H/w Material,Dispenser Bottal Stand,1,1.0,0.0
+General H/w Material,Dispenser Bottal nozzal,1,1.0,0.0
+General H/w Material,Bottle Shower,1,1.0,0.0
+General H/w Material,Sleeper,4,4.0,0.0
+General H/w Material,Spring,2,1.0,-1.0
+General H/w Material,Pipe For Cylinder,7,7.0,0.0
+General H/w Material,Water Pressure Nipple,2,0,-2
+General H/w Material,"Flexible Pipe 1""",24,14.0,-10.0
+General H/w Material,Medican,2,2.0,0.0
+General H/w Material,ORS Sachet,19,19.0,0.0
+General H/w Material,Calcium,32,32.0,0.0
+General H/w Material,Curtain,2,2.0,0.0
+General H/w Material,"Curring Pipe 1""",75,75.0,0.0
+General H/w Material,"Curring Pipe 3/4""",57,140.84,83.84
+General H/w Material,U Clip,12,12.0,0.0
+General H/w Material,Medicine,2,2.0,0.0
+General H/w Material,Grass For Bred Gaddi,1,1.0,0.0
+General H/w Material,Plastic Shoping Bag,5,5.0,0.0
+Lock & Latches,Pad Lock,18,17.0,-1.0
+Lock & Latches,Daraz Lock,5,3.0,-2.0
+Lock & Latches,Aluminum Jali,27,27.0,0.0
+Lock & Latches,Aluminum Window Lock,5,5.0,0.0
+Lock & Latches,Key For Pad Lock,2,2.0,0.0
+Lock & Latches,Door Cylinder,7,7.0,0.0
+Lock & Latches,Door Kundi,2,2.0,0.0
+Lock & Latches,"Hapes & Staple 8""",1,2.0,1.0
+Furniture,Visiter Chair,3,3.0,0.0
+Furniture,Office Table,1,1.0,0.0
+Safety Material,Safety Shoes For Labour,144,134.0,-10.0
+Safety Material,Safety Shoes For Security,1,1.0,0.0
+Safety Material,Safety Jacket,12,12.0,0.0
+Safety Material,Safety Halmet White,36,36.0,0.0
+Safety Material,Safety Halmet Yellow,157,157.0,0.0
+Safety Material,Helmet For Bike,2,2.0,0.0
+Safety Material,Gum Shoes,11,0,-11
+Safety Material,Round Cap For Staff,1,1.0,0.0
+Safety Material,Security Cap,1,0,-1
+Safety Material,Stethoscope Master,1,1.0,0.0
+Messing & Tentage,Tea Mug With Saucer,11,5.0,-6.0
+Messing & Tentage,Tea Mug,21,21.0,0.0
+Messing & Tentage,Tea Strainer,2,2.0,0.0
+Messing & Tentage,Glass Crystal,6,0,-6
+Messing & Tentage,Plastic Mug,3,3.0,0.0
+Messing & Tentage,Plastic Water Cooler,2,0,-2
+Messing & Tentage,Plastic Plate,6,6.0,0.0
+Messing & Tentage,Plastic jug,6,6.0,0.0
+Messing & Tentage,Plastic Bowl,2,2.0,0.0
+Messing & Tentage,Plastic Tokri,1,1.0,0.0
+Messing & Tentage,Silver Patila,1,1.0,0.0
+Messing & Tentage,Hot Pot,1,1.0,0.0
+Messing & Tentage,Cutter For Potatos,4,4.0,0.0
+Messing & Tentage,Griddle,2,2.0,0.0
+Messing & Tentage,Burner,1,1.0,0.0
+Messing & Tentage,Roti Romal,6,6.0,0.0
+Messing & Tentage,Disposable Cap,1,1.0,0.0
+Messing & Tentage,Tandoor For Bred,2,2.0,0.0
+Messing & Tentage,Tandoor Stick,2,2.0,0.0
+Messing & Tentage,Kitchen Apron,1,1.0,0.0
+Welding,Welding Rod 10#,31.5,41.5,10.0
+Welding,Welding Glass,23,22.0,-1.0
+Welding,Glasses,48,51.0,3.0
+Sanitary Fitting,Bib Cock Plastic,8,3.0,-5.0
+Sanitary Fitting,Bib Cock Steel,1,1.0,0.0
+Sanitary Fitting,Soap Dish,8,8.0,0.0
+Sanitary Fitting,WC Indian,9,9.0,0.0
+Sanitary Fitting,Commode,2,2.0,0.0
+Sanitary Fitting,Lever For Commod,1,1.0,0.0
+Sanitary Fitting,Shower Head,4,4.0,0.0
+Sanitary Fitting,Wash Basin,4,4.0,0.0
+Sanitary Fitting,Wast Pipe,1,2.0,1.0
+Sanitary Fitting,Coupline Washal,2,2.0,0.0
+Sanitary Fitting,Machine For Flush Tank,1,1.0,0.0
+Sanitary Fitting,Rubber Connection Pipe,2,2.0,0.0
+Sanitary Fitting,Basin Mixer,12,12.0,0.0
+Sanitary Fitting,Muslim Shower,7,7.0,0.0
+Sanitary Fitting,Looking Mirror,1,1.0,0.0
+Sanitary Fitting,Clip For Looking Mirrar,6,6.0,0.0
+Cleaning Material,Plastic Bag For Dust Bin,3,3.0,0.0
+Cleaning Material,Plastic Ewer,8,8.0,0.0
+Cleaning Material,Brommer Stick,5.5,0,-5.5
+Cleaning Material,Wiper,7,11.0,4.0
+Cleaning Material,Tissue,2,2.0,0.0
+Cleaning Material,Phenyle,5.500000000000085,0.5,-5.000000000000085
+Cleaning Material,Brommer,4.5,2.5,-2.0
+Cleaning Material,Tower Bolt,11,17.0,6.0
+Cleaning Material,Thermometer,1,1.0,0.0
+Cleaning Material,Crtrage For Water Filter,1,0,-1
+
+"=== PURCHASE RECEIPTS AUDIT (since 2026-10-21, target account 230400000) ==="
+Picking,Date,Product,Category,Cost Method,Qty,Value,Currently Configured Account,Target Account,Accounts Actually on JE,Status
