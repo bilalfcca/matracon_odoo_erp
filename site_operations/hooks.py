@@ -746,6 +746,103 @@ def fix_petty_cash_expense_accounts(env):
             ', '.join(unfixed_step3[:20]),
         )
 
+    # ── Step 4: Backfill missing partner on employee & subcontractor advances ───
+    # Resolves/creates res.partner for employee advances and stamps partner_id
+    # on expense lines and corresponding journal entry debit lines where missing.
+    emp_advance_lines = env['x.petty.cash.expense.line'].sudo().search([
+        ('is_employee_advance', '=', True),
+        ('employee_id', '!=', False),
+    ])
+    fixed_emp_lines = 0
+    fixed_aml = 0
+    for eline in emp_advance_lines:
+        partner = eline.employee_id._get_or_create_partner()
+        if not partner:
+            continue
+        if not eline.partner_id:
+            eline.write({'partner_id': partner.id})
+            fixed_emp_lines += 1
+
+        move = eline.expense_id.x_account_move_id
+        if move:
+            env.cr.execute("""
+                UPDATE account_move_line
+                   SET partner_id = %s
+                 WHERE id = (
+                     SELECT id FROM account_move_line
+                      WHERE move_id = %s
+                        AND debit > 0
+                        AND partner_id IS NULL
+                        AND abs(debit - %s) < 0.01
+                      ORDER BY id ASC
+                      LIMIT 1
+                 )
+            """, (partner.id, move.id, eline.amount))
+            if env.cr.rowcount == 0:
+                env.cr.execute("""
+                    UPDATE account_move_line
+                       SET partner_id = %s
+                     WHERE id = (
+                         SELECT id FROM account_move_line
+                          WHERE move_id = %s
+                            AND debit > 0
+                            AND partner_id IS NULL
+                          ORDER BY id ASC
+                          LIMIT 1
+                     )
+                """, (partner.id, move.id))
+            fixed_aml += env.cr.rowcount
+
+    sc_advance_lines = env['x.petty.cash.expense.line'].sudo().search([
+        ('is_subcontractor_advance', '=', True),
+        ('advance_subcontractor_id', '!=', False),
+    ])
+    fixed_sc_lines = 0
+    for scline in sc_advance_lines:
+        partner = scline.advance_subcontractor_id
+        if not scline.partner_id:
+            scline.write({'partner_id': partner.id})
+            fixed_sc_lines += 1
+
+        move = scline.expense_id.x_account_move_id
+        if move:
+            env.cr.execute("""
+                UPDATE account_move_line
+                   SET partner_id = %s
+                 WHERE id = (
+                     SELECT id FROM account_move_line
+                      WHERE move_id = %s
+                        AND debit > 0
+                        AND partner_id IS NULL
+                        AND abs(debit - %s) < 0.01
+                      ORDER BY id ASC
+                      LIMIT 1
+                 )
+            """, (partner.id, move.id, scline.amount))
+            if env.cr.rowcount == 0:
+                env.cr.execute("""
+                    UPDATE account_move_line
+                       SET partner_id = %s
+                     WHERE id = (
+                         SELECT id FROM account_move_line
+                          WHERE move_id = %s
+                            AND debit > 0
+                            AND partner_id IS NULL
+                          ORDER BY id ASC
+                          LIMIT 1
+                     )
+                """, (partner.id, move.id))
+            fixed_aml += env.cr.rowcount
+
+    if fixed_aml:
+        env['account.move'].invalidate_model()
+        env['account.move.line'].invalidate_model()
+        _logger.info(
+            'fix_petty_cash_expense_accounts: stamped advance partner on %d employee line(s), '
+            '%d SC line(s), and %d journal entry debit line(s)',
+            fixed_emp_lines, fixed_sc_lines, fixed_aml,
+        )
+
 
 def setup_main_accounts_and_bank_children(env):
     """Mark Main accounts (x_is_main=True), create 3 child accounts per bank,

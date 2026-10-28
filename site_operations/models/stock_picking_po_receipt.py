@@ -100,16 +100,22 @@ class StockPickingPoReceipt(models.Model):
         if order.picking_type_id.code == 'incoming':
             self.picking_type_id = order.picking_type_id
         self.origin = order.name
+        if hasattr(self, 'purchase_id'):
+            try:
+                self.purchase_id = order
+            except Exception:
+                pass
         commands = [Command.clear()]
         for line in order.order_line:
             qty = line._mtr_qty_to_receive()
             if not qty:
                 continue
-            product_qty, product_uom = line.product_uom_id._adjust_uom_quantities(
-                qty, line.product_id.uom_id)
             vals = line._prepare_stock_move_vals(
-                self, line._get_stock_move_price_unit(), product_qty, product_uom)
+                self, line._get_stock_move_price_unit(), qty, line.product_uom_id)
+            vals['quantity'] = qty
             vals.pop('picking_id', None)
+            if not vals.get('location_id') and self.location_id:
+                vals['location_id'] = self.location_id.id
             commands.append(Command.create(vals))
         self.move_ids = commands
 
@@ -129,6 +135,10 @@ class StockPickingPoReceipt(models.Model):
             self._mtr_confirm_po_receipt()
         return res
 
+    def button_validate(self):
+        self._mtr_confirm_po_receipt()
+        return super().button_validate()
+
     def _mtr_confirm_po_receipt(self):
         """Confirm a draft receipt made from a PO, like the one Odoo creates on
         PO confirmation: it opens at Ready with an editable "Receiving Now", and
@@ -137,7 +147,12 @@ class StockPickingPoReceipt(models.Model):
             lambda p: p.x_source_po_id and p.state == 'draft'
             and p.picking_type_code == 'incoming' and p.move_ids)
         if to_confirm:
+            qty_by_move = {m: m.quantity for p in to_confirm for m in p.move_ids}
             to_confirm.action_confirm()
+            to_confirm.action_assign()
+            for move, qty in qty_by_move.items():
+                if move.state not in ('done', 'cancel') and move.quantity != qty:
+                    move.quantity = qty
 
     def _mtr_link_po_lines(self):
         """Link lines to their PO line when the client did not send it.

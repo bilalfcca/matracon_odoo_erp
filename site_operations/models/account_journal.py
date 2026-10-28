@@ -1,8 +1,19 @@
-from odoo import models, api
+from odoo import models, fields, api
 
 
 class AccountJournalSiteOps(models.Model):
     _inherit = 'account.journal'
+
+    bg_facility_ids = fields.One2many(
+        'x.bank.guarantee.facility', 'journal_id', string='Bank Guarantee Facilities'
+    )
+    x_cash_margin_account_id = fields.Many2one(
+        'account.account',
+        string='Cash Margin Account',
+        domain="[('x_is_main', '=', False)]",
+        help='Cash Margin account used for bank guarantees issued through this bank. '
+             'If left empty, automatically determined from the bank\'s Cash Margin child account.',
+    )
 
     def _matracon_sync_payment_method_accounts(self):
         """For every bank/cash journal, set payment_account_id on all Manual

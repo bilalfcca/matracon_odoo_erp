@@ -268,6 +268,12 @@ class PettyCashRequest(models.Model):
         'account.payment', 'x_petty_cash_request_id', string='Payments', readonly=True)
     currency_id = fields.Many2one(
         'res.currency', default=lambda self: self.env.company.currency_id)
+    x_cheque_number = fields.Char(
+        string='Cheque Number',
+        tracking=True,
+        copy=False,
+        help='Cheque number or payment transaction reference for petty cash release.',
+    )
 
     # ── Approval tracking for digital signatures on PDF ───────────────────
     x_ceo_approved_by_id = fields.Many2one(
@@ -391,7 +397,12 @@ class PettyCashRequest(models.Model):
                     super(PettyCashRequest, rest).write(vals)
                 return True
 
-        return super().write(vals)
+        res = super().write(vals)
+        if 'x_cheque_number' in vals:
+            for req in self:
+                if req.payment_id and req.payment_id.x_cheque_number != req.x_cheque_number:
+                    req.payment_id.sudo().write({'x_cheque_number': req.x_cheque_number})
+        return res
 
     def action_ceo_approve(self):
         for req in self:
@@ -630,7 +641,12 @@ class PettyCashRequest(models.Model):
             'x_payment_category': 'petty_cash',
             'x_ceo_approval_state': 'approved',
             'x_destination_project_id': analytic.id if analytic else False,
+            'x_cheque_number': self.x_cheque_number or False,
+            'memo': _('Petty Cash Release — %s') % self.name,
+            'x_account_title': self.fund_id.name or (analytic.name if analytic else ''),
         }
+        if self.create_uid and self.create_uid.partner_id:
+            payment_vals['partner_id'] = self.create_uid.partner_id.id
         payment = Payment.create(payment_vals)
 
         # Set destination_account_id as a UI hint so Finance HO sees the correct
@@ -659,6 +675,25 @@ class PettyCashRequest(models.Model):
             'res_id': self.fund_id.id,
             'target': 'new',
         }
+
+    def action_view_payment(self):
+        self.ensure_one()
+        if not self.payment_id:
+            raise UserError(_('No release payment found for this request.'))
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Release Payment'),
+            'res_model': 'account.payment',
+            'view_mode': 'form',
+            'res_id': self.payment_id.id,
+        }
+
+    def action_print_payment_voucher(self):
+        """Print Bank Payment Voucher for the linked release payment."""
+        self.ensure_one()
+        if not self.payment_id:
+            raise UserError(_('No release payment found for this petty cash request.'))
+        return self.env.ref('site_operations.action_report_bank_payment_voucher').report_action(self.payment_id)
 
     def action_confirm_receipt(self):
         for req in self:
@@ -879,7 +914,6 @@ class PettyCashExpenseLine(models.Model):
     expense_account_id = fields.Many2one(
         'account.account',
         string='Account (Debit)',
-        options="{'no_create': True}",
         help='GL account to debit. Leave blank to use the expense category default.',
     )
 
@@ -916,8 +950,10 @@ class PettyCashExpenseLine(models.Model):
 
     @api.onchange('is_employee_advance', 'employee_id')
     def _onchange_emp_advance_partner(self):
-        if self.is_employee_advance and self.employee_id.work_contact_id:
-            self.partner_id = self.employee_id.work_contact_id
+        if self.is_employee_advance and self.employee_id:
+            partner = self.employee_id._get_or_create_partner()
+            if partner:
+                self.partner_id = partner
 
     def _mtr_partner(self):
         """Partner posted on this line: the Partner column, else the advance payee."""
@@ -926,9 +962,32 @@ class PettyCashExpenseLine(models.Model):
             return self.partner_id
         if self.is_subcontractor_advance and self.advance_subcontractor_id:
             return self.advance_subcontractor_id
-        if self.is_employee_advance and self.employee_id.work_contact_id:
-            return self.employee_id.work_contact_id
+        if self.is_employee_advance and self.employee_id:
+            return self.employee_id._get_or_create_partner()
         return self.env['res.partner']
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        for vals in vals_list:
+            if vals.get('is_employee_advance') and vals.get('employee_id') and not vals.get('partner_id'):
+                emp = self.env['hr.employee'].browse(vals['employee_id'])
+                partner = emp._get_or_create_partner()
+                if partner:
+                    vals['partner_id'] = partner.id
+            elif vals.get('is_subcontractor_advance') and vals.get('advance_subcontractor_id') and not vals.get('partner_id'):
+                vals['partner_id'] = vals['advance_subcontractor_id']
+        return super().create(vals_list)
+
+    def write(self, vals):
+        res = super().write(vals)
+        for line in self:
+            if line.is_employee_advance and line.employee_id and not line.partner_id:
+                partner = line.employee_id._get_or_create_partner()
+                if partner:
+                    super(PettyCashExpenseLine, line).write({'partner_id': partner.id})
+            elif line.is_subcontractor_advance and line.advance_subcontractor_id and not line.partner_id:
+                super(PettyCashExpenseLine, line).write({'partner_id': line.advance_subcontractor_id.id})
+        return res
 
 
 class PettyCashExpense(models.Model):
@@ -1422,6 +1481,11 @@ class PettyCashExpense(models.Model):
             if not debit_account:
                 debit_account = credit_account
             partner = line._mtr_partner()
+            if partner and not line.partner_id:
+                try:
+                    line.sudo().write({'partner_id': partner.id})
+                except Exception:
+                    pass
 
             je_debit_lines.append((0, 0, {
                 'name': line.name,
@@ -1435,19 +1499,27 @@ class PettyCashExpense(models.Model):
             if partner and debit_account.account_type not in partner_ledger_types:
                 payable = partner.with_company(self.env.company).property_account_payable_id
                 if not payable:
-                    raise UserError(_(
-                        'Line "%(line)s": partner %(partner)s has no Account Payable set.\n\n'
-                        'Set it on the contact (Accounting tab) and post again.'
-                    ) % {'line': line.name, 'partner': partner.display_name})
-                for debit, credit in ((0.0, line.amount), (line.amount, 0.0)):
-                    je_debit_lines.append((0, 0, {
-                        'name': line.name,
-                        'account_id': payable.id,
-                        'partner_id': partner.id,
-                        'debit': debit,
-                        'credit': credit,
-                        'analytic_distribution': analytic_distribution or False,
-                    }))
+                    payable = self.env['account.account'].search([
+                        ('account_type', '=', 'liability_payable'),
+                        ('company_id', '=', self.env.company.id),
+                    ], limit=1)
+                    if payable:
+                        try:
+                            partner.sudo().with_company(self.env.company).write({
+                                'property_account_payable_id': payable.id
+                            })
+                        except Exception:
+                            pass
+                if payable:
+                    for debit, credit in ((0.0, line.amount), (line.amount, 0.0)):
+                        je_debit_lines.append((0, 0, {
+                            'name': line.name,
+                            'account_id': payable.id,
+                            'partner_id': partner.id,
+                            'debit': debit,
+                            'credit': credit,
+                            'analytic_distribution': analytic_distribution or False,
+                        }))
 
         # Credit-line label: a manually-typed Journal Entry normally carries a
         # real description on BOTH sides of the transaction. This used to be a
@@ -1491,26 +1563,44 @@ class PettyCashExpense(models.Model):
             ))
         # Created with system rights: posting an expense is what authorises this entry,
         # and Accountant HO has no accounting role of its own. create_uid stays the user.
-        move = self.env['account.move'].sudo().create(move_vals)
-        move.action_post()
-        self.x_account_move_id = move
+        existing_move = self.x_account_move_id.sudo()
+        if existing_move and existing_move.state == 'draft':
+            existing_move.write({
+                'journal_id': cash_journal.id if cash_journal else False,
+                'date': self.expense_date,
+                'ref': _('Petty Cash: %s') % ref_label,
+                'line_ids': [(5, 0, 0)] + je_debit_lines + [
+                    (0, 0, {
+                        'name': credit_line_name,
+                        'account_id': credit_account.id,
+                        'debit': 0.0,
+                        'credit': self.amount,
+                        'analytic_distribution': analytic_distribution or False,
+                    }),
+                ],
+            })
+            existing_move.action_post()
+        else:
+            move = self.env['account.move'].sudo().create(move_vals)
+            move.action_post()
+            self.x_account_move_id = move
 
     def action_reset_to_draft(self):
         """Reset a posted petty cash expense back to Draft.
 
         Steps:
-          1. Cancel/reverse the linked journal entry (if any) so the GL is clean.
+          1. Reset the linked journal entry (if any) to draft so the GL is clean.
           2. If this was an employee advance, subtract the amount from the
              employee's outstanding advance balance.
-          3. Clear snapshot fields (balance_before / balance_after) and the
-             link to the journal entry.
+          3. Clear snapshot fields (balance_before / balance_after). The link
+             to x_account_move_id is preserved so changes can be made and re-posted.
           4. Set state → 'draft'.
 
-        Access: Finance HO, Matracon Admin, System Administrator.
-        Site Accountants are intentionally excluded — they can post but cannot
-        undo a posting without Finance HO involvement.
+        Access: Site Accountants, Accountant HO, Finance HO, Matracon Admin, System Administrator.
         """
         allowed_groups = [
+            'site_operations.group_site_accountant',
+            'site_operations.group_accountant_ho',
             'site_operations.group_finance_ho',
             'purchase_demand_raise.group_ceo_approval',
             'purchase_demand_raise.group_matracon_admin',
@@ -1518,20 +1608,17 @@ class PettyCashExpense(models.Model):
         ]
         if not any(self.env.user.has_group(g) for g in allowed_groups):
             raise UserError(_(
-                'Only Finance HO, CEO or Matracon Admin can reset a petty cash expense to Draft.'
+                'Only Site Accountants, Finance HO, CEO or Matracon Admin can reset a petty cash expense to Draft.'
             ))
 
         for expense in self:
             if expense.state == 'draft':
                 continue  # already draft, skip silently
 
-            # ── 1. Cancel the journal entry ───────────────────────────────────
+            # ── 1. Reset the linked journal entry to draft ───────────────────
             move = expense.x_account_move_id
-            if move and move.state == 'posted':
-                move.button_cancel()   # resets the JE to cancel state
-            elif move and move.state != 'cancel':
-                # Draft JE — just unlink it
-                move.unlink()
+            if move and move.state != 'draft':
+                move.sudo().button_draft()
 
             # ── 2. Reverse employee advance balance for each advance line ─────
             for line in expense.line_ids:
@@ -1548,15 +1635,14 @@ class PettyCashExpense(models.Model):
                         'amount': f'{line.amount:,.2f}',
                     })
 
-            # ── 3. Clear snapshot & JE link ───────────────────────────────────
+            # ── 3. Clear snapshot fields ──────────────────────────────────────
             expense.write({
                 'state': 'draft',
-                'x_account_move_id': False,
                 'x_balance_before': 0.0,
                 'x_balance_after': 0.0,
             })
 
-            expense.message_post(body=_('Expense reset to Draft.'))
+            expense.message_post(body=_('Expense reset to Draft. Linked journal entry reset to Draft.'))
 
     def action_print_expense_voucher(self):
         return self.env.ref(
@@ -1576,6 +1662,8 @@ class PettyCashExpense(models.Model):
         for rec in self:
             if rec.state != 'draft':
                 raise UserError(_('Only draft petty cash expenses can be deleted.'))
+            if rec.x_account_move_id and rec.x_account_move_id.state == 'draft':
+                rec.x_account_move_id.sudo().unlink()
         return super().unlink()
 
     @api.model
@@ -1679,9 +1767,136 @@ class PettyCashExpense(models.Model):
             },
         }
 
+    @api.model
+    def action_admin_fix_employee_advance_partners(self):
+        """Admin Fix Tool: resolve/create partner for all employees used in Petty Cash
+        Expenses, and backfill the partner on both the expense lines and the posted
+        journal entry debit lines (account.move.line) in the General Ledger.
+        """
+        if not (self.env.user.has_group('purchase_demand_raise.group_matracon_admin')
+                or self.env.user.has_group('base.group_system')
+                or self.env.user.has_group('site_operations.group_finance_ho')):
+            raise UserError(_('Only Finance HO, Matracon Admin or System Administrator can run this action.'))
+
+        emp_advance_lines = self.env['x.petty.cash.expense.line'].sudo().search([
+            ('is_employee_advance', '=', True),
+            ('employee_id', '!=', False),
+        ])
+        fixed_emp_lines = 0
+        fixed_aml = 0
+        for eline in emp_advance_lines:
+            partner = eline.employee_id._get_or_create_partner()
+            if not partner:
+                continue
+            if not eline.partner_id:
+                eline.write({'partner_id': partner.id})
+                fixed_emp_lines += 1
+
+            move = eline.expense_id.x_account_move_id
+            if move:
+                self.env.cr.execute("""
+                    UPDATE account_move_line
+                       SET partner_id = %s
+                     WHERE id = (
+                         SELECT id FROM account_move_line
+                          WHERE move_id = %s
+                            AND debit > 0
+                            AND partner_id IS NULL
+                            AND abs(debit - %s) < 0.01
+                          ORDER BY id ASC
+                          LIMIT 1
+                     )
+                """, (partner.id, move.id, eline.amount))
+                if self.env.cr.rowcount == 0:
+                    self.env.cr.execute("""
+                        UPDATE account_move_line
+                           SET partner_id = %s
+                         WHERE id = (
+                             SELECT id FROM account_move_line
+                              WHERE move_id = %s
+                                AND debit > 0
+                                AND partner_id IS NULL
+                              ORDER BY id ASC
+                              LIMIT 1
+                         )
+                    """, (partner.id, move.id))
+                fixed_aml += self.env.cr.rowcount
+
+        sc_advance_lines = self.env['x.petty.cash.expense.line'].sudo().search([
+            ('is_subcontractor_advance', '=', True),
+            ('advance_subcontractor_id', '!=', False),
+        ])
+        fixed_sc_lines = 0
+        for scline in sc_advance_lines:
+            partner = scline.advance_subcontractor_id
+            if not scline.partner_id:
+                scline.write({'partner_id': partner.id})
+                fixed_sc_lines += 1
+
+            move = scline.expense_id.x_account_move_id
+            if move:
+                self.env.cr.execute("""
+                    UPDATE account_move_line
+                       SET partner_id = %s
+                     WHERE id = (
+                         SELECT id FROM account_move_line
+                          WHERE move_id = %s
+                            AND debit > 0
+                            AND partner_id IS NULL
+                            AND abs(debit - %s) < 0.01
+                          ORDER BY id ASC
+                          LIMIT 1
+                     )
+                """, (partner.id, move.id, scline.amount))
+                if self.env.cr.rowcount == 0:
+                    self.env.cr.execute("""
+                        UPDATE account_move_line
+                           SET partner_id = %s
+                         WHERE id = (
+                             SELECT id FROM account_move_line
+                              WHERE move_id = %s
+                                AND debit > 0
+                                AND partner_id IS NULL
+                              ORDER BY id ASC
+                              LIMIT 1
+                         )
+                    """, (partner.id, move.id))
+                fixed_aml += self.env.cr.rowcount
+
+        if fixed_aml:
+            self.env['account.move'].invalidate_model()
+            self.env['account.move.line'].invalidate_model()
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Employee Advance Partners Fixed'),
+                'message': _(
+                    'Done. Processed %d advance line(s). Stamped partner on %d expense line(s) '
+                    'and %d General Ledger debit line(s). Employee names will now show in '
+                    'the General Ledger and Partner Ledger.'
+                ) % (len(emp_advance_lines) + len(sc_advance_lines), fixed_emp_lines + fixed_sc_lines, fixed_aml),
+                'type': 'success',
+                'sticky': True,
+            },
+        }
+
     def action_delete_draft(self):
         self.unlink()
         return {'type': 'ir.actions.act_window_close'}
+
+    def action_view_journal_entry(self):
+        self.ensure_one()
+        if not self.x_account_move_id:
+            return
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Journal Entry'),
+            'res_model': 'account.move',
+            'view_mode': 'form',
+            'res_id': self.x_account_move_id.id,
+        }
 
     def action_view_pr_from_expense(self):
         self.ensure_one()
