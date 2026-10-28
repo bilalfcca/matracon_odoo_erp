@@ -421,3 +421,79 @@ class XBgAccountingRepairWizard(models.TransientModel):
             'view_mode': 'form',
             'target': 'new',
         }
+
+
+class XBgJournalAccountFixWizard(models.TransientModel):
+    """Admin Fix Tool: Fix BG Bank Journal Chart of Accounts.
+
+    For each bank journal used in BG Facilities or live Bank Guarantees:
+    - Ensures a parent (Main) account exists for the journal's default account.
+    - Creates missing child accounts: code+1 Useable Balance, code+2 Cash Margin, code+3 PO.
+    - Wires journal.default_account_id → Useable Balance child.
+    - Wires journal.x_cash_margin_account_id → Cash Margin child.
+    """
+    _name = 'x.bg.journal.account.fix.wizard'
+    _description = 'Fix BG Bank Journal Chart of Accounts'
+
+    scanned = fields.Integer(string='Journals Scanned', readonly=True)
+    created_accounts = fields.Integer(string='Accounts Created', readonly=True)
+    wired_journals = fields.Integer(string='Journals Wired', readonly=True)
+    already_ok = fields.Integer(string='Already Configured', readonly=True)
+    failed = fields.Integer(string='Failed', readonly=True)
+    audit_report_html = fields.Html(string='Audit Report', readonly=True)
+
+    @api.model
+    def default_get(self, fields_list):
+        res = super().default_get(fields_list)
+        result = self.env['x.bank.guarantee'].action_admin_fix_bg_journal_accounts(dry_run=True)
+        res.update({
+            'scanned': result.get('scanned', 0),
+            'created_accounts': result.get('created_accounts', 0),
+            'wired_journals': result.get('wired_journals', 0),
+            'already_ok': result.get('already_ok', 0),
+            'failed': result.get('failed', 0),
+            'audit_report_html': result.get('report_html', ''),
+        })
+        return res
+
+    def action_preview(self):
+        self.ensure_one()
+        result = self.env['x.bank.guarantee'].action_admin_fix_bg_journal_accounts(dry_run=True)
+        self.write({
+            'scanned': result.get('scanned', 0),
+            'created_accounts': result.get('created_accounts', 0),
+            'wired_journals': result.get('wired_journals', 0),
+            'already_ok': result.get('already_ok', 0),
+            'failed': result.get('failed', 0),
+            'audit_report_html': result.get('report_html', ''),
+        })
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': self._name,
+            'res_id': self.id,
+            'view_mode': 'form',
+            'target': 'new',
+        }
+
+    def action_apply_fix(self):
+        self.ensure_one()
+        if not (self.env.user.has_group('site_operations.group_finance_ho')
+                or self.env.user.has_group('purchase_demand_raise.group_matracon_admin')
+                or self.env.user.has_group('base.group_system')):
+            raise UserError(_('Only Finance HO, Matracon Admin or System Administrator can run this fix.'))
+        result = self.env['x.bank.guarantee'].action_admin_fix_bg_journal_accounts(dry_run=False)
+        self.write({
+            'scanned': result.get('scanned', 0),
+            'created_accounts': result.get('created_accounts', 0),
+            'wired_journals': result.get('wired_journals', 0),
+            'already_ok': result.get('already_ok', 0),
+            'failed': result.get('failed', 0),
+            'audit_report_html': result.get('report_html', ''),
+        })
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': self._name,
+            'res_id': self.id,
+            'view_mode': 'form',
+            'target': 'new',
+        }

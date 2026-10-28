@@ -12,6 +12,10 @@
                   decoration-danger="x_available_balance &lt; 0"
                   decoration-success="x_available_balance &gt; 0">
                 <field name="name" string="Project"/>
+                <field name="x_award_status" string="Status" widget="badge"
+                       decoration-warning="x_award_status == 'not_rewarded'"
+                       decoration-success="x_award_status == 'rewarded'"/>
+                <field name="tag_ids" widget="many2many_tags" options="{'color_field': 'color'}" optional="show"/>
                 <field name="x_analytic_account_id" string="Analytic Account" optional="show"/>
                 <field name="x_contract_value" string="Contract Value" sum="Total Contract" optional="show"/>
                 <field name="x_billed_to_client" string="Billed to Client" sum="Total Billed" optional="show"/>
@@ -182,6 +186,7 @@
                 </group>
                 <group string="Contract &amp; Progress" name="matracon_contract_progress">
                     <group>
+                        <field name="x_award_status" widget="radio" options="{'horizontal': true}"/>
                         <field name="x_contract_value"/>
                         <label for="x_billed_to_client"/>
                         <div class="o_row">
@@ -205,20 +210,53 @@
         </field>
     </record>
 
-    <record id="view_project_financial_search" model="ir.ui.view">
-        <field name="name">project.project.financial.search</field>
+<record id="view_project_financial_search" model="ir.ui.view">
+    <field name="name">project.project.financial.search</field>
+    <field name="model">project.project</field>
+    <field name="arch" type="xml">
+        <search string="Projects">
+            <field name="name"/>
+            <field name="x_analytic_account_id"/>
+
+            <filter name="filter_negative_balance"
+                    string="Negative Balance"
+                    domain="[('x_available_balance', '&lt;', 0)]"/>
+
+            <filter name="filter_positive_balance"
+                    string="Positive Balance"
+                    domain="[('x_available_balance', '&gt;', 0)]"/>
+
+            <separator/>
+
+            <filter name="filter_not_rewarded"
+                    string="Not Rewarded"
+                    domain="[('x_award_status', '=', 'not_rewarded')]"/>
+
+            <filter name="filter_rewarded"
+                    string="Rewarded"
+                    domain="[('x_award_status', '=', 'rewarded')]"/>
+
+            <group>
+                <filter name="group_by_award_status"
+                        string="Status"
+                        context="{'group_by': 'x_award_status'}"/>
+            </group>
+        </search>
+    </field>
+</record>
+
+    <!-- Inherit standard Project app list view to display status badge and tags -->
+    <record id="view_project_list_inherit_site_ops" model="ir.ui.view">
+        <field name="name">project.project.list.inherit.site_ops</field>
         <field name="model">project.project</field>
+        <field name="inherit_id" ref="project.view_project"/>
         <field name="arch" type="xml">
-            <search string="Projects">
-                <field name="name"/>
-                <field name="x_analytic_account_id"/>
-                <filter name="filter_negative_balance"
-                        string="Negative Balance"
-                        domain="[('x_available_balance', '&lt;', 0)]"/>
-                <filter name="filter_positive_balance"
-                        string="Positive Balance"
-                        domain="[('x_available_balance', '&gt;', 0)]"/>
-            </search>
+            <field name="name" position="after">
+                <field name="x_award_status" string="Status" widget="badge"
+                       decoration-warning="x_award_status == 'not_rewarded'"
+                       decoration-success="x_award_status == 'rewarded'"/>
+                <field name="tag_ids" widget="many2many_tags" options="{'color_field': 'color'}" optional="show"/>
+            </field>
         </field>
     </record>
 

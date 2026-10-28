@@ -21,6 +21,10 @@ class ProjectSiteConfigProjectLink(models.Model):
         copy=False,
         help='Linked native project record — financial dashboard and fund balances.',
     )
+    x_award_status = fields.Selection([
+        ('not_rewarded', 'Not Rewarded'),
+        ('rewarded', 'Rewarded'),
+    ], string='Status', default='not_rewarded', tracking=True, index=True)
 
     # ── Issue Locations (auto-created under site warehouse) ───────────────────
     x_employee_location_id = fields.Many2one(
@@ -344,7 +348,23 @@ class ProjectSiteConfigProjectLink(models.Model):
             self._matracon_sync_user_operational_warehouse()
         if 'x_material_issue_account_id' in vals:
             self._sync_material_issue_location_accounts()
+        if 'x_award_status' in vals:
+            for config in self:
+                if config.project_id and config.project_id.x_award_status != vals['x_award_status']:
+                    config.project_id.sudo().write({'x_award_status': vals['x_award_status']})
         return res
+
+    def action_convert_to_rewarded(self):
+        self.write({'x_award_status': 'rewarded'})
+        for config in self:
+            if config.project_id:
+                config.project_id.sudo().write({'x_award_status': 'rewarded'})
+
+    def action_convert_to_not_rewarded(self):
+        self.write({'x_award_status': 'not_rewarded'})
+        for config in self:
+            if config.project_id:
+                config.project_id.sudo().write({'x_award_status': 'not_rewarded'})
 
     def _matracon_sync_name_to_linked_records(self):
         """Propagate a site config rename to all linked records:
@@ -379,6 +399,7 @@ class ProjectSiteConfigProjectLink(models.Model):
                 project = Project.create({
                     'name': config.name,
                     'x_analytic_account_id': config.analytic_account_id.id,
+                    'x_award_status': config.x_award_status or 'not_rewarded',
                 })
             else:
                 project.write({
