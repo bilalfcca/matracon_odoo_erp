@@ -34,6 +34,22 @@
         <field name="inherit_id" ref="purchase_demand_raise.view_project_site_config_form"/>
         <field name="arch" type="xml">
 
+            <xpath expr="//sheet" position="before">
+                <header>
+                    <button name="action_convert_to_rewarded"
+                            string="Convert to Rewarded"
+                            type="object"
+                            class="btn-primary"
+                            invisible="x_award_status == 'rewarded'"/>
+                    <button name="action_convert_to_not_rewarded"
+                            string="Mark as Not Rewarded"
+                            type="object"
+                            class="btn-secondary"
+                            invisible="x_award_status == 'not_rewarded'"/>
+                    <field name="x_award_status" widget="statusbar" statusbar_visible="not_rewarded,rewarded"/>
+                </header>
+            </xpath>
+
             <field name="analytic_account_id" position="after">
                 <field name="project_id" readonly="1"/>
             </field>
@@ -174,6 +190,19 @@
                 </page>
             </page>
 
+        </field>
+    </record>
+
+    <record id="view_project_site_config_list_site_ops" model="ir.ui.view">
+        <field name="name">x.project.site.config.list.site_ops</field>
+        <field name="model">x.project.site.config</field>
+        <field name="inherit_id" ref="purchase_demand_raise.view_project_site_config_list"/>
+        <field name="arch" type="xml">
+            <field name="name" position="after">
+                <field name="x_award_status" string="Status" widget="badge"
+                       decoration-warning="x_award_status == 'not_rewarded'"
+                       decoration-success="x_award_status == 'rewarded'"/>
+            </field>
         </field>
     </record>
 </odoo>

@@ -40,6 +40,7 @@ _BASE_COLUMNS = [
     ('Cash Margin %',      'cash_margin_percent',  12, 'pct'),
     ('Cash Margin Amt',    'margin_amount',        18, 'num'),
     ('Commission %',       'pricing_percent',      12, 'pct'),
+    ('Quarters',           'quarter_numbers',      10, 'num'),
     ('Commission Amt',     'commission_amount',    18, 'num'),
     ('FED %',              'fed_percent',           8, 'pct'),
     ('FED Amount',         'fed_amount',           14, 'num'),
