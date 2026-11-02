@@ -59,6 +59,8 @@ def configure_production_users(env):
     g_site_store = env.ref('purchase_demand_raise.group_site_store')
     g_stock_user = env.ref('stock.group_stock_user', raise_if_not_found=False)
     g_site_accountant = env.ref('site_operations.group_site_accountant')
+    g_fleet_user = env.ref('fleet.fleet_group_user', raise_if_not_found=False)
+    g_fleet_app = env.ref('matracon_fleet.group_mtr_app_fleet', raise_if_not_found=False)
 
     # ── Head Office users by role ───────────────────────────────────────────
     for uid in PRODUCTION_CONFIG['admin_ids']:
@@ -108,10 +110,18 @@ def configure_production_users(env):
                 Users._matracon_add_group(user, g_site_store)
                 if g_stock_user:
                     Users._matracon_add_group(user, g_stock_user)
+                if g_fleet_user:
+                    Users._matracon_add_group(user, g_fleet_user)
+                if g_fleet_app:
+                    Users._matracon_add_group(user, g_fleet_app)
 
         accountant_users = Users.browse(cfg['site_accountant_ids']).exists()
         for user in accountant_users:
             Users._matracon_add_group(user, g_site_accountant)
+            if g_fleet_user:
+                Users._matracon_add_group(user, g_fleet_user)
+            if g_fleet_app:
+                Users._matracon_add_group(user, g_fleet_app)
             user.sudo().write({
                 'x_default_analytic_account_id': analytic.id,
                 'x_site_config_id': site_config.id,
@@ -1417,6 +1427,23 @@ def post_migrate_hook(env):
     except Exception as e:
         import logging
         logging.getLogger(__name__).warning('post_migrate_hook: apply_menu_visibility failed: %s', e)
+    # Ensure all site store and site accountant users have Fleet app access.
+    try:
+        g_fleet_user = env.ref('fleet.fleet_group_user', raise_if_not_found=False)
+        g_fleet_app = env.ref('matracon_fleet.group_mtr_app_fleet', raise_if_not_found=False)
+        g_site_store = env.ref('purchase_demand_raise.group_site_store', raise_if_not_found=False)
+        g_site_accountant = env.ref('site_operations.group_site_accountant', raise_if_not_found=False)
+        site_groups = (g_site_store | g_site_accountant).filtered(lambda g: g)
+        if site_groups and (g_fleet_user or g_fleet_app):
+            users = env['res.users'].sudo().search([('group_ids', 'in', site_groups.ids)])
+            for user in users:
+                if g_fleet_user:
+                    env['res.users']._matracon_add_group(user, g_fleet_user)
+                if g_fleet_app:
+                    env['res.users']._matracon_add_group(user, g_fleet_app)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning('post_migrate_hook: sync fleet to site users failed: %s', e)
     # Remove legacy menu_petty_cash_requests (replaced by menu_petty_cash_requests_ceo).
     # The old record may still exist in staging DBs that were installed before the
     # 778a46b collapse commit. Unlink it here so the CEO never sees a duplicate.

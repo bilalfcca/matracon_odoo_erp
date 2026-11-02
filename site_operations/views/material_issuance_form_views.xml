@@ -143,6 +143,14 @@
                         invisible="not x_submitted_to_sa or state in ('draft', 'confirmed', 'done', 'cancel')"
                         groups="site_operations.group_site_accountant"/>
 
+                <!-- Create missing vendor bill manually on incoming PO receipts -->
+                <button name="action_create_missing_vendor_bill"
+                        type="object"
+                        string="Create Vendor Bill"
+                        class="btn-secondary"
+                        invisible="picking_type_code != 'incoming' or not purchase_id or state != 'done' or x_vendor_bill_count != 0"
+                        groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"/>
+
                 <!-- Print MIF button -->
                 <button name="action_print_mif"
                         type="object"

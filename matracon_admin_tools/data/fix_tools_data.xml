@@ -450,4 +450,20 @@ Valuation Import: Records opening inventory valuation as of 30 June into stock v
         <field name="sequence">106</field>
     </record>
 
+    <!-- Backfill Missing Vendor Bills for PO Receipts in Settings > Fix Tools -->
+    <record id="action_server_backfill_missing_po_receipt_bills" model="ir.actions.server">
+        <field name="name">Backfill Missing Vendor Bills for PO Receipts (GRNs)</field>
+        <field name="model_id" ref="account.model_account_move"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_matracon_backfill_missing_po_receipt_bills()</field>
+        <field name="x_is_fix_tool" eval="True"/>
+        <field name="x_fix_tool_description">Scans all validated incoming Purchase Order receipts (GRNs), including partial receipts, and creates draft vendor bills for any receipt that does not yet have one. Links existing bills to their corresponding receipt notes.</field>
+        <field name="group_ids" eval="[Command.set([
+            ref('purchase_demand_raise.group_matracon_admin'),
+            ref('site_operations.group_finance_ho'),
+            ref('base.group_system'),
+        ])]"/>
+        <field name="sequence">107</field>
+    </record>
+
 </odoo>
