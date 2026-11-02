@@ -1596,8 +1596,8 @@ class AccountMoveSiteOps(models.Model):
 
             if po_line:
                 price_unit = po_line.price_unit
-                taxes = po_line.taxes_id
-                uom = po_line.product_uom_id
+                taxes = getattr(po_line, 'tax_ids', getattr(po_line, 'taxes_id', po_line.product_id.supplier_taxes_id))
+                uom = getattr(po_line, 'product_uom_id', getattr(po_line, 'product_uom', False))
                 if move.product_uom and uom and move.product_uom != uom:
                     qty = move.product_uom._compute_quantity(move.quantity, uom)
                 else:
@@ -1614,7 +1614,7 @@ class AccountMoveSiteOps(models.Model):
                 'quantity': qty,
                 'product_uom_id': uom.id if uom else False,
                 'price_unit': price_unit,
-                'tax_ids': [(6, 0, taxes.ids)],
+                'tax_ids': [(6, 0, taxes.ids)] if taxes else False,
                 'purchase_line_id': po_line.id if po_line else False,
             }))
         if not line_vals:
