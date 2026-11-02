@@ -139,6 +139,10 @@ class AccountMoveSiteOps(models.Model):
         'purchase.order', string='Purchase Order', tracking=True, copy=False,
         domain=[('state', 'in', ('purchase', 'done'))],
     )
+    x_stock_picking_id = fields.Many2one(
+        'stock.picking', string='Receipt (GRN)', readonly=True, copy=False, index=True,
+        help='Goods Receipt Note (stock picking) from which this vendor bill was generated.',
+    )
     x_liability_sheet_id = fields.Many2one(
         'x.liability.sheet', string='Liability Sheet', readonly=True, copy=False)
     x_liability_registered = fields.Boolean(
@@ -1565,24 +1569,53 @@ class AccountMoveSiteOps(models.Model):
         po = picking.purchase_id
         if not po or not po.partner_id:
             return self.env['account.move']
+
+        # Look specifically for an existing bill for THIS receipt/GRN
         existing = self.search([
-            ('x_purchase_order_id', '=', po.id),
             ('move_type', '=', 'in_invoice'),
-            ('state', '=', 'draft'),
+            ('state', '!=', 'cancel'),
+            '|',
+            ('x_stock_picking_id', '=', picking.id),
+            ('ref', '=', 'GRN-%s' % picking.name),
         ], limit=1)
         if existing:
+            if not existing.x_stock_picking_id:
+                existing.write({'x_stock_picking_id': picking.id})
             return existing
 
         line_vals = []
-        for move in picking.move_ids.filtered(
-            lambda m: m.product_id and m.quantity > 0
-        ):
+        valid_moves = picking.move_ids.filtered(
+            lambda m: m.product_id and m.quantity > 0 and m.state == 'done'
+        ) or picking.move_ids.filtered(
+            lambda m: m.product_id and m.quantity > 0 and m.state != 'cancel'
+        )
+        for move in valid_moves:
+            po_line = move.purchase_line_id
+            if not po_line and po:
+                po_line = po.order_line.filtered(lambda l: l.product_id == move.product_id)[:1]
+
+            if po_line:
+                price_unit = po_line.price_unit
+                taxes = po_line.taxes_id
+                uom = po_line.product_uom_id
+                if move.product_uom and uom and move.product_uom != uom:
+                    qty = move.product_uom._compute_quantity(move.quantity, uom)
+                else:
+                    qty = move.quantity
+            else:
+                price_unit = move.product_id.standard_price or 0.0
+                taxes = move.product_id.supplier_taxes_id
+                uom = move.product_uom or move.product_id.uom_po_id
+                qty = move.quantity
+
             line_vals.append((0, 0, {
                 'product_id': move.product_id.id,
-                'name': move.product_id.display_name,
-                'quantity': move.quantity,
-                'price_unit': move.product_id.standard_price or 0.0,
-                'tax_ids': [(6, 0, move.product_id.supplier_taxes_id.ids)],
+                'name': po_line.name if po_line else move.product_id.display_name,
+                'quantity': qty,
+                'product_uom_id': uom.id if uom else False,
+                'price_unit': price_unit,
+                'tax_ids': [(6, 0, taxes.ids)],
+                'purchase_line_id': po_line.id if po_line else False,
             }))
         if not line_vals:
             return self.env['account.move']
@@ -1592,10 +1625,11 @@ class AccountMoveSiteOps(models.Model):
             'partner_id': po.partner_id.id,
             'invoice_date': fields.Date.context_today(self),
             'x_purchase_order_id': po.id,
+            'x_stock_picking_id': picking.id,
             'x_project_analytic_account_id': (
                 po.x_project_analytic_account_id.id
                 if po.x_project_analytic_account_id else False),
-            'invoice_origin': po.name,
+            'invoice_origin': '%s: %s' % (po.name, picking.name),
             'ref': 'GRN-%s' % picking.name,
             'invoice_line_ids': line_vals,
         })
@@ -1618,6 +1652,84 @@ class AccountMoveSiteOps(models.Model):
             'Draft vendor bill <b>%s</b> created for accountant review.'
         )) % (bill.name or _('New')))
         return bill
+
+    @api.model
+    def action_matracon_backfill_missing_po_receipt_bills(self):
+        """Admin Fix Tool: find all validated incoming PO receipts that lack vendor bills
+        (especially partial receipts) and generate draft vendor bills for them.
+        """
+        if not (self.env.user.has_group('purchase_demand_raise.group_matracon_admin')
+                or self.env.user.has_group('base.group_system')
+                or self.env.user.has_group('site_operations.group_finance_ho')):
+            raise UserError(_('Only Finance HO, Matracon Admin or System Administrator can run this action.'))
+
+        pickings = self.env['stock.picking'].sudo().search([
+            ('picking_type_code', '=', 'incoming'),
+            ('state', '=', 'done'),
+            ('purchase_id', '!=', False),
+        ], order='id asc')
+
+        created_bills = self.env['account.move']
+        linked_existing = 0
+
+        for picking in pickings:
+            po = picking.purchase_id
+            if po.x_procurement_type == 'site_procurement' and not po.x_add_to_liability_sheet:
+                continue
+
+            existing = self.sudo().search([
+                ('move_type', '=', 'in_invoice'),
+                ('state', '!=', 'cancel'),
+                '|',
+                ('x_stock_picking_id', '=', picking.id),
+                ('ref', '=', 'GRN-%s' % picking.name),
+            ], limit=1)
+
+            if existing:
+                if not existing.x_stock_picking_id:
+                    existing.sudo().write({'x_stock_picking_id': picking.id})
+                    linked_existing += 1
+                continue
+
+            if po.x_procurement_type == 'site_procurement' and po.x_site_vendor_id and not po.partner_id:
+                po.sudo().write({'partner_id': po.x_site_vendor_id.id})
+
+            new_bill = self._matracon_create_draft_bill_from_po_receipt(picking)
+            if new_bill:
+                created_bills |= new_bill
+
+        message = _(
+            'Scanned %s PO receipts: created %s missing vendor bills '
+            '(linked %s existing bills with receipt notes).'
+        ) % (len(pickings), len(created_bills), linked_existing)
+
+        if len(created_bills) == 1:
+            return {
+                'type': 'ir.actions.act_window',
+                'name': _('Vendor Bill Created'),
+                'res_model': 'account.move',
+                'view_mode': 'form',
+                'res_id': created_bills.id,
+            }
+        elif len(created_bills) > 1:
+            return {
+                'type': 'ir.actions.act_window',
+                'name': _('Created Vendor Bills (%s)') % len(created_bills),
+                'res_model': 'account.move',
+                'view_mode': 'list,form',
+                'domain': [('id', 'in', created_bills.ids)],
+            }
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('PO Receipt Vendor Bills Check Complete'),
+                'message': message,
+                'sticky': False,
+                'type': 'info',
+            }
+        }
 
     def action_print_journal_entry_voucher(self):
         """Open the Journal Entry Voucher PDF for posted journal entries."""

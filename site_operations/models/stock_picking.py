@@ -2185,10 +2185,19 @@ class StockPickingSiteOps(models.Model):
         Bill = self.env['account.move']
         for picking in self:
             if picking.purchase_id:
-                picking.x_vendor_bill_count = Bill.search_count([
+                count = Bill.search_count([
                     ('move_type', '=', 'in_invoice'),
-                    ('x_purchase_order_id', '=', picking.purchase_id.id),
+                    '|',
+                    ('x_stock_picking_id', '=', picking.id),
+                    ('ref', '=', 'GRN-%s' % picking.name),
                 ])
+                if not count and picking.purchase_id:
+                    # Fallback count across the PO if legacy bills weren't linked by GRN ref
+                    count = Bill.search_count([
+                        ('move_type', '=', 'in_invoice'),
+                        ('x_purchase_order_id', '=', picking.purchase_id.id),
+                    ])
+                picking.x_vendor_bill_count = count
             else:
                 picking.x_vendor_bill_count = 0
 
@@ -2198,12 +2207,60 @@ class StockPickingSiteOps(models.Model):
         if self.purchase_id:
             bills = bills.search([
                 ('move_type', '=', 'in_invoice'),
-                ('x_purchase_order_id', '=', self.purchase_id.id),
+                '|',
+                ('x_stock_picking_id', '=', self.id),
+                ('ref', '=', 'GRN-%s' % self.name),
             ])
+            if not bills:
+                bills = bills.search([
+                    ('move_type', '=', 'in_invoice'),
+                    ('x_purchase_order_id', '=', self.purchase_id.id),
+                ])
         return {
             'type': 'ir.actions.act_window',
             'name': _('Vendor Bills'),
             'res_model': 'account.move',
-            'view_mode': 'list,form',
+            'view_mode': 'list,form' if len(bills) != 1 else 'form,list',
+            'res_id': bills.id if len(bills) == 1 else False,
             'domain': [('id', 'in', bills.ids)],
+        }
+
+    def action_create_missing_vendor_bill(self):
+        """Manually create draft vendor bill for this receipt if it was not auto-created."""
+        self.ensure_one()
+        if self.picking_type_code != 'incoming' or not self.purchase_id:
+            raise UserError(_('Vendor bills can only be created from Purchase Order receipts.'))
+        if self.state != 'done':
+            raise UserError(_('Please validate the receipt before creating a vendor bill.'))
+
+        existing = self.env['account.move'].sudo().search([
+            ('move_type', '=', 'in_invoice'),
+            ('state', '!=', 'cancel'),
+            '|',
+            ('x_stock_picking_id', '=', self.id),
+            ('ref', '=', 'GRN-%s' % self.name),
+        ], limit=1)
+        if existing:
+            return {
+                'type': 'ir.actions.act_window',
+                'name': _('Vendor Bill'),
+                'res_model': 'account.move',
+                'view_mode': 'form',
+                'res_id': existing.id,
+            }
+
+        po = self.purchase_id
+        if po.x_procurement_type == 'site_procurement' and po.x_site_vendor_id and not po.partner_id:
+            po.sudo().write({'partner_id': po.x_site_vendor_id.id})
+
+        bill = self.env['account.move']._matracon_create_draft_bill_from_po_receipt(self)
+        if not bill:
+            raise UserError(_('Could not generate vendor bill. Please verify PO products and quantities.'))
+
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Vendor Bill Created'),
+            'res_model': 'account.move',
+            'view_mode': 'form',
+            'res_id': bill.id,
         }

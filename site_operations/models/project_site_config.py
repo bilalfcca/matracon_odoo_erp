@@ -426,6 +426,10 @@ class ProjectSiteConfigProjectLink(models.Model):
         """Assign Site Accountant group and project defaults."""
         accountant_group = self.env.ref(
             'site_operations.group_site_accountant', raise_if_not_found=False)
+        fleet_user_group = self.env.ref(
+            'fleet.fleet_group_user', raise_if_not_found=False)
+        fleet_app_group = self.env.ref(
+            'matracon_fleet.group_mtr_app_fleet', raise_if_not_found=False)
         Users = self.env['res.users']
         for user in users:
             vals = {
@@ -437,6 +441,10 @@ class ProjectSiteConfigProjectLink(models.Model):
             user.sudo().write(vals)
             if accountant_group:
                 Users._matracon_add_group(user, accountant_group)
+            if fleet_user_group:
+                Users._matracon_add_group(user, fleet_user_group)
+            if fleet_app_group:
+                Users._matracon_add_group(user, fleet_app_group)
             if self.project_id:
                 user.sudo().write({'x_default_project_id': self.project_id.id})
         self._matracon_sync_user_operational_warehouse()
