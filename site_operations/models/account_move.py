@@ -816,16 +816,6 @@ class AccountMoveSiteOps(models.Model):
                     subtype_xmlid='mail.mt_note',
                 )
 
-        # For entries / invoices where header x_project_analytic_account_id was
-        # left unset but lines / payment have a single project analytic account, sync
-        # it to the header so reports, record rules, and drilldowns recognize it.
-        for move in self.filtered(
-            lambda m: m.state == 'posted' and not m.x_project_analytic_account_id
-        ):
-            analytic = move._matracon_get_project_analytic_account()
-            if analytic and len(move.x_site_analytic_ids) <= 1:
-                move.sudo().write({'x_project_analytic_account_id': analytic.id})
-
         # ── 8. Fill missing analytic_distribution on ALL line types ─────────────
         # Covers entry + out_invoice + any move type where lines may be
         # missing analytic (payable line, tax line, bank line).  Does NOT

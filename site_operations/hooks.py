@@ -1357,14 +1357,14 @@ def fix_account_move_rules(env):
 
 
 def fix_stock_warehouse_site_store_rule(env):
-    """Ensure site store keepers have read access to their site warehouse and company main warehouse."""
+    """Ensure site store keepers have read access to their company warehouses."""
     rule = env.ref('site_operations.rule_stock_warehouse_site_store', raise_if_not_found=False)
     if rule:
-        domain = "['|', ('id', '=', user.x_site_config_id.warehouse_id.id), ('company_id', 'in', user.company_ids.ids)]"
+        domain = "['|', ('company_id', '=', False), ('company_id', 'in', company_ids)]"
         if rule.domain_force != domain:
             rule.sudo().write({
                 'domain_force': domain,
-                'name': 'Stock Warehouse: Site Store sees own warehouse and company warehouses',
+                'name': 'Stock Warehouse: Site Store sees company warehouses',
             })
 
 
