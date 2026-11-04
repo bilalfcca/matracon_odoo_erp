@@ -524,58 +524,133 @@ class AccountMoveSiteOps(models.Model):
         # When a site accountant manually enters ALL lines on a vendor bill or
         # customer invoice — including one or more payable/receivable accounts
         # on both sides (e.g. backcharge pattern: Dr Expense / Cr Payable NAEEM,
-        # Dr Payable SHAHZAD / Cr Expense) — the entry is already balanced.
+        # Dr Payable SHAHZAD / Cr Expense, or IPC customer invoices with deductions
+        # for Advance, Income Tax, Retention, Protection fee, etc.) — the entry
+        # is already balanced.
         #
         # Odoo's payment_term sync (_sync_dynamic_lines) fires during write() and
-        # tries to delete/recreate the auto-managed payable line.  This causes:
+        # tries to delete/recreate the auto-managed payable/receivable line.
+        # This causes:
         #   • "You cannot delete a payable/receivable line" — if it tries to remove
         #     the existing payment_term line while recreating it
-        #   • "The entry is not balanced" — if it adds an EXTRA payable line on
-        #     top of the manually-added ones, doubling the credit
+        #   • "The entry is not balanced" — if it adds an EXTRA line on
+        #     top of the manually-added ones, or recalculates the receivable to
+        #     the gross invoice amount, doubling the debit
         #
-        # The fix: for pre-balanced invoices that have manually-added payable/
-        # receivable lines (display_type != 'payment_term'), post using
-        # _post(soft=False) with skip_invoice_sync=True.  This bypasses the
-        # payment_term sync entirely, preserving the manually-balanced lines.
-        def _has_manual_payable(move):
-            return any(
+        # The fix: for pre-balanced invoices, post using _post(soft=False) with
+        # skip_invoice_sync=True. This bypasses the payment_term sync entirely,
+        # preserving the manually-balanced lines.
+        def _is_pre_balanced(move):
+            currency = move.currency_id or move.company_id.currency_id
+            prec = currency.decimal_places or 2
+            dr = round(sum(move.line_ids.mapped('debit')), prec)
+            cr = round(sum(move.line_ids.mapped('credit')), prec)
+            diff = abs(dr - cr)
+
+            # Not balanced at all: difference exceeds 5 cents or one side is zero
+            if diff > 0.05 or dr <= 0.01 or cr <= 0.01:
+                return False
+
+            # Any invoice with manual payable/receivable lines
+            if any(
                 l.account_id.account_type in ('liability_payable', 'asset_receivable')
                 and l.display_type != 'payment_term'
                 for l in move.line_ids
-            )
+            ):
+                return True
+
+            # Customer invoices: manual deduction lines on debit side (Income Tax, Retention,
+            # Advance recovery, Protection fee) or multiple debit lines
+            if move.move_type in ('out_invoice', 'out_refund'):
+                debit_lines = move.line_ids.filtered(lambda l: l.debit > 0.001)
+                if len(debit_lines) > 1 or any(l.display_type != 'payment_term' for l in debit_lines):
+                    return True
+
+            # Vendor bills: manual deduction lines on credit side (Backcharges, Retention,
+            # Tax withheld, Advance recovery) or multiple credit lines
+            if move.move_type in ('in_invoice', 'in_refund'):
+                credit_lines = move.line_ids.filtered(lambda l: l.credit > 0.001)
+                if len(credit_lines) > 1 or any(l.display_type != 'payment_term' for l in credit_lines):
+                    return True
+
+            # Any invoice where payment-term line balance does not match amount_total
+            pt_lines = move.line_ids.filtered(lambda l: l.display_type == 'payment_term')
+            if pt_lines:
+                pt_total = round(sum(abs(l.balance) for l in pt_lines), prec)
+                if abs(pt_total - move.amount_total) > 0.01:
+                    return True
+            else:
+                return True
+
+            # In general, if dr == cr within 5 cents, treat as pre-balanced to avoid
+            # dynamic line recreation corrupting balanced lines
+            return True
 
         pre_balanced = self.env['account.move']
         for move in self.filtered(
             lambda m: m.is_invoice(include_receipts=True) and m.state != 'posted'
         ):
-            dr = sum(move.line_ids.mapped('debit'))
-            cr = sum(move.line_ids.mapped('credit'))
-            if abs(dr - cr) < 0.01 and dr > 0.01 and _has_manual_payable(move):
+            if _is_pre_balanced(move):
                 pre_balanced |= move
 
         normal_moves = self - pre_balanced
 
-        # ── 2. invoice_date_due pre-fill (normal moves only) ─────────────────────
-        # Due dates are hidden in the UI.  Ensure the field is populated before
-        # posting so Odoo can set date_maturity on the payment_term line correctly.
-        # Skip pre_balanced moves — their payment_term line is NOT touched by the
-        # sync, so stamping invoice_date_due would needlessly trigger the sync.
-        for move in normal_moves.filtered(lambda m: m.is_invoice() and not m.invoice_date_due):
-            move.invoice_date_due = move.invoice_date or fields.Date.context_today(self)
+        # ── 2. invoice_date_due & date_maturity pre-fill (SQL to avoid dynamic sync) ──
+        # Stamping via direct SQL ensures date_maturity is always populated on
+        # receivable/payable lines without triggering Odoo's onchange dynamic line sync.
+        for move in self.filtered(lambda m: m.is_invoice(include_receipts=True) and m.state != 'posted'):
+            due = move.invoice_date_due or move.invoice_date or fields.Date.context_today(self)
+            if not move.invoice_date_due:
+                self.env.cr.execute(
+                    "UPDATE account_move SET invoice_date_due = %s WHERE id = %s",
+                    (due, move.id),
+                )
+                move.invalidate_recordset(['invoice_date_due'])
+            self.env.cr.execute(
+                """
+                UPDATE account_move_line
+                   SET date_maturity = %s
+                 WHERE move_id = %s
+                   AND date_maturity IS NULL
+                   AND (
+                       display_type = 'payment_term'
+                       OR account_id IN (
+                           SELECT id FROM account_account
+                            WHERE account_type IN ('asset_receivable', 'liability_payable')
+                       )
+                   )
+                """,
+                (due, move.id),
+            )
+            move.line_ids.invalidate_recordset(['date_maturity'])
 
-        # For customer invoices: also stamp date_maturity on any existing
-        # payment_term lines that still have no due date.
-        for move in normal_moves.filtered(lambda m: m.move_type == 'out_invoice'):
-            due = (
-                move.invoice_date_due
-                or move.invoice_date
-                or fields.Date.context_today(self)
-            )
-            pt_lines = move.line_ids.filtered(
-                lambda l: l.display_type == 'payment_term' and not l.date_maturity
-            )
-            if pt_lines:
-                pt_lines.write({'date_maturity': due})
+        # ── 2b. Auto-balance minor penny rounding differences on pre-balanced moves ──
+        for move in pre_balanced:
+            currency = move.currency_id or move.company_id.currency_id
+            prec = currency.decimal_places or 2
+            dr = round(sum(move.line_ids.mapped('debit')), prec)
+            cr = round(sum(move.line_ids.mapped('credit')), prec)
+            diff = round(dr - cr, prec)
+            if 0.0 < abs(diff) <= 0.05:
+                target_line = (
+                    move.line_ids.filtered(lambda l: l.display_type == 'payment_term')[:1]
+                    or move.line_ids.filtered(lambda l: l.account_id.account_type in ('asset_receivable', 'liability_payable'))[:1]
+                    or move.line_ids.sorted(lambda l: abs(l.balance), reverse=True)[:1]
+                )
+                if target_line:
+                    if target_line.debit > 0:
+                        new_debit = round(target_line.debit - diff, prec)
+                        self.env.cr.execute(
+                            "UPDATE account_move_line SET debit = %s WHERE id = %s",
+                            (new_debit, target_line.id),
+                        )
+                    else:
+                        new_credit = round(target_line.credit + diff, prec)
+                        self.env.cr.execute(
+                            "UPDATE account_move_line SET credit = %s WHERE id = %s",
+                            (new_credit, target_line.id),
+                        )
+                    target_line.invalidate_recordset(['debit', 'credit', 'balance'])
 
         # ── 3. Bill Copy mandatory for vendor bills ───────────────────────────────
         # Skip during module installation / demo-data loading.
