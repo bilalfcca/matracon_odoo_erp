@@ -135,6 +135,23 @@ class StockPickingSiteOps(models.Model):
         help='Set by Site Store when submitting a backcharge issuance for '
              'Site Accountant price review and validation.',
     )
+    x_sa_review_status = fields.Char(
+        string='SA Review',
+        compute='_compute_x_sa_review_status',
+        store=True,
+    )
+
+    @api.depends('x_submitted_to_sa', 'state')
+    def _compute_x_sa_review_status(self):
+        for pick in self:
+            if not pick.x_submitted_to_sa:
+                pick.x_sa_review_status = False
+            elif pick.state == 'done':
+                pick.x_sa_review_status = 'Reviewed'
+            elif pick.state == 'cancel':
+                pick.x_sa_review_status = 'Cancelled'
+            else:
+                pick.x_sa_review_status = 'Pending Review'
 
     # ── User context flags (for view domains) ────────────────────────────────
     x_is_site_store = fields.Boolean(
@@ -2069,6 +2086,100 @@ class StockPickingSiteOps(models.Model):
                 'default_origin': self.name,
             },
         }
+
+    def action_reset_draft(self):
+        """Reset Material Issuance to Draft.
+
+        1. Validates that no active returns exist against this issuance.
+        2. Validates that any linked subcontractor backcharge has not been processed in an IPC.
+           Unlinks pending backcharge.
+        3. If in 'done' state, reverses the stock movement by restoring available
+           quantities from destination location back to source location.
+        4. Reverts moves and picking to 'draft'.
+        """
+        self.ensure_one()
+        if self.x_transfer_purpose != 'material_issuance':
+            raise UserError(_('Reset to Draft is only supported for Material Issuances.'))
+
+        # Check for active return transfers
+        active_returns = self.x_return_picking_ids.filtered(lambda p: p.state != 'cancel')
+        if active_returns:
+            raise UserError(_(
+                'Cannot reset to draft: this issuance has active return transfers (%(returns)s).\n'
+                'Please cancel or reverse those returns first.'
+            ) % {'returns': ', '.join(active_returns.mapped('name'))})
+
+        # Check / cancel subcontractor backcharge
+        if self.x_sub_backcharge_id:
+            bc = self.x_sub_backcharge_id
+            if bc.state == 'processed':
+                raise UserError(_(
+                    'Cannot reset to draft: Subcontractor Backcharge %(name)s has already been '
+                    'processed in IPC %(ipc)s. Please reset that IPC to draft first.'
+                ) % {'name': bc.name, 'ipc': bc.ipc_id.name or '—'})
+            self.x_sub_backcharge_id = False
+            bc.sudo().unlink()
+
+        # Check / cancel employee backcharge
+        if self.x_employee_backcharge_id:
+            ebc = self.x_employee_backcharge_id
+            if hasattr(ebc, 'state') and ebc.state == 'processed':
+                raise UserError(_(
+                    'Cannot reset to draft: Employee Backcharge %(name)s has already been processed.'
+                ) % {'name': ebc.name})
+            self.x_employee_backcharge_id = False
+            ebc.sudo().unlink()
+
+        # If already done, reverse stock quantities
+        if self.state == 'done':
+            Quant = self.env['stock.quant'].sudo()
+            for line in self.move_line_ids:
+                if line.quantity > 0:
+                    lot = getattr(line, 'lot_id', False)
+                    pkg = getattr(line, 'package_id', False)
+                    result_pkg = getattr(line, 'result_package_id', False)
+                    owner = getattr(line, 'owner_id', False)
+                    # Deduct from destination location
+                    Quant._update_available_quantity(
+                        line.product_id, line.location_dest_id, -line.quantity,
+                        lot_id=lot, package_id=result_pkg, owner_id=owner,
+                        strict=False,
+                    )
+                    # Restore back to source location
+                    Quant._update_available_quantity(
+                        line.product_id, line.location_id, line.quantity,
+                        lot_id=lot, package_id=pkg, owner_id=owner,
+                        strict=False,
+                    )
+
+            # Unlink stock valuation layers if any exist
+            for move in self.move_ids:
+                if hasattr(move, 'stock_valuation_layer_ids') and move.stock_valuation_layer_ids:
+                    svls = move.stock_valuation_layer_ids
+                    for svl in svls:
+                        if hasattr(svl, 'account_move_id') and svl.account_move_id:
+                            try:
+                                svl.account_move_id.sudo().button_draft()
+                                svl.account_move_id.sudo().button_cancel()
+                            except Exception:
+                                pass
+                    svls.sudo().unlink()
+
+        # Unlink move lines, reset moves and picking state to draft
+        self.move_line_ids.sudo().unlink()
+        self.move_ids.sudo().write({'state': 'draft'})
+        self.sudo().write({
+            'state': 'draft',
+            'date_done': False,
+            'x_submitted_to_sa': False,
+        })
+
+        self.message_post(
+            body=Markup(_(
+                'Material Issuance reset to Draft by <b>%s</b>. Stock movements and pending backcharges have been reversed.'
+            )) % self.env.user.name
+        )
+        return True
 
     def action_view_returns(self):
         """Open list of return transfers linked to this issuance."""

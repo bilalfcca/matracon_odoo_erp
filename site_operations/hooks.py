@@ -439,6 +439,7 @@ def post_init_hook(env):
     # Restrict Odoo's built-in 'see all' account.move rules to group_account_manager
     # so site accountants are properly scoped to their own project.
     fix_account_move_rules(env)
+    fix_stock_warehouse_site_store_rule(env)
     # Fix any posted petty cash expenses that have no JE or wrong JE credit account.
     # On a fresh install into a DB with existing data (e.g. a restored production dump),
     # post_migrate_hook does NOT run — only post_init_hook runs.
@@ -1355,6 +1356,18 @@ def fix_account_move_rules(env):
         )
 
 
+def fix_stock_warehouse_site_store_rule(env):
+    """Ensure site store keepers have read access to their company warehouses."""
+    rule = env.ref('site_operations.rule_stock_warehouse_site_store', raise_if_not_found=False)
+    if rule:
+        domain = "['|', ('company_id', '=', False), ('company_id', 'in', company_ids)]"
+        if rule.domain_force != domain:
+            rule.sudo().write({
+                'domain_force': domain,
+                'name': 'Stock Warehouse: Site Store sees company warehouses',
+            })
+
+
 def generate_cheque_leaves_for_existing_series(env):
     """Generate x.cheque.leaf records for all existing series that have none.
 
@@ -1391,6 +1404,7 @@ def post_migrate_hook(env):
     # Restrict Odoo's built-in 'see all' account.move rules to group_account_manager
     # so site accountants are properly scoped to their own project.
     fix_account_move_rules(env)
+    fix_stock_warehouse_site_store_rule(env)
     try:
         migrate_petty_cash_expense_lines(env)
     except Exception as e:
@@ -1484,6 +1498,31 @@ def post_migrate_hook(env):
         import logging
         logging.getLogger(__name__).warning(
             'post_migrate_hook: setup_account_groups failed: %s', e)
+    # Ensure petty cash voucher attachments are created and viewable in chatter
+    try:
+        backfill_petty_cash_voucher_attachments(env)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(
+            'post_migrate_hook: backfill_petty_cash_voucher_attachments failed: %s', e)
+
+
+def backfill_petty_cash_voucher_attachments(env):
+    """Ensure all existing petty cash expenses with uploaded signed vouchers or receipts
+    have corresponding ir.attachment records linked to chatter with proper viewable mimetypes.
+    """
+    expenses = env['x.petty.cash.expense'].sudo().search([
+        '|',
+        ('x_signed_voucher', '!=', False),
+        ('receipt', '!=', False),
+    ])
+    for expense in expenses:
+        if expense.x_signed_voucher:
+            v_name = expense.x_signed_voucher_filename or 'signed_voucher.pdf'
+            expense._create_chat_attachment(v_name, expense.x_signed_voucher)
+        if expense.receipt:
+            r_name = expense.receipt_filename or 'receipt.pdf'
+            expense._create_chat_attachment(r_name, expense.receipt)
 
 
 def backfill_payment_cheque_numbers(env):
