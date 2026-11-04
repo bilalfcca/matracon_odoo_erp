@@ -6,6 +6,7 @@
          when one or more accounts are chosen. -->
     <record id="account_reports.partner_ledger_report" model="account.report">
         <field name="filter_analytic" eval="True"/>
+        <field name="filter_account_type">disabled</field>
     </record>
 
     <!-- Partner Ledger: WHT deduction column -->
