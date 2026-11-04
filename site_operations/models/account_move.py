@@ -816,6 +816,16 @@ class AccountMoveSiteOps(models.Model):
                     subtype_xmlid='mail.mt_note',
                 )
 
+        # For entries / invoices where header x_project_analytic_account_id was
+        # left unset but lines / payment have a single project analytic account, sync
+        # it to the header so reports, record rules, and drilldowns recognize it.
+        for move in self.filtered(
+            lambda m: m.state == 'posted' and not m.x_project_analytic_account_id
+        ):
+            analytic = move._matracon_get_project_analytic_account()
+            if analytic and len(move.x_site_analytic_ids) <= 1:
+                move.sudo().write({'x_project_analytic_account_id': analytic.id})
+
         # ── 8. Fill missing analytic_distribution on ALL line types ─────────────
         # Covers entry + out_invoice + any move type where lines may be
         # missing analytic (payable line, tax line, bank line).  Does NOT
@@ -1812,6 +1822,59 @@ class AccountMoveSiteOps(models.Model):
             'site_operations.action_report_journal_entry_voucher'
         ).report_action(self)
 
+    def _matracon_get_project_analytic_account(self):
+        """Return the primary account.analytic.account for this move.
+        Resolves in order:
+          1. Header x_project_analytic_account_id
+          2. Linked payment's project (x_destination_project_id or x_fund_project_id)
+          3. Stored x_site_analytic_ids (from lines)
+          4. Direct parse of line_ids.analytic_distribution
+          5. Linked purchase order's project
+          6. Linked stock picking's project
+        """
+        self.ensure_one()
+        if self.x_project_analytic_account_id:
+            return self.x_project_analytic_account_id
+        if self.origin_payment_id:
+            payment = self.origin_payment_id
+            analytic = payment.x_destination_project_id or payment.x_fund_project_id
+            if analytic:
+                return analytic
+        if self.x_site_analytic_ids:
+            return self.x_site_analytic_ids[0]
+        for line in self.line_ids:
+            line_analytics = line._matracon_get_line_analytic_accounts()
+            if line_analytics:
+                return line_analytics[0]
+        if self.x_purchase_order_id.x_project_analytic_account_id:
+            return self.x_purchase_order_id.x_project_analytic_account_id
+        if self.x_stock_picking_id.x_project_analytic_account_id:
+            return self.x_stock_picking_id.x_project_analytic_account_id
+        return self.env['account.analytic.account']
+
+    def _matracon_get_display_project_name(self):
+        """Return the project / site name for report headers and display."""
+        self.ensure_one()
+        if self.x_project_analytic_account_id:
+            return self.x_project_analytic_account_id.name
+        if self.origin_payment_id:
+            payment = self.origin_payment_id
+            analytic = payment.x_destination_project_id or payment.x_fund_project_id
+            if analytic:
+                return analytic.name
+        if self.x_site_analytic_ids:
+            return ", ".join(self.x_site_analytic_ids.mapped('name'))
+        analytics = self.env['account.analytic.account']
+        for line in self.line_ids:
+            analytics |= line._matracon_get_line_analytic_accounts()
+        if analytics:
+            return ", ".join(analytics.mapped('name'))
+        if self.x_purchase_order_id.x_project_analytic_account_id:
+            return self.x_purchase_order_id.x_project_analytic_account_id.name
+        if self.x_stock_picking_id.x_project_analytic_account_id:
+            return self.x_stock_picking_id.x_project_analytic_account_id.name
+        return False
+
     def action_rebuild_site_analytic_links(self):
         """Admin-only: recompute x_site_analytic_ids for ALL posted journal entries.
 
@@ -1937,6 +2000,33 @@ class AccountMoveLineSiteOps(models.Model):
             'discarded_date': fields.Date.today(),
         })
         return False
+
+    def _matracon_get_line_analytic_accounts(self):
+        """Return account.analytic.account recordset from line's analytic_distribution."""
+        self.ensure_one()
+        if not self.analytic_distribution:
+            return self.env['account.analytic.account']
+        analytic_ids = []
+        for key in self.analytic_distribution:
+            for token in str(key).split(','):
+                token = token.strip()
+                if token.isdigit():
+                    analytic_ids.append(int(token))
+        if not analytic_ids:
+            return self.env['account.analytic.account']
+        return self.env['account.analytic.account'].browse(analytic_ids).exists()
+
+    def _matracon_get_line_project_name(self):
+        """Return the project/analytic account name for this line.
+        Bank / cash lines are suppressed (as on BPV vouchers).
+        """
+        self.ensure_one()
+        if self.account_id.account_type in ('asset_cash',):
+            return False
+        analytics = self._matracon_get_line_analytic_accounts()
+        if analytics:
+            return ", ".join(analytics.mapped('name'))
+        return self.move_id._matracon_get_display_project_name()
 
     @api.model
     def _matracon_price_for_balance(self, move, balance, quantity, discount):
