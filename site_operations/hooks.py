@@ -439,6 +439,7 @@ def post_init_hook(env):
     # Restrict Odoo's built-in 'see all' account.move rules to group_account_manager
     # so site accountants are properly scoped to their own project.
     fix_account_move_rules(env)
+    fix_stock_warehouse_site_store_rule(env)
     # Fix any posted petty cash expenses that have no JE or wrong JE credit account.
     # On a fresh install into a DB with existing data (e.g. a restored production dump),
     # post_migrate_hook does NOT run — only post_init_hook runs.
@@ -1355,6 +1356,18 @@ def fix_account_move_rules(env):
         )
 
 
+def fix_stock_warehouse_site_store_rule(env):
+    """Ensure site store keepers have read access to their site warehouse and company main warehouse."""
+    rule = env.ref('site_operations.rule_stock_warehouse_site_store', raise_if_not_found=False)
+    if rule:
+        domain = "['|', ('id', '=', user.x_site_config_id.warehouse_id.id), ('company_id', 'in', user.company_ids.ids)]"
+        if rule.domain_force != domain:
+            rule.sudo().write({
+                'domain_force': domain,
+                'name': 'Stock Warehouse: Site Store sees own warehouse and company warehouses',
+            })
+
+
 def generate_cheque_leaves_for_existing_series(env):
     """Generate x.cheque.leaf records for all existing series that have none.
 
@@ -1391,6 +1404,7 @@ def post_migrate_hook(env):
     # Restrict Odoo's built-in 'see all' account.move rules to group_account_manager
     # so site accountants are properly scoped to their own project.
     fix_account_move_rules(env)
+    fix_stock_warehouse_site_store_rule(env)
     try:
         migrate_petty_cash_expense_lines(env)
     except Exception as e:
