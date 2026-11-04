@@ -135,6 +135,23 @@ class StockPickingSiteOps(models.Model):
         help='Set by Site Store when submitting a backcharge issuance for '
              'Site Accountant price review and validation.',
     )
+    x_sa_review_status = fields.Char(
+        string='SA Review',
+        compute='_compute_x_sa_review_status',
+        store=True,
+    )
+
+    @api.depends('x_submitted_to_sa', 'state')
+    def _compute_x_sa_review_status(self):
+        for pick in self:
+            if not pick.x_submitted_to_sa:
+                pick.x_sa_review_status = False
+            elif pick.state == 'done':
+                pick.x_sa_review_status = 'Reviewed'
+            elif pick.state == 'cancel':
+                pick.x_sa_review_status = 'Cancelled'
+            else:
+                pick.x_sa_review_status = 'Pending Review'
 
     # ── User context flags (for view domains) ────────────────────────────────
     x_is_site_store = fields.Boolean(
