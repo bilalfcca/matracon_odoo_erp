@@ -170,6 +170,15 @@
                         class="btn-secondary"
                         invisible="not x_generate_gate_pass"/>
 
+                <!-- Reset to Draft for Material Issuance -->
+                <button name="action_reset_draft"
+                        type="object"
+                        string="Reset to Draft"
+                        class="btn-secondary"
+                        confirm="Are you sure you want to reset this Material Issuance to Draft? Stock movements and pending backcharges will be reversed."
+                        invisible="x_transfer_purpose != 'material_issuance' or state not in ('done', 'cancel')"
+                        groups="purchase_demand_raise.group_site_store,site_operations.group_site_accountant,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
             </xpath>
 
             <!-- ── Transfer Purpose + Issue Type (after title, normal text) ── -->
