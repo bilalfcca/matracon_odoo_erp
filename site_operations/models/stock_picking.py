@@ -2148,13 +2148,13 @@ class StockPickingSiteOps(models.Model):
                     Quant._update_available_quantity(
                         line.product_id, line.location_dest_id, -line.quantity,
                         lot_id=lot, package_id=result_pkg, owner_id=owner,
-                        strict=False,
+                        # strict=False,
                     )
                     # Restore back to source location
                     Quant._update_available_quantity(
                         line.product_id, line.location_id, line.quantity,
                         lot_id=lot, package_id=pkg, owner_id=owner,
-                        strict=False,
+                        # strict=False,
                     )
 
             # Unlink stock valuation layers if any exist
