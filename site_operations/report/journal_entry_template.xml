@@ -61,10 +61,11 @@
                     <td style="font-weight:600; padding:1px 4px 1px 0;">Journal</td>
                     <td style="padding:1px 0;"><t t-esc="o.journal_id.name"/></td>
                 </tr>
-                <t t-if="o.x_project_analytic_account_id">
+                <t t-set="hdr_project" t-value="o._matracon_get_display_project_name()"/>
+                <t t-if="hdr_project">
                     <tr>
                         <td style="font-weight:600; padding:1px 4px 1px 0;">Project</td>
-                        <td style="padding:1px 0;"><t t-esc="o.x_project_analytic_account_id.name"/></td>
+                        <td style="padding:1px 0;"><t t-esc="hdr_project"/></td>
                     </tr>
                 </t>
                 <t t-if="o.x_account_title">
@@ -168,6 +169,12 @@
                         <t t-if="line.name">
                             <div style="font-size:8.5pt; color:#555; margin-top:1px;">
                                 <t t-esc="line.name"/>
+                            </div>
+                        </t>
+                        <t t-set="line_project" t-value="line._matracon_get_line_project_name()"/>
+                        <t t-if="line_project">
+                            <div style="font-size:8.5pt; color:#666; margin-top:1px;">
+                                Project: <t t-esc="line_project"/>
                             </div>
                         </t>
                         <!-- Bank / cheque details sub-row — shown on any line that carries

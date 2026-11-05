@@ -28,6 +28,10 @@ class ProjectProjectMatracon(models.Model):
         readonly=True,
         copy=False,
     )
+    x_award_status = fields.Selection([
+        ('not_rewarded', 'Not Rewarded'),
+        ('rewarded', 'Rewarded'),
+    ], string='Status', default='not_rewarded', tracking=True, index=True)
     x_site_store_user_ids = fields.Many2many(
         'res.users',
         'project_site_store_user_rel',
@@ -402,3 +406,23 @@ class ProjectProjectMatracon(models.Model):
         Config = self.env['x.project.site.config']
         for config in Config.search([]):
             config._ensure_project_record()
+
+    def action_convert_to_rewarded(self):
+        self.write({'x_award_status': 'rewarded'})
+        for project in self:
+            if project.x_site_config_id:
+                project.x_site_config_id.sudo().write({'x_award_status': 'rewarded'})
+
+    def action_convert_to_not_rewarded(self):
+        self.write({'x_award_status': 'not_rewarded'})
+        for project in self:
+            if project.x_site_config_id:
+                project.x_site_config_id.sudo().write({'x_award_status': 'not_rewarded'})
+
+    def write(self, vals):
+        res = super().write(vals)
+        if 'x_award_status' in vals:
+            for project in self:
+                if project.x_site_config_id and project.x_site_config_id.x_award_status != vals['x_award_status']:
+                    project.x_site_config_id.sudo().write({'x_award_status': vals['x_award_status']})
+        return res

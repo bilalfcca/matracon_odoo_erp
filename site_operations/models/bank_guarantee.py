@@ -312,6 +312,9 @@ class BankGuarantee(models.Model):
     pricing_percent = fields.Float(
         string='Bank Commission/Pricing (%)', digits=(5, 2), tracking=True,
         help='Bank commission / pricing percentage applied on BG amount.')
+    quarter_numbers = fields.Integer(
+        string='Quarter Numbers', default=1, tracking=True,
+        help='Number of quarters for calculating bank commission.')
     commission_amount = fields.Monetary(
         string='Commission Amount',
         compute='_compute_charges', store=True,
@@ -446,6 +449,7 @@ class BankGuarantee(models.Model):
 
     @api.depends(
         'bg_amount', 'cash_margin_percent', 'pricing_percent', 'fed_percent',
+        'quarter_numbers',
         'cash_margin_slab_ids', 'cash_margin_slab_ids.slab_amount',
     )
     def _compute_charges(self):
@@ -456,7 +460,8 @@ class BankGuarantee(models.Model):
             else:
                 # Simple flat rate (backward-compatible with existing BGs)
                 rec.margin_amount = rec.bg_amount * (rec.cash_margin_percent or 0.0) / 100.0
-            rec.commission_amount = rec.bg_amount * (rec.pricing_percent or 0.0) / 100.0
+            quarters = rec.quarter_numbers if rec.quarter_numbers > 0 else 1
+            rec.commission_amount = (rec.bg_amount * (rec.pricing_percent or 0.0) / 100.0) * quarters
             rec.fed_amount = rec.commission_amount * (rec.fed_percent or 0.0) / 100.0
 
     @api.depends('jv_type', 'jv_name', 'on_behalf_entity')
@@ -537,6 +542,89 @@ class BankGuarantee(models.Model):
     def _onchange_project_id(self):
         if self.project_id and not self.project_name:
             self.project_name = self.project_id.name
+
+    def action_create_project_from_manual(self):
+        self.ensure_one()
+        name = (self.project_name or '').strip()
+        if not name:
+            raise UserError(_('Please enter a Manual Project Name first.'))
+
+        Project = self.env['project.project'].sudo()
+        SiteConfig = self.env['x.project.site.config'].sudo()
+        Analytic = self.env['account.analytic.account'].sudo()
+
+        existing_project = Project.search([('name', '=ilike', name)], limit=1)
+        if existing_project:
+            self.project_id = existing_project.id
+            if not existing_project.x_award_status:
+                existing_project.x_award_status = 'not_rewarded'
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': _('Project Linked'),
+                    'message': _('Linked to existing project "%s".', existing_project.name),
+                    'sticky': False,
+                    'type': 'success',
+                }
+            }
+
+        analytic = Analytic.search([('name', '=ilike', name)], limit=1)
+        if not analytic:
+            vals = {'name': name}
+            if 'plan_id' in Analytic._fields:
+                Plan = self.env.get('account.analytic.plan')
+                if Plan:
+                    plan = Plan.sudo().search([], limit=1)
+                    if plan:
+                        vals['plan_id'] = plan.id
+            analytic = Analytic.create(vals)
+
+        site_config = SiteConfig.search([
+            '|', ('name', '=ilike', name),
+            ('analytic_account_id', '=', analytic.id)
+        ], limit=1)
+
+        if not site_config:
+            site_config = SiteConfig.create({
+                'name': name,
+                'analytic_account_id': analytic.id,
+                'x_award_status': 'not_rewarded',
+            })
+        else:
+            if not site_config.x_award_status:
+                site_config.x_award_status = 'not_rewarded'
+
+        project = site_config.project_id
+        if not project:
+            site_config._ensure_project_record()
+            project = site_config.project_id
+
+        if not project:
+            project = Project.search([('x_analytic_account_id', '=', analytic.id)], limit=1)
+        if not project:
+            project = Project.create({
+                'name': name,
+                'x_analytic_account_id': analytic.id,
+                'x_site_config_id': site_config.id,
+                'x_award_status': 'not_rewarded',
+            })
+            site_config.project_id = project.id
+
+        project.write({'x_award_status': 'not_rewarded'})
+        self.project_id = project.id
+        self.project_name = project.name
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Project Created'),
+                'message': _('Project "%s" created in Project app and Site Project Configuration as Not Rewarded.', name),
+                'sticky': False,
+                'type': 'success',
+            }
+        }
 
     @api.onchange('beneficiary_id')
     def _onchange_beneficiary_id(self):
@@ -1286,6 +1374,219 @@ class BankGuarantee(models.Model):
             'type': 'ir.actions.act_window',
             'name': _('Audit & Repair Bank Guarantee Accounting'),
             'res_model': 'x.bg.accounting.repair.wizard',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': self.env.context,
+        }
+
+    @api.model
+    def action_admin_fix_bg_journal_accounts(self, dry_run=False):
+        """Scan all bank journals used in BG Facilities and ensure:
+          1. The journal's default account is marked x_is_main=True (parent/group).
+          2. Three child accounts exist: code+1 (Useable Balance), code+2 (Cash Margin), code+3 (PO).
+          3. Journal.default_account_id points to the Useable Balance child.
+          4. Journal.x_cash_margin_account_id points to the Cash Margin child.
+
+        Idempotent — creates only what is missing. Never modifies existing accounts.
+
+        Returns a dict with counts and an HTML audit report.
+        """
+        Account = self.env['account.account'].sudo()
+        Journal = self.env['account.journal'].sudo()
+        Facility = self.env['x.bank.guarantee.facility'].sudo()
+        company = self.env.company
+
+        CHILD_SUFFIXES = [
+            ('1', 'Useable Balance'),
+            ('2', 'Cash Margin'),
+            ('3', 'PO'),
+        ]
+
+        # Gather all journals linked to BG Facilities
+        facility_journal_ids = Facility.search([]).mapped('journal_id.id')
+        # Also add journals used on live BGs that may not have a facility
+        bg_journal_ids = self.sudo().search([]).mapped('journal_id.id')
+        all_journal_ids = list(set(filter(None, facility_journal_ids + bg_journal_ids)))
+        journals = Journal.search([
+            ('id', 'in', all_journal_ids),
+            ('type', '=', 'bank'),
+        ])
+
+        scanned = len(journals)
+        created_accounts = 0
+        wired_journals = 0
+        already_ok = 0
+        failed = 0
+        report_rows = []
+
+        for journal in journals:
+            row = {
+                'journal': journal.name,
+                'actions': [],
+                'status': 'ok',
+                'detail': '',
+            }
+            try:
+                base_acc = journal.default_account_id
+                if not base_acc:
+                    row['status'] = 'skipped'
+                    row['detail'] = 'No default account on journal — configure it first.'
+                    report_rows.append(row)
+                    continue
+
+                # Determine the parent (Main) account code
+                # If default_account is already a leaf child (ends in 1/2/3),
+                # strip the suffix to find the parent code
+                code = base_acc.code or ''
+                if code and code[-1] in ('1', '2', '3') and len(code) > 1:
+                    parent_code = code[:-1]
+                else:
+                    parent_code = code
+
+                parent_acc = Account.search([
+                    ('code', '=', parent_code),
+                    ('company_ids', 'in', [company.id]),
+                ], limit=1)
+
+                if not parent_acc:
+                    row['status'] = 'skipped'
+                    row['detail'] = f'Parent account code {parent_code} not found in CoA.'
+                    report_rows.append(row)
+                    continue
+
+                # Step 1: Mark parent as Main (group)
+                if not parent_acc.x_is_main:
+                    if not dry_run:
+                        parent_acc.x_is_main = True
+                    row['actions'].append(f'Marked {parent_code} as Main account')
+
+                # Step 2: Create missing child accounts
+                useable_acc = None
+                margin_acc = None
+                for suffix, label in CHILD_SUFFIXES:
+                    child_code = parent_code + suffix
+                    child = Account.search([
+                        ('code', '=', child_code),
+                        ('company_ids', 'in', [company.id]),
+                    ], limit=1)
+                    if not child:
+                        if not dry_run:
+                            child = Account.create({
+                                'name': f'{parent_acc.name} - {label}',
+                                'code': child_code,
+                                'account_type': parent_acc.account_type or 'asset_cash',
+                                'reconcile': parent_acc.reconcile,
+                                'company_ids': [(4, company.id)],
+                                'x_parent_account_id': parent_acc.id,
+                                'x_is_main': False,
+                            })
+                        created_accounts += 1
+                        row['actions'].append(f'Created {child_code} ({label})')
+                    else:
+                        # Ensure parent link is set
+                        if not dry_run and child.x_parent_account_id.id != parent_acc.id:
+                            child.x_parent_account_id = parent_acc.id
+                            row['actions'].append(f'Linked {child_code} → parent {parent_code}')
+
+                    if suffix == '1' and child:
+                        useable_acc = child
+                    if suffix == '2' and child:
+                        margin_acc = child
+
+                # Step 3: Wire journal.default_account_id → Useable Balance
+                if useable_acc and journal.default_account_id.id != useable_acc.id:
+                    if not dry_run:
+                        journal.default_account_id = useable_acc.id
+                    wired_journals += 1
+                    row['actions'].append(
+                        f'Wired journal default account → {useable_acc.code} (Useable Balance)'
+                    )
+
+                # Step 4: Wire journal.x_cash_margin_account_id → Cash Margin
+                if margin_acc and journal.x_cash_margin_account_id.id != margin_acc.id:
+                    if not dry_run:
+                        journal.x_cash_margin_account_id = margin_acc.id
+                    row['actions'].append(
+                        f'Set Cash Margin account → {margin_acc.code} on journal'
+                    )
+
+                if row['actions']:
+                    row['status'] = 'fixed'
+                    row['detail'] = '; '.join(row['actions'])
+                else:
+                    already_ok += 1
+                    row['status'] = 'ok'
+                    row['detail'] = 'Already fully configured.'
+
+            except Exception as e:
+                failed += 1
+                row['status'] = 'failed'
+                row['detail'] = str(e)
+
+            report_rows.append(row)
+
+        report_html = self._format_bg_journal_fix_html(
+            scanned, created_accounts, wired_journals, already_ok, failed, report_rows, dry_run
+        )
+        return {
+            'scanned': scanned,
+            'created_accounts': created_accounts,
+            'wired_journals': wired_journals,
+            'already_ok': already_ok,
+            'failed': failed,
+            'report_html': report_html,
+        }
+
+    @api.model
+    def _format_bg_journal_fix_html(
+        self, scanned, created_accounts, wired_journals, already_ok, failed, rows, dry_run
+    ):
+        mode_badge = (
+            '<span class="badge bg-warning text-dark px-2 py-1 fs-6">Preview / Dry Run</span>'
+            if dry_run else
+            '<span class="badge bg-success text-white px-2 py-1 fs-6">Live Fix Applied</span>'
+        )
+        cards = f"""
+        <div class="mb-3 d-flex flex-wrap gap-2 align-items-center">
+            {mode_badge}
+            <span class="badge bg-secondary p-2">Journals Scanned: {scanned}</span>
+            <span class="badge bg-primary p-2">Accounts {"To Create" if dry_run else "Created"}: {created_accounts}</span>
+            <span class="badge bg-info text-dark p-2">Journals Wired: {wired_journals}</span>
+            <span class="badge bg-light text-dark border p-2">Already OK: {already_ok}</span>
+            <span class="badge bg-danger p-2">Failed: {failed}</span>
+        </div>
+        """
+        STATUS_COLORS = {'ok': 'success', 'fixed': 'primary', 'skipped': 'secondary', 'failed': 'danger'}
+        row_html = []
+        for i, r in enumerate(rows, 1):
+            color = STATUS_COLORS.get(r['status'], 'secondary')
+            row_html.append(
+                f'<tr>'
+                f'<td>{i}</td>'
+                f'<td>{r["journal"]}</td>'
+                f'<td><span class="badge bg-{color}">{r["status"].upper()}</span></td>'
+                f'<td>{r["detail"]}</td>'
+                f'</tr>'
+            )
+        table = f"""
+        <table class="table table-sm table-bordered table-hover mt-2">
+            <thead class="table-dark">
+                <tr>
+                    <th>#</th><th>Bank Journal</th><th>Status</th><th>Actions Taken</th>
+                </tr>
+            </thead>
+            <tbody>{''.join(row_html)}</tbody>
+        </table>
+        """
+        return cards + table
+
+    @api.model
+    def action_open_bg_journal_fix_wizard(self):
+        """Open the BG Bank Journal Account Fix Wizard from Admin -> Fix Tools."""
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Fix BG Bank Journal Chart of Accounts'),
+            'res_model': 'x.bg.journal.account.fix.wizard',
             'view_mode': 'form',
             'target': 'new',
             'context': self.env.context,

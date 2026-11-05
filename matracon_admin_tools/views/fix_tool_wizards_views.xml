@@ -163,8 +163,7 @@
     </record>
 
     <!-- Bank Guarantee Accounting Repair Wizard -->
-    <record id="view_bg_accounting_repair_wizard_form" model="ir.ui.view">
-        <field name="name">x.bg.accounting.repair.wizard.form</field>
+    <record id="view_bg_accounting_repair_wizard_form" model="ir.ui.view">        <field name="name">x.bg.accounting.repair.wizard.form</field>
         <field name="model">x.bg.accounting.repair.wizard</field>
         <field name="arch" type="xml">
             <form string="Repair Bank Guarantee Accounting Entries">
@@ -201,6 +200,53 @@
                     <button name="action_apply_repair" string="Execute Repair (Live)" type="object"
                             class="btn-primary"
                             confirm="This will create and post missing Cash Margin journal entries for eligible guarantees. Continue?"/>
+                    <button string="Close" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- Fix BG Bank Journal Chart of Accounts Wizard -->
+    <record id="view_bg_journal_account_fix_wizard_form" model="ir.ui.view">
+        <field name="name">x.bg.journal.account.fix.wizard.form</field>
+        <field name="model">x.bg.journal.account.fix.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Fix BG Bank Journal Chart of Accounts">
+                <div class="alert alert-info" role="alert">
+                    <strong>BG Bank Journal — Chart of Accounts Fix Tool</strong><br/>
+                    Scans every bank journal used in <strong>Bank Guarantee Facilities</strong> and live BGs,
+                    then ensures the correct sub-account structure exists under each journal's main bank account:
+                    <ul class="mb-0 mt-1">
+                        <li><strong>Parent/Main account</strong> (code) — flagged as group/no-posting.</li>
+                        <li><strong>code+1</strong> — Useable Balance (journal posting account).</li>
+                        <li><strong>code+2</strong> — Cash Margin (BG cash margin account).</li>
+                        <li><strong>code+3</strong> — PO.</li>
+                        <li>Wires <em>Journal → Default Account</em> to code+1 and <em>Journal → Cash Margin Account</em> to code+2.</li>
+                    </ul>
+                    Idempotent — never modifies existing accounts or entries.
+                </div>
+                <group>
+                    <group string="Scan Counts">
+                        <field name="scanned"/>
+                        <field name="created_accounts"/>
+                        <field name="wired_journals"/>
+                    </group>
+                    <group string="Status">
+                        <field name="already_ok"/>
+                        <field name="failed"/>
+                    </group>
+                </group>
+                <notebook>
+                    <page string="Audit Report" name="report">
+                        <field name="audit_report_html" widget="html" readonly="1" nolabel="1"/>
+                    </page>
+                </notebook>
+                <footer>
+                    <button name="action_preview" string="Re-run Preview" type="object"
+                            class="btn-secondary"/>
+                    <button name="action_apply_fix" string="Apply Fix (Live)" type="object"
+                            class="btn-primary"
+                            confirm="This will create missing child accounts and wire BG bank journals. No existing accounts or entries are modified. Continue?"/>
                     <button string="Close" class="btn-secondary" special="cancel"/>
                 </footer>
             </form>

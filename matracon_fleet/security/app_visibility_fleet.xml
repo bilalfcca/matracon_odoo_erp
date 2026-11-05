@@ -5,6 +5,7 @@
         <field name="name">App: Fleet</field>
         <field name="privilege_id" ref="purchase_demand_raise.res_groups_privilege_demand_raise"/>
         <field name="comment">Show Fleet app in the home menu.</field>
+        <field name="implied_ids" eval="[Command.link(ref('fleet.fleet_group_user'))]"/>
     </record>
 
     <!-- Grant Fleet app visibility to all roles.
@@ -15,26 +16,44 @@
          after site_operations' (6, 0, [...]) REPLACE records. -->
 
     <record id="purchase_demand_raise.group_head_office" model="res.groups">
-        <field name="implied_ids" eval="[Command.link(ref('matracon_fleet.group_mtr_app_fleet'))]"/>
+        <field name="implied_ids" eval="[
+            Command.link(ref('matracon_fleet.group_mtr_app_fleet')),
+            Command.link(ref('fleet.fleet_group_user')),
+        ]"/>
     </record>
 
     <record id="purchase_demand_raise.group_site_store" model="res.groups">
-        <field name="implied_ids" eval="[Command.link(ref('matracon_fleet.group_mtr_app_fleet'))]"/>
+        <field name="implied_ids" eval="[
+            Command.link(ref('matracon_fleet.group_mtr_app_fleet')),
+            Command.link(ref('fleet.fleet_group_user')),
+        ]"/>
     </record>
 
     <record id="purchase_demand_raise.group_ceo_approval" model="res.groups">
-        <field name="implied_ids" eval="[Command.link(ref('matracon_fleet.group_mtr_app_fleet'))]"/>
+        <field name="implied_ids" eval="[
+            Command.link(ref('matracon_fleet.group_mtr_app_fleet')),
+            Command.link(ref('fleet.fleet_group_user')),
+        ]"/>
     </record>
 
     <record id="site_operations.group_site_accountant" model="res.groups">
-        <field name="implied_ids" eval="[Command.link(ref('matracon_fleet.group_mtr_app_fleet'))]"/>
+        <field name="implied_ids" eval="[
+            Command.link(ref('matracon_fleet.group_mtr_app_fleet')),
+            Command.link(ref('fleet.fleet_group_user')),
+        ]"/>
     </record>
 
     <record id="site_operations.group_finance_ho" model="res.groups">
-        <field name="implied_ids" eval="[Command.link(ref('matracon_fleet.group_mtr_app_fleet'))]"/>
+        <field name="implied_ids" eval="[
+            Command.link(ref('matracon_fleet.group_mtr_app_fleet')),
+            Command.link(ref('fleet.fleet_group_user')),
+        ]"/>
     </record>
 
     <record id="purchase_demand_raise.group_matracon_admin" model="res.groups">
-        <field name="implied_ids" eval="[Command.link(ref('matracon_fleet.group_mtr_app_fleet'))]"/>
+        <field name="implied_ids" eval="[
+            Command.link(ref('matracon_fleet.group_mtr_app_fleet')),
+            Command.link(ref('fleet.fleet_group_user')),
+        ]"/>
     </record>
 </odoo>

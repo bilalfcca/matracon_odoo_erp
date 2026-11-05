@@ -139,6 +139,10 @@ class AccountMoveSiteOps(models.Model):
         'purchase.order', string='Purchase Order', tracking=True, copy=False,
         domain=[('state', 'in', ('purchase', 'done'))],
     )
+    x_stock_picking_id = fields.Many2one(
+        'stock.picking', string='Receipt (GRN)', readonly=True, copy=False, index=True,
+        help='Goods Receipt Note (stock picking) from which this vendor bill was generated.',
+    )
     x_liability_sheet_id = fields.Many2one(
         'x.liability.sheet', string='Liability Sheet', readonly=True, copy=False)
     x_liability_registered = fields.Boolean(
@@ -520,58 +524,133 @@ class AccountMoveSiteOps(models.Model):
         # When a site accountant manually enters ALL lines on a vendor bill or
         # customer invoice — including one or more payable/receivable accounts
         # on both sides (e.g. backcharge pattern: Dr Expense / Cr Payable NAEEM,
-        # Dr Payable SHAHZAD / Cr Expense) — the entry is already balanced.
+        # Dr Payable SHAHZAD / Cr Expense, or IPC customer invoices with deductions
+        # for Advance, Income Tax, Retention, Protection fee, etc.) — the entry
+        # is already balanced.
         #
         # Odoo's payment_term sync (_sync_dynamic_lines) fires during write() and
-        # tries to delete/recreate the auto-managed payable line.  This causes:
+        # tries to delete/recreate the auto-managed payable/receivable line.
+        # This causes:
         #   • "You cannot delete a payable/receivable line" — if it tries to remove
         #     the existing payment_term line while recreating it
-        #   • "The entry is not balanced" — if it adds an EXTRA payable line on
-        #     top of the manually-added ones, doubling the credit
+        #   • "The entry is not balanced" — if it adds an EXTRA line on
+        #     top of the manually-added ones, or recalculates the receivable to
+        #     the gross invoice amount, doubling the debit
         #
-        # The fix: for pre-balanced invoices that have manually-added payable/
-        # receivable lines (display_type != 'payment_term'), post using
-        # _post(soft=False) with skip_invoice_sync=True.  This bypasses the
-        # payment_term sync entirely, preserving the manually-balanced lines.
-        def _has_manual_payable(move):
-            return any(
+        # The fix: for pre-balanced invoices, post using _post(soft=False) with
+        # skip_invoice_sync=True. This bypasses the payment_term sync entirely,
+        # preserving the manually-balanced lines.
+        def _is_pre_balanced(move):
+            currency = move.currency_id or move.company_id.currency_id
+            prec = currency.decimal_places or 2
+            dr = round(sum(move.line_ids.mapped('debit')), prec)
+            cr = round(sum(move.line_ids.mapped('credit')), prec)
+            diff = abs(dr - cr)
+
+            # Not balanced at all: difference exceeds 5 cents or one side is zero
+            if diff > 0.05 or dr <= 0.01 or cr <= 0.01:
+                return False
+
+            # Any invoice with manual payable/receivable lines
+            if any(
                 l.account_id.account_type in ('liability_payable', 'asset_receivable')
                 and l.display_type != 'payment_term'
                 for l in move.line_ids
-            )
+            ):
+                return True
+
+            # Customer invoices: manual deduction lines on debit side (Income Tax, Retention,
+            # Advance recovery, Protection fee) or multiple debit lines
+            if move.move_type in ('out_invoice', 'out_refund'):
+                debit_lines = move.line_ids.filtered(lambda l: l.debit > 0.001)
+                if len(debit_lines) > 1 or any(l.display_type != 'payment_term' for l in debit_lines):
+                    return True
+
+            # Vendor bills: manual deduction lines on credit side (Backcharges, Retention,
+            # Tax withheld, Advance recovery) or multiple credit lines
+            if move.move_type in ('in_invoice', 'in_refund'):
+                credit_lines = move.line_ids.filtered(lambda l: l.credit > 0.001)
+                if len(credit_lines) > 1 or any(l.display_type != 'payment_term' for l in credit_lines):
+                    return True
+
+            # Any invoice where payment-term line balance does not match amount_total
+            pt_lines = move.line_ids.filtered(lambda l: l.display_type == 'payment_term')
+            if pt_lines:
+                pt_total = round(sum(abs(l.balance) for l in pt_lines), prec)
+                if abs(pt_total - move.amount_total) > 0.01:
+                    return True
+            else:
+                return True
+
+            # In general, if dr == cr within 5 cents, treat as pre-balanced to avoid
+            # dynamic line recreation corrupting balanced lines
+            return True
 
         pre_balanced = self.env['account.move']
         for move in self.filtered(
             lambda m: m.is_invoice(include_receipts=True) and m.state != 'posted'
         ):
-            dr = sum(move.line_ids.mapped('debit'))
-            cr = sum(move.line_ids.mapped('credit'))
-            if abs(dr - cr) < 0.01 and dr > 0.01 and _has_manual_payable(move):
+            if _is_pre_balanced(move):
                 pre_balanced |= move
 
         normal_moves = self - pre_balanced
 
-        # ── 2. invoice_date_due pre-fill (normal moves only) ─────────────────────
-        # Due dates are hidden in the UI.  Ensure the field is populated before
-        # posting so Odoo can set date_maturity on the payment_term line correctly.
-        # Skip pre_balanced moves — their payment_term line is NOT touched by the
-        # sync, so stamping invoice_date_due would needlessly trigger the sync.
-        for move in normal_moves.filtered(lambda m: m.is_invoice() and not m.invoice_date_due):
-            move.invoice_date_due = move.invoice_date or fields.Date.context_today(self)
+        # ── 2. invoice_date_due & date_maturity pre-fill (SQL to avoid dynamic sync) ──
+        # Stamping via direct SQL ensures date_maturity is always populated on
+        # receivable/payable lines without triggering Odoo's onchange dynamic line sync.
+        for move in self.filtered(lambda m: m.is_invoice(include_receipts=True) and m.state != 'posted'):
+            due = move.invoice_date_due or move.invoice_date or fields.Date.context_today(self)
+            if not move.invoice_date_due:
+                self.env.cr.execute(
+                    "UPDATE account_move SET invoice_date_due = %s WHERE id = %s",
+                    (due, move.id),
+                )
+                move.invalidate_recordset(['invoice_date_due'])
+            self.env.cr.execute(
+                """
+                UPDATE account_move_line
+                   SET date_maturity = %s
+                 WHERE move_id = %s
+                   AND date_maturity IS NULL
+                   AND (
+                       display_type = 'payment_term'
+                       OR account_id IN (
+                           SELECT id FROM account_account
+                            WHERE account_type IN ('asset_receivable', 'liability_payable')
+                       )
+                   )
+                """,
+                (due, move.id),
+            )
+            move.line_ids.invalidate_recordset(['date_maturity'])
 
-        # For customer invoices: also stamp date_maturity on any existing
-        # payment_term lines that still have no due date.
-        for move in normal_moves.filtered(lambda m: m.move_type == 'out_invoice'):
-            due = (
-                move.invoice_date_due
-                or move.invoice_date
-                or fields.Date.context_today(self)
-            )
-            pt_lines = move.line_ids.filtered(
-                lambda l: l.display_type == 'payment_term' and not l.date_maturity
-            )
-            if pt_lines:
-                pt_lines.write({'date_maturity': due})
+        # ── 2b. Auto-balance minor penny rounding differences on pre-balanced moves ──
+        for move in pre_balanced:
+            currency = move.currency_id or move.company_id.currency_id
+            prec = currency.decimal_places or 2
+            dr = round(sum(move.line_ids.mapped('debit')), prec)
+            cr = round(sum(move.line_ids.mapped('credit')), prec)
+            diff = round(dr - cr, prec)
+            if 0.0 < abs(diff) <= 0.05:
+                target_line = (
+                    move.line_ids.filtered(lambda l: l.display_type == 'payment_term')[:1]
+                    or move.line_ids.filtered(lambda l: l.account_id.account_type in ('asset_receivable', 'liability_payable'))[:1]
+                    or move.line_ids.sorted(lambda l: abs(l.balance), reverse=True)[:1]
+                )
+                if target_line:
+                    if target_line.debit > 0:
+                        new_debit = round(target_line.debit - diff, prec)
+                        self.env.cr.execute(
+                            "UPDATE account_move_line SET debit = %s WHERE id = %s",
+                            (new_debit, target_line.id),
+                        )
+                    else:
+                        new_credit = round(target_line.credit + diff, prec)
+                        self.env.cr.execute(
+                            "UPDATE account_move_line SET credit = %s WHERE id = %s",
+                            (new_credit, target_line.id),
+                        )
+                    target_line.invalidate_recordset(['debit', 'credit', 'balance'])
 
         # ── 3. Bill Copy mandatory for vendor bills ───────────────────────────────
         # Skip during module installation / demo-data loading.
@@ -1565,24 +1644,53 @@ class AccountMoveSiteOps(models.Model):
         po = picking.purchase_id
         if not po or not po.partner_id:
             return self.env['account.move']
+
+        # Look specifically for an existing bill for THIS receipt/GRN
         existing = self.search([
-            ('x_purchase_order_id', '=', po.id),
             ('move_type', '=', 'in_invoice'),
-            ('state', '=', 'draft'),
+            ('state', '!=', 'cancel'),
+            '|',
+            ('x_stock_picking_id', '=', picking.id),
+            ('ref', '=', 'GRN-%s' % picking.name),
         ], limit=1)
         if existing:
+            if not existing.x_stock_picking_id:
+                existing.write({'x_stock_picking_id': picking.id})
             return existing
 
         line_vals = []
-        for move in picking.move_ids.filtered(
-            lambda m: m.product_id and m.quantity > 0
-        ):
+        valid_moves = picking.move_ids.filtered(
+            lambda m: m.product_id and m.quantity > 0 and m.state == 'done'
+        ) or picking.move_ids.filtered(
+            lambda m: m.product_id and m.quantity > 0 and m.state != 'cancel'
+        )
+        for move in valid_moves:
+            po_line = move.purchase_line_id
+            if not po_line and po:
+                po_line = po.order_line.filtered(lambda l: l.product_id == move.product_id)[:1]
+
+            if po_line:
+                price_unit = po_line.price_unit
+                taxes = getattr(po_line, 'tax_ids', getattr(po_line, 'taxes_id', po_line.product_id.supplier_taxes_id))
+                uom = getattr(po_line, 'product_uom_id', getattr(po_line, 'product_uom', False))
+                if move.product_uom and uom and move.product_uom != uom:
+                    qty = move.product_uom._compute_quantity(move.quantity, uom)
+                else:
+                    qty = move.quantity
+            else:
+                price_unit = move.product_id.standard_price or 0.0
+                taxes = move.product_id.supplier_taxes_id
+                uom = move.product_uom or move.product_id.uom_po_id
+                qty = move.quantity
+
             line_vals.append((0, 0, {
                 'product_id': move.product_id.id,
-                'name': move.product_id.display_name,
-                'quantity': move.quantity,
-                'price_unit': move.product_id.standard_price or 0.0,
-                'tax_ids': [(6, 0, move.product_id.supplier_taxes_id.ids)],
+                'name': po_line.name if po_line else move.product_id.display_name,
+                'quantity': qty,
+                'product_uom_id': uom.id if uom else False,
+                'price_unit': price_unit,
+                'tax_ids': [(6, 0, taxes.ids)] if taxes else False,
+                'purchase_line_id': po_line.id if po_line else False,
             }))
         if not line_vals:
             return self.env['account.move']
@@ -1592,10 +1700,11 @@ class AccountMoveSiteOps(models.Model):
             'partner_id': po.partner_id.id,
             'invoice_date': fields.Date.context_today(self),
             'x_purchase_order_id': po.id,
+            'x_stock_picking_id': picking.id,
             'x_project_analytic_account_id': (
                 po.x_project_analytic_account_id.id
                 if po.x_project_analytic_account_id else False),
-            'invoice_origin': po.name,
+            'invoice_origin': '%s: %s' % (po.name, picking.name),
             'ref': 'GRN-%s' % picking.name,
             'invoice_line_ids': line_vals,
         })
@@ -1619,11 +1728,142 @@ class AccountMoveSiteOps(models.Model):
         )) % (bill.name or _('New')))
         return bill
 
+    @api.model
+    def action_matracon_backfill_missing_po_receipt_bills(self):
+        """Admin Fix Tool: find all validated incoming PO receipts that lack vendor bills
+        (especially partial receipts) and generate draft vendor bills for them.
+        """
+        if not (self.env.user.has_group('purchase_demand_raise.group_matracon_admin')
+                or self.env.user.has_group('base.group_system')
+                or self.env.user.has_group('site_operations.group_finance_ho')):
+            raise UserError(_('Only Finance HO, Matracon Admin or System Administrator can run this action.'))
+
+        pickings = self.env['stock.picking'].sudo().search([
+            ('picking_type_code', '=', 'incoming'),
+            ('state', '=', 'done'),
+            ('purchase_id', '!=', False),
+        ], order='id asc')
+
+        created_bills = self.env['account.move']
+        linked_existing = 0
+
+        for picking in pickings:
+            po = picking.purchase_id
+            if po.x_procurement_type == 'site_procurement' and not po.x_add_to_liability_sheet:
+                continue
+
+            existing = self.sudo().search([
+                ('move_type', '=', 'in_invoice'),
+                ('state', '!=', 'cancel'),
+                '|',
+                ('x_stock_picking_id', '=', picking.id),
+                ('ref', '=', 'GRN-%s' % picking.name),
+            ], limit=1)
+
+            if existing:
+                if not existing.x_stock_picking_id:
+                    existing.sudo().write({'x_stock_picking_id': picking.id})
+                    linked_existing += 1
+                continue
+
+            if po.x_procurement_type == 'site_procurement' and po.x_site_vendor_id and not po.partner_id:
+                po.sudo().write({'partner_id': po.x_site_vendor_id.id})
+
+            new_bill = self._matracon_create_draft_bill_from_po_receipt(picking)
+            if new_bill:
+                created_bills |= new_bill
+
+        message = _(
+            'Scanned %s PO receipts: created %s missing vendor bills '
+            '(linked %s existing bills with receipt notes).'
+        ) % (len(pickings), len(created_bills), linked_existing)
+
+        if len(created_bills) == 1:
+            return {
+                'type': 'ir.actions.act_window',
+                'name': _('Vendor Bill Created'),
+                'res_model': 'account.move',
+                'view_mode': 'form',
+                'res_id': created_bills.id,
+            }
+        elif len(created_bills) > 1:
+            return {
+                'type': 'ir.actions.act_window',
+                'name': _('Created Vendor Bills (%s)') % len(created_bills),
+                'res_model': 'account.move',
+                'view_mode': 'list,form',
+                'domain': [('id', 'in', created_bills.ids)],
+            }
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('PO Receipt Vendor Bills Check Complete'),
+                'message': message,
+                'sticky': False,
+                'type': 'info',
+            }
+        }
+
     def action_print_journal_entry_voucher(self):
         """Open the Journal Entry Voucher PDF for posted journal entries."""
         return self.env.ref(
             'site_operations.action_report_journal_entry_voucher'
         ).report_action(self)
+
+    def _matracon_get_project_analytic_account(self):
+        """Return the primary account.analytic.account for this move.
+        Resolves in order:
+          1. Header x_project_analytic_account_id
+          2. Linked payment's project (x_destination_project_id or x_fund_project_id)
+          3. Stored x_site_analytic_ids (from lines)
+          4. Direct parse of line_ids.analytic_distribution
+          5. Linked purchase order's project
+          6. Linked stock picking's project
+        """
+        self.ensure_one()
+        if self.x_project_analytic_account_id:
+            return self.x_project_analytic_account_id
+        if self.origin_payment_id:
+            payment = self.origin_payment_id
+            analytic = payment.x_destination_project_id or payment.x_fund_project_id
+            if analytic:
+                return analytic
+        if self.x_site_analytic_ids:
+            return self.x_site_analytic_ids[0]
+        for line in self.line_ids:
+            line_analytics = line._matracon_get_line_analytic_accounts()
+            if line_analytics:
+                return line_analytics[0]
+        if self.x_purchase_order_id.x_project_analytic_account_id:
+            return self.x_purchase_order_id.x_project_analytic_account_id
+        if self.x_stock_picking_id.x_project_analytic_account_id:
+            return self.x_stock_picking_id.x_project_analytic_account_id
+        return self.env['account.analytic.account']
+
+    def _matracon_get_display_project_name(self):
+        """Return the project / site name for report headers and display."""
+        self.ensure_one()
+        if self.x_project_analytic_account_id:
+            return self.x_project_analytic_account_id.name
+        if self.origin_payment_id:
+            payment = self.origin_payment_id
+            analytic = payment.x_destination_project_id or payment.x_fund_project_id
+            if analytic:
+                return analytic.name
+        if self.x_site_analytic_ids:
+            return ", ".join(self.x_site_analytic_ids.mapped('name'))
+        analytics = self.env['account.analytic.account']
+        for line in self.line_ids:
+            analytics |= line._matracon_get_line_analytic_accounts()
+        if analytics:
+            return ", ".join(analytics.mapped('name'))
+        if self.x_purchase_order_id.x_project_analytic_account_id:
+            return self.x_purchase_order_id.x_project_analytic_account_id.name
+        if self.x_stock_picking_id.x_project_analytic_account_id:
+            return self.x_stock_picking_id.x_project_analytic_account_id.name
+        return False
 
     def action_rebuild_site_analytic_links(self):
         """Admin-only: recompute x_site_analytic_ids for ALL posted journal entries.
@@ -1750,6 +1990,33 @@ class AccountMoveLineSiteOps(models.Model):
             'discarded_date': fields.Date.today(),
         })
         return False
+
+    def _matracon_get_line_analytic_accounts(self):
+        """Return account.analytic.account recordset from line's analytic_distribution."""
+        self.ensure_one()
+        if not self.analytic_distribution:
+            return self.env['account.analytic.account']
+        analytic_ids = []
+        for key in self.analytic_distribution:
+            for token in str(key).split(','):
+                token = token.strip()
+                if token.isdigit():
+                    analytic_ids.append(int(token))
+        if not analytic_ids:
+            return self.env['account.analytic.account']
+        return self.env['account.analytic.account'].browse(analytic_ids).exists()
+
+    def _matracon_get_line_project_name(self):
+        """Return the project/analytic account name for this line.
+        Bank / cash lines are suppressed (as on BPV vouchers).
+        """
+        self.ensure_one()
+        if self.account_id.account_type in ('asset_cash',):
+            return False
+        analytics = self._matracon_get_line_analytic_accounts()
+        if analytics:
+            return ", ".join(analytics.mapped('name'))
+        return self.move_id._matracon_get_display_project_name()
 
     @api.model
     def _matracon_price_for_balance(self, move, balance, quantity, discount):

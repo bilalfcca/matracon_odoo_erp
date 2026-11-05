@@ -366,18 +366,34 @@
                             <strong>Action Required:</strong>
                             Print this voucher, obtain physical signatures, scan it and upload below before posting.
                         </div>
-                        <field name="x_signed_voucher" widget="binary"
-                               filename="x_signed_voucher_filename"
-                               string="Upload Signed Voucher"
-                               readonly="state == 'posted'"/>
+                        <label for="x_signed_voucher" string="Signed Voucher"/>
+                        <div class="o_row">
+                            <field name="x_signed_voucher" widget="binary"
+                                   filename="x_signed_voucher_filename"
+                                   readonly="state == 'posted'"/>
+                            <button name="action_view_signed_voucher"
+                                    type="object"
+                                    string="View Voucher"
+                                    icon="fa-eye"
+                                    class="btn btn-sm btn-outline-primary"
+                                    invisible="not x_signed_voucher"/>
+                        </div>
                         <field name="x_signed_voucher_filename" invisible="1"/>
                     </group>
 
                     <group string="Supporting Receipt (Optional)">
-                        <field name="receipt" widget="binary"
-                               filename="receipt_filename"
-                               string="Upload Receipt / Invoice"
-                               readonly="state == 'posted'"/>
+                        <label for="receipt" string="Receipt / Invoice"/>
+                        <div class="o_row">
+                            <field name="receipt" widget="binary"
+                                   filename="receipt_filename"
+                                   readonly="state == 'posted'"/>
+                            <button name="action_view_receipt"
+                                    type="object"
+                                    string="View Receipt"
+                                    icon="fa-eye"
+                                    class="btn btn-sm btn-outline-primary"
+                                    invisible="not receipt"/>
+                        </div>
                         <field name="receipt_filename" invisible="1"/>
                     </group>
                 </sheet>

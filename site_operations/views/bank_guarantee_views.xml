@@ -185,6 +185,7 @@
                 <field name="beneficiary_id" string="Beneficiary (Partner)" optional="hide"/>
                 <field name="jv_name" string="JV Name" optional="hide"/>
                 <field name="pricing_percent" string="Commission %" optional="hide"/>
+                <field name="quarter_numbers" string="Quarters" optional="hide"/>
                 <field name="commission_amount" string="Commission Amt" optional="hide"/>
                 <field name="fed_percent" string="FED %" optional="hide"/>
                 <field name="fed_amount" string="FED Amount" optional="hide"/>
@@ -274,7 +275,17 @@
                             <field name="jv_name" invisible="jv_type != 'jv'" required="jv_type == 'jv'"/>
                             <field name="on_behalf_entity" invisible="jv_type != 'on_behalf'" required="jv_type == 'on_behalf'" placeholder="e.g. ZKB"/>
                             <field name="project_id" string="Project (Registered)"/>
-                            <field name="project_name" string="Manual Project Name" placeholder="Type project name manually if not in registered projects"/>
+                            <label for="project_name" string="Manual Project Name"/>
+                            <div class="o_row">
+                                <field name="project_name" placeholder="Type project name manually if not in registered projects"/>
+                                <button name="action_create_project_from_manual"
+                                        type="object"
+                                        string="Create Project"
+                                        icon="fa-plus-circle"
+                                        class="btn btn-sm btn-outline-primary"
+                                        invisible="not project_name or project_id"
+                                        help="Create this manual project in the Project app and Site Project Configuration as Not Rewarded"/>
+                            </div>
                             <field name="beneficiary_id"/>
                             <field name="beneficiary_name"/>
                         </group>
@@ -287,6 +298,7 @@
                                    help="Flat rate used when no Cash Margin Slabs are defined. Add slabs in the tab below for tiered rates."/>
                             <field name="margin_amount" string="Cash Margin Amount" readonly="1"/>
                             <field name="pricing_percent" string="Bank Commission/Pricing (%)"/>
+                            <field name="quarter_numbers"/>
                             <field name="commission_amount" string="Commission Amount" readonly="1"/>
                             <field name="fed_percent" string="FED (%)"/>
                             <field name="fed_amount" string="FED Amount" readonly="1"/>
