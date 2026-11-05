@@ -1,6 +1,10 @@
+import logging
+
 from markupsafe import Markup
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
+
+_logger = logging.getLogger(__name__)
 
 from . import matracon_notifications as matracon_notify
 
@@ -144,6 +148,22 @@ class AccountPaymentSiteOps(models.Model):
              'Leave blank to use the vendor\'s default payable account. '
              'IPC payment tracking is based on the vendor contact — '
              'this field does not affect whether the payment appears in an IPC.',
+    )
+
+    # ── Customer Receipt account overrides (inbound only) ──────────────────
+    x_debit_account_id = fields.Many2one(
+        'account.account',
+        string='Debit Account',
+        tracking=True,
+        help='Optional: override which account this customer receipt JE debits. '
+             'Leave blank to use the selected Bank Journal\'s default account.',
+    )
+    x_credit_account_id = fields.Many2one(
+        'account.account',
+        string='Credit Account',
+        tracking=True,
+        help='Optional: override which account this customer receipt JE credits. '
+             'Leave blank to use the customer\'s default receivable account.',
     )
 
     x_cheque_leaf_id = fields.Many2one(
@@ -397,8 +417,16 @@ class AccountPaymentSiteOps(models.Model):
             if payment.x_ceo_submitted:
                 continue
 
-            fo_group = self.env.ref('site_operations.group_finance_ho')
-            fo_users = self.env['res.users'].sudo().search([('all_group_ids', 'in', fo_group.id)])
+            fo_group = self.env.ref('site_operations.group_finance_ho', raise_if_not_found=False)
+            if not fo_group:
+                _logger.warning(
+                    'Matracon: site_operations.group_finance_ho not found; '
+                    'CEO direct-payment notification skipped for payment %s.', payment.name
+                )
+            fo_users = (
+                self.env['res.users'].sudo().search([('all_group_ids', 'in', fo_group.id)])
+                if fo_group else self.env['res.users'].browse()
+            )
 
             # Post human-readable HTML message and notify FO via chatter
             body = Markup(
@@ -659,22 +687,34 @@ class AccountPaymentSiteOps(models.Model):
                     elif is_fo:
                         vals['x_ceo_approval_state'] = 'pending'
                 elif category == 'vendor':
-                    # Vendor payments require EXPLICIT CEO approval in all cases
-                    # except:
-                    #   • CEO direct payment flag → self-authorised by CEO
-                    #   • WHT companion (x_origin_payment_id) → auto-created during posting
-                    #   • Liability sheet already carries CEO approval at sheet level
-                    # NOTE: CEO and Admin creating normal vendor payments must also
-                    # click "Approve (CEO)" explicitly — prevents "CEO Approved" badge
-                    # from appearing before actual approval action is taken.
-                    is_ceo_direct = bool(vals.get('x_ceo_direct_payment'))
-                    has_liability_sheet = bool(vals.get('x_liability_sheet_id'))
-                    is_wht_companion = bool(vals.get('x_origin_payment_id'))
-                    if is_ceo_direct or is_wht_companion:
-                        vals['x_ceo_approval_state'] = 'approved'
-                    elif not has_liability_sheet:
-                        vals['x_ceo_approval_state'] = 'pending'
+                    # Inbound receipts (customer payments) never need CEO approval.
+                    # payment_type is readonly on the form, so the web client does not
+                    # send it; fall back to the action's default_payment_type.
+                    payment_type = vals.get('payment_type') or self.env.context.get('default_payment_type')
+                    if payment_type == 'inbound':
+                        vals['x_ceo_approval_state'] = 'not_required'
+                    else:
+                        # Vendor payments require EXPLICIT CEO approval in all cases
+                        # except:
+                        #   • CEO direct payment flag → self-authorised by CEO
+                        #   • WHT companion (x_origin_payment_id) → auto-created during posting
+                        #   • Liability sheet already carries CEO approval at sheet level
+                        # NOTE: CEO and Admin creating normal vendor payments must also
+                        # click "Approve (CEO)" explicitly — prevents "CEO Approved" badge
+                        # from appearing before actual approval action is taken.
+                        is_ceo_direct = bool(vals.get('x_ceo_direct_payment'))
+                        has_liability_sheet = bool(vals.get('x_liability_sheet_id'))
+                        is_wht_companion = bool(vals.get('x_origin_payment_id'))
+                        if is_ceo_direct or is_wht_companion:
+                            vals['x_ceo_approval_state'] = 'approved'
+                        elif not has_liability_sheet:
+                            vals['x_ceo_approval_state'] = 'pending'
         payments = super().create(vals_list)
+        # Safety net: receipts never need CEO approval, whatever path set the state.
+        payments.filtered(
+            lambda p: p.payment_type == 'inbound'
+            and p.x_ceo_approval_state in ('pending', 'submitted')
+        ).x_ceo_approval_state = 'not_required'
         payments._matracon_fix_salary_ceo_state()
         payments._matracon_notify_ceo_on_payment_create()
         return payments
@@ -993,22 +1033,21 @@ class AccountPaymentSiteOps(models.Model):
             if moves:
                 payment.x_interproject_move_ids = [(6, 0, moves.ids)]
 
-    def _get_deduction_account(self, xmlid):
-        """Safely resolve an account by xmlid, fall back to code search."""
-        account = self.env.ref(f'site_operations.{xmlid}', raise_if_not_found=False)
-        if account:
-            return account
-        # Fallback: search by code (handles installs where data wasn't reloaded)
-        code_map = {
-            'account_wht_payable': '252100',
-            'account_retention_payable': '211200',
-        }
-        code = code_map.get(xmlid)
-        if code:
-            return self.env['account.account'].search(
-                [('code', '=', code), ('company_id', '=', self.company_id.id)], limit=1
-            )
-        return self.env['account.account']
+    def _get_deduction_account(self, field_name):
+        """Default deduction account chosen on the Company form
+        (x_wht_payable_account_id / x_retention_payable_account_id)."""
+        return self.company_id[field_name] or self.env.company[field_name]
+
+    def _raise_missing_deduction_account(self, label):
+        raise UserError(_(
+            'No %(label)s account is set, so the deduction on payment %(pay)s '
+            'cannot be posted.\n\n'
+            'Set it on Settings → Companies → %(company)s → Matracon Accounts.'
+        ) % {
+            'label': label,
+            'pay': self.name or '',
+            'company': (self.company_id or self.env.company).name,
+        })
 
     def _create_tax_deduction_entries(self):
         """For each WHT / Retention deduction line, post a journal entry that:
@@ -1039,17 +1078,9 @@ class AccountPaymentSiteOps(models.Model):
         # WHT: prefer the per-exemption account stored on each tax line so that
         # the Credit here (liability created) and the Debit on the FBR companion
         # payment both land on the SAME account (e.g. 420402 Income Tax 153(1)(A)).
-        # Falls back to the system-level default (xmlid / code 252100).
-        wht_account_default = self._get_deduction_account('account_wht_payable')
-        retention_account = self._get_deduction_account('account_retention_payable')
-
-        has_wht = wht_account_default or any(
-            tl.x_exemption_id and tl.x_exemption_id.x_wht_payable_account_id
-            for tl in deduction_lines
-            if tl.tax_type == 'wht'
-        )
-        if not has_wht and not retention_account:
-            return  # Nothing to post — accounts not set up
+        # Falls back to the company's Default WHT Payable Account.
+        wht_account_default = self._get_deduction_account('x_wht_payable_account_id')
+        retention_account = self._get_deduction_account('x_retention_payable_account_id')
 
         # Vendor AP account — read from the existing payment JE
         ap_account = self.env['account.account']
@@ -1093,7 +1124,7 @@ class AccountPaymentSiteOps(models.Model):
                     or wht_account_default
                 )
                 if not credit_account:
-                    continue
+                    self._raise_missing_deduction_account(_('WHT Payable'))
                 label = _('WHT — %s') % (tl.tax_id.name if tl.tax_id else 'WHT')
                 # Dr AP (vendor) — reduces their payable balance
                 # Cr WHT Payable (FBR as partner) — creates the WHT liability in
@@ -1126,7 +1157,7 @@ class AccountPaymentSiteOps(models.Model):
             elif tl.tax_type == 'retention':
                 credit_account = retention_account
                 if not credit_account:
-                    continue
+                    self._raise_missing_deduction_account(_('Retention Payable'))
                 label = _('Retention — %s') % self.partner_id.name
                 # Dr AP (vendor) — removes from current AP
                 # Cr Retention Payable (vendor) — creates new payable back to them
@@ -1233,8 +1264,11 @@ class AccountPaymentSiteOps(models.Model):
                         'Payment "%s" has not been approved by the CEO. '
                         'The CEO must click "Approve (CEO)" before Finance HO can proceed.'
                     ) % (payment.name or _('Draft')))
-            elif payment.x_ceo_approval_state in ('pending', 'submitted'):
-                # Catch remaining pending/submitted payments (salary/petty-cash without a sheet link).
+            elif (payment.payment_type == 'outbound'
+                    and payment.x_ceo_approval_state in ('pending', 'submitted')):
+                # Catch remaining pending/submitted outbound payments
+                # (salary/petty-cash without a sheet link).
+                # Inbound receipts are explicitly excluded — no CEO approval needed.
                 raise UserError(_(
                     'CEO approval is required before posting this payment.\n\n'
                     'Payment "%s" is awaiting CEO approval. '
@@ -1245,7 +1279,22 @@ class AccountPaymentSiteOps(models.Model):
         for payment in self.filtered(
             lambda p: p.state in _POSTED_STATES and p.x_petty_cash_request_id
         ):
-            payment.x_petty_cash_request_id.action_mark_released(payment.amount)
+            pcr = payment.x_petty_cash_request_id
+            # A request reset to Draft (or still awaiting approval / rejected) must go
+            # through CEO approval again — posting an old payment must not mark it
+            # Released and skip that approval.
+            if pcr.state not in ('ceo_approved', 'released', 'confirmed'):
+                state_label = dict(pcr._fields['state'].selection).get(pcr.state, pcr.state)
+                raise UserError(_(
+                    'Petty Cash Request %(pcr)s is in "%(state)s" — it was changed after '
+                    'this payment was created.\n\n'
+                    'Submit the request and get CEO approval again, then confirm this '
+                    'payment (or release it again from the request).',
+                    pcr=pcr.name, state=state_label,
+                ))
+            if payment.x_cheque_number and not pcr.x_cheque_number:
+                pcr.sudo().write({'x_cheque_number': payment.x_cheque_number})
+            pcr.action_mark_released(payment.amount)
 
     def _matracon_fix_salary_ceo_state(self):
         """Ensure salary payments linked to approved/paid sheets are always CEO-approved.
@@ -1349,8 +1398,14 @@ class AccountPaymentSiteOps(models.Model):
         return 'BPV-%02d-%02d-%06d' % (yy, mm, next_seq)
 
     def action_post(self):
-        """Auto-assign cheque number from series before posting if not already set."""
-        for payment in self:
+        """Auto-assign cheque number from series before posting if not already set.
+
+        Outbound only: x.cheque.series is OUR company's own cheque-leaf register
+        for cheques we issue to vendors. Inbound (customer receipts) never draw
+        from this series — a customer's cheque number must be typed in manually
+        (see the check below).
+        """
+        for payment in self.filtered(lambda p: p.payment_type == 'outbound'):
             if (payment.x_is_cheque_payment
                     and payment.journal_id
                     and not payment.x_cheque_number):
@@ -1373,6 +1428,13 @@ class AccountPaymentSiteOps(models.Model):
                         'No active cheque series found for bank "%s". '
                         'Please set one up in Configuration → Cheque Series.'
                     ) % payment.journal_id.name)
+        # Inbound: cheque number is always manually typed (it's the customer's
+        # cheque, not ours) — just require it, never auto-assign.
+        for payment in self.filtered(lambda p: p.payment_type == 'inbound'):
+            if payment.x_is_cheque_payment and not payment.x_cheque_number:
+                raise UserError(_(
+                    'Cheque No. is required for customer receipts paid by cheque.'
+                ))
         # Assign BPV-YY-MM-XXXXX reference for outbound payments being posted now.
         for payment in self.filtered(
             lambda p: p.payment_type == 'outbound' and not p.x_bpv_ref
@@ -1464,7 +1526,10 @@ class AccountPaymentSiteOps(models.Model):
 
     def _matracon_tag_payment_move_analytic(self):
         self.ensure_one()
-        analytic = self.x_destination_project_id or self.x_fund_project_id
+        if self.payment_type == 'inbound':
+            analytic = self.x_fund_project_id
+        else:
+            analytic = self.x_destination_project_id or self.x_fund_project_id
         if not analytic or not self.move_id:
             return
         # Stamp x_project_analytic_account_id on the payment journal entry so
@@ -1490,11 +1555,17 @@ class AccountPaymentSiteOps(models.Model):
             if alloc.journal_id and alloc.journal_id.default_account_id:
                 bank_acct_ids.add(alloc.journal_id.default_account_id.id)
         dist = self._analytic_distribution_for_account(analytic)
-        lines = self.move_id.line_ids.filtered(
-            lambda l: l.account_id.id not in bank_acct_ids
-        )
+        # Customer receipts: the receiving bank is the project's own money, so
+        # every line (bank/debit side included) carries the project analytic —
+        # Finance should never have to reset the JE to add it by hand.
+        if self.payment_type == 'inbound':
+            lines = self.move_id.line_ids
+        else:
+            lines = self.move_id.line_ids.filtered(
+                lambda l: l.account_id.id not in bank_acct_ids
+            )
         if lines:
-            lines.write({'analytic_distribution': dist})
+            lines.sudo().write({'analytic_distribution': dist})
 
     def _matracon_propagate_cheque_to_move(self):
         """Copy x_cheque_number / x_account_title from this payment to its JE.
@@ -1557,6 +1628,33 @@ class AccountPaymentSiteOps(models.Model):
                 if acct.account_type in ('liability_payable', 'asset_receivable'):
                     vals['account_id'] = self.x_expense_account_id.id
                     break  # Only the first payable/receivable line (the counterpart)
+
+        # ── Customer receipt: substitute manually-chosen credit account ────────
+        # Mirrors the x_expense_account_id override above but for the counterpart
+        # (receivable) line of an inbound payment. When set, the receipt JE
+        # credits this account instead of the customer's default receivable
+        # account. Must run BEFORE the debit override below so the account_type
+        # check still sees the original (untouched) receivable line.
+        if self.x_credit_account_id and self.payment_type == 'inbound':
+            for vals in line_vals_list:
+                acct = self.env['account.account'].browse(vals.get('account_id'))
+                if acct.account_type == 'asset_receivable':
+                    vals['account_id'] = self.x_credit_account_id.id
+                    break  # Only the counterpart line
+
+        # ── Customer receipt: substitute manually-chosen debit account ─────────
+        # When set, the receipt JE debits this account instead of the selected
+        # Bank Journal's default/outstanding account.
+        if self.x_debit_account_id and self.payment_type == 'inbound':
+            bank_account_id = (
+                self.outstanding_account_id.id
+                if self.outstanding_account_id
+                else (self.journal_id.default_account_id.id if self.journal_id else None)
+            )
+            for vals in line_vals_list:
+                if vals.get('account_id') == bank_account_id:
+                    vals['account_id'] = self.x_debit_account_id.id
+                    break  # Only the liquidity/bank line
 
         # ── Multi-bank split: one Cr line per bank allocation ──────────────────
         # Standard Odoo produces a single bank credit line keyed to journal_id
@@ -1646,13 +1744,21 @@ class AccountPaymentSiteOps(models.Model):
                 bank_acct_ids.add(alloc.journal_id.default_account_id.id)
         dist = self._analytic_distribution_for_account(analytic)
         for vals in line_vals_list:
-            if vals.get('account_id') not in bank_acct_ids:
+            # Inbound receipts tag the bank/debit line too (see
+            # _matracon_tag_payment_move_analytic).
+            if (self.payment_type == 'inbound'
+                    or vals.get('account_id') not in bank_acct_ids):
                 vals['analytic_distribution'] = dist
         return line_vals_list
 
     def action_print_cheque(self):
         return self.env.ref(
             'site_operations.action_report_cheque').report_action(self)
+
+    def action_print_bank_payment_voucher(self):
+        """Print Bank Payment Voucher for this payment."""
+        self.ensure_one()
+        return self.env.ref('site_operations.action_report_bank_payment_voucher').report_action(self)
 
     def action_direct_print_bpv(self):
         """Open the Bank Payment Voucher in a new tab and auto-trigger print dialog."""
@@ -1729,7 +1835,7 @@ class AccountPaymentSiteOps(models.Model):
         # correctly debits it when posted (Dr WHT Payable / Cr Bank).
         # Without this, the companion would debit FBR's default AP account
         # instead, leaving the WHT payable account unbalanced.
-        wht_account = self._get_deduction_account('account_wht_payable')
+        wht_account = self._get_deduction_account('x_wht_payable_account_id')
 
         memo = _('WHT — %s | %s') % (origin_label, self.name or '')
 
@@ -1820,6 +1926,11 @@ class AccountPaymentSiteOps(models.Model):
         # Self-heal: if a salary sheet payment somehow ended up pending, fix it.
         if 'x_salary_sheet_id' in vals or 'x_ceo_approval_state' in vals:
             self._matracon_fix_salary_ceo_state()
+        if 'x_cheque_number' in vals:
+            for payment in self:
+                if (payment.x_petty_cash_request_id
+                        and payment.x_petty_cash_request_id.x_cheque_number != payment.x_cheque_number):
+                    payment.x_petty_cash_request_id.sudo().write({'x_cheque_number': payment.x_cheque_number})
         return res
 
     # ─────────────────────────────────────────────────────────────────────────
@@ -2030,7 +2141,7 @@ class AccountPaymentSiteOps(models.Model):
         if self.x_petty_cash_request_id:
             pcr = self.x_petty_cash_request_id
             if pcr.state in ('released', 'confirmed'):
-                pcr.state = 'approved'
+                pcr.state = 'ceo_approved'
                 pcr.payment_id = False
                 pcr.message_post(
                     body=Markup('PCR reset to Approved — payment <b>%s</b> reversed.') % payment_name

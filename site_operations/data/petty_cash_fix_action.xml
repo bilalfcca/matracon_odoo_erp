@@ -15,4 +15,13 @@
         <field name="state">code</field>
         <field name="code">model.action_admin_fix_petty_cash_accounts()</field>
     </record>
+
+    <record id="action_server_fix_employee_advance_partners" model="ir.actions.server">
+        <field name="name">Fix Employee Advance Partners in GL</field>
+        <field name="model_id" ref="model_x_petty_cash_expense"/>
+        <field name="binding_model_id" ref="model_x_petty_cash_expense"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">action = model.action_admin_fix_employee_advance_partners()</field>
+    </record>
 </odoo>

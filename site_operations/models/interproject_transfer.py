@@ -7,11 +7,12 @@ Captures every balance created between two projects — both types:
 
   • INVENTORY: Site-to-site material transfer. Source project sends materials
                to destination project. Destination owes source the material value
-               (qty × standard_price). GL entry on 13100/21100.
+               (qty × standard_price). GL entry on the site config's
+               Inter-Project Account.
 
-The register is the source-of-truth for "who owes whom" across projects since
-the GL accounts (13100/21100) are asset_current / liability_current — correctly
-excluded from aged AR/AP, which should only show real external vendor payables.
+The register is the source-of-truth for "who owes whom" across projects; the
+GL side sits on the single Inter-Project Account from Site Project
+Configuration, kept out of aged AR/AP (real external payables only).
 """
 
 from odoo import models, fields, api, _
@@ -59,7 +60,7 @@ class InterprojectTransfer(models.Model):
         'account.move',
         string='Journal Entry',
         readonly=True, ondelete='set null',
-        help='The inter-project GL entry (DR 13100 / CR 21100).')
+        help='The inter-project GL entry (Dr/Cr Inter-Project Account).')
 
     # ── Projects ───────────────────────────────────────────────────────────
     source_analytic_id = fields.Many2one(

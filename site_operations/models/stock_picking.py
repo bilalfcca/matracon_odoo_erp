@@ -7,6 +7,10 @@ from odoo import models, fields, api, _
 from odoo.exceptions import UserError
 
 from . import matracon_notifications as matracon_notify
+from .interproject_accounting import (
+    _get_or_create_interproject_journal as _ipr_journal,
+    _get_interproject_account as _ipr_account,
+)
 
 
 class StockPickingSiteOps(models.Model):
@@ -22,6 +26,7 @@ class StockPickingSiteOps(models.Model):
         ('normal', 'Normal'),
         ('subcontractor', 'Subcontractor'),
         ('3rd_party', '3rd Party'),
+        ('vehicle', 'Vehicle'),
     ], string='Issue Type', default='normal', tracking=True)
 
     x_inventory_type = fields.Selection([
@@ -33,6 +38,11 @@ class StockPickingSiteOps(models.Model):
     x_contact_id = fields.Many2one(
         'res.partner', string='Issuance Contact', tracking=True,
         help='Employee or subcontractor receiving the material')
+
+    # ── Vehicle (fuel / diesel issuance to vehicle instead of a person) ───────
+    x_fleet_vehicle_id = fields.Many2one(
+        'fleet.vehicle', string='Vehicle', tracking=True,
+        help='Vehicle receiving fuel/consumable. Used when Issue Type = Vehicle.')
 
     # ── Project (auto-filled from user site config) ───────────────────────────
     x_issuance_project_id = fields.Many2one(
@@ -68,6 +78,8 @@ class StockPickingSiteOps(models.Model):
     x_is_return_transfer = fields.Boolean(string='Is Return', default=False)
     x_original_issuance_id = fields.Many2one(
         'stock.picking', string='Original Issuance')
+    x_return_picking_ids = fields.One2many(
+        'stock.picking', 'x_original_issuance_id', string='Return Transfers')
     x_return_type = fields.Selection([
         ('normal', 'Normal Return'),
         ('damaged', 'Damaged / Lost'),
@@ -125,6 +137,23 @@ class StockPickingSiteOps(models.Model):
         help='Set by Site Store when submitting a backcharge issuance for '
              'Site Accountant price review and validation.',
     )
+    x_sa_review_status = fields.Char(
+        string='SA Review',
+        compute='_compute_x_sa_review_status',
+        store=True,
+    )
+
+    @api.depends('x_submitted_to_sa', 'state')
+    def _compute_x_sa_review_status(self):
+        for pick in self:
+            if not pick.x_submitted_to_sa:
+                pick.x_sa_review_status = False
+            elif pick.state == 'done':
+                pick.x_sa_review_status = 'Reviewed'
+            elif pick.state == 'cancel':
+                pick.x_sa_review_status = 'Cancelled'
+            else:
+                pick.x_sa_review_status = 'Pending Review'
 
     # ── User context flags (for view domains) ────────────────────────────────
     x_is_site_store = fields.Boolean(
@@ -372,6 +401,12 @@ class StockPickingSiteOps(models.Model):
             self.x_backcharge_applicable = True
         else:
             self.x_backcharge_applicable = False
+
+    @api.onchange('x_fleet_vehicle_id')
+    def _onchange_vehicle_fill_project(self):
+        """Auto-fill project analytic from the selected vehicle's site config."""
+        if self.x_fleet_vehicle_id and self.x_fleet_vehicle_id.x_analytic_account_id:
+            self.x_issuance_project_id = self.x_fleet_vehicle_id.x_analytic_account_id
 
     @api.onchange('x_contact_id', 'x_issuance_project_id', 'move_ids', 'move_ids.product_id')
     def _onchange_contact_outstanding_preview(self):
@@ -764,9 +799,14 @@ class StockPickingSiteOps(models.Model):
             pick.x_backcharge_amount = sum(
                 pick.move_ids.mapped('x_line_backcharge_amount'))
 
-    @api.depends('x_contact_id', 'x_issuance_project_id', 'move_ids.product_id')
+    @api.depends('x_contact_id', 'x_issuance_project_id', 'move_ids.product_id',
+                 'x_issue_type')
     def _compute_outstanding_materials(self):
         for pick in self:
+            # Vehicle issuances are consumables (fuel) — no outstanding tracking needed
+            if pick.x_issue_type == 'vehicle':
+                pick.x_outstanding_materials_html = ''
+                continue
             if not pick.x_contact_id or not pick.x_issuance_project_id:
                 pick.x_outstanding_materials_html = ''
                 continue
@@ -985,8 +1025,14 @@ class StockPickingSiteOps(models.Model):
     def button_validate(self):
         for pick in self:
             if pick.x_transfer_purpose == 'material_issuance':
-                # ── Contact is mandatory for both issuances and returns ────────
-                if not pick.x_contact_id:
+                # ── Contact or Vehicle is mandatory ────────────────────────────
+                if pick.x_issue_type == 'vehicle':
+                    if not pick.x_fleet_vehicle_id:
+                        raise UserError(_(
+                            'Vehicle is required for Vehicle issuances.\n\n'
+                            'Please select the vehicle receiving the fuel/material.'
+                        ))
+                elif not pick.x_contact_id:
                     raise UserError(_(
                         'Issuance Contact is required.\n\n'
                         'Please select the employee or subcontractor '
@@ -1633,8 +1679,8 @@ class StockPickingSiteOps(models.Model):
         dst_project = self.x_dest_project_id
         if not src_project or not dst_project:
             return
-        receivable_account = self._get_or_create_interproject_account('receivable')
-        payable_account = self._get_or_create_interproject_account('payable')
+        interproject_account = self._get_interproject_account(
+            src_project, dst_project)
         journal = self._get_or_create_interproject_journal()
         total_value = sum(
             m.quantity * (m.product_id.standard_price or 0.0)
@@ -1645,7 +1691,7 @@ class StockPickingSiteOps(models.Model):
         # Source is owed (receivable); destination owes source (payable)
         aml_vals = [
             {
-                'account_id': receivable_account.id,
+                'account_id': interproject_account.id,
                 'name': _('Inter-project receivable: %s from %s') % (
                     src_project.name, dst_project.name),
                 'debit': total_value,
@@ -1653,7 +1699,7 @@ class StockPickingSiteOps(models.Model):
                 'analytic_distribution': {str(src_project.id): 100},
             },
             {
-                'account_id': payable_account.id,
+                'account_id': interproject_account.id,
                 'name': _('Inter-project payable: %s to %s') % (
                     dst_project.name, src_project.name),
                 'debit': 0.0,
@@ -1990,41 +2036,12 @@ class StockPickingSiteOps(models.Model):
         return account
 
     def _get_or_create_interproject_journal(self):
-        Journal = self.env['account.journal'].sudo()
-        journal = Journal.search(
-            [('name', '=', 'Inter-Project Transfers'),
-             ('type', '=', 'general')], limit=1)
-        if not journal:
-            journal = Journal.create({
-                'name': 'Inter-Project Transfers',
-                'type': 'general',
-                'code': 'IPTR',
-            })
-        return journal
+        """Delegate to the shared helper in interproject_accounting.py."""
+        return _ipr_journal(self.env)
 
-    def _get_or_create_interproject_account(self, account_type):
-        Account = self.env['account.account'].sudo()
-        if account_type == 'receivable':
-            account = Account.search(
-                [('name', 'ilike', 'Inter-Project Receivable')], limit=1)
-            if not account:
-                account = Account.create({
-                    'name': 'Inter-Project Receivables',
-                    'code': '13100',
-                    'account_type': 'asset_receivable',
-                    'reconcile': True,
-                })
-        else:
-            account = Account.search(
-                [('name', 'ilike', 'Inter-Project Payable')], limit=1)
-            if not account:
-                account = Account.create({
-                    'name': 'Inter-Project Payables',
-                    'code': '21100',
-                    'account_type': 'liability_payable',
-                    'reconcile': True,
-                })
-        return account
+    def _get_interproject_account(self, *analytics):
+        """Delegate to the shared helper in interproject_accounting.py."""
+        return _ipr_account(self.env, *analytics)
 
     # ─────────────────────────────────────────────────────────────────────────
     # ACTIONS
@@ -2071,6 +2088,103 @@ class StockPickingSiteOps(models.Model):
                 'default_origin': self.name,
             },
         }
+
+    def action_reset_draft(self):
+        """Reset Material Issuance to Draft.
+
+        1. Validates that no active returns exist against this issuance.
+        2. Validates that any linked subcontractor backcharge has not been processed in an IPC.
+           Unlinks pending backcharge.
+        3. If in 'done' state, reverses the stock movement by restoring available
+           quantities from destination location back to source location.
+        4. Reverts moves and picking to 'draft'.
+        """
+        self.ensure_one()
+        if self.x_transfer_purpose != 'material_issuance':
+            raise UserError(_('Reset to Draft is only supported for Material Issuances.'))
+
+        # Check for active return transfers
+        active_returns = self.env['stock.picking'].search([
+            ('x_original_issuance_id', '=', self.id),
+            ('state', '!=', 'cancel'),
+        ])
+        if active_returns:
+            raise UserError(_(
+                'Cannot reset to draft: this issuance has active return transfers (%(returns)s).\n'
+                'Please cancel or reverse those returns first.'
+            ) % {'returns': ', '.join(active_returns.mapped('name'))})
+
+        # Check / cancel subcontractor backcharge
+        if self.x_sub_backcharge_id:
+            bc = self.x_sub_backcharge_id
+            if bc.state == 'processed':
+                raise UserError(_(
+                    'Cannot reset to draft: Subcontractor Backcharge %(name)s has already been '
+                    'processed in IPC %(ipc)s. Please reset that IPC to draft first.'
+                ) % {'name': bc.name, 'ipc': bc.ipc_id.name or '—'})
+            self.x_sub_backcharge_id = False
+            bc.sudo().unlink()
+
+        # Check / cancel employee backcharge
+        if self.x_employee_backcharge_id:
+            ebc = self.x_employee_backcharge_id
+            if hasattr(ebc, 'state') and ebc.state == 'processed':
+                raise UserError(_(
+                    'Cannot reset to draft: Employee Backcharge %(name)s has already been processed.'
+                ) % {'name': ebc.name})
+            self.x_employee_backcharge_id = False
+            ebc.sudo().unlink()
+
+        # If already done, reverse stock quantities
+        if self.state == 'done':
+            Quant = self.env['stock.quant'].sudo()
+            for line in self.move_line_ids:
+                if line.quantity > 0:
+                    lot = getattr(line, 'lot_id', False)
+                    pkg = getattr(line, 'package_id', False)
+                    result_pkg = getattr(line, 'result_package_id', False)
+                    owner = getattr(line, 'owner_id', False)
+                    # Deduct from destination location
+                    Quant._update_available_quantity(
+                        line.product_id, line.location_dest_id, -line.quantity,
+                        lot_id=lot, package_id=result_pkg, owner_id=owner,
+                        strict=False,
+                    )
+                    # Restore back to source location
+                    Quant._update_available_quantity(
+                        line.product_id, line.location_id, line.quantity,
+                        lot_id=lot, package_id=pkg, owner_id=owner,
+                        strict=False,
+                    )
+
+            # Unlink stock valuation layers if any exist
+            for move in self.move_ids:
+                if hasattr(move, 'stock_valuation_layer_ids') and move.stock_valuation_layer_ids:
+                    svls = move.stock_valuation_layer_ids
+                    for svl in svls:
+                        if hasattr(svl, 'account_move_id') and svl.account_move_id:
+                            try:
+                                svl.account_move_id.sudo().button_draft()
+                                svl.account_move_id.sudo().button_cancel()
+                            except Exception:
+                                pass
+                    svls.sudo().unlink()
+
+        # Unlink move lines, reset moves and picking state to draft
+        self.move_line_ids.sudo().unlink()
+        self.move_ids.sudo().write({'state': 'draft'})
+        self.sudo().write({
+            'state': 'draft',
+            'date_done': False,
+            'x_submitted_to_sa': False,
+        })
+
+        self.message_post(
+            body=Markup(_(
+                'Material Issuance reset to Draft by <b>%s</b>. Stock movements and pending backcharges have been reversed.'
+            )) % self.env.user.name
+        )
+        return True
 
     def action_view_returns(self):
         """Open list of return transfers linked to this issuance."""
@@ -2187,10 +2301,19 @@ class StockPickingSiteOps(models.Model):
         Bill = self.env['account.move']
         for picking in self:
             if picking.purchase_id:
-                picking.x_vendor_bill_count = Bill.search_count([
+                count = Bill.search_count([
                     ('move_type', '=', 'in_invoice'),
-                    ('x_purchase_order_id', '=', picking.purchase_id.id),
+                    '|',
+                    ('x_stock_picking_id', '=', picking.id),
+                    ('ref', '=', 'GRN-%s' % picking.name),
                 ])
+                if not count and picking.purchase_id:
+                    # Fallback count across the PO if legacy bills weren't linked by GRN ref
+                    count = Bill.search_count([
+                        ('move_type', '=', 'in_invoice'),
+                        ('x_purchase_order_id', '=', picking.purchase_id.id),
+                    ])
+                picking.x_vendor_bill_count = count
             else:
                 picking.x_vendor_bill_count = 0
 
@@ -2200,12 +2323,60 @@ class StockPickingSiteOps(models.Model):
         if self.purchase_id:
             bills = bills.search([
                 ('move_type', '=', 'in_invoice'),
-                ('x_purchase_order_id', '=', self.purchase_id.id),
+                '|',
+                ('x_stock_picking_id', '=', self.id),
+                ('ref', '=', 'GRN-%s' % self.name),
             ])
+            if not bills:
+                bills = bills.search([
+                    ('move_type', '=', 'in_invoice'),
+                    ('x_purchase_order_id', '=', self.purchase_id.id),
+                ])
         return {
             'type': 'ir.actions.act_window',
             'name': _('Vendor Bills'),
             'res_model': 'account.move',
-            'view_mode': 'list,form',
+            'view_mode': 'list,form' if len(bills) != 1 else 'form,list',
+            'res_id': bills.id if len(bills) == 1 else False,
             'domain': [('id', 'in', bills.ids)],
+        }
+
+    def action_create_missing_vendor_bill(self):
+        """Manually create draft vendor bill for this receipt if it was not auto-created."""
+        self.ensure_one()
+        if self.picking_type_code != 'incoming' or not self.purchase_id:
+            raise UserError(_('Vendor bills can only be created from Purchase Order receipts.'))
+        if self.state != 'done':
+            raise UserError(_('Please validate the receipt before creating a vendor bill.'))
+
+        existing = self.env['account.move'].sudo().search([
+            ('move_type', '=', 'in_invoice'),
+            ('state', '!=', 'cancel'),
+            '|',
+            ('x_stock_picking_id', '=', self.id),
+            ('ref', '=', 'GRN-%s' % self.name),
+        ], limit=1)
+        if existing:
+            return {
+                'type': 'ir.actions.act_window',
+                'name': _('Vendor Bill'),
+                'res_model': 'account.move',
+                'view_mode': 'form',
+                'res_id': existing.id,
+            }
+
+        po = self.purchase_id
+        if po.x_procurement_type == 'site_procurement' and po.x_site_vendor_id and not po.partner_id:
+            po.sudo().write({'partner_id': po.x_site_vendor_id.id})
+
+        bill = self.env['account.move']._matracon_create_draft_bill_from_po_receipt(self)
+        if not bill:
+            raise UserError(_('Could not generate vendor bill. Please verify PO products and quantities.'))
+
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Vendor Bill Created'),
+            'res_model': 'account.move',
+            'view_mode': 'form',
+            'res_id': bill.id,
         }

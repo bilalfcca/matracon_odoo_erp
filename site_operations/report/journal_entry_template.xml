@@ -61,10 +61,11 @@
                     <td style="font-weight:600; padding:1px 4px 1px 0;">Journal</td>
                     <td style="padding:1px 0;"><t t-esc="o.journal_id.name"/></td>
                 </tr>
-                <t t-if="o.x_project_analytic_account_id">
+                <t t-set="hdr_project" t-value="o._matracon_get_display_project_name()"/>
+                <t t-if="hdr_project">
                     <tr>
                         <td style="font-weight:600; padding:1px 4px 1px 0;">Project</td>
-                        <td style="padding:1px 0;"><t t-esc="o.x_project_analytic_account_id.name"/></td>
+                        <td style="padding:1px 0;"><t t-esc="hdr_project"/></td>
                     </tr>
                 </t>
                 <t t-if="o.x_account_title">
@@ -170,6 +171,12 @@
                                 <t t-esc="line.name"/>
                             </div>
                         </t>
+                        <t t-set="line_project" t-value="line._matracon_get_line_project_name()"/>
+                        <t t-if="line_project">
+                            <div style="font-size:8.5pt; color:#666; margin-top:1px;">
+                                Project: <t t-esc="line_project"/>
+                            </div>
+                        </t>
                         <!-- Bank / cheque details sub-row — shown on any line that carries
                              its own x_account_title or x_cheque_number (same concept as BPV).
                              Falls back to the move-header value when the line field is blank,
@@ -240,44 +247,20 @@
 
     <!-- ════════════════════════════════════════════════════════════
          SIGNATURE BLOCK — 4 columns side by side
+         Prepared By  = whoever created this journal entry (Finance HO or
+                         Site Accountant, whichever actually raised it).
+         Approved By  = only populated when this entry is a payment's own
+                         journal entry (origin_payment_id set) AND that
+                         payment has been CEO-approved. Plain, unapproved
+                         journal entries have no CEO-approval step in this
+                         system, so this intentionally stays blank for them
+                         — no new approval gate is being added here.
+         Checked By / Received By stay manual — never auto-filled.
     ═══════════════════════════════════════════════════════════════ -->
-    <div style="margin-top:18mm; page-break-inside:avoid;">
-        <table style="width:100%; border-collapse:collapse; font-size:9pt;">
-            <tr>
-                <!-- Prepared By -->
-                <td style="width:25%; padding:0 10px 0 0; text-align:center; vertical-align:top;">
-                    <div style="height:44px;"></div>
-                    <div style="border-top:1.5px solid #000; padding-top:4px; font-weight:700;">
-                        Prepared By
-                    </div>
-                </td>
-                <!-- Checked By -->
-                <td style="width:25%; padding:0 10px; text-align:center; vertical-align:top;">
-                    <div style="height:44px;"></div>
-                    <div style="border-top:1.5px solid #000; padding-top:4px; font-weight:700;">
-                        Checked By
-                    </div>
-                </td>
-                <!-- Approved By -->
-                <td style="width:25%; padding:0 10px; text-align:center; vertical-align:top;">
-                    <div style="height:44px;"></div>
-                    <div style="border-top:1.5px solid #000; padding-top:4px; font-weight:700;">
-                        Approved By
-                    </div>
-                </td>
-                <!-- Received By — only this one gets Name line -->
-                <td style="width:25%; padding:0 0 0 10px; text-align:center; vertical-align:top;">
-                    <div style="height:44px;"></div>
-                    <div style="border-top:1.5px solid #000; padding-top:4px; font-weight:700;">
-                        Received By
-                    </div>
-                    <div style="font-size:8.5pt; color:#6c757d; margin-top:4px; text-align:left; padding-left:4px;">
-                        Name: _______________________
-                    </div>
-                </td>
-            </tr>
-        </table>
-    </div>
+    <t t-call="site_operations.report_sig_4col">
+        <t t-set="sig_prepared_user" t-value="o.sudo().create_uid"/>
+        <t t-set="sig_approved_user" t-value="o.sudo().origin_payment_id.x_ceo_approved_by_id"/>
+    </t>
 
 </div>
 </t>

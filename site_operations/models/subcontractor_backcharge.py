@@ -55,6 +55,10 @@ class SubcontractorBackcharge(models.Model):
         return super().create(vals_list)
 
     def write(self, vals):
+        # Resetting the IPC to Draft is the one legitimate way to reopen a
+        # processed back charge (it reverses the IPC's journal entry first).
+        if self.env.context.get('matracon_ipc_reset'):
+            return super().write(vals)
         for bc in self:
             if bc.state == 'processed' and set(vals) - {'notes'}:
                 raise UserError(_(

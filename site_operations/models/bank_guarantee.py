@@ -90,6 +90,12 @@ class BankGuaranteeFacility(models.Model):
     commission_percent = fields.Float(
         string='Commission (Bank) / Pricing (%)', digits=(5, 2), tracking=True,
         help='Bank commission / pricing rate applicable under this facility.')
+    cash_margin_account_id = fields.Many2one(
+        'account.account', string='Cash Margin Account',
+        domain="[('x_is_main', '=', False)]",
+        help='Override cash margin account for guarantees issued under this facility. '
+             'If left empty, the bank journal\'s cash margin account is used.',
+    )
     total_limit = fields.Monetary(
         string='Total Sanctioned Limit', required=True, tracking=True,
         currency_field='currency_id',
@@ -98,6 +104,18 @@ class BankGuaranteeFacility(models.Model):
     utilized_amount = fields.Monetary(
         compute='_compute_utilization', store=True,
         currency_field='currency_id',
+    )
+    utilized_margin_amount = fields.Monetary(
+        compute='_compute_utilization', store=True,
+        string='Cash Margin Held',
+        currency_field='currency_id',
+        help='Total cash margin locked in bank cash margin accounts for active/locked guarantees under this facility.',
+    )
+    released_amount = fields.Monetary(
+        compute='_compute_utilization', store=True,
+        string='Released Amount',
+        currency_field='currency_id',
+        help='Total guarantee amount released under this facility.',
     )
     available_limit = fields.Monetary(
         compute='_compute_utilization', store=True,
@@ -133,7 +151,7 @@ class BankGuaranteeFacility(models.Model):
             rec.name = rec.journal_id.name or _('Bank Facility')
 
     @api.depends(
-        'guarantee_ids.state', 'guarantee_ids.bg_amount', 'total_limit',
+        'guarantee_ids.state', 'guarantee_ids.bg_amount', 'guarantee_ids.margin_amount', 'total_limit',
     )
     def _compute_utilization(self):
         active_states = ('pending', 'active', 'locked')
@@ -143,6 +161,12 @@ class BankGuaranteeFacility(models.Model):
             ).mapped('bg_amount'))
             rec.utilized_amount = utilized
             rec.available_limit = rec.total_limit - utilized
+            rec.utilized_margin_amount = sum(rec.guarantee_ids.filtered(
+                lambda g: g.state in ('active', 'locked')
+            ).mapped('margin_amount'))
+            rec.released_amount = sum(rec.guarantee_ids.filtered(
+                lambda g: g.state == 'released'
+            ).mapped('bg_amount'))
 
     def _compute_guarantee_count(self):
         for rec in self:
@@ -213,7 +237,7 @@ class BankGuarantee(models.Model):
         help='Serial number within the financial year.')
     journal_id = fields.Many2one(
         'account.journal', string='Bank', required=True, tracking=True,
-        index=True, domain=[('type', '=', 'bank')],
+        index=True, domain="[('type', '=', 'bank'), ('bg_facility_ids', '!=', False)]",
     )
     facility_id = fields.Many2one(
         'x.bank.guarantee.facility', string='Bank Facility',
@@ -254,6 +278,20 @@ class BankGuarantee(models.Model):
         'project.project', string='Project', tracking=True, index=True)
     project_analytic_account_id = fields.Many2one(
         related='project_id.account_id', store=True, readonly=True)
+    project_name = fields.Char(
+        string='Manual Project Name', tracking=True,
+        help='Manual project name if the project is not from our registered projects.',
+    )
+    project_display = fields.Char(
+        string='Project Display', compute='_compute_project_display', store=True,
+        help='Display project name: either manual project name or linked project name.',
+    )
+
+    @api.depends('project_id', 'project_name')
+    def _compute_project_display(self):
+        for rec in self:
+            rec.project_display = rec.project_name or rec.project_id.name or ''
+
     beneficiary_id = fields.Many2one(
         'res.partner', string='Beneficiary', tracking=True, index=True)
     beneficiary_name = fields.Char(
@@ -274,6 +312,9 @@ class BankGuarantee(models.Model):
     pricing_percent = fields.Float(
         string='Bank Commission/Pricing (%)', digits=(5, 2), tracking=True,
         help='Bank commission / pricing percentage applied on BG amount.')
+    quarter_numbers = fields.Integer(
+        string='Quarter Numbers', default=1, tracking=True,
+        help='Number of quarters for calculating bank commission.')
     commission_amount = fields.Monetary(
         string='Commission Amount',
         compute='_compute_charges', store=True,
@@ -369,14 +410,46 @@ class BankGuarantee(models.Model):
         help='Tiered cash margin rates for this BG. '
              'When slabs are present the total margin is computed from the slabs; '
              'the "Cash Margin (%)" flat field is ignored.')
+    x_margin_move_id = fields.Many2one(
+        'account.move', string='Margin Journal Entry',
+        readonly=True, copy=False, ondelete='set null',
+        help='Journal entry recording the cash margin deduction on guarantee activation.',
+    )
+    x_margin_release_move_id = fields.Many2one(
+        'account.move', string='Margin Release Entry',
+        readonly=True, copy=False, ondelete='set null',
+        help='Journal entry recording the cash margin release back to the bank operational account.',
+    )
+    x_move_count = fields.Integer(
+        string='Journal Entries Count',
+        compute='_compute_x_move_count',
+    )
+    released_amount = fields.Monetary(
+        string='Released Amount',
+        compute='_compute_released_amount', store=True,
+        currency_field='currency_id',
+        help='Amount released for this bank guarantee.',
+    )
     currency_id = fields.Many2one(
         'res.currency', default=lambda self: self.env.company.currency_id)
     company_id = fields.Many2one(
         'res.company', default=lambda self: self.env.company, required=True)
     notes = fields.Text()
 
+    @api.depends('state', 'bg_amount')
+    def _compute_released_amount(self):
+        for rec in self:
+            rec.released_amount = rec.bg_amount if rec.state == 'released' else 0.0
+
+    @api.depends('x_margin_move_id', 'x_margin_release_move_id')
+    def _compute_x_move_count(self):
+        for rec in self:
+            moves = rec.x_margin_move_id | rec.x_margin_release_move_id
+            rec.x_move_count = len(moves)
+
     @api.depends(
         'bg_amount', 'cash_margin_percent', 'pricing_percent', 'fed_percent',
+        'quarter_numbers',
         'cash_margin_slab_ids', 'cash_margin_slab_ids.slab_amount',
     )
     def _compute_charges(self):
@@ -387,7 +460,8 @@ class BankGuarantee(models.Model):
             else:
                 # Simple flat rate (backward-compatible with existing BGs)
                 rec.margin_amount = rec.bg_amount * (rec.cash_margin_percent or 0.0) / 100.0
-            rec.commission_amount = rec.bg_amount * (rec.pricing_percent or 0.0) / 100.0
+            quarters = rec.quarter_numbers if rec.quarter_numbers > 0 else 1
+            rec.commission_amount = (rec.bg_amount * (rec.pricing_percent or 0.0) / 100.0) * quarters
             rec.fed_amount = rec.commission_amount * (rec.fed_percent or 0.0) / 100.0
 
     @api.depends('jv_type', 'jv_name', 'on_behalf_entity')
@@ -463,6 +537,94 @@ class BankGuarantee(models.Model):
                     # No slabs on facility — use the simple flat rate
                     self.cash_margin_slab_ids = [(5, 0, 0)]
                     self.cash_margin_percent = facility.cash_margin_percent
+
+    @api.onchange('project_id')
+    def _onchange_project_id(self):
+        if self.project_id and not self.project_name:
+            self.project_name = self.project_id.name
+
+    def action_create_project_from_manual(self):
+        self.ensure_one()
+        name = (self.project_name or '').strip()
+        if not name:
+            raise UserError(_('Please enter a Manual Project Name first.'))
+
+        Project = self.env['project.project'].sudo()
+        SiteConfig = self.env['x.project.site.config'].sudo()
+        Analytic = self.env['account.analytic.account'].sudo()
+
+        existing_project = Project.search([('name', '=ilike', name)], limit=1)
+        if existing_project:
+            self.project_id = existing_project.id
+            if not existing_project.x_award_status:
+                existing_project.x_award_status = 'not_rewarded'
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': _('Project Linked'),
+                    'message': _('Linked to existing project "%s".', existing_project.name),
+                    'sticky': False,
+                    'type': 'success',
+                }
+            }
+
+        analytic = Analytic.search([('name', '=ilike', name)], limit=1)
+        if not analytic:
+            vals = {'name': name}
+            if 'plan_id' in Analytic._fields:
+                Plan = self.env.get('account.analytic.plan')
+                if Plan:
+                    plan = Plan.sudo().search([], limit=1)
+                    if plan:
+                        vals['plan_id'] = plan.id
+            analytic = Analytic.create(vals)
+
+        site_config = SiteConfig.search([
+            '|', ('name', '=ilike', name),
+            ('analytic_account_id', '=', analytic.id)
+        ], limit=1)
+
+        if not site_config:
+            site_config = SiteConfig.create({
+                'name': name,
+                'analytic_account_id': analytic.id,
+                'x_award_status': 'not_rewarded',
+            })
+        else:
+            if not site_config.x_award_status:
+                site_config.x_award_status = 'not_rewarded'
+
+        project = site_config.project_id
+        if not project:
+            site_config._ensure_project_record()
+            project = site_config.project_id
+
+        if not project:
+            project = Project.search([('x_analytic_account_id', '=', analytic.id)], limit=1)
+        if not project:
+            project = Project.create({
+                'name': name,
+                'x_analytic_account_id': analytic.id,
+                'x_site_config_id': site_config.id,
+                'x_award_status': 'not_rewarded',
+            })
+            site_config.project_id = project.id
+
+        project.write({'x_award_status': 'not_rewarded'})
+        self.project_id = project.id
+        self.project_name = project.name
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Project Created'),
+                'message': _('Project "%s" created in Project app and Site Project Configuration as Not Rewarded.', name),
+                'sticky': False,
+                'type': 'success',
+            }
+        }
 
     @api.onchange('beneficiary_id')
     def _onchange_beneficiary_id(self):
@@ -595,6 +757,254 @@ class BankGuarantee(models.Model):
                 summary=_('BG Pending Validation'),
             )
 
+    def _get_bank_account(self):
+        """Resolve the operational leaf account (Useable Balance) for this BG's journal.
+        Must not be a Main/Group account where direct posting is restricted.
+        """
+        self.ensure_one()
+        journal = self.journal_id
+        if not journal:
+            raise UserError(_('No bank journal selected for guarantee %s.') % (self.name or self.guarantee_number))
+        bank_acc = journal.default_account_id
+        if not bank_acc:
+            raise UserError(_("No default account configured for bank journal '%s'.") % journal.name)
+        # If the journal's default account is marked as main, find its Useable Balance ('1') leaf child
+        if bank_acc.x_is_main:
+            leaf = self.env['account.account'].sudo().search([
+                ('company_ids', 'in', [self.env.company.id]),
+                ('x_parent_account_id', '=', bank_acc.id),
+                ('code', '=', bank_acc.code + '1'),
+            ], limit=1)
+            if leaf:
+                return leaf
+        return bank_acc
+
+    def _get_cash_margin_account(self):
+        """Resolve the Cash Margin leaf account for this BG's bank/journal.
+        Checks in priority order:
+          1. Facility override (facility_id.cash_margin_account_id)
+          2. Journal override (journal_id.x_cash_margin_account_id)
+          3. Suffix '2' child under default_account_id.x_parent_account_id
+          4. Code pattern: default_account_id.code ending in '1' -> replace with '2'
+          5. Code pattern: bank_code + '2'
+          6. Sibling account by name containing 'Cash Margin'
+          7. Fallback to any company leaf account named 'Cash Margin'
+        """
+        self.ensure_one()
+        journal = self.journal_id
+        if not journal:
+            raise UserError(_('No bank journal selected for guarantee %s.') % (self.name or self.guarantee_number))
+
+        Account = self.env['account.account'].sudo()
+        company_id = self.company_id.id if hasattr(self, 'company_id') and self.company_id else self.env.company.id
+
+        # 1. Facility override
+        if self.facility_id and self.facility_id.cash_margin_account_id:
+            return self.facility_id.cash_margin_account_id
+
+        # 2. Journal override
+        if journal.x_cash_margin_account_id:
+            return journal.x_cash_margin_account_id
+
+        bank_acc = journal.default_account_id
+        if bank_acc:
+            # 3. Parent's child with suffix '2' or named 'Cash Margin'
+            parent = bank_acc.x_parent_account_id
+            if parent:
+                margin_acc = Account.search([
+                    ('company_ids', 'in', [company_id]),
+                    ('x_is_main', '=', False),
+                    ('x_parent_account_id', '=', parent.id),
+                    '|',
+                    ('code', '=', parent.code + '2'),
+                    ('name', 'ilike', 'Cash Margin'),
+                ], limit=1)
+                if margin_acc:
+                    return margin_acc
+
+            # 4. If code ends in '1' (Useable Balance child), look for code ending in '2'
+            if bank_acc.code and bank_acc.code.endswith('1'):
+                target_code = bank_acc.code[:-1] + '2'
+                margin_acc = Account.search([
+                    ('company_ids', 'in', [company_id]),
+                    ('x_is_main', '=', False),
+                    ('code', '=', target_code),
+                ], limit=1)
+                if margin_acc:
+                    return margin_acc
+
+            # 5. Look for bank_acc.code + '2'
+            margin_acc = Account.search([
+                ('company_ids', 'in', [company_id]),
+                ('x_is_main', '=', False),
+                ('code', '=', bank_acc.code + '2'),
+            ], limit=1)
+            if margin_acc:
+                return margin_acc
+
+        # 6. Search by bank/journal name + Cash Margin
+        if journal.name:
+            margin_acc = Account.search([
+                ('company_ids', 'in', [company_id]),
+                ('x_is_main', '=', False),
+                ('name', 'ilike', journal.name),
+                ('name', 'ilike', 'Cash Margin'),
+            ], limit=1)
+            if margin_acc:
+                return margin_acc
+
+        # 7. General fallback: any leaf account named Cash Margin
+        margin_acc = Account.search([
+            ('company_ids', 'in', [company_id]),
+            ('x_is_main', '=', False),
+            ('name', 'ilike', 'Cash Margin'),
+        ], limit=1)
+        if margin_acc:
+            return margin_acc
+
+        raise UserError(_(
+            "Could not determine the Cash Margin account for bank '%s'. "
+            "Please configure the Cash Margin Account on the bank journal or facility limit."
+        ) % journal.name)
+
+    def _create_margin_activation_move(self):
+        """Create and post the Cash Margin journal entry for guarantee activation:
+        Debit: Bank Cash Margin Account (increases cash margin asset)
+        Credit: Bank Operational Account (decreases operational bank balance)
+        """
+        self.ensure_one()
+        if self.margin_amount <= 0:
+            return False
+
+        if self.x_margin_move_id and self.x_margin_move_id.state == 'posted':
+            return self.x_margin_move_id
+
+        bank_acc = self._get_bank_account()
+        margin_acc = self._get_cash_margin_account()
+        ref_label = _("BG %(ref)s (%(num)s) - Cash Margin") % {
+            'ref': self.name,
+            'num': self.guarantee_number,
+        }
+        entry_date = self.issue_date or fields.Date.context_today(self)
+        analytic_dist = {str(self.project_analytic_account_id.id): 100} if self.project_analytic_account_id else False
+
+        existing_move = self.x_margin_move_id.sudo()
+        move_vals = {
+            'move_type': 'entry',
+            'journal_id': self.journal_id.id,
+            'ref': ref_label,
+            'date': entry_date,
+            'x_project_analytic_account_id': self.project_analytic_account_id.id if self.project_analytic_account_id else False,
+            'line_ids': [
+                (0, 0, {
+                    'name': _("Cash Margin Held - BG %(num)s") % {'num': self.guarantee_number},
+                    'account_id': margin_acc.id,
+                    'partner_id': self.beneficiary_id.id or False,
+                    'debit': self.margin_amount,
+                    'credit': 0.0,
+                    'analytic_distribution': analytic_dist,
+                }),
+                (0, 0, {
+                    'name': _("Cash Margin Deducted - BG %(num)s") % {'num': self.guarantee_number},
+                    'account_id': bank_acc.id,
+                    'partner_id': self.beneficiary_id.id or False,
+                    'debit': 0.0,
+                    'credit': self.margin_amount,
+                    'analytic_distribution': analytic_dist,
+                }),
+            ],
+        }
+
+        if existing_move and existing_move.state == 'draft':
+            existing_move.line_ids.unlink()
+            existing_move.write(move_vals)
+            existing_move.action_post()
+            move = existing_move
+        else:
+            move = self.env['account.move'].sudo().create(move_vals)
+            move.action_post()
+            self.x_margin_move_id = move.id
+
+        self.message_post(body=Markup(_(
+            "Journal entry <b>%(move)s</b> posted for Cash Margin of <b>%(amount)s</b> "
+            "(Dr: %(margin_acc)s, Cr: %(bank_acc)s)."
+        )) % {
+            'move': move.name,
+            'amount': f"{self.currency_id.symbol} {self.margin_amount:,.2f}",
+            'margin_acc': f"{margin_acc.code} {margin_acc.name}",
+            'bank_acc': f"{bank_acc.code} {bank_acc.name}",
+        })
+        return move
+
+    def _create_margin_release_move(self):
+        """Create and post the Cash Margin Release journal entry:
+        Debit: Bank Operational Account (returns cash margin back to operational balance)
+        Credit: Bank Cash Margin Account (clears cash margin asset)
+        """
+        self.ensure_one()
+        if self.margin_amount <= 0:
+            return False
+
+        if self.x_margin_release_move_id and self.x_margin_release_move_id.state == 'posted':
+            return self.x_margin_release_move_id
+
+        bank_acc = self._get_bank_account()
+        margin_acc = self._get_cash_margin_account()
+        ref_label = _("BG %(ref)s (%(num)s) - Cash Margin Released") % {
+            'ref': self.name,
+            'num': self.guarantee_number,
+        }
+        rel_date = self.release_date or fields.Date.context_today(self)
+        analytic_dist = {str(self.project_analytic_account_id.id): 100} if self.project_analytic_account_id else False
+
+        existing_move = self.x_margin_release_move_id.sudo()
+        move_vals = {
+            'move_type': 'entry',
+            'journal_id': self.journal_id.id,
+            'ref': ref_label,
+            'date': rel_date,
+            'x_project_analytic_account_id': self.project_analytic_account_id.id if self.project_analytic_account_id else False,
+            'line_ids': [
+                (0, 0, {
+                    'name': _("Cash Margin Released - BG %(num)s") % {'num': self.guarantee_number},
+                    'account_id': bank_acc.id,
+                    'partner_id': self.beneficiary_id.id or False,
+                    'debit': self.margin_amount,
+                    'credit': 0.0,
+                    'analytic_distribution': analytic_dist,
+                }),
+                (0, 0, {
+                    'name': _("Cash Margin Cleared - BG %(num)s") % {'num': self.guarantee_number},
+                    'account_id': margin_acc.id,
+                    'partner_id': self.beneficiary_id.id or False,
+                    'debit': 0.0,
+                    'credit': self.margin_amount,
+                    'analytic_distribution': analytic_dist,
+                }),
+            ],
+        }
+
+        if existing_move and existing_move.state == 'draft':
+            existing_move.line_ids.unlink()
+            existing_move.write(move_vals)
+            existing_move.action_post()
+            move = existing_move
+        else:
+            move = self.env['account.move'].sudo().create(move_vals)
+            move.action_post()
+            self.x_margin_release_move_id = move.id
+
+        self.message_post(body=Markup(_(
+            "Journal entry <b>%(move)s</b> posted for Cash Margin Release of <b>%(amount)s</b> "
+            "(Dr: %(bank_acc)s, Cr: %(margin_acc)s)."
+        )) % {
+            'move': move.name,
+            'amount': f"{self.currency_id.symbol} {self.margin_amount:,.2f}",
+            'bank_acc': f"{bank_acc.code} {bank_acc.name}",
+            'margin_acc': f"{margin_acc.code} {margin_acc.name}",
+        })
+        return move
+
     def action_validate(self):
         for rec in self:
             if rec.state != 'pending':
@@ -606,6 +1016,8 @@ class BankGuarantee(models.Model):
                 'validated_by_id': self.env.uid,
                 'validated_date': fields.Datetime.now(),
             })
+            # Post cash margin journal entry
+            rec._create_margin_activation_move()
             matracon_notify.notify_group(
                 rec, 'purchase_demand_raise.group_ceo_approval',
                 _('Bank Guarantee <b>%(ref)s</b> is now Active.', ref=rec.name),
@@ -637,6 +1049,8 @@ class BankGuarantee(models.Model):
                 'amount_change': -rec.bg_amount,
                 'amendment_date': fields.Date.context_today(rec),
             })]
+            # Post cash margin release journal entry
+            rec._create_margin_release_move()
             # Close all pending activities (expiry alerts, etc.)
             matracon_notify.close_activities(rec)
 
@@ -659,8 +1073,524 @@ class BankGuarantee(models.Model):
     def action_reset_draft(self):
         resettable = ('pending', 'active', 'locked', 'released', 'expired', 'cancelled')
         for rec in self.filtered(lambda r: r.state in resettable):
-            rec.write({'state': 'draft'})
+            # 1. Reset and unlink release move if any
+            if rec.x_margin_release_move_id:
+                rel_move = rec.x_margin_release_move_id.sudo()
+                if rel_move.state == 'posted':
+                    rel_move.button_draft()
+                try:
+                    rel_move.unlink()
+                    rec.x_margin_release_move_id = False
+                except Exception:
+                    pass
+
+            # 2. Reset and unlink activation margin move if any
+            if rec.x_margin_move_id:
+                act_move = rec.x_margin_move_id.sudo()
+                if act_move.state == 'posted':
+                    act_move.button_draft()
+                try:
+                    act_move.unlink()
+                    rec.x_margin_move_id = False
+                except Exception:
+                    pass
+
+            rec.write({
+                'state': 'draft',
+                'release_date': False,
+            })
             matracon_notify.close_activities(rec)
+            rec.message_post(body=_(
+                "Bank Guarantee reset to Draft. Associated cash margin journal entries "
+                "have been reset to draft/unlinked, ensuring no impact remains on the Chart of Accounts."
+            ))
+
+    def action_view_journal_entries(self):
+        self.ensure_one()
+        moves = self.x_margin_move_id | self.x_margin_release_move_id
+        action = {
+            'type': 'ir.actions.act_window',
+            'name': _('Journal Entries — %s') % (self.name or self.guarantee_number),
+            'res_model': 'account.move',
+            'domain': [('id', 'in', moves.ids)],
+            'context': {'create': False},
+        }
+        if len(moves) == 1:
+            action['view_mode'] = 'form'
+            action['res_id'] = moves.id
+        else:
+            action['view_mode'] = 'list,form'
+        return action
+
+    @api.model
+    def action_admin_repair_bg_accounting(self, dry_run=False):
+        """Audit and repair accounting entries for all historical and live Bank Guarantees.
+        
+        Eligible records:
+          - State in ('active', 'locked', 'released') with margin_amount > 0.
+        
+        Duplicate detection:
+          - Checks if rec.x_margin_move_id or rec.x_margin_release_move_id is already posted.
+          - Searches account.move in the bank journal matching the BG name/number and margin amount
+            to link pre-existing unlinked entries instead of creating duplicate moves.
+          - Preserves existing posted accounting data.
+        
+        Returns:
+          dict with counts and HTML audit report.
+        """
+        all_bgs = self.sudo().search([], order='journal_id, id')
+        Move = self.env['account.move'].sudo()
+
+        total_scanned = len(all_bgs)
+        total_created = 0
+        total_repaired = 0
+        total_skipped = 0
+        total_failed = 0
+        report_rows = []
+
+        for bg in all_bgs:
+            state = bg.state
+            margin = bg.margin_amount or 0.0
+            row_info = {
+                'id': bg.id,
+                'name': bg.name or '-',
+                'number': bg.guarantee_number or '-',
+                'bank': bg.journal_id.name or '-',
+                'state': state,
+                'margin': margin,
+                'action_taken': [],
+                'status': 'skipped',
+                'detail': '',
+            }
+
+            if state in ('draft', 'pending', 'cancelled'):
+                total_skipped += 1
+                row_info['status'] = 'skipped'
+                row_info['detail'] = _("State is %s — no accounting entry required.") % state
+                report_rows.append(row_info)
+                continue
+
+            if margin <= 0:
+                total_skipped += 1
+                row_info['status'] = 'skipped'
+                row_info['detail'] = _("Cash Margin is 0.00 — no entry required.")
+                report_rows.append(row_info)
+                continue
+
+            created_for_bg = 0
+            repaired_for_bg = 0
+            failed_reason = False
+
+            # ── 1. Activation Cash Margin Entry ──────────────────────────────
+            act_move = bg.x_margin_move_id
+            if act_move and act_move.state == 'posted':
+                row_info['action_taken'].append(_("Activation entry already posted (%s)") % act_move.name)
+            else:
+                dup_move = False
+                if bg.guarantee_number:
+                    dup_move = Move.search([
+                        ('journal_id', '=', bg.journal_id.id),
+                        ('state', '=', 'posted'),
+                        ('ref', 'ilike', bg.guarantee_number),
+                        ('ref', 'not ilike', 'Released'),
+                    ], limit=1)
+                if not dup_move and bg.name:
+                    dup_move = Move.search([
+                        ('journal_id', '=', bg.journal_id.id),
+                        ('state', '=', 'posted'),
+                        ('ref', 'ilike', bg.name),
+                        ('ref', 'not ilike', 'Released'),
+                    ], limit=1)
+
+                if dup_move:
+                    repaired_for_bg += 1
+                    row_info['action_taken'].append(_("Linked existing activation entry (%s)") % dup_move.name)
+                    if not dry_run:
+                        bg.x_margin_move_id = dup_move.id
+                else:
+                    try:
+                        bg._get_bank_account()
+                        bg._get_cash_margin_account()
+                        if dry_run:
+                            created_for_bg += 1
+                            row_info['action_taken'].append(_("Will create Cash Margin activation entry (Dr Margin / Cr Bank)"))
+                        else:
+                            new_move = bg._create_margin_activation_move()
+                            if new_move:
+                                created_for_bg += 1
+                                row_info['action_taken'].append(_("Created Cash Margin activation entry (%s)") % new_move.name)
+                    except Exception as e:
+                        failed_reason = str(e)
+
+            # ── 2. Release Cash Margin Entry (if released) ───────────────────
+            if state == 'released' and not failed_reason:
+                rel_move = bg.x_margin_release_move_id
+                if rel_move and rel_move.state == 'posted':
+                    row_info['action_taken'].append(_("Release entry already posted (%s)") % rel_move.name)
+                else:
+                    dup_rel_move = False
+                    if bg.guarantee_number:
+                        dup_rel_move = Move.search([
+                            ('journal_id', '=', bg.journal_id.id),
+                            ('state', '=', 'posted'),
+                            ('ref', 'ilike', bg.guarantee_number),
+                            ('ref', 'ilike', 'Released'),
+                        ], limit=1)
+                    if not dup_rel_move and bg.name:
+                        dup_rel_move = Move.search([
+                            ('journal_id', '=', bg.journal_id.id),
+                            ('state', '=', 'posted'),
+                            ('ref', 'ilike', bg.name),
+                            ('ref', 'ilike', 'Released'),
+                        ], limit=1)
+
+                    if dup_rel_move:
+                        repaired_for_bg += 1
+                        row_info['action_taken'].append(_("Linked existing release entry (%s)") % dup_rel_move.name)
+                        if not dry_run:
+                            bg.x_margin_release_move_id = dup_rel_move.id
+                    else:
+                        try:
+                            bg._get_bank_account()
+                            bg._get_cash_margin_account()
+                            if dry_run:
+                                created_for_bg += 1
+                                row_info['action_taken'].append(_("Will create Cash Margin release entry (Dr Bank / Cr Margin)"))
+                            else:
+                                new_rel_move = bg._create_margin_release_move()
+                                if new_rel_move:
+                                    created_for_bg += 1
+                                    row_info['action_taken'].append(_("Created Cash Margin release entry (%s)") % new_rel_move.name)
+                        except Exception as e:
+                            failed_reason = str(e)
+
+            if failed_reason:
+                total_failed += 1
+                row_info['status'] = 'failed'
+                row_info['detail'] = failed_reason
+            elif created_for_bg > 0:
+                total_created += created_for_bg
+                row_info['status'] = 'created'
+                row_info['detail'] = '; '.join(row_info['action_taken'])
+            elif repaired_for_bg > 0:
+                total_repaired += repaired_for_bg
+                row_info['status'] = 'repaired'
+                row_info['detail'] = '; '.join(row_info['action_taken'])
+            else:
+                total_skipped += 1
+                row_info['status'] = 'skipped'
+                row_info['detail'] = '; '.join(row_info['action_taken']) or _("Already up to date.")
+
+            report_rows.append(row_info)
+
+        report_html = self._format_repair_audit_html(
+            total_scanned, total_created, total_repaired, total_skipped, total_failed, report_rows, dry_run
+        )
+
+        return {
+            'total_scanned': total_scanned,
+            'total_created': total_created,
+            'total_repaired': total_repaired,
+            'total_skipped': total_skipped,
+            'total_failed': total_failed,
+            'report_html': report_html,
+        }
+
+    @api.model
+    def _format_repair_audit_html(self, total_scanned, total_created, total_repaired, total_skipped, total_failed, report_rows, dry_run):
+        run_mode_badge = (
+            '<span class="badge bg-warning text-dark px-2 py-1 fs-6">Preview / Dry Run</span>'
+            if dry_run else
+            '<span class="badge bg-success text-white px-2 py-1 fs-6">Live Repair Applied</span>'
+        )
+
+        cards_html = f"""
+        <div class="mb-3 d-flex flex-wrap gap-2 align-items-center">
+            {run_mode_badge}
+            <span class="badge bg-secondary p-2">Scanned: {total_scanned}</span>
+            <span class="badge bg-primary p-2">{"To Create" if dry_run else "Created"}: {total_created}</span>
+            <span class="badge bg-info text-dark p-2">{"To Link" if dry_run else "Linked"}: {total_repaired}</span>
+            <span class="badge bg-light text-dark border p-2">Skipped: {total_skipped}</span>
+            <span class="badge bg-danger p-2">Failed: {total_failed}</span>
+        </div>
+        """
+
+        rows_html = []
+        for i, r in enumerate(report_rows, start=1):
+            status = r['status']
+            if status == 'created':
+                badge = '<span class="badge bg-success">Created</span>' if not dry_run else '<span class="badge bg-primary">Eligible</span>'
+            elif status == 'repaired':
+                badge = '<span class="badge bg-info text-dark">Linked (No Dup)</span>'
+            elif status == 'failed':
+                badge = '<span class="badge bg-danger">Failed</span>'
+            else:
+                badge = '<span class="badge bg-secondary">Skipped</span>'
+
+            state_badge = f'<span class="badge bg-light text-dark border">{r["state"]}</span>'
+            margin_str = f"{r['margin']:,.2f}"
+
+            rows_html.append(f"""
+            <tr>
+                <td class="text-center">{i}</td>
+                <td><strong>{r['name']}</strong></td>
+                <td>{r['number']}</td>
+                <td>{r['bank']}</td>
+                <td class="text-center">{state_badge}</td>
+                <td class="text-end font-monospace">{margin_str}</td>
+                <td class="text-center">{badge}</td>
+                <td class="small text-muted">{r['detail']}</td>
+            </tr>
+            """)
+
+        table_html = f"""
+        {cards_html}
+        <div class="table-responsive" style="max-height: 480px; overflow-y: auto;">
+            <table class="table table-sm table-striped table-hover align-middle border">
+                <thead class="table-dark sticky-top">
+                    <tr>
+                        <th style="width: 40px;" class="text-center">#</th>
+                        <th>BG Ref</th>
+                        <th>Guarantee No</th>
+                        <th>Bank Journal</th>
+                        <th class="text-center">State</th>
+                        <th class="text-end">Cash Margin</th>
+                        <th class="text-center">Status</th>
+                        <th>Audit Details / Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {''.join(rows_html) if rows_html else '<tr><td colspan="8" class="text-center text-muted py-3">No records found.</td></tr>'}
+                </tbody>
+            </table>
+        </div>
+        """
+        return table_html
+
+    @api.model
+    def action_open_bg_repair_wizard(self):
+        """Open the Bank Guarantee Accounting Repair Wizard from Admin -> Fix Tools."""
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Audit & Repair Bank Guarantee Accounting'),
+            'res_model': 'x.bg.accounting.repair.wizard',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': self.env.context,
+        }
+
+    @api.model
+    def action_admin_fix_bg_journal_accounts(self, dry_run=False):
+        """Scan all bank journals used in BG Facilities and ensure:
+          1. The journal's default account is marked x_is_main=True (parent/group).
+          2. Three child accounts exist: code+1 (Useable Balance), code+2 (Cash Margin), code+3 (PO).
+          3. Journal.default_account_id points to the Useable Balance child.
+          4. Journal.x_cash_margin_account_id points to the Cash Margin child.
+
+        Idempotent — creates only what is missing. Never modifies existing accounts.
+
+        Returns a dict with counts and an HTML audit report.
+        """
+        Account = self.env['account.account'].sudo()
+        Journal = self.env['account.journal'].sudo()
+        Facility = self.env['x.bank.guarantee.facility'].sudo()
+        company = self.env.company
+
+        CHILD_SUFFIXES = [
+            ('1', 'Useable Balance'),
+            ('2', 'Cash Margin'),
+            ('3', 'PO'),
+        ]
+
+        # Gather all journals linked to BG Facilities
+        facility_journal_ids = Facility.search([]).mapped('journal_id.id')
+        # Also add journals used on live BGs that may not have a facility
+        bg_journal_ids = self.sudo().search([]).mapped('journal_id.id')
+        all_journal_ids = list(set(filter(None, facility_journal_ids + bg_journal_ids)))
+        journals = Journal.search([
+            ('id', 'in', all_journal_ids),
+            ('type', '=', 'bank'),
+        ])
+
+        scanned = len(journals)
+        created_accounts = 0
+        wired_journals = 0
+        already_ok = 0
+        failed = 0
+        report_rows = []
+
+        for journal in journals:
+            row = {
+                'journal': journal.name,
+                'actions': [],
+                'status': 'ok',
+                'detail': '',
+            }
+            try:
+                base_acc = journal.default_account_id
+                if not base_acc:
+                    row['status'] = 'skipped'
+                    row['detail'] = 'No default account on journal — configure it first.'
+                    report_rows.append(row)
+                    continue
+
+                # Determine the parent (Main) account code
+                # If default_account is already a leaf child (ends in 1/2/3),
+                # strip the suffix to find the parent code
+                code = base_acc.code or ''
+                if code and code[-1] in ('1', '2', '3') and len(code) > 1:
+                    parent_code = code[:-1]
+                else:
+                    parent_code = code
+
+                parent_acc = Account.search([
+                    ('code', '=', parent_code),
+                    ('company_ids', 'in', [company.id]),
+                ], limit=1)
+
+                if not parent_acc:
+                    row['status'] = 'skipped'
+                    row['detail'] = f'Parent account code {parent_code} not found in CoA.'
+                    report_rows.append(row)
+                    continue
+
+                # Step 1: Mark parent as Main (group)
+                if not parent_acc.x_is_main:
+                    if not dry_run:
+                        parent_acc.x_is_main = True
+                    row['actions'].append(f'Marked {parent_code} as Main account')
+
+                # Step 2: Create missing child accounts
+                useable_acc = None
+                margin_acc = None
+                for suffix, label in CHILD_SUFFIXES:
+                    child_code = parent_code + suffix
+                    child = Account.search([
+                        ('code', '=', child_code),
+                        ('company_ids', 'in', [company.id]),
+                    ], limit=1)
+                    if not child:
+                        if not dry_run:
+                            child = Account.create({
+                                'name': f'{parent_acc.name} - {label}',
+                                'code': child_code,
+                                'account_type': parent_acc.account_type or 'asset_cash',
+                                'reconcile': parent_acc.reconcile,
+                                'company_ids': [(4, company.id)],
+                                'x_parent_account_id': parent_acc.id,
+                                'x_is_main': False,
+                            })
+                        created_accounts += 1
+                        row['actions'].append(f'Created {child_code} ({label})')
+                    else:
+                        # Ensure parent link is set
+                        if not dry_run and child.x_parent_account_id.id != parent_acc.id:
+                            child.x_parent_account_id = parent_acc.id
+                            row['actions'].append(f'Linked {child_code} → parent {parent_code}')
+
+                    if suffix == '1' and child:
+                        useable_acc = child
+                    if suffix == '2' and child:
+                        margin_acc = child
+
+                # Step 3: Wire journal.default_account_id → Useable Balance
+                if useable_acc and journal.default_account_id.id != useable_acc.id:
+                    if not dry_run:
+                        journal.default_account_id = useable_acc.id
+                    wired_journals += 1
+                    row['actions'].append(
+                        f'Wired journal default account → {useable_acc.code} (Useable Balance)'
+                    )
+
+                # Step 4: Wire journal.x_cash_margin_account_id → Cash Margin
+                if margin_acc and journal.x_cash_margin_account_id.id != margin_acc.id:
+                    if not dry_run:
+                        journal.x_cash_margin_account_id = margin_acc.id
+                    row['actions'].append(
+                        f'Set Cash Margin account → {margin_acc.code} on journal'
+                    )
+
+                if row['actions']:
+                    row['status'] = 'fixed'
+                    row['detail'] = '; '.join(row['actions'])
+                else:
+                    already_ok += 1
+                    row['status'] = 'ok'
+                    row['detail'] = 'Already fully configured.'
+
+            except Exception as e:
+                failed += 1
+                row['status'] = 'failed'
+                row['detail'] = str(e)
+
+            report_rows.append(row)
+
+        report_html = self._format_bg_journal_fix_html(
+            scanned, created_accounts, wired_journals, already_ok, failed, report_rows, dry_run
+        )
+        return {
+            'scanned': scanned,
+            'created_accounts': created_accounts,
+            'wired_journals': wired_journals,
+            'already_ok': already_ok,
+            'failed': failed,
+            'report_html': report_html,
+        }
+
+    @api.model
+    def _format_bg_journal_fix_html(
+        self, scanned, created_accounts, wired_journals, already_ok, failed, rows, dry_run
+    ):
+        mode_badge = (
+            '<span class="badge bg-warning text-dark px-2 py-1 fs-6">Preview / Dry Run</span>'
+            if dry_run else
+            '<span class="badge bg-success text-white px-2 py-1 fs-6">Live Fix Applied</span>'
+        )
+        cards = f"""
+        <div class="mb-3 d-flex flex-wrap gap-2 align-items-center">
+            {mode_badge}
+            <span class="badge bg-secondary p-2">Journals Scanned: {scanned}</span>
+            <span class="badge bg-primary p-2">Accounts {"To Create" if dry_run else "Created"}: {created_accounts}</span>
+            <span class="badge bg-info text-dark p-2">Journals Wired: {wired_journals}</span>
+            <span class="badge bg-light text-dark border p-2">Already OK: {already_ok}</span>
+            <span class="badge bg-danger p-2">Failed: {failed}</span>
+        </div>
+        """
+        STATUS_COLORS = {'ok': 'success', 'fixed': 'primary', 'skipped': 'secondary', 'failed': 'danger'}
+        row_html = []
+        for i, r in enumerate(rows, 1):
+            color = STATUS_COLORS.get(r['status'], 'secondary')
+            row_html.append(
+                f'<tr>'
+                f'<td>{i}</td>'
+                f'<td>{r["journal"]}</td>'
+                f'<td><span class="badge bg-{color}">{r["status"].upper()}</span></td>'
+                f'<td>{r["detail"]}</td>'
+                f'</tr>'
+            )
+        table = f"""
+        <table class="table table-sm table-bordered table-hover mt-2">
+            <thead class="table-dark">
+                <tr>
+                    <th>#</th><th>Bank Journal</th><th>Status</th><th>Actions Taken</th>
+                </tr>
+            </thead>
+            <tbody>{''.join(row_html)}</tbody>
+        </table>
+        """
+        return cards + table
+
+    @api.model
+    def action_open_bg_journal_fix_wizard(self):
+        """Open the BG Bank Journal Account Fix Wizard from Admin -> Fix Tools."""
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Fix BG Bank Journal Chart of Accounts'),
+            'res_model': 'x.bg.journal.account.fix.wizard',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': self.env.context,
+        }
 
     def action_cancel(self):
         for rec in self.filtered(lambda r: r.state in ('draft', 'pending')):
@@ -674,16 +1604,24 @@ class BankGuarantee(models.Model):
         """Return set of all email addresses for BG expiry notifications."""
         config = self.env['x.bg.expiry.config'].sudo()._get_config()
         emails = set()
-        for gid in [
-            'site_operations.group_finance_ho',
-            'purchase_demand_raise.group_ceo_approval',
-            'purchase_demand_raise.group_matracon_admin',
-        ]:
-            grp = self.env.ref(gid, raise_if_not_found=False)
-            if grp:
-                for u in grp.sudo().users.filtered('active'):
-                    if u.email:
-                        emails.add(u.email)
+        # res.groups no longer has a .users field in Odoo 19 — query res.users directly
+        grp_ids = [
+            g.id
+            for xmlid in (
+                'site_operations.group_finance_ho',
+                'purchase_demand_raise.group_ceo_approval',
+                'purchase_demand_raise.group_matracon_admin',
+            )
+            for g in [self.env.ref(xmlid, raise_if_not_found=False)]
+            if g
+        ]
+        if grp_ids:
+            for u in self.env['res.users'].sudo().search([
+                ('active', '=', True),
+                ('group_ids', 'in', grp_ids),
+            ]):
+                if u.email:
+                    emails.add(u.email)
         for p in config.recipient_partner_ids:
             if p.email:
                 emails.add(p.email)
@@ -735,7 +1673,7 @@ class BankGuarantee(models.Model):
                 name=rec.name,
                 gno=rec.guarantee_number or '-',
                 bank=rec.journal_id.name or '-',
-                project=rec.project_id.name or '-',
+                project=rec.project_display or rec.project_name or rec.project_id.name or '-',
                 nature=rec.nature_id.name or '-',
                 amount=f'{rec.bg_amount:,.0f} {rec.currency_id.symbol}',
                 expiry=rec.expiry_date.strftime('%d %b %Y') if rec.expiry_date else '-',

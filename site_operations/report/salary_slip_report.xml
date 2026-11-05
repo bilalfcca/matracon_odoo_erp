@@ -112,8 +112,16 @@
                             </div>
                         </div>
 
-                        <!-- ── Signatures ── -->
-                        <t t-call="site_operations.report_sig_3col"/>                    </div>
+                        <!-- ── Signatures ──
+                             Same source as the parent Salary Sheet report, so a
+                             slip is never less complete than its own parent:
+                             Prepared By = slip creator; Approved By = the
+                             sheet's CEO approver, once approved. -->
+                        <t t-call="site_operations.report_sig_3col">
+                            <t t-set="sig_prepared_user" t-value="line.sudo().create_uid"/>
+                            <t t-set="sig_approved_user" t-value="line.sheet_id.sudo().x_ceo_approved_by_id"/>
+                        </t>
+                    </div>
                 </t>
             </t>
         </t>

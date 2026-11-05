@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+
+    <!-- Scopes the new read-only ir.actions.server ACL (granted to Finance HO and
+         Matracon Admin, who otherwise have zero access to Server Actions) to ONLY
+         the flagged fix-tool rows, further filtered to the ones each tool's own
+         group_ids allows that user to see. This is a global rule, but it is
+         written so it can NEVER restrict anything for anyone beyond that:
+           - any record where x_is_fix_tool is not True is always allowed
+             (so every other Server Action in the system - automations, technical
+             config, etc. - is completely unaffected for every user, including
+             System Administrators who also happen to hold one of the above
+             groups)
+           - a fix-tool row with no group_ids set is visible to everyone
+           - a fix-tool row WITH group_ids set is only visible to a user who is
+             a member of at least one of them - i.e. exactly the same access
+             each tool had at its old location, just re-expressed via the
+             native Server Action "group_ids" field instead of a view button's
+             groups="" attribute. -->
+    <record id="rule_fix_tools_group_scope" model="ir.rule">
+        <field name="name">Fix Tools: scope by group_ids</field>
+        <field name="model_id" ref="base.model_ir_actions_server"/>
+        <field name="domain_force">['|', ('x_is_fix_tool', '!=', True), '|', ('group_ids', '=', False), ('group_ids', 'in', user.all_group_ids.ids)]</field>
+        <field name="perm_read">1</field>
+        <field name="perm_write">0</field>
+        <field name="perm_create">0</field>
+        <field name="perm_unlink">0</field>
+    </record>
+
+</odoo>

@@ -13,11 +13,11 @@
                     <button name="action_cancel" type="object"
                             string="Cancel" class="btn-danger"
                             invisible="state in ('cancelled', 'cleared')"
-                            groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"/>
+                            groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_ceo_approval"/>
                     <button name="action_reopen" type="object"
                             string="Re-open" class="btn-secondary"
                             invisible="state != 'cancelled'"
-                            groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"/>
+                            groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_ceo_approval"/>
                     <field name="state" widget="statusbar"
                            statusbar_visible="open,partial,cleared"/>
                     <button name="action_delete_draft" type="object"

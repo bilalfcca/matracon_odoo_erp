@@ -435,7 +435,7 @@
                             type="object"
                             string="↩ Reverse Batch"
                             class="btn-danger"
-                            groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"
+                            groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_ceo_approval"
                             invisible="state != 'posted'"
                             confirm="Reverse ALL payments in this batch? Every journal entry (main JE, WHT deductions, bank splits, analytic entries) will be cancelled and each payment reset to Draft. The batch will be cancelled. Continue?"/>
                     <button name="action_view_payments"

@@ -38,6 +38,8 @@
                 <filter string="Posted" name="posted" domain="[('state','=','posted')]"/>
                 <filter string="Draft" name="draft" domain="[('state','=','draft')]"/>
                 <separator/>
+                <filter string="By Date" name="group_date"
+                        context="{'group_by': 'date'}"/>
                 <filter string="By Vehicle" name="group_vehicle"
                         context="{'group_by': 'vehicle_id'}"/>
                 <filter string="By Month" name="group_month"

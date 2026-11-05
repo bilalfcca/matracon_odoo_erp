@@ -2,9 +2,7 @@ from datetime import timedelta
 
 from odoo import models, fields, api
 
-# Must match ONLINE_THRESHOLD_SECONDS in hr_employee_ext.py.
-# 600 s = 10 minutes — user stays online until 10 min of no heartbeat.
-ONLINE_THRESHOLD_SECONDS = 600
+from .constants import ONLINE_THRESHOLD_SECONDS  # shared with hr_employee_ext.py
 
 
 class MailPresenceExt(models.Model):

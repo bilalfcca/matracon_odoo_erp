@@ -94,6 +94,12 @@ class ProjectSiteConfig(models.Model):
         stock_user_group = self.env.ref(
             'stock.group_stock_user', raise_if_not_found=False
         )
+        fleet_user_group = self.env.ref(
+            'fleet.fleet_group_user', raise_if_not_found=False
+        )
+        fleet_app_group = self.env.ref(
+            'matracon_fleet.group_mtr_app_fleet', raise_if_not_found=False
+        )
         Users = self.env['res.users']
         for user in users:
             vals = {
@@ -106,6 +112,10 @@ class ProjectSiteConfig(models.Model):
                 Users._matracon_add_group(user, site_store_group)
             if stock_user_group:
                 Users._matracon_add_group(user, stock_user_group)
+            if fleet_user_group:
+                Users._matracon_add_group(user, fleet_user_group)
+            if fleet_app_group:
+                Users._matracon_add_group(user, fleet_app_group)
 
     def _unassign_users(self, users):
         """

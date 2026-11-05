@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates>
+    <!--
+        Extend the accounting-report date-filter dropdown to include an
+        "All Dates" option that runs the report from 1900-01-01 to today
+        (effectively removing any date restriction).
+
+        Injected into BOTH mode blocks (single / range) by targeting the
+        divider elements that already separate the periodic filters from the
+        custom-date inputs in each mode.
+
+        Backend: _init_options_date in account_report_ext.py handles the
+        'all_dates' filter value and returns a display string "All Dates".
+    -->
+
+    <t t-name="account_reports.AccountReportFilterDate"
+       t-inherit="account_reports.AccountReportFilterDate"
+       t-inherit-mode="extension">
+
+        <!-- Balance Sheet / single-date reports: inject after the divider,
+             before the "Specific Date" picker. -->
+        <xpath expr="//div[@id='filter_date_divider_single']" position="after">
+            <DropdownItem
+                tag="'div'"
+                class="{
+                    'd-flex align-items-center date_filter': true,
+                    'selected': this.isPeriodSelected('all_dates'),
+                }"
+                onSelected="() => this.selectDateFilter('all_dates', 'all_dates' != controller.cachedFilterOptions.date.filter)"
+                closingMode="'none'">
+                <div class="filter_name">All Dates</div>
+            </DropdownItem>
+        </xpath>
+
+        <!-- P&amp;L / Trial Balance / General Ledger (range mode): inject
+             after the divider, before the "Custom Dates" pickers. -->
+        <xpath expr="//div[@id='filter_date_divider_range']" position="after">
+            <DropdownItem
+                tag="'div'"
+                class="{
+                    'd-flex align-items-center date_filter': true,
+                    'selected': this.isPeriodSelected('all_dates'),
+                }"
+                onSelected="() => this.selectDateFilter('all_dates', 'all_dates' != controller.cachedFilterOptions.date.filter)"
+                closingMode="'none'">
+                <div class="filter_name">All Dates</div>
+            </DropdownItem>
+        </xpath>
+    </t>
+</templates>

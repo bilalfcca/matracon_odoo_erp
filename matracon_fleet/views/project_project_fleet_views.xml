@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Fleet smart buttons on the Project form, next to the site_operations ones. -->
+    <record id="view_project_form_fleet_buttons" model="ir.ui.view">
+        <field name="name">project.project.form.fleet.buttons</field>
+        <field name="model">project.project</field>
+        <field name="inherit_id" ref="site_operations.view_project_financial_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_mtr_open" type="object" class="oe_stat_button"
+                        icon="fa-car" context="{'mtr_key': 'vehicle'}" invisible="not x_mtr_vehicle_count">
+                    <field name="x_mtr_vehicle_count" widget="statinfo" string="Vehicles"/>
+                </button>
+                <button name="action_mtr_open" type="object" class="oe_stat_button"
+                        icon="fa-road" context="{'mtr_key': 'trip'}" invisible="not x_mtr_trip_count">
+                    <field name="x_mtr_trip_count" widget="statinfo" string="Vehicle Trips"/>
+                </button>
+                <button name="action_mtr_open" type="object" class="oe_stat_button"
+                        icon="fa-tachometer" context="{'mtr_key': 'vehicle_ledger'}" invisible="not x_mtr_vehicle_ledger_count">
+                    <field name="x_mtr_vehicle_ledger_count" widget="statinfo" string="Vehicle Ledger"/>
+                </button>
+            </xpath>
+        </field>
+    </record>
+</odoo>

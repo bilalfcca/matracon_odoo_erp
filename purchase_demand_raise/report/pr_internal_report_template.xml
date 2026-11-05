@@ -57,36 +57,139 @@
                         </div>
 
                         <!-- ── PRODUCT LINES ── -->
+                        <t t-set="_pr_has_rec"
+                           t-value="any((l.x_recommended_qty or 0.0) > 0 for l in o.order_line if not l.display_type)"/>
+                        <t t-set="_pr_has_app"
+                           t-value="any((l.x_approved_qty or 0.0) > 0 for l in o.order_line if not l.display_type)"/>
+                        <t t-set="_pr_has_price"
+                           t-value="any((l.price_unit or 0.0) > 0 for l in o.order_line if not l.display_type)"/>
+                        <t t-set="_pr_has_discount"
+                           t-value="any((l.discount or 0.0) > 0 for l in o.order_line if not l.display_type)"/>
+                        <t t-set="_pr_colspan_count"
+                           t-value="5 + (1 if _pr_has_rec else 0) + (1 if _pr_has_app else 0) + (2 if _pr_has_price else 0) + (1 if _pr_has_discount else 0)"/>
+
                         <div class="row mb-4">
                             <div class="col-12">
                                 <h5 class="fw-bold border-bottom pb-1">Requested Items</h5>
                                 <table class="table table-sm table-bordered o_main_table">
                                     <thead class="table-light">
                                         <tr>
-                                            <th style="width:5%">#</th>
-                                            <th style="width:45%">Product / Description</th>
-                                            <th style="width:15%" class="text-center">UoM</th>
-                                            <th style="width:15%" class="text-center">On Hand</th>
-                                            <th style="width:20%" class="text-center">Requested Qty</th>
+                                            <th style="width:4%">#</th>
+                                            <th>Product / Description</th>
+                                            <th style="width:8%" class="text-center">UoM</th>
+                                            <th style="width:9%" class="text-center">On Hand</th>
+                                            <th style="width:11%" class="text-center">Requested Qty</th>
+                                            <t t-if="_pr_has_rec">
+                                                <th style="width:11%" class="text-center">Recommended</th>
+                                            </t>
+                                            <t t-if="_pr_has_app">
+                                                <th style="width:11%" class="text-center">Approved Qty</th>
+                                            </t>
+                                            <t t-if="_pr_has_price">
+                                                <th style="width:12%" class="text-end">Unit Price</th>
+                                            </t>
+                                            <t t-if="_pr_has_discount">
+                                                <th style="width:8%" class="text-center">Disc. %</th>
+                                            </t>
+                                            <t t-if="_pr_has_price">
+                                                <th style="width:14%" class="text-end">Amount</th>
+                                            </t>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         <t t-set="line_no" t-value="1"/>
                                         <t t-foreach="o.order_line" t-as="line">
-                                            <tr>
-                                                <td><t t-esc="line_no"/><t t-set="line_no" t-value="line_no + 1"/></td>
-                                                <td>
-                                                    <span t-esc="line.product_id.display_name"/>
-                                                    <t t-if="line.name and line.name != line.product_id.display_name">
-                                                        <br/><small class="text-muted"><t t-esc="line.name"/></small>
+                                            <t t-if="not line.display_type">
+                                                <t t-set="eff_qty" t-value="line._x_effective_qty()"/>
+                                                <t t-set="line_disc" t-value="line.discount or 0.0"/>
+                                                <t t-set="line_sub"
+                                                   t-value="eff_qty * (line.price_unit or 0.0) * (1.0 - line_disc / 100.0)"/>
+                                                <tr>
+                                                    <td class="text-center"><t t-esc="line_no"/><t t-set="line_no" t-value="line_no + 1"/></td>
+                                                    <td>
+                                                        <span t-esc="line.product_id.display_name or line.name"/>
+                                                        <t t-if="line.name and line.name.strip() not in (line.product_id.name or '', line.product_id.display_name or '')">
+                                                            <br/><small class="text-muted"><t t-esc="line.name"/></small>
+                                                        </t>
+                                                        <t t-if="line.x_qty_adjustment_reason">
+                                                            <br/><small class="text-danger fw-bold">Reason: <t t-esc="line.x_qty_adjustment_reason"/></small>
+                                                        </t>
+                                                    </td>
+                                                    <td class="text-center"><t t-esc="line.product_uom_id.name"/></td>
+                                                    <td class="text-center"><t t-esc="line.x_qty_on_hand"/></td>
+                                                    <td class="text-center fw-bold"><t t-esc="line.x_requested_qty or line.product_qty"/></td>
+                                                    <t t-if="_pr_has_rec">
+                                                        <td class="text-center"><t t-esc="line.x_recommended_qty or '—'"/></td>
                                                     </t>
-                                                </td>
-                                                <td class="text-center"><t t-esc="line.product_uom_id.name"/></td>
-                                                <td class="text-center"><t t-esc="line.x_qty_on_hand"/></td>
-                                                <td class="text-center fw-bold"><t t-esc="line.x_requested_qty or line.product_qty"/></td>
-                                            </tr>
+                                                    <t t-if="_pr_has_app">
+                                                        <td class="text-center fw-bold"><t t-esc="line.x_approved_qty or '—'"/></td>
+                                                    </t>
+                                                    <t t-if="_pr_has_price">
+                                                        <td class="text-end">
+                                                            <t t-if="line.price_unit">
+                                                                <t t-esc="'{:,.2f}'.format(line.price_unit)"/>
+                                                            </t>
+                                                            <t t-else="">—</t>
+                                                        </td>
+                                                    </t>
+                                                    <t t-if="_pr_has_discount">
+                                                        <td class="text-center">
+                                                            <t t-if="line_disc > 0">
+                                                                <t t-esc="'{:,.2f}'.format(line_disc)"/>%
+                                                            </t>
+                                                            <t t-else="">—</t>
+                                                        </td>
+                                                    </t>
+                                                    <t t-if="_pr_has_price">
+                                                        <td class="text-end fw-bold">
+                                                            <t t-if="line.price_unit">
+                                                                <t t-esc="'{:,.2f}'.format(line_sub)"/>
+                                                            </t>
+                                                            <t t-else="">—</t>
+                                                        </td>
+                                                    </t>
+                                                </tr>
+                                            </t>
+                                            <t t-elif="line.display_type and line.name">
+                                                <tr>
+                                                    <td t-att-colspan="_pr_colspan_count"
+                                                        t-attf-class="table-secondary #{line.display_type == 'line_note' and 'fst-italic' or 'fw-bold'}">
+                                                        <t t-esc="line.name"/>
+                                                    </td>
+                                                </tr>
+                                            </t>
                                         </t>
                                     </tbody>
+                                    <t t-if="_pr_has_price">
+                                        <tfoot>
+                                            <tr>
+                                                <td t-att-colspan="_pr_colspan_count - 1" class="text-end fw-bold">
+                                                    Untaxed Amount (<t t-esc="o.currency_id.name or 'PKR'"/>)
+                                                </td>
+                                                <td class="text-end fw-bold">
+                                                    <t t-esc="'{:,.2f}'.format(o.amount_untaxed)"/>
+                                                </td>
+                                            </tr>
+                                            <t t-if="o.amount_tax">
+                                                <tr>
+                                                    <td t-att-colspan="_pr_colspan_count - 1" class="text-end">
+                                                        Taxes
+                                                    </td>
+                                                    <td class="text-end">
+                                                        <t t-esc="'{:,.2f}'.format(o.amount_tax)"/>
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td t-att-colspan="_pr_colspan_count - 1" class="text-end fw-bold table-primary">
+                                                        Total Amount (<t t-esc="o.currency_id.name or 'PKR'"/>)
+                                                    </td>
+                                                    <td class="text-end fw-bold table-primary">
+                                                        <t t-esc="'{:,.2f}'.format(o.amount_total)"/>
+                                                    </td>
+                                                </tr>
+                                            </t>
+                                        </tfoot>
+                                    </t>
                                 </table>
                             </div>
                         </div>

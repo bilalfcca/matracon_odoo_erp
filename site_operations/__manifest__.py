@@ -1,6 +1,6 @@
 {
     'name': 'Site Operations',
-    'version': '1.9.0',
+    'version': '19.0.2.5.5',
     'summary': 'Material Issuance, Finance HO, Compliance (BG & Tax Notices), Attendance & Petty Cash',
     'author': 'Matracon Pakistan',
     'depends': [
@@ -16,6 +16,9 @@
         'contacts',
         'hr',
         'hr_attendance',
+        'product',
+        'uom',
+        'fleet',
     ],
     'data': [
         'security/app_visibility_groups.xml',
@@ -31,6 +34,7 @@
         'data/site_warehouses_data.xml',
         'data/petty_cash_sequence.xml',
         'data/petty_cash_fix_action.xml',
+        'data/journal_entry_fix_action.xml',
         'data/compliance_sequences.xml',
         'data/ipc_sequence.xml',
         'data/employee_backcharge_sequence.xml',
@@ -40,6 +44,7 @@
         'data/currency_precision.xml',
         'data/bg_nature_data.xml',
         'data/presence_cron.xml',
+        'data/draft_cleanup_cron.xml',
         'data/accounting_report_defaults.xml',
         'views/hr_employee_views.xml',
         'views/attendance_views.xml',
@@ -56,6 +61,7 @@
         'views/site_accountant_dashboard_views.xml',
         'views/project_project_views.xml',
         'views/material_issuance_form_views.xml',
+        'views/stock_picking_po_receipt_views.xml',
         'views/backcharge_views.xml',
         'views/material_issuance_list_views.xml',
         'views/site_store_dashboard_views.xml',
@@ -67,6 +73,7 @@
         'views/account_account_views.xml',
         'views/interproject_transfer_views.xml',
         'views/site_config_views.xml',
+        'views/res_company_views.xml',
         'views/return_picking_views.xml',
         'views/partner_views.xml',
         'views/res_users_app_views.xml',
@@ -74,6 +81,7 @@
         'views/postdated_cheque_views.xml',
         'views/cheque_series_views.xml',
         'views/subcontractor_backcharge_views.xml',
+        'views/ipc_account_config_views.xml',
         'views/subcontractor_ipc_views.xml',
         'views/subcontractor_ho_advance_views.xml',
         'views/employee_backcharge_views.xml',
@@ -108,7 +116,9 @@
         'report/interproject_transfer_report.xml',
         'report/journal_entry_report.xml',
         'report/journal_entry_template.xml',
+        'views/uom_change_wizard_views.xml',
     ],
+        'pre_init_hook': 'pre_init_hook',
     'post_init_hook': 'post_init_hook',
     'post_migrate_hook': 'post_migrate_hook',
     'assets': {
@@ -116,6 +126,7 @@
             'site_operations/static/src/scss/matracon_payment_form.scss',
             'site_operations/static/src/scss/matracon_hr.scss',
             'site_operations/static/src/scss/matracon_management_dashboard.scss',
+            'site_operations/static/src/scss/matracon_responsive.scss',
             'site_operations/static/src/js/attendance_grid_colors.js',
             # Real-time thousand-separator formatting for all numeric inputs
             'site_operations/static/src/js/realtime_thousand_sep.js',
@@ -126,6 +137,8 @@
             # Lock analytic filter to site accountant's own project
             'site_operations/static/src/js/account_report_analytic_lock.js',
             'site_operations/static/src/xml/account_report_analytic_lock.xml',
+            # "All Dates" option in every accounting-report date filter
+            'site_operations/static/src/xml/account_report_all_dates.xml',
         ],
     },
     'demo': [

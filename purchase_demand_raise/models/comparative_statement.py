@@ -351,7 +351,19 @@ class ComparativeStatement(models.Model):
         return super().copy(default)
 
     def action_confirm(self):
-        """Lock CS and route PR to CEO via the HO-approval path."""
+        """Lock CS and route PR to CEO via the HO-approval path.
+
+        Server-side group check added alongside the view's `groups=` attribute
+        on the button — the view attribute alone only hides the button, it
+        doesn't stop the method being called some other way (API, automation).
+        """
+        if not (self.env.user.has_group('purchase_demand_raise.group_procurement_ho')
+                or self.env.user.has_group('purchase_demand_raise.group_ceo_approval')
+                or self.env.user.has_group('purchase_demand_raise.group_matracon_admin')
+                or self.env.user.has_group('base.group_system')):
+            raise UserError(_(
+                'Only Procurement HO or CEO Approval can confirm a Comparative Statement.'
+            ))
         for cs in self:
             if not cs.x_recommended_vendor_line_id:
                 raise UserError(_(
@@ -403,6 +415,12 @@ class ComparativeStatement(models.Model):
         po = self.x_purchase_order_id
         if not po:
             raise UserError(_('No Purchase Requisition linked to this Comparative Statement.'))
+
+        # Signature automation: whoever in Procurement actually sends the RFQ.
+        # First-write-wins — doesn't overwrite an identity already captured via
+        # HO review or a direct send from the PO/RFQ form.
+        if not po.x_rfq_prepared_by_id:
+            po.x_rfq_prepared_by_id = self.env.uid
 
         # Collect vendor partners that have an email address
         partners_with_email = self.x_vendor_line_ids.mapped('x_partner_id').filtered(
@@ -586,13 +604,7 @@ class CSVendor(models.Model):
         pr = cs.x_purchase_order_id
         lines = []
         for pr_line in pr.order_line.filtered(lambda l: l.product_id and not l.display_type):
-            qty = (
-                pr_line.x_approved_qty
-                or pr_line.x_recommended_qty
-                or pr_line.x_requested_qty
-                or pr_line.product_qty
-                or 1.0
-            )
+            qty = pr_line._x_effective_qty() or 1.0
             lines.append(Command.create({
                 'x_product_id': pr_line.product_id.id,
                 'x_qty': qty,
@@ -909,13 +921,7 @@ class CSVendor(models.Model):
                     lambda l: l.product_id and not l.display_type
                 ):
                     # Priority: approved → recommended → requested → product_qty
-                    qty = (
-                        pr_line.x_approved_qty
-                        or pr_line.x_recommended_qty
-                        or pr_line.x_requested_qty
-                        or pr_line.product_qty
-                        or 1.0
-                    )
+                    qty = pr_line._x_effective_qty() or 1.0
                     lines.append(Command.create({
                         'x_product_id': pr_line.product_id.id,
                         'x_qty': qty,
@@ -1005,13 +1011,7 @@ class CSVendor(models.Model):
         for pr_line in pr.order_line.filtered(lambda l: l.product_id and not l.display_type):
             if pr_line.product_id in existing_products:
                 continue
-            qty = (
-                pr_line.x_approved_qty
-                or pr_line.x_recommended_qty
-                or pr_line.x_requested_qty
-                or pr_line.product_qty
-                or 1.0
-            )
+            qty = pr_line._x_effective_qty() or 1.0
             to_create.append({
                 'x_cs_vendor_id': self.id,
                 'x_product_id': pr_line.product_id.id,
@@ -1057,6 +1057,7 @@ class CSVendorLine(models.Model):
 
     @api.depends(
         'x_pr_line_id',
+        'x_pr_line_id.x_approved_qty',
         'x_pr_line_id.x_recommended_qty',
         'x_pr_line_id.x_requested_qty',
         'x_pr_line_id.product_qty',
@@ -1065,13 +1066,8 @@ class CSVendorLine(models.Model):
         for line in self:
             pr = line.x_pr_line_id
             if pr:
-                # Priority: recommended → requested → product_qty
-                line.x_qty = (
-                    pr.x_recommended_qty
-                    or pr.x_requested_qty
-                    or pr.product_qty
-                    or 1.0
-                )
+                # Priority: approved → recommended → requested → product_qty
+                line.x_qty = pr._x_effective_qty() or 1.0
             else:
                 # No PR link (manually added line) — default to 1.0
                 # NOTE: cannot read the field being computed; always assign a value

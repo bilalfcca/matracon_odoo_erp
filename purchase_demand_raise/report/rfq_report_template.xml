@@ -27,7 +27,7 @@
                 <!-- Supply ref + date to the layout header BEFORE t-call -->
                 <t t-set="po_ref_number" t-value="o.name"/>
                 <t t-set="po_ref_date"
-                   t-value="context_timestamp(datetime.datetime.now()).strftime('%B %d, %Y')"/>
+                   t-value="context_timestamp(o.date_approve or o.date_order).strftime('%B %d, %Y')"/>
 
                 <t t-call="purchase_demand_raise.matracon_po_layout">
 
@@ -90,37 +90,48 @@
                         specifications.
                     </p>
 
-                    <!-- Line items — Price / Tax / Total BLANK for vendor to fill -->
+                    <!-- Line items — Price / Tax / Total BLANK for vendor to fill if not priced, or printed if priced -->
+                    <t t-set="_rfq_has_prices"
+                       t-value="any((l.price_unit or 0.0) > 0 for l in o.order_line if not l.display_type)"/>
                     <table class="rfq-table">
                         <thead>
                             <tr>
                                 <th style="width:4%;">#</th>
-                                <th style="width:31%; text-align:left;">Product / Description</th>
-                                <th style="width:9%;">UoM</th>
-                                <th style="width:11%;">Quantity</th>
-                                <th style="width:16%;">Unit Price (PKR)</th>
-                                <th style="width:11%;">Tax %</th>
-                                <th style="width:18%;">Total (PKR)</th>
+                                <t t-if="o.x_show_product_ref">
+                                    <th style="width:8%; text-align:left;">Ref.</th>
+                                </t>
+                                <th t-attf-style="width:#{o.x_show_product_ref and '24%' or '32%'}; text-align:left;">Product / Description</th>
+                                <th style="width:8%;">UoM</th>
+                                <th style="width:9%;">Quantity</th>
+                                <th style="width:13%; text-align:right;">Unit Price (PKR)</th>
+                                <th style="width:8%; text-align:center;">Disc. %</th>
+                                <th style="width:10%; text-align:center;">Tax %</th>
+                                <th style="width:16%; text-align:right;">Total (PKR)</th>
                             </tr>
                         </thead>
                         <tbody>
                             <t t-set="line_no" t-value="1"/>
                             <t t-foreach="o.order_line" t-as="line">
                                 <t t-if="not line.display_type">
-                                    <!-- qty cascade: recommended → requested → product_qty -->
-                                    <t t-set="rfq_qty"
-                                       t-value="(line.x_recommended_qty or 0) if (line.x_recommended_qty or 0) > 0
-                                                else ((line.x_requested_qty or 0) if (line.x_requested_qty or 0) > 0
-                                                else (line.product_qty or 0))"/>
+                                    <!-- qty cascade: approved → recommended → requested → product_qty -->
+                                    <t t-set="rfq_qty" t-value="line._x_effective_qty()"/>
+                                    <t t-set="line_disc" t-value="line.discount or 0.0"/>
+                                    <t t-set="line_sub"
+                                       t-value="rfq_qty * (line.price_unit or 0.0) * (1.0 - line_disc / 100.0)"/>
                                     <tr>
                                         <td style="text-align:center; color:#222;">
                                             <t t-esc="line_no"/>
                                             <t t-set="line_no" t-value="line_no + 1"/>
                                         </td>
+                                        <t t-if="o.x_show_product_ref">
+                                            <td style="text-align:left; font-size:11px; color:#555;">
+                                                <t t-esc="line.product_id.default_code or ''"/>
+                                            </td>
+                                        </t>
                                         <td style="text-align:left; color:#222;">
-                                            <t t-esc="line.product_id.display_name or line.name"/>
-                                            <t t-if="line.name and line.name != (line.product_id.display_name or '')">
-                                                <br/><span style="font-size:11px; color:#666;">
+                                            <t t-esc="line.product_id.name or line.name"/>
+                                            <t t-if="line.name and line.name.strip() not in (line.product_id.name or '', line.product_id.display_name or '')">
+                                                <br/><span style="font-size:11px; color:#666; white-space:pre-line;">
                                                     <t t-esc="line.name"/>
                                                 </span>
                                             </t>
@@ -131,14 +142,80 @@
                                         <td style="text-align:center; font-weight:bold; color:#222;">
                                             <t t-esc="('{:,.0f}' if rfq_qty == int(rfq_qty) else '{:,.3f}').format(rfq_qty)"/>
                                         </td>
-                                        <!-- Price / Tax / Total: BLANK — vendor fills in -->
-                                        <td></td>
-                                        <td></td>
-                                        <td></td>
+                                        <!-- Price / Disc / Tax / Total: filled if priced, blank for vendor to fill if empty -->
+                                        <t t-if="line.price_unit">
+                                            <td style="text-align:right;">
+                                                <t t-esc="'{:,.2f}'.format(line.price_unit)"/>
+                                            </td>
+                                            <td style="text-align:center;">
+                                                <t t-if="line_disc > 0">
+                                                    <t t-esc="'{:,.2f}'.format(line_disc)"/>%
+                                                </t>
+                                                <t t-else="">—</t>
+                                            </td>
+                                            <td style="text-align:center;">
+                                                <t t-if="line.taxes_id">
+                                                    <t t-esc="', '.join(line.taxes_id.mapped('name'))"/>
+                                                </t>
+                                                <t t-else="">—</t>
+                                            </td>
+                                            <td style="text-align:right; font-weight:bold;">
+                                                <t t-esc="'{:,.2f}'.format(line_sub)"/>
+                                            </td>
+                                        </t>
+                                        <t t-else="">
+                                            <td></td>
+                                            <td></td>
+                                            <td></td>
+                                            <td></td>
+                                        </t>
+                                    </tr>
+                                </t>
+                                <!-- Section / note lines ("Add a section" / "Add a note"
+                                     on the order lines): print as a full-width row. -->
+                                <t t-elif="line.display_type and line.name">
+                                    <tr>
+                                        <td t-att-colspan="8 + (1 if o.x_show_product_ref else 0)"
+                                            t-attf-style="text-align:left; color:#222; white-space:pre-line; #{line.display_type == 'line_note' and 'font-style:italic;' or 'font-weight:bold;'}">
+                                            <t t-esc="line.name"/>
+                                        </td>
                                     </tr>
                                 </t>
                             </t>
                         </tbody>
+                        <t t-if="_rfq_has_prices">
+                            <tbody class="rfq-totals">
+                                <tr>
+                                    <td t-att-colspan="7 + (1 if o.x_show_product_ref else 0)"
+                                        style="text-align:right; padding:6px 8px; font-weight:bold; background:#eef1f7; border:1px solid #ccc;">
+                                        Total Untaxed Amount (<t t-esc="o.currency_id.name or 'PKR'"/>)
+                                    </td>
+                                    <td style="text-align:right; padding:6px 8px; font-weight:bold; background:#eef1f7; border:1px solid #ccc;">
+                                        <t t-esc="'{:,.2f}'.format(o.amount_untaxed)"/>
+                                    </td>
+                                </tr>
+                                <t t-if="o.amount_tax">
+                                    <tr>
+                                        <td t-att-colspan="7 + (1 if o.x_show_product_ref else 0)"
+                                            style="text-align:right; padding:5px 8px; background:#eef1f7; border:1px solid #ccc;">
+                                            Taxes
+                                        </td>
+                                        <td style="text-align:right; padding:5px 8px; background:#eef1f7; border:1px solid #ccc;">
+                                            <t t-esc="'{:,.2f}'.format(o.amount_tax)"/>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td t-att-colspan="7 + (1 if o.x_show_product_ref else 0)"
+                                            style="text-align:right; padding:7px 8px; font-weight:bold; background:#d4daf0; border:1px solid #1a3a5c;">
+                                            Total Amount (<t t-esc="o.currency_id.name or 'PKR'"/>)
+                                        </td>
+                                        <td style="text-align:right; padding:7px 8px; font-weight:bold; background:#d4daf0; border:1px solid #1a3a5c;">
+                                            <t t-esc="'{:,.2f}'.format(o.amount_total)"/>
+                                        </td>
+                                    </tr>
+                                </t>
+                            </tbody>
+                        </t>
                     </table>
 
                     <!-- Terms &amp; Conditions -->
@@ -155,6 +232,43 @@
                             </div>
                         </div>
                     </t>
+
+                    <!-- Signature — Procurement Officer who prepared/sent this RFQ.
+                         Single column (this report has only one signatory). Kept
+                         self-contained (not a call into site_operations' shared
+                         signature_block.xml macros) because purchase_demand_raise
+                         does not depend on site_operations — site_operations
+                         depends on purchase_demand_raise, the other way round —
+                         so reaching into it here would be a fragile, backwards
+                         cross-module reference. Mirrors the same image-or-blank
+                         rendering logic as those macros. -->
+                    <t t-set="_rfq_sig_user" t-value="o.sudo().x_rfq_prepared_by_id"/>
+                    <div class="row mt-5">
+                        <div class="col-4 text-center">
+                            <div style="display:table; width:100%; height:60px;">
+                                <div style="display:table-cell; vertical-align:bottom; text-align:center; padding-bottom:2px;">
+                                    <t t-if="_rfq_sig_user and _rfq_sig_user.x_sign_signature">
+                                        <img t-att-src="image_data_uri(_rfq_sig_user.x_sign_signature)"
+                                             style="max-height:52px; max-width:150px; object-fit:contain;"/>
+                                    </t>
+                                </div>
+                            </div>
+                            <div style="border-top:2px solid #000; padding-top:8px;">
+                                <div style="font-weight:700; font-size:13px;">Prepared By</div>
+                                <t t-if="_rfq_sig_user">
+                                    <div style="font-size:11px; color:#374151; margin-top:12px; font-weight:600;">
+                                        <t t-esc="_rfq_sig_user.name"/>
+                                    </div>
+                                </t>
+                                <!-- No blank "Name: ___" placeholder when nobody has
+                                     prepared this RFQ yet — mirrors the fix in
+                                     site_operations.report_sig_col (see that file's
+                                     comment; kept self-contained here for the same
+                                     module-dependency reason as the rest of this
+                                     block). -->
+                            </div>
+                        </div>
+                    </div>
 
                 </t>
             </t>

@@ -48,11 +48,13 @@ class MatraconAppVisibility(models.AbstractModel):
                 'purchase_demand_raise.group_matracon_admin',
                 'base.group_system',
             ])),
-            # Inventory — Site Store, Procurement, Admin
+            # Inventory — Site Store, Procurement, CEO, Site Accountant, Admin
             ('stock.menu_stock_root', self._matracon_group_refs([
                 'site_operations.group_mtr_app_inventory',
                 'purchase_demand_raise.group_site_store',
                 'purchase_demand_raise.group_procurement_ho',
+                'purchase_demand_raise.group_ceo_approval',
+                'site_operations.group_site_accountant',
                 'purchase_demand_raise.group_matracon_admin',
                 'base.group_system',
             ])),

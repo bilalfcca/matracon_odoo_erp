@@ -15,7 +15,9 @@
 
         When a variable is set AND the user has x_sign_signature set, the
         signature image is rendered above the line; the Name is auto-filled.
-        When no variable or no signature: blank space + "Name: ___" as before.
+        When no variable is set (nobody signed yet): just the blank line +
+        label — no "Name: ___" placeholder underneath (removed 2026-09, was
+        printing on every unsigned slot with no signature above it).
 
         Calling convention (signature vars inside t-call so they stay scoped):
 
@@ -60,9 +62,9 @@
                         <t t-esc="_sc_user.name"/>
                     </div>
                 </t>
-                <t t-else="">
-                    <div style="font-size:11px; color:#6c757d; margin-top:16px;">Name: _______________________</div>
-                </t>
+                <!-- No blank "Name: ___" placeholder when unsigned — the empty
+                     line + label above is the signature slot; nothing is printed
+                     underneath until someone actually signs. -->
             </div>
         </div>
     </template>
@@ -117,75 +119,10 @@
     </template>
 
 
-    <!-- ── 4-column block (compact: labels + optional sig; Received By has Name line) -->
-    <!-- Used by BPV and Journal Entry where vertical space is limited.            -->
-    <template id="report_sig_4col_labels">
-        <div class="row mt-4" style="page-break-inside: avoid; break-inside: avoid;">
-
-            <!-- Prepared By -->
-            <div class="col-3 text-center">
-                <div style="height:50px; display:flex; align-items:flex-end; justify-content:center; padding-bottom:2px;">
-                    <t t-if="sig_prepared_user and sig_prepared_user.x_sign_signature">
-                        <img t-att-src="image_data_uri(sig_prepared_user.x_sign_signature)"
-                             style="max-height:44px; max-width:130px; object-fit:contain; display:block;"/>
-                    </t>
-                </div>
-                <div style="border-top:2px solid #000; padding-top:8px;">
-                    <div style="font-weight:700; font-size:13px;">Prepared By</div>
-                    <t t-if="sig_prepared_user">
-                        <div style="font-size:10px; color:#374151; margin-top:4px; font-weight:600;">
-                            <t t-esc="sig_prepared_user.name"/>
-                        </div>
-                    </t>
-                </div>
-            </div>
-
-            <!-- Checked By -->
-            <div class="col-3 text-center">
-                <div style="height:50px; display:flex; align-items:flex-end; justify-content:center; padding-bottom:2px;">
-                    <t t-if="sig_checked_user and sig_checked_user.x_sign_signature">
-                        <img t-att-src="image_data_uri(sig_checked_user.x_sign_signature)"
-                             style="max-height:44px; max-width:130px; object-fit:contain; display:block;"/>
-                    </t>
-                </div>
-                <div style="border-top:2px solid #000; padding-top:8px;">
-                    <div style="font-weight:700; font-size:13px;">Checked By</div>
-                    <t t-if="sig_checked_user">
-                        <div style="font-size:10px; color:#374151; margin-top:4px; font-weight:600;">
-                            <t t-esc="sig_checked_user.name"/>
-                        </div>
-                    </t>
-                </div>
-            </div>
-
-            <!-- Approved By -->
-            <div class="col-3 text-center">
-                <div style="height:50px; display:flex; align-items:flex-end; justify-content:center; padding-bottom:2px;">
-                    <t t-if="sig_approved_user and sig_approved_user.x_sign_signature">
-                        <img t-att-src="image_data_uri(sig_approved_user.x_sign_signature)"
-                             style="max-height:44px; max-width:130px; object-fit:contain; display:block;"/>
-                    </t>
-                </div>
-                <div style="border-top:2px solid #000; padding-top:8px;">
-                    <div style="font-weight:700; font-size:13px;">Approved By</div>
-                    <t t-if="sig_approved_user">
-                        <div style="font-size:10px; color:#374151; margin-top:4px; font-weight:600;">
-                            <t t-esc="sig_approved_user.name"/>
-                        </div>
-                    </t>
-                </div>
-            </div>
-
-            <!-- Received By: always manual (Name line kept) -->
-            <div class="col-3 text-center">
-                <div style="height:50px;"></div>
-                <div style="border-top:2px solid #000; padding-top:8px;">
-                    <div style="font-weight:700; font-size:13px;"><t t-esc="extra_label or 'Received By'"/></div>
-                    <div style="font-size:11px; color:#6c757d; margin-top:14px;">Name: __________________</div>
-                </div>
-            </div>
-
-        </div>
-    </template>
+    <!-- report_sig_4col_labels (a second, hand-duplicated 4-column implementation)
+         was removed 2026-09 — it had zero callers (Bank Payment Voucher and Journal
+         Entry Voucher hand-copied their own blank markup instead of calling either
+         macro). Both now call report_sig_4col above, the one already proven in
+         production by Petty Cash Expense, Cheque Print, MIF, Gate Pass and MTN. -->
 
 </odoo>

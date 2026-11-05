@@ -3,4 +3,8 @@
     <!-- PKR decimal places are set to 0 via set_pkr_decimal_places() in hooks.py
          (post_init_hook + post_migrate_hook), because the base.PKR record has
          noupdate=True and cannot be overridden from a data file. -->
+
+    <!-- "Percentage Analytic" precision is set to 6 via set_analytic_percentage_precision()
+         in hooks.py (post_init_hook + post_migrate_hook). The analytic.decimal_percentage_analytic
+         record has noupdate=True and cannot be overridden from a data file. -->
 </odoo>

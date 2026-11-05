@@ -125,18 +125,18 @@
                             </div>
                         </div>
 
-                        <!-- Main details table -->
+                        <!-- Voucher header table -->
                         <table class="table table-sm table-bordered" style="font-size:12.5px;">
                             <thead style="background:#f5f5f5;">
                                 <tr>
                                     <th colspan="4" style="font-size:13px;font-weight:700;padding:6px 8px;">
-                                        EXPENSE DETAILS
+                                        VOUCHER DETAILS
                                     </th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr>
-                                    <td style="width:22%;font-weight:600;background:#fafafa;">Description</td>
+                                    <td style="width:22%;font-weight:600;background:#fafafa;">Title</td>
                                     <td colspan="3"><t t-esc="exp.name"/></td>
                                 </tr>
                                 <tr>
@@ -146,65 +146,71 @@
                                     <td><t t-esc="exp.fund_id.name or '-'"/></td>
                                 </tr>
                                 <tr>
-                                    <td style="font-weight:600;background:#fafafa;">Category</td>
-                                    <td style="text-transform:capitalize;">
-                                        <t t-esc="dict(exp._fields['category'].selection).get(exp.category, exp.category)"/>
-                                    </td>
                                     <td style="font-weight:600;background:#fafafa;">Status</td>
                                     <td style="font-weight:600;">
                                         <t t-esc="dict(exp._fields['state'].selection).get(exp.state, exp.state)"/>
                                     </td>
+                                    <td style="font-weight:600;background:#fafafa;">Cash Journal</td>
+                                    <td><t t-esc="exp.journal_id.name or '-'"/></td>
                                 </tr>
-                                <t t-if="exp.is_employee_advance and exp.employee_id">
+                            </tbody>
+                        </table>
+
+                        <!-- Expense lines table -->
+                        <table class="table table-sm table-bordered mt-2" style="font-size:12.5px;">
+                            <thead style="background:#1a3a5c;color:#fff;">
+                                <tr>
+                                    <th style="width:4%;padding:6px 8px;">#</th>
+                                    <th style="padding:6px 8px;">Description</th>
+                                    <th style="padding:6px 8px;">Account (Debit)</th>
+                                    <th style="padding:6px 8px;">Payee</th>
+                                    <th style="width:18%;text-align:right;padding:6px 8px;">Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <t t-set="line_no" t-value="1"/>
+                                <t t-foreach="exp.line_ids" t-as="eline">
                                     <tr>
-                                        <td style="font-weight:600;background:#fafafa;">Employee Advance</td>
-                                        <td colspan="3">
-                                            <t t-esc="exp.employee_id.name"/>
+                                        <td style="text-align:center;"><t t-esc="line_no"/><t t-set="line_no" t-value="line_no + 1"/></td>
+                                        <td><t t-esc="eline.name"/></td>
+                                        <td style="font-size:11px;">
+                                            <t t-if="eline.expense_account_id">
+                                                <t t-esc="eline.expense_account_id.code"/> — <t t-esc="eline.expense_account_id.name"/>
+                                            </t>
+                                            <t t-else=""><em style="color:#888;">category default</em></t>
+                                        </td>
+                                        <td style="font-size:11px;">
+                                            <t t-if="eline.is_employee_advance and eline.employee_id">
+                                                👤 <t t-esc="eline.employee_id.name"/>
+                                            </t>
+                                            <t t-elif="eline.is_subcontractor_advance and eline.advance_subcontractor_id">
+                                                🏗 <t t-esc="eline.advance_subcontractor_id.name"/>
+                                            </t>
+                                            <t t-else="">—</t>
+                                        </td>
+                                        <td style="text-align:right;font-weight:600;">
+                                            <t t-esc="'{:,.2f}'.format(eline.amount)"/>
                                         </td>
                                     </tr>
                                 </t>
                             </tbody>
-                        </table>
-
-                        <!-- Accounting section -->
-                        <table class="table table-sm table-bordered mt-2" style="font-size:12.5px;">
-                            <thead style="background:#f5f5f5;">
+                            <tfoot style="background:#eef1f7;">
                                 <tr>
-                                    <th colspan="4" style="font-size:13px;font-weight:700;padding:6px 8px;">
-                                        ACCOUNTING ENTRY
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td style="width:22%;font-weight:600;background:#fafafa;">Debit (Expense)</td>
-                                    <td>
-                                        <t t-if="exp.expense_account_id">
-                                            <t t-esc="exp.expense_account_id.code"/>
-                                            — <t t-esc="exp.expense_account_id.name"/>
-                                        </t>
-                                        <t t-else="">— (default)</t>
+                                    <td colspan="4" style="text-align:right;font-weight:700;padding:6px 8px;">Total</td>
+                                    <td style="text-align:right;font-weight:700;font-size:13px;padding:6px 8px;">
+                                        <t t-esc="'{:,.2f}'.format(exp.amount)"/>
                                     </td>
-                                    <td style="width:22%;font-weight:600;background:#fafafa;">Credit (Cash Out)</td>
-                                    <td>
+                                </tr>
+                                <tr>
+                                    <td colspan="4" style="text-align:right;font-weight:600;padding:6px 8px;">Credit (Cash Out)</td>
+                                    <td style="text-align:right;padding:6px 8px;font-size:11px;">
                                         <t t-if="exp.x_petty_cash_account_id">
-                                            <t t-esc="exp.x_petty_cash_account_id.code"/>
-                                            — <t t-esc="exp.x_petty_cash_account_id.name"/>
-                                        </t>
-                                        <t t-elif="exp.journal_id and exp.journal_id.default_account_id">
-                                            <t t-esc="exp.journal_id.default_account_id.code"/>
-                                            — <t t-esc="exp.journal_id.default_account_id.name"/>
+                                            <t t-esc="exp.x_petty_cash_account_id.code"/> — <t t-esc="exp.x_petty_cash_account_id.name"/>
                                         </t>
                                         <t t-else="">—</t>
                                     </td>
                                 </tr>
-                                <tr>
-                                    <td style="font-weight:600;background:#fafafa;">Cash Journal</td>
-                                    <td><t t-esc="exp.journal_id.name or '-'"/></td>
-                                    <td style="font-weight:600;background:#fafafa;"></td>
-                                    <td></td>
-                                </tr>
-                            </tbody>
+                            </tfoot>
                         </table>
 
                         <!-- Site Procurement Reference (if applicable) -->

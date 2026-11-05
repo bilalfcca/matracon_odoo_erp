@@ -1,9 +1,12 @@
+import logging
 from datetime import timedelta
 
 from markupsafe import Markup
 
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError, ValidationError
+
+_logger = logging.getLogger(__name__)
 
 from . import matracon_notifications as matracon_notify
 
@@ -285,12 +288,18 @@ class TaxNoticeOrder(models.Model):
         for rec in self.filtered(lambda r: r.due_date and r.state in ('open', 'under_proceeding', 'order_filed')):
             alert_date = rec.due_date - timedelta(days=14)
             if alert_date >= fields.Date.context_today(rec):
-                users = self.env['res.users'].search([
-                    ('group_ids', 'in', [
-                        self.env.ref('site_operations.group_finance_ho').id,
-                        self.env.ref('purchase_demand_raise.group_ceo_approval').id,
-                    ]),
-                ])
+                _fin_grp = self.env.ref(
+                    'site_operations.group_finance_ho', raise_if_not_found=False)
+                _ceo_grp = self.env.ref(
+                    'purchase_demand_raise.group_ceo_approval', raise_if_not_found=False)
+                _grp_ids = [g.id for g in (_fin_grp, _ceo_grp) if g]
+                if not _grp_ids:
+                    _logger.warning(
+                        'Matracon: no alert groups found for tax notice %s; '
+                        'due-date activity skipped.', rec.name
+                    )
+                    continue
+                users = self.env['res.users'].search([('group_ids', 'in', _grp_ids)])
                 matracon_notify.schedule_activity(
                     rec, users,
                     _('Tax notice due on %(date)s', date=rec.due_date),

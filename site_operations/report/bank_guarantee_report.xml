@@ -42,7 +42,7 @@
                                 <td style="font-weight:600;">Beneficiary</td>
                                 <td><t t-esc="bg.beneficiary_name or '-'"/></td>
                                 <td style="font-weight:600;">Project</td>
-                                <td><t t-esc="bg.project_analytic_account_id.name or '-'"/></td>
+                                <td><t t-esc="bg.project_display or bg.project_name or bg.project_analytic_account_id.name or '-'"/></td>
                             </tr>
                             <tr>
                                 <td style="font-weight:600;">Issue Date</td>

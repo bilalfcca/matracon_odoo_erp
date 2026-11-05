@@ -18,12 +18,7 @@
                         string="View Journal Entry"
                         class="btn-secondary"
                         invisible="not x_gl_posted"/>
-                <button name="action_unlink_gl" type="object"
-                        string="Unlink GL"
-                        class="btn-danger"
-                        invisible="not x_account_move_id"
-                        groups="purchase_demand_raise.group_matracon_admin,base.group_system"
-                        confirm="This will detach the GL journal entry link (the JE itself is NOT reversed). Continue?"/>
+                <!-- "Unlink GL" moved to Settings → Fix Tools (see matracon_admin_tools) -->
                 <!-- Invisible helper fields for button visibility -->
                 <field name="x_gl_posted" invisible="1"/>
                 <field name="x_account_move_id" invisible="1"/>

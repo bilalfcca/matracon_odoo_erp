@@ -1,4 +1,4 @@
-from odoo import models, api, _
+from odoo import models, fields, api, _
 from odoo.exceptions import UserError
 
 
@@ -27,9 +27,60 @@ class AccountMoveLineSiteOps(models.Model):
        other row — no Save required.  This is more reliable than a parent
        ``@api.onchange('line_ids')`` which only fires on row add/remove, not
        when fields within existing rows change.
+
+    3. Invoice/bill lines keep exactly what the user entered
+       ------------------------------------------------------
+       On customer invoices and vendor bills Odoo treats the invoice line
+       (price × quantity) as the source of truth: whenever it re-syncs a line
+       (price, quantity, taxes, account or analytic changed; payable/receivable
+       line rebuilt on save/confirm) it recomputes Debit/Credit as
+       direction_sign × price × quantity — customer invoice → Credit,
+       vendor bill → Debit. Debit/Credit typed in the Journal Items tab used to
+       change only the journal item, so the next re-sync switched it back.
+       ``_onchange_debit_credit_sync_invoice_price`` sets the line's price to
+       match what was typed, so every later re-sync reproduces the same
+       Debit/Credit and the invoice line and journal item never disagree.
+
+       ``_compute_account_id`` keeps an account already on an invoice/bill
+       line: Odoo would replace it with the product's income/expense account
+       (e.g. Inventory for stocked products) whenever a product is picked.
     """
 
     _inherit = 'account.move.line'
+
+    # ── 0. Main Account posting guard ────────────────────────────────────────
+
+    @api.constrains('account_id')
+    def _check_no_posting_to_main_account(self):
+        """Block journal entry lines from using Main (group/header) accounts.
+
+        Main accounts (x_is_main=True) are hierarchy/reporting nodes only.
+        All actual postings must go to leaf child accounts.  The only exception
+        is when the account has x_allow_posting_to_main=True (set by admin for
+        rare edge cases where no child account exists).
+
+        The constraint fires at line create/write so the error is immediate and
+        clear rather than surfacing later at posting time.
+        """
+        for line in self:
+            account = line.account_id
+            if account.x_is_main and not account.x_allow_posting_to_main:
+                raise UserError(
+                    _("Account '%(name)s [%(code)s]' is a Main account — "
+                      "journal entries cannot be posted to it.\n\n"
+                      "Please select one of its child accounts instead.\n"
+                      "If posting to this account is genuinely required, "
+                      "enable 'Allow Posting Override' on the account settings.")
+                    % {'name': account.name, 'code': account.code}
+                )
+
+    # ── IPC display field (partner ledger Retention column) ───────────────────
+    x_ipc_retention_amount = fields.Float(
+        string='IPC Retention Amount',
+        default=0.0,
+        help='For IPC journal entries: the retention amount deducted from the '
+             'subcontractor payable. Stamped on the net-payable credit line so '
+             'the Partner Ledger Retention column shows it on the main IPC row.')
 
     # ── 1. Constraint override ────────────────────────────────────────────────
 
@@ -87,3 +138,49 @@ class AccountMoveLineSiteOps(models.Model):
         total_debit  = sum(l.debit  or 0.0 for l in other_lines)
         total_credit = sum(l.credit or 0.0 for l in other_lines)
         term_lines[0].balance = total_credit - total_debit
+
+    # ── 3. Invoice/bill lines keep exactly what the user entered ─────────────
+
+    @api.onchange('debit', 'credit')
+    def _onchange_debit_credit_sync_invoice_price(self):
+        """Debit/Credit typed on an invoice/bill line → set its price to match."""
+        for line in self:
+            move = line.move_id
+            if (
+                line.display_type != 'product'
+                or not move.is_invoice(include_receipts=True)
+                or move.state != 'draft'
+                or line.currency_id != line.company_currency_id  # multi-currency: Odoo's own flow
+            ):
+                continue
+            if line.tax_ids.filtered('price_include'):
+                return {'warning': {
+                    'title': _('Tax-included price'),
+                    'message': _(
+                        'This line has a tax included in its price, so its amount cannot be '
+                        'set from Debit/Credit exactly. Please enter it in the Invoice Lines '
+                        'tab (Unit Price), or remove the tax-included tax first.'),
+                }}
+            discount = line.discount or 0.0
+            if discount >= 100.0:
+                continue
+            balance = (line.debit or 0.0) - (line.credit or 0.0)
+            if not line.quantity:
+                line.quantity = 1.0
+            # Odoo: balance = direction_sign × quantity × price × (1 − discount%)
+            line.price_unit = (
+                move.direction_sign * balance / line.quantity / (1.0 - discount / 100.0)
+            )
+
+    def _compute_account_id(self):
+        """Never replace an account already set on an invoice/bill line."""
+        keep = {
+            line: line.account_id
+            for line in self
+            if line.display_type == 'product'
+            and line.account_id
+            and line.move_id.is_invoice(include_receipts=True)
+        }
+        super()._compute_account_id()
+        for line, account in keep.items():
+            line.account_id = account

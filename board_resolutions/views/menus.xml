@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Standalone top-level app. groups= here only controls whether the
+         menu/app tile is shown — the real security boundary is the ACL
+         (security/ir.model.access.csv), which grants zero access to any
+         group other than these three, so there is nothing to fall back on
+         even if a menu were somehow reached directly. -->
+    <menuitem id="menu_board_resolutions_root"
+              name="Board Resolutions"
+              sequence="95"
+              groups="purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_ceo_approval,base.group_system"/>
+
+    <menuitem id="menu_board_resolutions_list"
+              name="Board Resolutions"
+              parent="menu_board_resolutions_root"
+              action="action_board_resolution"
+              sequence="10"
+              groups="purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_ceo_approval,base.group_system"/>
+</odoo>

@@ -15,7 +15,8 @@
                   decoration-warning="state in ('waiting', 'confirmed', 'assigned')">
                 <!-- ── Always visible ────────────────────────────────── -->
                 <field name="name" string="Reference"/>
-                <field name="x_contact_id" string="Contact"/>
+                <field name="x_contact_id" string="Contact" optional="show"/>
+                <field name="x_fleet_vehicle_id" string="Vehicle" optional="show"/>
                 <field name="x_issuance_project_id" string="Project" optional="show"/>
                 <field name="state" string="Status"
                        widget="badge"
@@ -28,11 +29,13 @@
                 <field name="x_issue_type" string="Issue Type" optional="hide"/>
                 <field name="x_inventory_type" string="Inventory Type" optional="hide"/>
                 <field name="x_backcharge_applicable" string="Backcharged" optional="hide"/>
-                <field name="x_submitted_to_sa" string="SA Review"
+                <field name="x_submitted_to_sa" column_invisible="True"/>
+                <field name="x_sa_review_status" string="SA Review"
                        optional="show"
                        widget="badge"
-                       decoration-warning="x_submitted_to_sa == True and state != 'done'"
-                       decoration-success="x_submitted_to_sa == True and state == 'done'"/>
+                       decoration-warning="x_submitted_to_sa and state not in ('done', 'cancel')"
+                       decoration-success="x_submitted_to_sa and state == 'done'"
+                       decoration-danger="x_submitted_to_sa and state == 'cancel'"/>
                 <field name="x_original_issued_qty" string="Issued Qty" optional="hide"/>
                 <field name="x_total_returned_qty" string="Returned Qty" optional="hide"/>
                 <field name="x_outstanding_qty" string="Outstanding Qty" optional="hide"/>

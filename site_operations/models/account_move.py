@@ -1,10 +1,15 @@
+import logging
+import re
+
 from dateutil.relativedelta import relativedelta
 from markupsafe import Markup
 
-from odoo import models, fields, api, _
+from odoo import models, fields, api, Command, _
 from odoo.exceptions import UserError
 
 from . import matracon_notifications as matracon_notify
+
+_logger = logging.getLogger(__name__)
 
 
 class AccountMoveSiteOps(models.Model):
@@ -74,6 +79,51 @@ class AccountMoveSiteOps(models.Model):
         for move in self:
             move.x_user_is_ho = is_ho
 
+    # Non-stored: True when the current user is a site accountant.
+    # Used in views to show HO-filled journal-entry fields as read-only to SA.
+    x_user_is_site_accountant = fields.Boolean(
+        compute='_compute_x_user_is_site_accountant',
+        store=False,
+        string='User is Site Accountant',
+    )
+
+    @api.depends_context('uid')
+    def _compute_x_user_is_site_accountant(self):
+        is_sa = self.env.user.has_group('site_operations.group_site_accountant')
+        for move in self:
+            move.x_user_is_site_accountant = is_sa
+
+    # ── Site Analytics (from line-level analytic_distribution) ───────────────
+    # Stored Many2many that collects ALL analytic accounts referenced in any
+    # line of this move.  Used by the site-accountant record rules so that a
+    # move created by HO with only line-level analytic tags (and no header
+    # x_project_analytic_account_id) is still visible to the relevant site
+    # accountant.  Automatically handles multi-site JEs: if a JE has lines
+    # for both STP and MCH, both site accountants can see the move.
+    x_site_analytic_ids = fields.Many2many(
+        'account.analytic.account',
+        'x_account_move_site_analytic_rel',
+        'move_id', 'analytic_id',
+        string='Site Analytics (from lines)',
+        compute='_compute_x_site_analytic_ids',
+        store=True,
+        help='All analytic accounts referenced on any journal line of this '
+             'move.  Drives site-accountant record-rule visibility.',
+    )
+
+    @api.depends('line_ids.analytic_distribution')
+    def _compute_x_site_analytic_ids(self):
+        for move in self:
+            analytic_ids = set()
+            for line in move.line_ids:
+                if line.analytic_distribution:
+                    for key in line.analytic_distribution:
+                        try:
+                            analytic_ids.add(int(key))
+                        except (ValueError, TypeError):
+                            pass
+            move.x_site_analytic_ids = [Command.set(list(analytic_ids))]
+
     # Filtered One2many used in the Journal Items tab on vendor bills /
     # customer invoices.  Excludes 'payment_term' display_type lines —
     # those are the AP/AR counterpart lines Odoo auto-generates to balance
@@ -88,6 +138,10 @@ class AccountMoveSiteOps(models.Model):
     x_purchase_order_id = fields.Many2one(
         'purchase.order', string='Purchase Order', tracking=True, copy=False,
         domain=[('state', 'in', ('purchase', 'done'))],
+    )
+    x_stock_picking_id = fields.Many2one(
+        'stock.picking', string='Receipt (GRN)', readonly=True, copy=False, index=True,
+        help='Goods Receipt Note (stock picking) from which this vendor bill was generated.',
     )
     x_liability_sheet_id = fields.Many2one(
         'x.liability.sheet', string='Liability Sheet', readonly=True, copy=False)
@@ -470,58 +524,133 @@ class AccountMoveSiteOps(models.Model):
         # When a site accountant manually enters ALL lines on a vendor bill or
         # customer invoice — including one or more payable/receivable accounts
         # on both sides (e.g. backcharge pattern: Dr Expense / Cr Payable NAEEM,
-        # Dr Payable SHAHZAD / Cr Expense) — the entry is already balanced.
+        # Dr Payable SHAHZAD / Cr Expense, or IPC customer invoices with deductions
+        # for Advance, Income Tax, Retention, Protection fee, etc.) — the entry
+        # is already balanced.
         #
         # Odoo's payment_term sync (_sync_dynamic_lines) fires during write() and
-        # tries to delete/recreate the auto-managed payable line.  This causes:
+        # tries to delete/recreate the auto-managed payable/receivable line.
+        # This causes:
         #   • "You cannot delete a payable/receivable line" — if it tries to remove
         #     the existing payment_term line while recreating it
-        #   • "The entry is not balanced" — if it adds an EXTRA payable line on
-        #     top of the manually-added ones, doubling the credit
+        #   • "The entry is not balanced" — if it adds an EXTRA line on
+        #     top of the manually-added ones, or recalculates the receivable to
+        #     the gross invoice amount, doubling the debit
         #
-        # The fix: for pre-balanced invoices that have manually-added payable/
-        # receivable lines (display_type != 'payment_term'), post using
-        # _post(soft=False) with skip_invoice_sync=True.  This bypasses the
-        # payment_term sync entirely, preserving the manually-balanced lines.
-        def _has_manual_payable(move):
-            return any(
+        # The fix: for pre-balanced invoices, post using _post(soft=False) with
+        # skip_invoice_sync=True. This bypasses the payment_term sync entirely,
+        # preserving the manually-balanced lines.
+        def _is_pre_balanced(move):
+            currency = move.currency_id or move.company_id.currency_id
+            prec = currency.decimal_places or 2
+            dr = round(sum(move.line_ids.mapped('debit')), prec)
+            cr = round(sum(move.line_ids.mapped('credit')), prec)
+            diff = abs(dr - cr)
+
+            # Not balanced at all: difference exceeds 5 cents or one side is zero
+            if diff > 0.05 or dr <= 0.01 or cr <= 0.01:
+                return False
+
+            # Any invoice with manual payable/receivable lines
+            if any(
                 l.account_id.account_type in ('liability_payable', 'asset_receivable')
                 and l.display_type != 'payment_term'
                 for l in move.line_ids
-            )
+            ):
+                return True
+
+            # Customer invoices: manual deduction lines on debit side (Income Tax, Retention,
+            # Advance recovery, Protection fee) or multiple debit lines
+            if move.move_type in ('out_invoice', 'out_refund'):
+                debit_lines = move.line_ids.filtered(lambda l: l.debit > 0.001)
+                if len(debit_lines) > 1 or any(l.display_type != 'payment_term' for l in debit_lines):
+                    return True
+
+            # Vendor bills: manual deduction lines on credit side (Backcharges, Retention,
+            # Tax withheld, Advance recovery) or multiple credit lines
+            if move.move_type in ('in_invoice', 'in_refund'):
+                credit_lines = move.line_ids.filtered(lambda l: l.credit > 0.001)
+                if len(credit_lines) > 1 or any(l.display_type != 'payment_term' for l in credit_lines):
+                    return True
+
+            # Any invoice where payment-term line balance does not match amount_total
+            pt_lines = move.line_ids.filtered(lambda l: l.display_type == 'payment_term')
+            if pt_lines:
+                pt_total = round(sum(abs(l.balance) for l in pt_lines), prec)
+                if abs(pt_total - move.amount_total) > 0.01:
+                    return True
+            else:
+                return True
+
+            # In general, if dr == cr within 5 cents, treat as pre-balanced to avoid
+            # dynamic line recreation corrupting balanced lines
+            return True
 
         pre_balanced = self.env['account.move']
         for move in self.filtered(
             lambda m: m.is_invoice(include_receipts=True) and m.state != 'posted'
         ):
-            dr = sum(move.line_ids.mapped('debit'))
-            cr = sum(move.line_ids.mapped('credit'))
-            if abs(dr - cr) < 0.01 and dr > 0.01 and _has_manual_payable(move):
+            if _is_pre_balanced(move):
                 pre_balanced |= move
 
         normal_moves = self - pre_balanced
 
-        # ── 2. invoice_date_due pre-fill (normal moves only) ─────────────────────
-        # Due dates are hidden in the UI.  Ensure the field is populated before
-        # posting so Odoo can set date_maturity on the payment_term line correctly.
-        # Skip pre_balanced moves — their payment_term line is NOT touched by the
-        # sync, so stamping invoice_date_due would needlessly trigger the sync.
-        for move in normal_moves.filtered(lambda m: m.is_invoice() and not m.invoice_date_due):
-            move.invoice_date_due = move.invoice_date or fields.Date.context_today(self)
+        # ── 2. invoice_date_due & date_maturity pre-fill (SQL to avoid dynamic sync) ──
+        # Stamping via direct SQL ensures date_maturity is always populated on
+        # receivable/payable lines without triggering Odoo's onchange dynamic line sync.
+        for move in self.filtered(lambda m: m.is_invoice(include_receipts=True) and m.state != 'posted'):
+            due = move.invoice_date_due or move.invoice_date or fields.Date.context_today(self)
+            if not move.invoice_date_due:
+                self.env.cr.execute(
+                    "UPDATE account_move SET invoice_date_due = %s WHERE id = %s",
+                    (due, move.id),
+                )
+                move.invalidate_recordset(['invoice_date_due'])
+            self.env.cr.execute(
+                """
+                UPDATE account_move_line
+                   SET date_maturity = %s
+                 WHERE move_id = %s
+                   AND date_maturity IS NULL
+                   AND (
+                       display_type = 'payment_term'
+                       OR account_id IN (
+                           SELECT id FROM account_account
+                            WHERE account_type IN ('asset_receivable', 'liability_payable')
+                       )
+                   )
+                """,
+                (due, move.id),
+            )
+            move.line_ids.invalidate_recordset(['date_maturity'])
 
-        # For customer invoices: also stamp date_maturity on any existing
-        # payment_term lines that still have no due date.
-        for move in normal_moves.filtered(lambda m: m.move_type == 'out_invoice'):
-            due = (
-                move.invoice_date_due
-                or move.invoice_date
-                or fields.Date.context_today(self)
-            )
-            pt_lines = move.line_ids.filtered(
-                lambda l: l.display_type == 'payment_term' and not l.date_maturity
-            )
-            if pt_lines:
-                pt_lines.write({'date_maturity': due})
+        # ── 2b. Auto-balance minor penny rounding differences on pre-balanced moves ──
+        for move in pre_balanced:
+            currency = move.currency_id or move.company_id.currency_id
+            prec = currency.decimal_places or 2
+            dr = round(sum(move.line_ids.mapped('debit')), prec)
+            cr = round(sum(move.line_ids.mapped('credit')), prec)
+            diff = round(dr - cr, prec)
+            if 0.0 < abs(diff) <= 0.05:
+                target_line = (
+                    move.line_ids.filtered(lambda l: l.display_type == 'payment_term')[:1]
+                    or move.line_ids.filtered(lambda l: l.account_id.account_type in ('asset_receivable', 'liability_payable'))[:1]
+                    or move.line_ids.sorted(lambda l: abs(l.balance), reverse=True)[:1]
+                )
+                if target_line:
+                    if target_line.debit > 0:
+                        new_debit = round(target_line.debit - diff, prec)
+                        self.env.cr.execute(
+                            "UPDATE account_move_line SET debit = %s WHERE id = %s",
+                            (new_debit, target_line.id),
+                        )
+                    else:
+                        new_credit = round(target_line.credit + diff, prec)
+                        self.env.cr.execute(
+                            "UPDATE account_move_line SET credit = %s WHERE id = %s",
+                            (new_credit, target_line.id),
+                        )
+                    target_line.invalidate_recordset(['debit', 'credit', 'balance'])
 
         # ── 3. Bill Copy mandatory for vendor bills ───────────────────────────────
         # Skip during module installation / demo-data loading.
@@ -687,6 +816,19 @@ class AccountMoveSiteOps(models.Model):
                     subtype_xmlid='mail.mt_note',
                 )
 
+        # ── 8. Fill missing analytic_distribution on ALL line types ─────────────
+        # Covers entry + out_invoice + any move type where lines may be
+        # missing analytic (payable line, tax line, bank line).  Does NOT
+        # overwrite existing distributions so multi-site JEs are preserved.
+        # in_invoice lines are already overwritten by _matracon_apply_bill_analytic
+        # above; this step adds the same safety net for every other type.
+        for move in self.filtered(
+            lambda m: m.state == 'posted'
+            and m.move_type != 'in_invoice'
+            and m.x_project_analytic_account_id
+        ):
+            move.sudo()._matracon_fill_missing_line_analytics()
+
         # Recompute project billed amount for any customer invoices just posted.
         self._matracon_update_project_billed_amount()
 
@@ -707,7 +849,50 @@ class AccountMoveSiteOps(models.Model):
         ):
             move.x_cheque_leaf_id.sudo().write({'state': 'used'})
 
+        # ── Inter-project entries for Finance-HO journal entries ─────────────
+        # When a JE has a Fund Allocation tab with source projects and the
+        # destination project (x_ho_dest_project_id) differs from any source,
+        # create DR Inter-Project Receivable (source) / CR Inter-Project
+        # Payable (destination) entries automatically.
+        for move in self.filtered(
+            lambda m: (
+                m.move_type == 'entry'
+                and m.state == 'posted'
+                and m.x_je_allocation_ids
+                and m.x_ho_dest_project_id
+                and not m.x_je_interproject_move_ids  # idempotent
+            )
+        ):
+            move._create_je_interproject_entries()
+
         return False
+
+    def _matracon_align_line_prices_to_amounts(self):
+        """Set price_unit on invoice/bill lines whose price no longer
+        reproduces their Debit/Credit (older entries, or amounts typed in the
+        Journal Items tab before the sign fix), so Odoo's re-sync on reset to
+        draft keeps the posted amounts instead of zeroing or flipping them.
+        """
+        Line = self.env['account.move.line']
+        for move in self.filtered(lambda m: m.is_invoice(include_receipts=True)):
+            company_currency = move.company_id.currency_id
+            for line in move.invoice_line_ids:
+                if (
+                    not Line._matracon_amount_drives_price(
+                        move, line.display_type, line.currency_id.id, line.discount)
+                    or line.tax_ids.filtered('price_include')
+                ):
+                    continue
+                expected = (
+                    move.direction_sign * line.quantity * line.price_unit
+                    * (1.0 - (line.discount or 0.0) / 100.0)
+                )
+                if company_currency.compare_amounts(expected, line.balance) == 0:
+                    continue
+                line.sudo().with_context(skip_invoice_sync=True).write({
+                    'price_unit': Line._matracon_price_for_balance(
+                        move, line.balance, line.quantity, line.discount),
+                })
 
     def button_draft(self):
         # Capture customer-invoice analytics BEFORE state changes to draft so
@@ -723,6 +908,9 @@ class AccountMoveSiteOps(models.Model):
             lambda m: m.move_type == 'in_invoice' and m.x_liability_registered
         ):
             move._reverse_liability_sheet_from_bill()
+        # Reset to draft re-syncs every invoice/bill line from its price; make
+        # sure each price reproduces the amount that was actually posted first.
+        self._matracon_align_line_prices_to_amounts()
         res = super().button_draft()
         # Release cheque leaves back to available when JE is reset to draft
         for move in self.filtered(
@@ -736,28 +924,325 @@ class AccountMoveSiteOps(models.Model):
         self._matracon_update_project_billed_amount(extra_analytic_ids=pre_analytics)
         return res
 
-    # ── Customer-invoice sequence: include project/site code ─────────────────
+    # ── Site-wise / HO-wise sequential numbering ──────────────────────────────
+    #
+    # Format: [DOC_TYPE]/[SITE_CODE]/[YEAR]/[SEQUENCE]
+    #   e.g. INV/MCH-BHW/2026/000001, BILL/HO/2026/000001, PAY/STP-MRD/2026/000001,
+    #        JE/RWASA/2026/000001
+    #
+    # In scope: Customer Invoices (out_invoice), Vendor Bills (in_invoice),
+    # Vendor Payments (an 'entry' move whose origin_payment_id is an outbound
+    # payment to a supplier), and plain Journal Entries (an 'entry' move with
+    # no origin_payment_id). Everything else (refunds/credit notes, customer
+    # payments/receipts, internal transfers, ...) is untouched —
+    # _matracon_sequence_doc_type() returns None for those and both overrides
+    # below fall straight back to standard Odoo behaviour.
+    #
+    # SITE_CODE is HO when there is no project analytic account on the move
+    # (x_project_analytic_account_id), otherwise the analytic account's own
+    # `code` (e.g. "MCH-BHW") — the exact same field already used everywhere
+    # else in this codebase for site scoping (record rules, liability sheet,
+    # IPC queries, ...), so there is a single source of truth for site codes.
+    #
+    # Numbering deliberately spans ALL journals of a given (doc type, site,
+    # year) — NOT scoped to a single journal like Odoo's own default sequence.
+    # Journal Entries in particular are posted through several different
+    # journals today (bank/cash journals, the Miscellaneous journal, ...);
+    # scoping by journal_id (as the base SequenceMixin does) would give each
+    # journal its own independent 000001, 000002, ... counter and produce
+    # duplicate numbers across journals for the same site. Overriding
+    # _get_last_sequence_domain() to scope by site + doc type instead (and
+    # drop the journal_id restriction for in-scope records only) gives one
+    # continuous, collision-free counter per site+doctype+year regardless of
+    # which journal handled a given entry.
+
+    def _matracon_sequence_payment_type_partner_type(self, payment):
+        """(payment_type, partner_type) for ``payment``, read straight from the
+        database rather than the payment's own field cache.
+
+        account.move._set_next_sequence() runs as part of account.payment's
+        own create/post flow, at a point where the payment record's cache can
+        still reflect field defaults rather than the values just passed to
+        create() (a plain Python attribute read on `self.origin_payment_id`
+        is not reliable here) — flushing pending writes then reading the row
+        directly sidesteps that ordering entirely, the same way the sequence
+        mixin itself flushes before its own raw-SQL lookups.
+        """
+        payment.flush_recordset(['payment_type', 'partner_type'])
+        self.env.cr.execute(
+            "SELECT payment_type, partner_type FROM account_payment WHERE id = %s",
+            (payment.id,),
+        )
+        row = self.env.cr.fetchone()
+        return tuple(row) if row else (False, False)
+
+    def _matracon_sequence_doc_type(self):
+        """Return 'INV'/'BILL'/'PAY'/'JE' for the 4 in-scope document types,
+        or None for anything out of scope (refunds, customer payments,
+        internal transfers, ...) — callers fall back to standard behaviour.
+        """
+        self.ensure_one()
+        if self.move_type == 'out_invoice':
+            return 'INV'
+        if self.move_type == 'in_invoice':
+            return 'BILL'
+        if self.move_type == 'entry':
+            payment = self.origin_payment_id
+            if not payment:
+                return 'JE'
+            payment_type, partner_type = self._matracon_sequence_payment_type_partner_type(payment)
+            if payment_type == 'outbound' and partner_type == 'supplier':
+                return 'PAY'
+        return None
+
+    def _matracon_sequence_site_code(self):
+        """SITE_CODE segment: the project analytic account's own `code`
+        (falling back to its site warehouse code when the analytic has no
+        code), or 'HO' only when the move has no project (Head Office
+        document).
+
+        For a payment-originated move, falls back to the payment's own
+        destination/fund project directly when the move's own header field
+        (x_project_analytic_account_id, normally stamped by
+        account.payment's _prepare_move_line_default_vals()/action_release())
+        has not been written yet at the point sequencing runs — reading the
+        DB row directly, for the same ordering reason as
+        _matracon_sequence_payment_type_partner_type() above.
+        """
+        self.ensure_one()
+        analytic = self.x_project_analytic_account_id
+        if not analytic and self.origin_payment_id:
+            payment = self.origin_payment_id
+            payment.flush_recordset(['x_destination_project_id', 'x_fund_project_id'])
+            self.env.cr.execute(
+                "SELECT x_destination_project_id, x_fund_project_id "
+                "FROM account_payment WHERE id = %s",
+                (payment.id,),
+            )
+            row = self.env.cr.fetchone()
+            analytic_id = (row and (row[0] or row[1])) or False
+            if analytic_id:
+                analytic = self.env['account.analytic.account'].browse(analytic_id)
+        if not analytic:
+            return 'HO'
+        if analytic.code and analytic.code.strip():
+            return analytic.code.strip().upper()
+        # A project without its own Reference code must still never be
+        # numbered as HO — fall back to its site warehouse code (the same
+        # source _matracon_site_code() uses for PCR/EBC/TN references).
+        config = self.env['x.project.site.config'].sudo().search(
+            [('analytic_account_id', '=', analytic.id)], limit=1)
+        if config.warehouse_id.code:
+            return config.warehouse_id.code.strip().upper()
+        return 'P%s' % analytic.id
+
+    @api.depends('x_project_analytic_account_id')
+    def _compute_name_placeholder(self):
+        # The site segment of the draft preview number (e.g. BILL/PSH/...)
+        # comes from the project — refresh it when the project changes.
+        return super()._compute_name_placeholder()
 
     def _get_starting_sequence(self):
-        """Include the project analytic account's code in the customer invoice
-        sequence so invoices are numbered per-site like other documents.
-
-        Standard:       INV/2026/00000
-        With project:   INV/MCH/2026/00000   (MCH = project code / first word of name)
-
-        Vendor bills, refunds and other move types are unaffected.
+        """First-ever number for a given (doc type, site, year): NNNN/SITE/YYYY/000000
+        (incremented to 000001 by the sequence mixin). Falls back to standard
+        Odoo behaviour for out-of-scope move types.
         """
-        seq = super()._get_starting_sequence()
-        if self.move_type == 'out_invoice' and self.x_project_analytic_account_id:
-            project = self.x_project_analytic_account_id
-            # Prefer the analytic account's short code; fall back to first word of name
-            raw = (project.code.strip() if project.code else project.name.split()[0])
-            site_code = raw.upper()[:8].replace(' ', '-')
-            # "INV/2026/00000" → ["INV", "2026", "00000"] → "INV/MCH/2026/00000"
-            parts = seq.split('/')
-            parts.insert(1, site_code)
-            seq = '/'.join(parts)
-        return seq
+        doc_type = self._matracon_sequence_doc_type()
+        if not doc_type:
+            return super()._get_starting_sequence()
+        move_date = self.date or self.invoice_date or fields.Date.context_today(self)
+        return "%s/%s/%04d/000000" % (doc_type, self._matracon_sequence_site_code(), move_date.year)
+
+    def _get_last_sequence_domain(self, relaxed=False):
+        """Scope the "find the previous number" lookup to the same doc type +
+        site + calendar year, spanning every journal (see module docstring
+        above). Falls back to standard Odoo behaviour (journal-scoped) for
+        out-of-scope move types, leaving their numbering completely
+        untouched.
+        """
+        doc_type = self._matracon_sequence_doc_type()
+        if not doc_type:
+            where_string, param = super()._get_last_sequence_domain(relaxed)
+            # Exclude records numbered under the new site-wise scheme (4-segment
+            # DOC_TYPE/SITE/YYYY/NNNNNN shape) so an out-of-scope record sharing
+            # a journal with in-scope ones (e.g. a customer receipt posted
+            # through the same bank journal as vendor payments) cannot mistake
+            # a new-scheme name for "the previous number in this journal" and
+            # continue that unrelated counter.
+            where_string += r" AND name !~ '^[^/]+/[^/]+/[0-9]{4}/[0-9]+$' "
+            return where_string, param
+
+        self.ensure_one()
+        if not self.date:
+            return "WHERE FALSE", {}
+
+        where_string = "WHERE company_id = %(company_id)s AND name != '/' "
+        param = {'company_id': self.company_id.id}
+
+        # Only ever match records already in the NEW 4-segment shape
+        # (DOC_TYPE/SITE/YYYY/NNNNNN). Pre-existing records use the old
+        # 3-segment shape (e.g. journal-code-based "INV/26-27/0009"), which
+        # would otherwise coincidentally satisfy the site/doc-type filters
+        # below whenever a pre-existing record also happens to have no
+        # analytic account set (the common HO case) — without this guard the
+        # very first new-scheme HO invoice of the year would wrongly continue
+        # the old numbering thread ("INV/26-27/0010") instead of starting a
+        # clean new one ("INV/HO/2026/000001").
+        where_string += r" AND name ~ '^[^/]+/[^/]+/[0-9]{4}/[0-9]+$' "
+
+        analytic_id = self.x_project_analytic_account_id.id
+        if analytic_id:
+            where_string += " AND x_project_analytic_account_id = %(matracon_analytic_id)s "
+            param['matracon_analytic_id'] = analytic_id
+        else:
+            where_string += " AND x_project_analytic_account_id IS NULL "
+
+        if doc_type == 'INV':
+            where_string += " AND move_type = 'out_invoice' "
+        elif doc_type == 'BILL':
+            where_string += " AND move_type = 'in_invoice' "
+        elif doc_type == 'PAY':
+            where_string += """
+                AND move_type = 'entry' AND origin_payment_id IN (
+                    SELECT id FROM account_payment
+                    WHERE payment_type = 'outbound' AND partner_type = 'supplier'
+                )
+            """
+        else:  # 'JE'
+            where_string += " AND move_type = 'entry' AND origin_payment_id IS NULL "
+
+        if not relaxed:
+            # Yearly reset, scoped to the calendar year of this move's own date
+            # (not the base mixin's date-range guess, which only knows about
+            # journal-scoped records and would miss the cross-journal picture).
+            where_string += " AND date_part('year', date) = %(matracon_year)s "
+            param['matracon_year'] = self.date.year
+
+        return where_string, param
+
+    # ── Historical backfill: re-number old documents into the new scheme ─────
+    #
+    # NEVER called automatically (no hook, no cron, no post_init/post_migrate
+    # trigger) — the ONLY entry point is the "Renumber Historical Documents
+    # (Site-Wise Sequence)" Server Action in Settings > Fix Tools
+    # (matracon_admin_tools), which is a manual, on-demand button requiring an
+    # explicit click plus its own confirmation dialog. Client confirmation is
+    # required before ever running this in a real environment.
+    _MATRACON_NEW_FORMAT_RE = r'^([^/]+)/([^/]+)/([0-9]{4})/([0-9]+)$'
+
+    def action_matracon_backfill_sequence(self):
+        """Re-number existing historical Customer Invoices, Vendor Bills,
+        Vendor Payments and Journal Entries that still use the old numbering
+        into the new [DOC_TYPE]/[SITE_CODE]/[YEAR]/[SEQUENCE] scheme.
+
+        Safety:
+          - Only POSTED documents already in scope (out_invoice, in_invoice,
+            or an 'entry' that is either a plain JE or an outbound-to-supplier
+            payment) and NOT already in the new format are touched.
+          - Skips (and reports, does not fail) any document that is hash-secured
+            (inalterable_hash) or has a reconciled line — renaming those could
+            break an audit hash chain or a reconciliation reference.
+          - New numbers CONTINUE from whatever is already the highest number in
+            each (doc type, site, year) group rather than renumbering
+            documents already created under the new scheme — so anything
+            created since the code went live is left completely untouched,
+            never renamed twice, and chronological order is preserved for
+            everything this run actually renames (oldest first) even though
+            it cannot retroactively reorder against already-migrated ones.
+          - Regular `write()`, not raw SQL: lets Odoo recompute the stored
+            sequence_prefix/sequence_number fields so future auto-numbering
+            for that group stays consistent.
+        """
+        if not (self.env.user.has_group('purchase_demand_raise.group_matracon_admin')
+                or self.env.user.has_group('base.group_system')):
+            raise UserError(_('Only Matracon Admin or System Administrator can run this action.'))
+
+        Move = self.env['account.move'].sudo()
+        candidates = Move.search([
+            ('state', '=', 'posted'),
+            ('move_type', 'in', ('out_invoice', 'in_invoice', 'entry')),
+        ])
+        # Keep only in-scope docs (JE/PAY/INV/BILL) not already in the new format.
+        new_format_re = re.compile(self._MATRACON_NEW_FORMAT_RE)
+        to_process = candidates.filtered(
+            lambda m: m._matracon_sequence_doc_type() and not (m.name and new_format_re.match(m.name))
+        )
+
+        skipped_hashed = self.env['account.move']
+        skipped_reconciled = self.env['account.move']
+        skipped_error = []
+        groups = {}  # (doc_type, site_code, year) -> list of moves
+
+        for move in to_process:
+            if move.inalterable_hash:
+                skipped_hashed |= move
+                continue
+            if move.line_ids.filtered('reconciled'):
+                skipped_reconciled |= move
+                continue
+            doc_type = move._matracon_sequence_doc_type()
+            site_code = move._matracon_sequence_site_code()
+            move_date = move.date or move.invoice_date
+            if not move_date:
+                skipped_error.append('%s: no date set' % (move.name or move.id))
+                continue
+            groups.setdefault((doc_type, site_code, move_date.year), []).append(move)
+
+        renamed = 0
+        for (doc_type, site_code, year), moves in groups.items():
+            prefix = '%s/%s/%04d/' % (doc_type, site_code, year)
+            # Find the current highest sequence number already used for this
+            # exact group (covers both untouched historical runs and any
+            # documents already created live under the new scheme).
+            self.env.cr.execute("""
+                SELECT name FROM account_move
+                WHERE name LIKE %s AND company_id IN %s
+                ORDER BY sequence_number DESC
+                LIMIT 1
+            """, (prefix + '%', tuple(self.env.companies.ids) or (0,)))
+            row = self.env.cr.fetchone()
+            next_number = 1
+            if row:
+                match = new_format_re.match(row[0])
+                if match:
+                    next_number = int(match.group(4)) + 1
+
+            # Oldest first, so the renumbering at least preserves this batch's
+            # own chronological order even though it cannot retroactively
+            # reorder against numbers already assigned live (see docstring).
+            moves.sort(key=lambda m: (m.date or m.invoice_date, m.id))
+            for move in moves:
+                new_name = '%s%06d' % (prefix, next_number)
+                try:
+                    move.write({'name': new_name})
+                    renamed += 1
+                    next_number += 1
+                except Exception as e:
+                    skipped_error.append('%s: %s' % (move.name or move.id, e))
+
+        message_lines = [_('%d document(s) renumbered.') % renamed]
+        if skipped_reconciled:
+            message_lines.append(_(
+                '%d skipped (reconciled lines — renumber manually if truly needed): %s'
+            ) % (len(skipped_reconciled), ', '.join(skipped_reconciled.mapped('name')[:20])))
+        if skipped_hashed:
+            message_lines.append(_(
+                '%d skipped (hash-secured — cannot be renamed without breaking the audit chain): %s'
+            ) % (len(skipped_hashed), ', '.join(skipped_hashed.mapped('name')[:20])))
+        if skipped_error:
+            message_lines.append(_('%d skipped (error): %s') % (len(skipped_error), '; '.join(skipped_error[:20])))
+        _logger.info('action_matracon_backfill_sequence: %s', ' | '.join(message_lines))
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Historical Document Renumbering Complete'),
+                'message': '\n'.join(message_lines),
+                'type': 'success' if not (skipped_reconciled or skipped_hashed or skipped_error) else 'warning',
+                'sticky': True,
+            },
+        }
 
     # (Real-time last-row balance is handled by the onchange on account.move.line
     #  itself — see account_move_line.py _onchange_amount_rebalance_last_row.
@@ -906,6 +1391,24 @@ class AccountMoveSiteOps(models.Model):
             'x_liability_amount_registered': 0.0,
         })
 
+    def _matracon_fill_missing_line_analytics(self):
+        """For any posted move, fill analytic_distribution on lines that are
+        still empty, using the move's x_project_analytic_account_id as the
+        source.  Does NOT overwrite lines that already carry a distribution
+        (preserves multi-site / per-line setups on JEs).
+
+        Called at action_post() for ALL move types so that payable, tax, and
+        bank lines always carry the project analytic → balance sheet / P&L /
+        partner-ledger filters work correctly for the site."""
+        self.ensure_one()
+        analytic = self.x_project_analytic_account_id
+        if not analytic:
+            return
+        dist = {str(analytic.id): 100.0}
+        blank_lines = self.line_ids.filtered(lambda l: not l.analytic_distribution)
+        if blank_lines:
+            blank_lines.write({'analytic_distribution': dist})
+
     def _matracon_apply_bill_analytic(self):
         """Tag ALL vendor bill move lines (expense + payable) with project analytic.
 
@@ -964,6 +1467,14 @@ class AccountMoveSiteOps(models.Model):
                 and l.analytic_distribution
             )
         )
+        # A partner whose payable lines cancel out within this entry (e.g. a petty
+        # cash line passed through the partner's payable account) has no
+        # outstanding liability — don't add an empty row to the sheet for them.
+        net_by_partner = {}
+        for aml in payable_lines:
+            net_by_partner[aml.partner_id] = net_by_partner.get(aml.partner_id, 0.0) + aml.balance
+        payable_lines = payable_lines.filtered(
+            lambda l: not self.company_currency_id.is_zero(net_by_partner[l.partner_id]))
         if not payable_lines:
             return
 
@@ -1133,24 +1644,53 @@ class AccountMoveSiteOps(models.Model):
         po = picking.purchase_id
         if not po or not po.partner_id:
             return self.env['account.move']
+
+        # Look specifically for an existing bill for THIS receipt/GRN
         existing = self.search([
-            ('x_purchase_order_id', '=', po.id),
             ('move_type', '=', 'in_invoice'),
-            ('state', '=', 'draft'),
+            ('state', '!=', 'cancel'),
+            '|',
+            ('x_stock_picking_id', '=', picking.id),
+            ('ref', '=', 'GRN-%s' % picking.name),
         ], limit=1)
         if existing:
+            if not existing.x_stock_picking_id:
+                existing.write({'x_stock_picking_id': picking.id})
             return existing
 
         line_vals = []
-        for move in picking.move_ids.filtered(
-            lambda m: m.product_id and m.quantity > 0
-        ):
+        valid_moves = picking.move_ids.filtered(
+            lambda m: m.product_id and m.quantity > 0 and m.state == 'done'
+        ) or picking.move_ids.filtered(
+            lambda m: m.product_id and m.quantity > 0 and m.state != 'cancel'
+        )
+        for move in valid_moves:
+            po_line = move.purchase_line_id
+            if not po_line and po:
+                po_line = po.order_line.filtered(lambda l: l.product_id == move.product_id)[:1]
+
+            if po_line:
+                price_unit = po_line.price_unit
+                taxes = getattr(po_line, 'tax_ids', getattr(po_line, 'taxes_id', po_line.product_id.supplier_taxes_id))
+                uom = getattr(po_line, 'product_uom_id', getattr(po_line, 'product_uom', False))
+                if move.product_uom and uom and move.product_uom != uom:
+                    qty = move.product_uom._compute_quantity(move.quantity, uom)
+                else:
+                    qty = move.quantity
+            else:
+                price_unit = move.product_id.standard_price or 0.0
+                taxes = move.product_id.supplier_taxes_id
+                uom = move.product_uom or move.product_id.uom_po_id
+                qty = move.quantity
+
             line_vals.append((0, 0, {
                 'product_id': move.product_id.id,
-                'name': move.product_id.display_name,
-                'quantity': move.quantity,
-                'price_unit': move.product_id.standard_price or 0.0,
-                'tax_ids': [(6, 0, move.product_id.supplier_taxes_id.ids)],
+                'name': po_line.name if po_line else move.product_id.display_name,
+                'quantity': qty,
+                'product_uom_id': uom.id if uom else False,
+                'price_unit': price_unit,
+                'tax_ids': [(6, 0, taxes.ids)] if taxes else False,
+                'purchase_line_id': po_line.id if po_line else False,
             }))
         if not line_vals:
             return self.env['account.move']
@@ -1160,10 +1700,11 @@ class AccountMoveSiteOps(models.Model):
             'partner_id': po.partner_id.id,
             'invoice_date': fields.Date.context_today(self),
             'x_purchase_order_id': po.id,
+            'x_stock_picking_id': picking.id,
             'x_project_analytic_account_id': (
                 po.x_project_analytic_account_id.id
                 if po.x_project_analytic_account_id else False),
-            'invoice_origin': po.name,
+            'invoice_origin': '%s: %s' % (po.name, picking.name),
             'ref': 'GRN-%s' % picking.name,
             'invoice_line_ids': line_vals,
         })
@@ -1187,11 +1728,186 @@ class AccountMoveSiteOps(models.Model):
         )) % (bill.name or _('New')))
         return bill
 
+    @api.model
+    def action_matracon_backfill_missing_po_receipt_bills(self):
+        """Admin Fix Tool: find all validated incoming PO receipts that lack vendor bills
+        (especially partial receipts) and generate draft vendor bills for them.
+        """
+        if not (self.env.user.has_group('purchase_demand_raise.group_matracon_admin')
+                or self.env.user.has_group('base.group_system')
+                or self.env.user.has_group('site_operations.group_finance_ho')):
+            raise UserError(_('Only Finance HO, Matracon Admin or System Administrator can run this action.'))
+
+        pickings = self.env['stock.picking'].sudo().search([
+            ('picking_type_code', '=', 'incoming'),
+            ('state', '=', 'done'),
+            ('purchase_id', '!=', False),
+        ], order='id asc')
+
+        created_bills = self.env['account.move']
+        linked_existing = 0
+
+        for picking in pickings:
+            po = picking.purchase_id
+            if po.x_procurement_type == 'site_procurement' and not po.x_add_to_liability_sheet:
+                continue
+
+            existing = self.sudo().search([
+                ('move_type', '=', 'in_invoice'),
+                ('state', '!=', 'cancel'),
+                '|',
+                ('x_stock_picking_id', '=', picking.id),
+                ('ref', '=', 'GRN-%s' % picking.name),
+            ], limit=1)
+
+            if existing:
+                if not existing.x_stock_picking_id:
+                    existing.sudo().write({'x_stock_picking_id': picking.id})
+                    linked_existing += 1
+                continue
+
+            if po.x_procurement_type == 'site_procurement' and po.x_site_vendor_id and not po.partner_id:
+                po.sudo().write({'partner_id': po.x_site_vendor_id.id})
+
+            new_bill = self._matracon_create_draft_bill_from_po_receipt(picking)
+            if new_bill:
+                created_bills |= new_bill
+
+        message = _(
+            'Scanned %s PO receipts: created %s missing vendor bills '
+            '(linked %s existing bills with receipt notes).'
+        ) % (len(pickings), len(created_bills), linked_existing)
+
+        if len(created_bills) == 1:
+            return {
+                'type': 'ir.actions.act_window',
+                'name': _('Vendor Bill Created'),
+                'res_model': 'account.move',
+                'view_mode': 'form',
+                'res_id': created_bills.id,
+            }
+        elif len(created_bills) > 1:
+            return {
+                'type': 'ir.actions.act_window',
+                'name': _('Created Vendor Bills (%s)') % len(created_bills),
+                'res_model': 'account.move',
+                'view_mode': 'list,form',
+                'domain': [('id', 'in', created_bills.ids)],
+            }
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('PO Receipt Vendor Bills Check Complete'),
+                'message': message,
+                'sticky': False,
+                'type': 'info',
+            }
+        }
+
     def action_print_journal_entry_voucher(self):
         """Open the Journal Entry Voucher PDF for posted journal entries."""
         return self.env.ref(
             'site_operations.action_report_journal_entry_voucher'
         ).report_action(self)
+
+    def _matracon_get_project_analytic_account(self):
+        """Return the primary account.analytic.account for this move.
+        Resolves in order:
+          1. Header x_project_analytic_account_id
+          2. Linked payment's project (x_destination_project_id or x_fund_project_id)
+          3. Stored x_site_analytic_ids (from lines)
+          4. Direct parse of line_ids.analytic_distribution
+          5. Linked purchase order's project
+          6. Linked stock picking's project
+        """
+        self.ensure_one()
+        if self.x_project_analytic_account_id:
+            return self.x_project_analytic_account_id
+        if self.origin_payment_id:
+            payment = self.origin_payment_id
+            analytic = payment.x_destination_project_id or payment.x_fund_project_id
+            if analytic:
+                return analytic
+        if self.x_site_analytic_ids:
+            return self.x_site_analytic_ids[0]
+        for line in self.line_ids:
+            line_analytics = line._matracon_get_line_analytic_accounts()
+            if line_analytics:
+                return line_analytics[0]
+        if self.x_purchase_order_id.x_project_analytic_account_id:
+            return self.x_purchase_order_id.x_project_analytic_account_id
+        if self.x_stock_picking_id.x_project_analytic_account_id:
+            return self.x_stock_picking_id.x_project_analytic_account_id
+        return self.env['account.analytic.account']
+
+    def _matracon_get_display_project_name(self):
+        """Return the project / site name for report headers and display."""
+        self.ensure_one()
+        if self.x_project_analytic_account_id:
+            return self.x_project_analytic_account_id.name
+        if self.origin_payment_id:
+            payment = self.origin_payment_id
+            analytic = payment.x_destination_project_id or payment.x_fund_project_id
+            if analytic:
+                return analytic.name
+        if self.x_site_analytic_ids:
+            return ", ".join(self.x_site_analytic_ids.mapped('name'))
+        analytics = self.env['account.analytic.account']
+        for line in self.line_ids:
+            analytics |= line._matracon_get_line_analytic_accounts()
+        if analytics:
+            return ", ".join(analytics.mapped('name'))
+        if self.x_purchase_order_id.x_project_analytic_account_id:
+            return self.x_purchase_order_id.x_project_analytic_account_id.name
+        if self.x_stock_picking_id.x_project_analytic_account_id:
+            return self.x_stock_picking_id.x_project_analytic_account_id.name
+        return False
+
+    def action_rebuild_site_analytic_links(self):
+        """Admin-only: recompute x_site_analytic_ids for ALL posted journal entries.
+
+        Background
+        ----------
+        SA record rule (b) uses the stored Many2many ``x_site_analytic_ids`` to
+        decide which journal entries are visible to a site accountant.  This field
+        is populated from line-level ``analytic_distribution``.
+
+        Old HO-filled journal entries created before this field existed (or before
+        the module was upgraded) have an empty M2M, so the record rule never
+        matches them and SA cannot see those entries — even though the HO correctly
+        set analytics on individual lines.
+
+        Running this action once recomputes the M2M for every journal entry and
+        makes all matching old entries immediately visible to the correct SA.
+        Safe to run multiple times (idempotent).
+        """
+        if not (
+            self.env.user.has_group('purchase_demand_raise.group_matracon_admin')
+            or self.env.user.has_group('base.group_system')
+        ):
+            raise UserError(_(
+                'This action is restricted to Matracon Admin and System Administrator.'
+            ))
+
+        moves = self.env['account.move'].search([('move_type', '=', 'entry')])
+        moves._compute_x_site_analytic_ids()
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Site Analytics Rebuilt'),
+                'message': _(
+                    'Recomputed site-analytic links for %(count)d journal entries. '
+                    'Site accountants can now see all relevant old entries.',
+                    count=len(moves),
+                ),
+                'type': 'success',
+                'sticky': True,
+            },
+        }
 
 
 class AccountMoveLineSiteOps(models.Model):
@@ -1275,20 +1991,71 @@ class AccountMoveLineSiteOps(models.Model):
         })
         return False
 
-    def _fix_direct_debit_credit(self, vals):
-        """If the caller supplied debit/credit directly (without price_unit) on
-        an invoice line that has no product, back-fill price_unit so that
-        Odoo's _compute_totals → _sync_dynamic_lines chain produces the correct
-        price_subtotal and therefore the correct AP/AR counterpart balance.
+    def _matracon_get_line_analytic_accounts(self):
+        """Return account.analytic.account recordset from line's analytic_distribution."""
+        self.ensure_one()
+        if not self.analytic_distribution:
+            return self.env['account.analytic.account']
+        analytic_ids = []
+        for key in self.analytic_distribution:
+            for token in str(key).split(','):
+                token = token.strip()
+                if token.isdigit():
+                    analytic_ids.append(int(token))
+        if not analytic_ids:
+            return self.env['account.analytic.account']
+        return self.env['account.analytic.account'].browse(analytic_ids).exists()
 
-        Without this, price_unit stays 0 → price_subtotal = 0 → needed_terms = 0
-        → the AP line carries 0 → the entry stores balance = 0 for the user line.
+    def _matracon_get_line_project_name(self):
+        """Return the project/analytic account name for this line.
+        Bank / cash lines are suppressed (as on BPV vouchers).
+        """
+        self.ensure_one()
+        if self.account_id.account_type in ('asset_cash',):
+            return False
+        analytics = self._matracon_get_line_analytic_accounts()
+        if analytics:
+            return ", ".join(analytics.mapped('name'))
+        return self.move_id._matracon_get_display_project_name()
+
+    @api.model
+    def _matracon_price_for_balance(self, move, balance, quantity, discount):
+        """Unit price that makes Odoo's invoice re-sync reproduce ``balance``.
+
+        Odoo recomputes an invoice/bill line's journal amount as
+        direction_sign x quantity x price x (1 - discount%) — direction_sign is
+        +1 on vendor bills and -1 on customer invoices — so the price must carry
+        that sign or the amount flips side on the next re-sync.
+        """
+        quantity = quantity or 1.0
+        return move.direction_sign * balance / quantity / (1.0 - (discount or 0.0) / 100.0)
+
+    @api.model
+    def _matracon_amount_drives_price(self, move, display_type, currency_id, discount):
+        return (
+            move.is_invoice(include_receipts=True)
+            and (display_type or 'product') == 'product'
+            and (not currency_id or currency_id == move.company_id.currency_id.id)
+            and (discount or 0.0) < 100.0
+        )
+
+    def _fix_direct_debit_credit(self, vals, move):
+        """Debit/Credit supplied without a price (Journal Items tab, imports):
+        back-fill price_unit so Odoo's re-sync keeps exactly that Debit/Credit
+        instead of recomputing it from a zero / wrong-signed price.
         """
         debit = vals.get('debit') or 0
         credit = vals.get('credit') or 0
-        if (debit or credit) and not vals.get('product_id') and 'price_unit' not in vals:
-            vals['price_unit'] = debit - credit        # sign preserved
+        if (
+            (debit or credit)
+            and 'price_unit' not in vals
+            and not vals.get('product_id')
+            and self._matracon_amount_drives_price(
+                move, vals.get('display_type'), vals.get('currency_id'), vals.get('discount'))
+        ):
             vals.setdefault('quantity', 1.0)
+            vals['price_unit'] = self._matracon_price_for_balance(
+                move, debit - credit, vals['quantity'], vals.get('discount'))
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -1302,7 +2069,7 @@ class AccountMoveLineSiteOps(models.Model):
                 if move_id not in move_cache:
                     move_cache[move_id] = self.env['account.move'].browse(move_id)
                 if move_cache[move_id].is_invoice(include_receipts=True):
-                    self._fix_direct_debit_credit(vals)
+                    self._fix_direct_debit_credit(vals, move_cache[move_id])
 
             # ── Fix 2: auto-fill analytic_distribution on draft invoice / entry lines.
             if vals.get('analytic_distribution'):
@@ -1359,25 +2126,30 @@ class AccountMoveLineSiteOps(models.Model):
         return records
 
     def write(self, vals):
-        """When the user edits debit/credit directly on an existing invoice line
-        (through the Journal Items tab), keep price_unit in sync so
-        _compute_totals → needed_terms produces the right AP/AR balance.
+        """Debit/Credit edited on an existing invoice/bill line (Journal Items
+        tab) without a price: set the matching price so Odoo's re-sync keeps
+        what was typed. Signed per document (see _matracon_price_for_balance)
+        and per line — a value missing from ``vals`` keeps the line's own.
         """
         if ('debit' in vals or 'credit' in vals) and 'price_unit' not in vals:
-            # Identify lines that have no product and are on invoices
-            invoice_lines = self.filtered(
-                lambda l: not l.product_id and l.move_id.is_invoice(include_receipts=True)
+            synced = self.filtered(
+                lambda l: l.move_id.state == 'draft'
+                and not l.tax_ids.filtered('price_include')
+                and self._matracon_amount_drives_price(
+                    l.move_id, l.display_type, l.currency_id.id, l.discount)
             )
-            if invoice_lines:
-                debit = vals.get('debit') or 0
-                credit = vals.get('credit') or 0
-                balance = debit - credit
-                # Write with price_unit for the no-product invoice lines
-                super(AccountMoveLineSiteOps, invoice_lines).write(
-                    dict(vals, price_unit=balance, quantity=vals.get('quantity') or 1.0)
-                )
-                other_lines = self - invoice_lines
-                if other_lines:
-                    return super(AccountMoveLineSiteOps, other_lines).write(vals)
-                return True
+            for line in synced:
+                debit = vals['debit'] if 'debit' in vals else line.debit
+                credit = vals['credit'] if 'credit' in vals else line.credit
+                quantity = vals.get('quantity') or line.quantity or 1.0
+                super(AccountMoveLineSiteOps, line).write(dict(
+                    vals,
+                    quantity=quantity,
+                    price_unit=self._matracon_price_for_balance(
+                        line.move_id, (debit or 0) - (credit or 0), quantity, line.discount),
+                ))
+            rest = self - synced
+            if rest:
+                return super(AccountMoveLineSiteOps, rest).write(vals)
+            return True
         return super().write(vals)

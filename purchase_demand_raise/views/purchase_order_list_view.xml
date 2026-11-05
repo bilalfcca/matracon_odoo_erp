@@ -71,6 +71,12 @@
                        decoration-danger="x_ceo_status == 'rejected'"
                        groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"
                        optional="show"/>
+                <field name="x_fulfillment_status" string="Delivery Status"
+                       widget="badge"
+                       decoration-danger="x_fulfillment_status == 'open'"
+                       decoration-warning="x_fulfillment_status == 'partial'"
+                       decoration-success="x_fulfillment_status == 'closed'"
+                       optional="show"/>
             </field>
 
         </field>
@@ -144,6 +150,12 @@
                        decoration-success="x_ceo_status == 'approved'"
                        decoration-danger="x_ceo_status == 'rejected'"
                        groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"
+                       optional="show"/>
+                <field name="x_fulfillment_status" string="Delivery Status"
+                       widget="badge"
+                       decoration-danger="x_fulfillment_status == 'open'"
+                       decoration-warning="x_fulfillment_status == 'partial'"
+                       decoration-success="x_fulfillment_status == 'closed'"
                        optional="show"/>
             </field>
 
@@ -254,9 +266,25 @@
 
                 <separator/>
 
+                <!-- PO Delivery Status filters — only meaningful for dispatched POs -->
+                <filter name="delivery_open"
+                        string="Open PO"
+                        domain="[('x_fulfillment_status', '=', 'open')]"/>
+                <filter name="delivery_partial"
+                        string="Partial PO"
+                        domain="[('x_fulfillment_status', '=', 'partial')]"/>
+                <filter name="delivery_closed"
+                        string="Closed PO"
+                        domain="[('x_fulfillment_status', '=', 'closed')]"/>
+
+                <separator/>
+
                 <filter name="group_pr_state"
                         string="Group by PR Status"
                         context="{'group_by': 'x_pr_state'}"/>
+                <filter name="group_fulfillment_status"
+                        string="Group by Delivery Status"
+                        context="{'group_by': 'x_fulfillment_status'}"/>
                 <filter name="group_project"
                         string="Group by Project"
                         context="{'group_by': 'x_project_analytic_account_id'}"/>
@@ -341,10 +369,26 @@
 
                 <separator/>
 
+                <!-- PO Delivery Status filters — only meaningful for dispatched POs -->
+                <filter name="delivery_open"
+                        string="Open PO"
+                        domain="[('x_fulfillment_status', '=', 'open')]"/>
+                <filter name="delivery_partial"
+                        string="Partial PO"
+                        domain="[('x_fulfillment_status', '=', 'partial')]"/>
+                <filter name="delivery_closed"
+                        string="Closed PO"
+                        domain="[('x_fulfillment_status', '=', 'closed')]"/>
+
+                <separator/>
+
                 <!-- Group-by options -->
                 <filter name="group_pr_state"
                         string="Group by PR Status"
                         context="{'group_by': 'x_pr_state'}"/>
+                <filter name="group_fulfillment_status"
+                        string="Group by Delivery Status"
+                        context="{'group_by': 'x_fulfillment_status'}"/>
                 <filter name="group_project"
                         string="Group by Project"
                         context="{'group_by': 'x_project_analytic_account_id'}"/>

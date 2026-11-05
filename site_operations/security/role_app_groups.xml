@@ -73,7 +73,7 @@
                     ref('uom.group_uom'),
                     ref('account.group_account_manager'),
                     ref('base.group_partner_manager'),
-                    ref('hr_attendance.group_hr_attendance_officer'),
+                    ref('hr_attendance.group_hr_attendance_manager'),
                     ref('base.group_allow_export'),
                     ref('group_mtr_app_purchase'),
                     ref('group_mtr_app_inventory'),
@@ -105,6 +105,19 @@
                     ref('base.group_allow_export'),
                     ref('group_mtr_app_accounting'),
                     ref('group_mtr_app_attendance'),
+                ])
+            ]"/>
+        </record>
+
+        <!-- Accountant HO: Invoicing app only, with Petty Cash → Expenses as its only menu
+             (see ir_ui_menu.py). No core accounting role on purpose: it would add every
+             Accounting menu. Access to the models the expense screen reads is granted
+             directly in ir.model.access.csv; no site-scoping rule → all projects. -->
+        <record id="group_accountant_ho" model="res.groups">
+            <field name="implied_ids" eval="[
+                (6, 0, [
+                    ref('base.group_allow_export'),
+                    ref('group_mtr_app_accounting'),
                 ])
             ]"/>
         </record>

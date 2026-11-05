@@ -40,6 +40,42 @@ class PurchaseOrderLine(models.Model):
                 line.analytic_distribution = {acc_id: 100.0}
         return lines
 
+    # ── Serial / Line Number (1-based, product lines only) ──────────────────
+    x_line_number = fields.Integer(
+        compute='_compute_line_number',
+        string='Sr. #',
+        store=False,
+    )
+
+    @api.depends('order_id.order_line', 'display_type', 'sequence')
+    def _compute_line_number(self):
+        """Return the 1-based position of this line among non-section/note lines."""
+        # Group by order to avoid re-filtering for every single line
+        by_order = {}
+        for line in self:
+            by_order.setdefault(line.order_id, []).append(line)
+
+        for order, lines in by_order.items():
+            product_line_ids = order.order_line.filtered(
+                lambda l: not l.display_type
+            ).ids  # sorted by sequence, id (model _order)
+            for line in lines:
+                if line.display_type:
+                    line.x_line_number = 0
+                else:
+                    try:
+                        line.x_line_number = product_line_ids.index(line.id) + 1
+                    except ValueError:
+                        line.x_line_number = 0
+
+    # ── Internal Reference (read-only, for optional list column) ────────────
+    x_default_code = fields.Char(
+        related='product_id.default_code',
+        string='Internal Ref.',
+        store=False,
+        readonly=True,
+    )
+
     # ── Per-line Currency (for multi-currency POs) ───────────────────────────
     x_line_currency_id = fields.Many2one(
         'res.currency',
@@ -193,6 +229,20 @@ class PurchaseOrderLine(models.Model):
                 line.x_qty_on_hand = sum(quants.mapped('quantity'))
             else:
                 line.x_qty_on_hand = line.product_id.qty_available
+
+    def _x_effective_qty(self):
+        """Quantity that counts for this line in the CS, PO and reports:
+        Approved → Recommended → Requested → standard product_qty.
+        A later stage always wins over an earlier one, so a hidden default
+        Requested Qty (1.0) never overrides an Approved Qty."""
+        self.ensure_one()
+        return (
+            self.x_approved_qty
+            or self.x_recommended_qty
+            or self.x_requested_qty
+            or self.product_qty
+            or 0.0
+        )
 
     def _get_ceo_qty_base(self):
         """Quantity base for CEO % decisions — recommended if set, else requested."""

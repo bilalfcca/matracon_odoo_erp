@@ -139,4 +139,41 @@
         </field>
     </record>
 
+    <!-- Receipts search: DMR No (first), Gate Pass, PO, Project, Vendor -->
+    <record id="view_picking_search_pr_receipt" model="ir.ui.view">
+        <field name="name">stock.picking.search.pr.receipt</field>
+        <field name="model">stock.picking</field>
+        <field name="inherit_id" ref="stock.view_picking_internal_search"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='name']" position="before">
+                <field name="x_dmr_no" string="DMR No"/>
+            </xpath>
+            <xpath expr="//field[@name='partner_id']" position="attributes">
+                <attribute name="string">Vendor / Partner</attribute>
+            </xpath>
+            <xpath expr="//field[@name='origin']" position="after">
+                <field name="x_gate_pass_no" string="Gate Pass No"/>
+                <field name="purchase_id" string="Purchase Order"/>
+                <field name="x_project_analytic_account_id" string="Project"/>
+            </xpath>
+            <xpath expr="//filter[@name='picking_type']" position="after">
+                <filter string="Vendor / Partner" name="group_by_partner" context="{'group_by': 'partner_id'}"/>
+                <filter string="Project" name="group_by_pr_project" context="{'group_by': 'x_project_analytic_account_id'}"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Receipts list: show DMR No (and Gate Pass, optional) -->
+    <record id="view_picking_tree_pr_receipt" model="ir.ui.view">
+        <field name="name">stock.picking.list.pr.receipt</field>
+        <field name="model">stock.picking</field>
+        <field name="inherit_id" ref="stock.vpicktree"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='name']" position="after">
+                <field name="x_dmr_no" string="DMR No" optional="show"/>
+                <field name="x_gate_pass_no" string="Gate Pass No" optional="hide"/>
+            </xpath>
+        </field>
+    </record>
+
 </odoo>

@@ -14,24 +14,42 @@ class SubcontractorIPCBackchargeLine(models.Model):
     ipc_id = fields.Many2one(
         'x.subcontractor.ipc', string='IPC',
         ondelete='cascade', required=True, index=True)
+    # Optional: pick a registered back charge (values copied from it), or leave
+    # empty and type Description / Date / Amount manually.
     backcharge_id = fields.Many2one(
-        'x.subcontractor.backcharge', string='Back Charge',
-        required=True)
+        'x.subcontractor.backcharge', string='Back Charge')
     description = fields.Char(
-        string='Description', related='backcharge_id.description')
+        string='Description',
+        compute='_compute_from_backcharge', store=True, readonly=False)
     date = fields.Date(
-        string='Date', related='backcharge_id.date')
+        string='Date',
+        compute='_compute_from_backcharge', store=True, readonly=False)
     amount = fields.Monetary(
         string='Amount',
-        compute='_compute_backcharge_amount', store=True,
+        compute='_compute_from_backcharge', store=True, readonly=False,
         currency_field='currency_id')
     currency_id = fields.Many2one(
         'res.currency', related='ipc_id.currency_id', store=True)
 
-    @api.depends('backcharge_id', 'backcharge_id.amount')
-    def _compute_backcharge_amount(self):
+    @api.depends(
+        'backcharge_id', 'backcharge_id.description',
+        'backcharge_id.date', 'backcharge_id.amount',
+    )
+    def _compute_from_backcharge(self):
         for line in self:
-            line.amount = line.backcharge_id.amount if line.backcharge_id else 0.0
+            bc = line.backcharge_id
+            if not bc:
+                continue  # manual line: keep what the user typed
+            line.description = bc.description
+            line.date = bc.date
+            line.amount = bc.amount
+
+    @api.constrains('backcharge_id', 'description')
+    def _check_manual_line_description(self):
+        for line in self:
+            if not line.backcharge_id and not (line.description or '').strip():
+                raise UserError(_(
+                    'Please enter a Description for each manually added back charge line.'))
 
 
 class SubcontractorIPC(models.Model):
@@ -166,6 +184,43 @@ class SubcontractorIPC(models.Model):
         compute='_compute_deductions', store=True,
         currency_field='currency_id')
 
+    # ── Back charge deduction: Full / Manual with carry-forward ─────────────
+    # backcharge_total (above) is unchanged: this IPC's back charge lines.
+    # Any part not deducted is carried forward and shown as "b/f" on the next IPC
+    # for the same subcontractor + project (via previous_ipc_id).
+    backcharge_balance_bf = fields.Monetary(
+        string='Back Charges b/f (Previous IPC)',
+        compute='_compute_backcharge_balance_bf', store=True,
+        currency_field='currency_id',
+        help='Back charge balance not deducted in the previous IPC. '
+             'Frozen once this IPC is submitted.')
+    backcharge_due = fields.Monetary(
+        string='Total Back Charges Due',
+        compute='_compute_deductions', store=True,
+        currency_field='currency_id',
+        help='Balance b/f + this IPC\'s back charges.')
+    backcharge_deduction_mode = fields.Selection([
+        ('full', 'Full'),
+        ('manual', 'Manual'),
+    ], string='Back Charge Deduction', default='full', required=True, tracking=True,
+        help='Full: deduct the whole amount due. '
+             'Manual: deduct only the amount entered; the rest carries forward.')
+    backcharge_manual_amount = fields.Monetary(
+        string='Manual Deduction Amount',
+        currency_field='currency_id', tracking=True,
+        help='May be less than, equal to or more than the amount due. '
+             'The difference carries forward to the next IPC.')
+    backcharge_applied = fields.Monetary(
+        string='Back Charges Deducted (this IPC)',
+        compute='_compute_deductions', store=True,
+        currency_field='currency_id')
+    backcharge_balance_cf = fields.Monetary(
+        string='Back Charges c/f (Next IPC)',
+        compute='_compute_deductions', store=True,
+        currency_field='currency_id',
+        help='Amount due − amount deducted. Negative means more was deducted '
+             'than was due; the next IPC\'s amount due is reduced by it.')
+
     # ── Security Withheld ─────────────────────────────────────────────────────
     security_withheld = fields.Monetary(
         string='Security Withheld', currency_field='currency_id', tracking=True)
@@ -246,35 +301,59 @@ class SubcontractorIPC(models.Model):
         string='Work Expense Account',
         tracking=True,
         domain="[('account_type', 'not in', ['liability_payable', 'asset_receivable']), ('active', '=', True)]",
-        help='GL account to DEBIT for the certified work done cost '
-             '(e.g. "Subcontract Work Expense", "Cost of Construction"). '
-             'Required before submission — creates the expense side of the IPC entry.')
+        help='GL account DEBITED for the full certified work done cost. '
+             'Auto-filled from IPC Account Settings; can be overridden per IPC.')
     x_payable_account_id = fields.Many2one(
         'account.account',
         string='Subcontractor Payable Account',
         tracking=True,
         domain="[('account_type', '=', 'liability_payable'), ('active', '=', True)]",
-        help='GL account to CREDIT for the net payable to the subcontractor. '
-             'Auto-filled from the subcontractor partner\'s default payable account. '
-             'This credit entry is what appears in the Partner Ledger and is picked '
-             'up by "Refresh from Ledger" on the Liability Sheet.')
+        help='GL account CREDITED for the net payable to the subcontractor. '
+             'Auto-filled from partner\'s payable account (then IPC Settings default). '
+             'Appears in the Partner Ledger and Liability Sheet.')
     x_journal_id = fields.Many2one(
         'account.journal',
         string='Accounting Journal',
         tracking=True,
         domain="[('type', 'in', ('general', 'purchase'))]",
-        help='Journal used for the IPC journal entry. '
-             'Auto-fills with the first General journal if left blank.')
+        help='Journal for the IPC journal entry. Auto-filled from IPC Account Settings.')
     x_account_move_id = fields.Many2one(
         'account.move', string='Journal Entry',
         readonly=True, copy=False, ondelete='set null',
-        help='Posted journal entry created on IPC submission (Dr Expense / Cr Payable).')
+        help='Posted multi-line journal entry created on IPC submission.')
+
+    # ── Config-derived display fields (read-only, shown to SA) ───────────────
+    x_cfg_retention_acct = fields.Many2one(
+        'account.account', string='Retention → Account',
+        compute='_compute_cfg_accounts', store=False)
+    x_cfg_mob_advance_acct = fields.Many2one(
+        'account.account', string='Mob Advance → Account',
+        compute='_compute_cfg_accounts', store=False)
+    x_cfg_security_acct = fields.Many2one(
+        'account.account', string='Security → Account',
+        compute='_compute_cfg_accounts', store=False)
+    x_cfg_backcharge_acct = fields.Many2one(
+        'account.account', string='Back Charges → Account',
+        compute='_compute_cfg_accounts', store=False)
+    x_cfg_other_ded_acct = fields.Many2one(
+        'account.account', string='Other Deductions → Account',
+        compute='_compute_cfg_accounts', store=False)
 
     notes = fields.Text(string='Notes / Scope of Work')
 
     # ─────────────────────────────────────────────────────────────────────────
     # COMPUTE
     # ─────────────────────────────────────────────────────────────────────────
+
+    def _compute_cfg_accounts(self):
+        """Read deduction accounts from the global IPC config (once per call)."""
+        cfg = self.env['x.ipc.account.config'].sudo()._get_config()
+        for ipc in self:
+            ipc.x_cfg_retention_acct   = cfg.retention_payable_account_id
+            ipc.x_cfg_mob_advance_acct = cfg.mob_advance_account_id
+            ipc.x_cfg_security_acct    = cfg.security_withheld_account_id
+            ipc.x_cfg_backcharge_acct  = cfg.backcharge_recovery_account_id
+            ipc.x_cfg_other_ded_acct   = cfg.other_deductions_account_id
 
     @api.depends('subcontractor_id', 'project_analytic_account_id', 'ipc_date')
     def _compute_previous_ipc(self):
@@ -304,6 +383,14 @@ class SubcontractorIPC(models.Model):
                 ipc.previous_ipc_id = False
                 ipc.previous_gross_work_done = 0.0
                 ipc.ipc_date_from = False
+
+    @api.depends('previous_ipc_id', 'previous_ipc_id.backcharge_balance_cf', 'state')
+    def _compute_backcharge_balance_bf(self):
+        for ipc in self:
+            if ipc.state != 'draft' and ipc.id:
+                continue  # frozen at submission — matches the posted journal entry
+            prev = ipc.previous_ipc_id
+            ipc.backcharge_balance_bf = prev.backcharge_balance_cf if prev else 0.0
 
     @api.depends(
         'subcontractor_id', 'project_analytic_account_id',
@@ -344,15 +431,17 @@ class SubcontractorIPC(models.Model):
                 """, (partner_id, cutoff_date, analytic_id))
                 vendor_pay = cr.fetchone()[0]
 
-                # Petty cash subcontractor advances
+                # Petty cash subcontractor advances — read from lines table
+                # (supports both legacy single-line and new multi-line expenses)
                 cr.execute("""
-                    SELECT COALESCE(SUM(pce.amount), 0)
-                    FROM   x_petty_cash_expense pce
-                    WHERE  pce.advance_subcontractor_id    = %s
-                      AND  pce.is_subcontractor_advance    = true
-                      AND  pce.state                       = 'posted'
-                      AND  pce.expense_date               <= %s
-                      AND  pce.project_analytic_account_id = %s
+                    SELECT COALESCE(SUM(pcel.amount), 0)
+                    FROM   x_petty_cash_expense_line pcel
+                    JOIN   x_petty_cash_expense pce ON pce.id = pcel.expense_id
+                    WHERE  pcel.advance_subcontractor_id    = %s
+                      AND  pcel.is_subcontractor_advance    = true
+                      AND  pce.state                        = 'posted'
+                      AND  pce.expense_date                <= %s
+                      AND  pce.project_analytic_account_id  = %s
                 """, (partner_id, cutoff_date, analytic_id))
                 petty_cash = cr.fetchone()[0]
 
@@ -405,6 +494,7 @@ class SubcontractorIPC(models.Model):
         'security_withheld',
         'other_deductions_amount', 'other_additions_amount',
         'backcharge_line_ids.amount',
+        'backcharge_balance_bf', 'backcharge_deduction_mode', 'backcharge_manual_amount',
     )
     def _compute_deductions(self):
         for ipc in self:
@@ -415,26 +505,35 @@ class SubcontractorIPC(models.Model):
             prev_ret = ipc.previous_gross_work_done * pct
             this_ret = total_ret - prev_ret
 
-            bc_total = sum(
-                line.amount for line in ipc.backcharge_line_ids
-                if line.backcharge_id
-            )
+            # Registered and manually added lines both count.
+            bc_total = sum(ipc.backcharge_line_ids.mapped('amount'))
+            bc_due = ipc.backcharge_balance_bf + bc_total
+            if ipc.backcharge_deduction_mode == 'manual':
+                bc_applied = max(ipc.backcharge_manual_amount or 0.0, 0.0)
+            else:
+                bc_applied = max(bc_due, 0.0)
 
             total_ded = (
                 this_ret
                 + ipc.mob_advance_recovery
                 + ipc.ho_advance_recovery
                 + ipc.security_withheld
-                + bc_total
+                + bc_applied
                 + ipc.other_deductions_amount
             )
-            net = max(this_gross - total_ded + ipc.other_additions_amount, 0.0)
+            # Not floored at 0: when deductions exceed the work done the net is
+            # negative (the subcontractor owes us) and is posted as such — the
+            # journal entry debits the payable for the excess.
+            net = this_gross - total_ded + ipc.other_additions_amount
 
             ipc.this_ipc_gross = this_gross
             ipc.total_retention_cumulative = total_ret
             ipc.previous_retention_amount = prev_ret
             ipc.retention_amount = this_ret
             ipc.backcharge_total = bc_total
+            ipc.backcharge_due = bc_due
+            ipc.backcharge_applied = bc_applied
+            ipc.backcharge_balance_cf = bc_due - bc_applied
             ipc.total_deductions = total_ded
             ipc.net_payable = net
 
@@ -471,18 +570,27 @@ class SubcontractorIPC(models.Model):
             if not ipc.subcontractor_id or not ipc.project_analytic_account_id:
                 continue
             already_linked = ipc.backcharge_line_ids.mapped('backcharge_id').ids
-            pending = self.env['x.subcontractor.backcharge'].search([
-                ('subcontractor_id', '=', ipc.subcontractor_id.id),
-                ('project_analytic_account_id', '=',
-                 ipc.project_analytic_account_id.id),
-                ('state', '=', 'pending'),
-                ('id', 'not in', already_linked),
-            ])
+            pending = self.env['x.subcontractor.backcharge'].search(
+                ipc._mtr_pending_backcharge_domain(already_linked))
             if pending:
                 ipc.write({'backcharge_line_ids': [
                     (0, 0, {'backcharge_id': bc.id}) for bc in pending
                 ]})
         return ipcs
+
+    def _mtr_pending_backcharge_domain(self, exclude_ids=()):
+        """Pending back charges for this subcontractor + project, dated on or
+        before the IPC Date (Period To). Later ones wait for the next IPC."""
+        domain = [
+            ('subcontractor_id', '=', self.subcontractor_id.id),
+            ('project_analytic_account_id', '=', self.project_analytic_account_id.id),
+            ('state', '=', 'pending'),
+        ]
+        if self.ipc_date:
+            domain.append(('date', '<=', self.ipc_date))
+        if exclude_ids:
+            domain.append(('id', 'not in', list(exclude_ids)))
+        return domain
 
     # ─────────────────────────────────────────────────────────────────────────
     # ONCHANGE
@@ -517,14 +625,16 @@ class SubcontractorIPC(models.Model):
             """, (partner_id, cutoff_date, analytic_id))
             vendor_pay = cr.fetchone()[0]
 
+            # Petty cash subcontractor advances — read from lines table
             cr.execute("""
-                SELECT COALESCE(SUM(pce.amount), 0)
-                FROM   x_petty_cash_expense pce
-                WHERE  pce.advance_subcontractor_id    = %s
-                  AND  pce.is_subcontractor_advance    = true
-                  AND  pce.state                       = 'posted'
-                  AND  pce.expense_date               <= %s
-                  AND  pce.project_analytic_account_id = %s
+                SELECT COALESCE(SUM(pcel.amount), 0)
+                FROM   x_petty_cash_expense_line pcel
+                JOIN   x_petty_cash_expense pce ON pce.id = pcel.expense_id
+                WHERE  pcel.advance_subcontractor_id    = %s
+                  AND  pcel.is_subcontractor_advance    = true
+                  AND  pce.state                        = 'posted'
+                  AND  pce.expense_date                <= %s
+                  AND  pce.project_analytic_account_id  = %s
             """, (partner_id, cutoff_date, analytic_id))
             petty_cash = cr.fetchone()[0]
 
@@ -541,31 +651,78 @@ class SubcontractorIPC(models.Model):
 
     @api.onchange('subcontractor_id')
     def _onchange_subcontractor_fill_payable(self):
-        """Auto-fill payable account from the subcontractor's partner record."""
-        if (self.subcontractor_id
-                and self.subcontractor_id.property_account_payable_id
-                and not self.x_payable_account_id):
-            self.x_payable_account_id = self.subcontractor_id.property_account_payable_id
+        """Auto-fill expense/payable/journal from partner record then global config."""
+        cfg = self.env['x.ipc.account.config'].sudo()._get_config()
+        # Payable: partner default → config default
+        if not self.x_payable_account_id:
+            if (self.subcontractor_id
+                    and self.subcontractor_id.property_account_payable_id):
+                self.x_payable_account_id = (
+                    self.subcontractor_id.property_account_payable_id)
+            elif cfg.payable_account_id:
+                self.x_payable_account_id = cfg.payable_account_id
+        # Expense account from config
+        if not self.x_expense_account_id and cfg.expense_account_id:
+            self.x_expense_account_id = cfg.expense_account_id
+        # Journal from config
+        if not self.x_journal_id and cfg.journal_id:
+            self.x_journal_id = cfg.journal_id
 
-    @api.onchange('subcontractor_id', 'project_analytic_account_id')
+    def _mtr_cumulative_shortfall_message(self):
+        self.ensure_one()
+        if (self.previous_gross_work_done
+                and self.currency_id.compare_amounts(
+                    self.gross_work_done, self.previous_gross_work_done) < 0):
+            fmt = lambda v: '{:,.2f}'.format(v)
+            return _(
+                'Gross Work Done is CUMULATIVE (total work done since the start, '
+                'including all previous IPCs).\n\n'
+                'Entered: %(entered)s\n'
+                'Work done up to previous IPC %(prev_ipc)s: %(prev)s\n\n'
+                'It cannot be less than the previous total. If %(entered)s is the '
+                'work done in this period only, enter %(suggested)s instead.',
+                entered=fmt(self.gross_work_done),
+                prev_ipc=self.previous_ipc_id.name or '',
+                prev=fmt(self.previous_gross_work_done),
+                suggested=fmt(self.previous_gross_work_done + self.gross_work_done),
+            )
+        return False
+
+    def _mtr_check_cumulative_work_done(self):
+        for ipc in self:
+            message = ipc._mtr_cumulative_shortfall_message()
+            if message:
+                raise UserError(message)
+
+    @api.onchange('gross_work_done', 'previous_gross_work_done')
+    def _onchange_gross_work_done_cumulative(self):
+        message = self._mtr_cumulative_shortfall_message()
+        if message:
+            return {'warning': {'title': _('Gross Work Done is cumulative'), 'message': message}}
+
+    @api.onchange('subcontractor_id', 'project_analytic_account_id', 'ipc_date')
     def _onchange_fetch_backcharges(self):
-        """Auto-populate back charge lines from all pending back charges
-        for this subcontractor + project combination."""
+        """Auto-populate back charge lines from the pending back charges for
+        this subcontractor + project dated up to the IPC Date (Period To)."""
         if not self.subcontractor_id or not self.project_analytic_account_id:
             return
-        pending_bc = self.env['x.subcontractor.backcharge'].search([
-            ('subcontractor_id', '=', self.subcontractor_id.id),
-            ('project_analytic_account_id', '=',
-             self.project_analytic_account_id.id),
-            ('state', '=', 'pending'),
-        ])
+        if self.state not in ('draft', False):
+            return
+        pending_bc = self.env['x.subcontractor.backcharge'].search(
+            self._mtr_pending_backcharge_domain())
         new_lines = [(0, 0, {'backcharge_id': bc.id}) for bc in pending_bc]
-        # Replace lines — start fresh so we don't double-add on sub/project change
-        self.backcharge_line_ids = [(5, 0, 0)] + new_lines
+        # Keep manually added lines; re-fetch registered ones so we don't
+        # double-add on subcontractor/project change.
+        manual_lines = [
+            (0, 0, {'description': l.description, 'date': l.date, 'amount': l.amount})
+            for l in self.backcharge_line_ids if not l.backcharge_id
+        ]
+        self.backcharge_line_ids = [(5, 0, 0)] + manual_lines + new_lines
 
     def action_refresh_backcharges(self):
         """Append any pending back charges not yet linked to this IPC."""
         self.ensure_one()
+        self._matracon_refresh_previous_ipc()
         if not self.subcontractor_id or not self.project_analytic_account_id:
             return {
                 'type': 'ir.actions.client', 'tag': 'display_notification',
@@ -575,26 +732,28 @@ class SubcontractorIPC(models.Model):
                     'sticky': False,
                 },
             }
-        already_linked = self.backcharge_line_ids.mapped('backcharge_id').ids
-        pending = self.env['x.subcontractor.backcharge'].search([
-            ('subcontractor_id', '=', self.subcontractor_id.id),
-            ('project_analytic_account_id', '=',
-             self.project_analytic_account_id.id),
-            ('state', '=', 'pending'),
-            ('id', 'not in', already_linked),
-        ])
+        # Drop register back charges dated after the IPC Date (Period To) —
+        # they stay pending for the next IPC. Manual lines are left alone.
+        too_late = self.backcharge_line_ids.filtered(
+            lambda l: l.backcharge_id and self.ipc_date
+            and l.backcharge_id.date and l.backcharge_id.date > self.ipc_date)
+        already_linked = (self.backcharge_line_ids - too_late).mapped('backcharge_id').ids
+        pending = self.env['x.subcontractor.backcharge'].search(
+            self._mtr_pending_backcharge_domain(already_linked))
+        commands = [(2, l.id) for l in too_late]
+        commands += [(0, 0, {'backcharge_id': bc.id}) for bc in pending]
+        if commands:
+            self.write({'backcharge_line_ids': commands})
+        messages = []
         if pending:
-            self.write({'backcharge_line_ids': [
-                (0, 0, {'backcharge_id': bc.id}) for bc in pending
-            ]})
+            messages.append(_('%d backcharge(s) added.') % len(pending))
+        if too_late:
+            messages.append(_('%d backcharge(s) dated after the IPC Date removed.') % len(too_late))
         return {
             'type': 'ir.actions.client', 'tag': 'display_notification',
             'params': {
-                'type': 'success' if pending else 'info',
-                'message': (
-                    _('%d backcharge(s) added.') % len(pending)
-                    if pending else _('No new pending backcharges found.')
-                ),
+                'type': 'success' if commands else 'info',
+                'message': ' '.join(messages) or _('No new pending backcharges found.'),
                 'sticky': False,
             },
         }
@@ -603,7 +762,29 @@ class SubcontractorIPC(models.Model):
     # WORKFLOW ACTIONS
     # ─────────────────────────────────────────────────────────────────────────
 
+    def _matracon_refresh_previous_ipc(self):
+        """previous_ipc_id is only recomputed when subcontractor/project/date
+        change. If an earlier IPC was submitted after this draft was created,
+        refresh it so Work Done b/f and Back Charges b/f use the right IPC."""
+        for ipc in self.filtered(lambda i: i.state == 'draft' and i.id):
+            latest = self.search([
+                ('subcontractor_id', '=', ipc.subcontractor_id.id),
+                ('project_analytic_account_id', '=', ipc.project_analytic_account_id.id),
+                ('state', 'in', ('submitted', 'paid')),
+                ('id', '!=', ipc.id),
+            ], order='ipc_date desc, id desc', limit=1)
+            if latest != ipc.previous_ipc_id:
+                self.env.add_to_compute(self._fields['previous_ipc_id'], ipc)
+        self.flush_recordset()
+
+    @api.constrains('backcharge_manual_amount')
+    def _check_backcharge_manual_amount(self):
+        for ipc in self:
+            if ipc.backcharge_manual_amount < 0:
+                raise UserError(_('Manual back charge deduction cannot be negative.'))
+
     def action_submit(self):
+        self._matracon_refresh_previous_ipc()
         for ipc in self:
             if ipc.state != 'draft':
                 raise UserError(_('Only draft IPCs can be submitted.'))
@@ -612,17 +793,29 @@ class SubcontractorIPC(models.Model):
                     'Please attach the signed IPC document before submitting.\n\n'
                     'Upload the signed/stamped IPC file using the "IPC Document" field.'
                 ))
+            ipc._mtr_check_cumulative_work_done()
+            # Auto-fill accounts from global config if not already set on the IPC
+            cfg = self.env['x.ipc.account.config'].sudo()._get_config()
+            if not ipc.x_expense_account_id and cfg.expense_account_id:
+                ipc.x_expense_account_id = cfg.expense_account_id
+            if not ipc.x_payable_account_id:
+                if (ipc.subcontractor_id
+                        and ipc.subcontractor_id.property_account_payable_id):
+                    ipc.x_payable_account_id = (
+                        ipc.subcontractor_id.property_account_payable_id)
+                elif cfg.payable_account_id:
+                    ipc.x_payable_account_id = cfg.payable_account_id
+            if not ipc.x_journal_id and cfg.journal_id:
+                ipc.x_journal_id = cfg.journal_id
             if not ipc.x_expense_account_id:
                 raise UserError(_(
-                    'Please select a Work Expense Account before submitting.\n\n'
-                    'This is the GL account that will be debited for the certified '
-                    'work done (e.g. "Subcontract Work Expense").'
+                    'Please select a Work Expense Account before submitting, or '
+                    'configure a default in Accounting → Configuration → IPC Account Settings.'
                 ))
             if not ipc.x_payable_account_id:
                 raise UserError(_(
-                    'Please select a Subcontractor Payable Account before submitting.\n\n'
-                    'This is the liability account that will be credited for the net '
-                    'payable — it creates the entry in the Partner Ledger and Liability Sheet.'
+                    'Please select a Subcontractor Payable Account before submitting, or '
+                    'configure a default in Accounting → Configuration → IPC Account Settings.'
                 ))
             if ipc.other_deductions_amount and not (
                     ipc.other_deductions_reason or '').strip():
@@ -650,6 +843,18 @@ class SubcontractorIPC(models.Model):
                         'ipc_id': ipc.id,
                     })
             ipc.state = 'submitted'
+            if ipc.backcharge_balance_bf or ipc.backcharge_deduction_mode == 'manual':
+                ipc.message_post(body=Markup(_(
+                    'Back charges — b/f: %(bf)s, this IPC: %(cur)s, due: %(due)s, '
+                    'deducted (%(mode)s): <b>%(applied)s</b>, c/f to next IPC: <b>%(cf)s</b>.'
+                )) % {
+                    'bf': '{:,.2f}'.format(ipc.backcharge_balance_bf),
+                    'cur': '{:,.2f}'.format(ipc.backcharge_total),
+                    'due': '{:,.2f}'.format(ipc.backcharge_due),
+                    'mode': dict(ipc._fields['backcharge_deduction_mode'].selection)[ipc.backcharge_deduction_mode],
+                    'applied': '{:,.2f}'.format(ipc.backcharge_applied),
+                    'cf': '{:,.2f}'.format(ipc.backcharge_balance_cf),
+                })
             ipc.message_post(body=Markup(_(
                 'IPC <b>%(name)s</b> (IPC No. %(num)s) submitted. '
                 'Net Payable: <b>%(currency)s %(amount)s</b>. '
@@ -667,29 +872,43 @@ class SubcontractorIPC(models.Model):
             })
 
     def _create_ipc_journal_entry(self):
-        """Post a journal entry for the IPC net payable.
+        """Post a full multi-line journal entry covering every IPC component.
 
-        Entry:
-          Dr  x_expense_account_id   (work done cost — P&L expense)   = net_payable
-          Cr  x_payable_account_id   (subcontractor liability)         = net_payable
-              └─ partner_id = subcontractor_id
-              └─ analytic_distribution = {project_analytic_id: 100}
+        Structure (all lines carry analytic distribution):
+          Dr  Work Expense Account       = this_ipc_gross + other_additions_amount
+          Cr  Retention Payable          = retention_amount        (if account configured)
+          Cr  Mob Advance Account        = mob_advance_recovery    (if account configured)
+          Cr  Security Withheld Account  = security_withheld       (if account configured)
+          Cr  Back Charge Recovery       = backcharge_applied      (if account configured)
+          Cr  Other Deductions Account   = other_deductions_amount (if account configured)
+          Cr  Subcontractor Payable      = remaining credit to balance the entry
+                                           (= net_payable + ho_advance_recovery
+                                              + any unconfigured deduction amounts)
 
-        The CREDIT on the payable account with partner_id stamped is what
-        makes this entry appear in the Partner Ledger and be picked up by
-        "Refresh from Ledger" on the Liability Sheet — mirroring exactly how
-        a posted vendor bill hits the payable account.
+        Balancing rule: payable_credit = total_debit − configured_deduction_credits.
+        Any deduction whose account is not configured in IPC Settings is absorbed
+        into the payable credit, so the JE is always balanced regardless of which
+        accounts are set.
+
+        Partner-ledger effect:
+          • Payable credit = this_ipc_gross + other_add − configured_deductions
+          • Prior payments (ho_advance_recovery) already exist as payable debits
+          • Net in partner ledger = payable_credit − prior_payments = net_payable ✓
         """
         self.ensure_one()
-        if self.net_payable <= 0:
+
+        total_debit = self.this_ipc_gross + self.other_additions_amount
+        if total_debit <= 0 and self.net_payable <= 0:
             return
+
+        cfg = self.env['x.ipc.account.config'].sudo()._get_config()
 
         analytic_distribution = {}
         if self.project_analytic_account_id:
             analytic_distribution = {str(self.project_analytic_account_id.id): 100}
 
-        # Auto-resolve journal: prefer user's choice, then first General journal
-        journal = self.x_journal_id
+        # ── Resolve journal ───────────────────────────────────────────────────
+        journal = self.x_journal_id or cfg.journal_id
         if not journal:
             journal = self.env['account.journal'].search([
                 ('type', '=', 'general'),
@@ -697,49 +916,163 @@ class SubcontractorIPC(models.Model):
             ], limit=1)
         if not journal:
             raise UserError(_(
-                'No General journal found. Please create one in '
-                'Accounting → Configuration → Journals, '
-                'or select a journal on the IPC form.'
+                'No General journal found. Configure one in '
+                'Accounting → Configuration → IPC Account Settings '
+                'or select one on this IPC.'
             ))
+
+        sub  = self.subcontractor_id.name or ''
+        num  = self.ipc_number
+        anal = analytic_distribution or False
+
+        line_ids = []
+
+        # ── Debit: Work Expense (full gross + additions) ──────────────────────
+        if total_debit > 0:
+            line_ids.append((0, 0, {
+                'name': _(
+                    'Subcontract Work — %(sub)s (IPC No. %(num)s)'
+                ) % {'sub': sub, 'num': num},
+                'account_id': self.x_expense_account_id.id,
+                'debit':  total_debit,
+                'credit': 0.0,
+                'analytic_distribution': anal,
+            }))
+
+        configured_credits = 0.0
+
+        # ── Credit: Retention Payable ─────────────────────────────────────────
+        if self.retention_amount > 0 and cfg.retention_payable_account_id:
+            line_ids.append((0, 0, {
+                'name': _(
+                    'Retention Withheld %(pct)s%% — %(sub)s (IPC %(num)s)'
+                ) % {'pct': self.retention_pct, 'sub': sub, 'num': num},
+                'account_id': cfg.retention_payable_account_id.id,
+                'partner_id': self.subcontractor_id.id,
+                'debit':  0.0,
+                'credit': self.retention_amount,
+                'analytic_distribution': anal,
+            }))
+            configured_credits += self.retention_amount
+
+        # ── Credit: Mob Advance Recovery ──────────────────────────────────────
+        if self.mob_advance_recovery > 0 and cfg.mob_advance_account_id:
+            line_ids.append((0, 0, {
+                'name': _(
+                    'Mob Advance Recovery — %(sub)s (IPC %(num)s)'
+                ) % {'sub': sub, 'num': num},
+                'account_id': cfg.mob_advance_account_id.id,
+                'partner_id': self.subcontractor_id.id,
+                'debit':  0.0,
+                'credit': self.mob_advance_recovery,
+                'analytic_distribution': anal,
+            }))
+            configured_credits += self.mob_advance_recovery
+
+        # ── Credit: Security Withheld ─────────────────────────────────────────
+        if self.security_withheld > 0 and cfg.security_withheld_account_id:
+            line_ids.append((0, 0, {
+                'name': _(
+                    'Security Withheld — %(sub)s (IPC %(num)s)'
+                ) % {'sub': sub, 'num': num},
+                'account_id': cfg.security_withheld_account_id.id,
+                'partner_id': self.subcontractor_id.id,
+                'debit':  0.0,
+                'credit': self.security_withheld,
+                'analytic_distribution': anal,
+            }))
+            configured_credits += self.security_withheld
+
+        # ── Credit: Back Charge Recovery ──────────────────────────────────────
+        if self.backcharge_applied > 0 and cfg.backcharge_recovery_account_id:
+            line_ids.append((0, 0, {
+                'name': _(
+                    'Back Charge Recovery — %(sub)s (IPC %(num)s)'
+                ) % {'sub': sub, 'num': num},
+                'account_id': cfg.backcharge_recovery_account_id.id,
+                'partner_id': self.subcontractor_id.id,
+                'debit':  0.0,
+                'credit': self.backcharge_applied,
+                'analytic_distribution': anal,
+            }))
+            configured_credits += self.backcharge_applied
+
+        # ── Credit: Other Deductions ──────────────────────────────────────────
+        if self.other_deductions_amount > 0 and cfg.other_deductions_account_id:
+            line_ids.append((0, 0, {
+                'name': _(
+                    'Other Deductions — %(reason)s (IPC %(num)s)'
+                ) % {'reason': self.other_deductions_reason or 'N/A', 'num': num},
+                'account_id': cfg.other_deductions_account_id.id,
+                'partner_id': self.subcontractor_id.id,
+                'debit':  0.0,
+                'credit': self.other_deductions_amount,
+                'analytic_distribution': anal,
+            }))
+            configured_credits += self.other_deductions_amount
+
+        # ── Credit: Payment Recovery (separate payable line) ─────────────────
+        # ho_advance_recovery represents payments already made to the subcontractor
+        # (prior bank payments debited the payable account). Booking it as its own
+        # credit line on the payable account ensures the prior debits and this credit
+        # cancel each other out — leaving the net payable line as exactly net_payable.
+        if self.ho_advance_recovery > 0:
+            line_ids.append((0, 0, {
+                'name': _(
+                    'Payment Recovery — %(sub)s (IPC %(num)s)'
+                ) % {'sub': sub, 'num': num},
+                'account_id': self.x_payable_account_id.id,
+                'partner_id': self.subcontractor_id.id,
+                'debit':  0.0,
+                'credit': self.ho_advance_recovery,
+                'analytic_distribution': anal,
+            }))
+            configured_credits += self.ho_advance_recovery
+
+        # ── Credit: Subcontractor Payable (net payable balancing line) ────────
+        # = total_debit − all configured credits (including payment recovery above)
+        # Equals net_payable when all deductions have configured accounts;
+        # absorbs any unconfigured deduction amounts if accounts are missing.
+        # x_ipc_retention_amount is stamped here for the Partner Ledger Retention column.
+        payable_credit = round(total_debit - configured_credits, 2)
+        if payable_credit > 0:
+            line_ids.append((0, 0, {
+                'name': _('IPC %(name)s — %(sub)s') % {
+                    'name': self.name, 'sub': sub},
+                'account_id': self.x_payable_account_id.id,
+                'partner_id': self.subcontractor_id.id,
+                'debit':  0.0,
+                'credit': payable_credit,
+                'analytic_distribution': anal,
+                'x_ipc_retention_amount': self.retention_amount,
+            }))
+        elif payable_credit < 0:
+            # Deductions exceed gross (unusual) — debit payable to balance
+            line_ids.append((0, 0, {
+                'name': _('IPC %(name)s — %(sub)s (deduction excess)') % {
+                    'name': self.name, 'sub': sub},
+                'account_id': self.x_payable_account_id.id,
+                'partner_id': self.subcontractor_id.id,
+                'debit':  -payable_credit,
+                'credit': 0.0,
+                'analytic_distribution': anal,
+            }))
+
+        if not line_ids:
+            return
 
         move = self.env['account.move'].create({
             'move_type': 'entry',
             'journal_id': journal.id,
             'date': self.ipc_date or fields.Date.today(),
             'ref': _('IPC %(name)s — %(sub)s (IPC No. %(num)s)') % {
-                'name': self.name,
-                'sub': self.subcontractor_id.name or '',
-                'num': self.ipc_number,
+                'name': self.name, 'sub': sub, 'num': num,
             },
             'x_project_analytic_account_id': (
                 self.project_analytic_account_id.id
                 if self.project_analytic_account_id else False
             ),
-            'line_ids': [
-                # ── Debit: Work expense account ──────────────────────────────
-                (0, 0, {
-                    'name': _('Subcontract Work — %(sub)s (IPC No. %(num)s)') % {
-                        'sub': self.subcontractor_id.name or '',
-                        'num': self.ipc_number,
-                    },
-                    'account_id': self.x_expense_account_id.id,
-                    'debit': self.net_payable,
-                    'credit': 0.0,
-                    'analytic_distribution': analytic_distribution or False,
-                }),
-                # ── Credit: Subcontractor payable (hits partner ledger) ───────
-                (0, 0, {
-                    'name': _('IPC %(name)s — %(sub)s') % {
-                        'name': self.name,
-                        'sub': self.subcontractor_id.name or '',
-                    },
-                    'account_id': self.x_payable_account_id.id,
-                    'partner_id': self.subcontractor_id.id,
-                    'debit': 0.0,
-                    'credit': self.net_payable,
-                    'analytic_distribution': analytic_distribution or False,
-                }),
-            ],
+            'line_ids': line_ids,
         })
         move.action_post()
         self.x_account_move_id = move
@@ -759,12 +1092,13 @@ class SubcontractorIPC(models.Model):
         allowed = [
             'site_operations.group_site_accountant',
             'site_operations.group_finance_ho',
+            'purchase_demand_raise.group_ceo_approval',
             'purchase_demand_raise.group_matracon_admin',
             'base.group_system',
         ]
         if not any(self.env.user.has_group(g) for g in allowed):
             raise UserError(_(
-                'Only Site Accountant, Finance HO, or Matracon Admin can reset an IPC to Draft.'
+                'Only Site Accountant, Finance HO, CEO or Matracon Admin can reset an IPC to Draft.'
             ))
         for ipc in self:
             if ipc.state == 'draft':
@@ -774,6 +1108,18 @@ class SubcontractorIPC(models.Model):
                     'IPC %s is already marked as Paid and cannot be reset to Draft.\n\n'
                     'If a payment needs to be reversed, handle it via the linked payment record.'
                 ) % ipc.name)
+            # A later submitted IPC froze this IPC's back charge c/f as its b/f.
+            later = self.search([
+                ('previous_ipc_id', '=', ipc.id),
+                ('state', 'in', ('submitted', 'paid')),
+            ], limit=1)
+            if later and ipc.backcharge_balance_cf:
+                raise UserError(_(
+                    'IPC %(ipc)s carried a back charge balance of %(amt).2f forward to '
+                    'IPC %(later)s, which is already submitted.\n\n'
+                    'Reset IPC %(later)s to Draft first.',
+                    ipc=ipc.name, amt=ipc.backcharge_balance_cf, later=later.name,
+                ))
 
             # ── 1. Reverse the journal entry ──────────────────────────────────
             move = ipc.x_account_move_id
@@ -795,7 +1141,8 @@ class SubcontractorIPC(models.Model):
             for line in ipc.backcharge_line_ids:
                 bc = line.backcharge_id
                 if bc and bc.ipc_id == ipc and bc.state == 'processed':
-                    bc.sudo().write({'state': 'pending', 'ipc_id': False})
+                    bc.sudo().with_context(matracon_ipc_reset=True).write(
+                        {'state': 'pending', 'ipc_id': False})
 
             # ── 3. Reset IPC fields ───────────────────────────────────────────
             ipc.write({
@@ -819,8 +1166,17 @@ class SubcontractorIPC(models.Model):
                 body=_('IPC %s marked as paid.') % ipc.name)
 
     def _update_liability_sheet(self):
-        """Add this IPC's net payable to the current month's liability sheet
-        for the project. Creates the sheet if one does not yet exist."""
+        """Add this IPC's net payable to the appropriate liability sheet for
+        the project.  Sheet lookup order (all scoped to draft/submitted):
+
+        1. Sheet starting exactly on the calendar month_start  (fast path).
+        2. Any sheet whose date range already covers bill_date  (handles
+           non-standard date ranges such as Sep-06 → Oct-05).
+        3. No sheet covers bill_date → create one, but start it the day
+           AFTER the latest existing sheet ends to avoid any overlap with
+           previously created sheets (instead of rigidly using month_start
+           which could land inside an existing sheet's range).
+        """
         self.ensure_one()
         if not self.project_analytic_account_id or not self.subcontractor_id:
             return
@@ -831,16 +1187,39 @@ class SubcontractorIPC(models.Model):
             month_start + relativedelta(months=1)) - relativedelta(days=1)
 
         LiabilitySheet = self.env['x.liability.sheet'].sudo()
+        analytic_id = self.project_analytic_account_id.id
+
+        # ── Step 1: exact calendar-month match ───────────────────────────────
         sheet = LiabilitySheet.search([
-            ('project_analytic_account_id', '=',
-             self.project_analytic_account_id.id),
+            ('project_analytic_account_id', '=', analytic_id),
             ('date_from', '=', month_start),
             ('state', 'in', ('draft', 'submitted')),
         ], limit=1)
+
+        # ── Step 2: any sheet that already covers the IPC date ────────────────
         if not sheet:
+            sheet = LiabilitySheet.search([
+                ('project_analytic_account_id', '=', analytic_id),
+                ('date_from', '<=', bill_date),
+                ('date_to',   '>=', bill_date),
+                ('state', 'in', ('draft', 'submitted')),
+            ], limit=1)
+
+        # ── Step 3: create a new sheet, avoiding overlap ──────────────────────
+        if not sheet:
+            # Find the latest sheet that ends before the IPC date and start
+            # the new sheet the day after it — so no overlap can occur.
+            latest = LiabilitySheet.search([
+                ('project_analytic_account_id', '=', analytic_id),
+                ('date_to', '<', bill_date),
+            ], order='date_to desc', limit=1)
+            start_date = (
+                latest.date_to + relativedelta(days=1)
+                if latest else month_start
+            )
             sheet = LiabilitySheet.create({
-                'project_analytic_account_id': self.project_analytic_account_id.id,
-                'date_from': month_start,
+                'project_analytic_account_id': analytic_id,
+                'date_from': start_date,
                 'date_to': month_end,
             })
 
@@ -892,6 +1271,68 @@ class SubcontractorIPC(models.Model):
             'view_mode': 'form',
             'res_id': self.x_account_move_id.id,
         }
+
+    def action_regenerate_journal_entry(self):
+        """Replace the existing IPC journal entry with a fresh multi-line entry.
+
+        Use this on already-submitted IPCs whose old single-line JE (Dr Expense /
+        Cr Payable = net_payable) needs to be replaced by the full multi-line version
+        that books retention, mob advance recovery, security, back charges, and other
+        deductions to their proper GL accounts.
+
+        Steps:
+          1. Reverse & cancel the old JE (clean GL trail — no manual deletion).
+          2. Call _create_ipc_journal_entry() to post the new balanced entry.
+          3. Log to chatter.
+
+        Access: Finance HO, Matracon Admin, System only.
+        Paid IPCs: blocked (payment already reconciled — reversal is too risky).
+        """
+        allowed = [
+            'site_operations.group_finance_ho',
+            'purchase_demand_raise.group_ceo_approval',
+            'purchase_demand_raise.group_matracon_admin',
+            'base.group_system',
+        ]
+        if not any(self.env.user.has_group(g) for g in allowed):
+            raise UserError(_(
+                'Only Finance HO, CEO or Matracon Admin can regenerate an IPC journal entry.'
+            ))
+        for ipc in self:
+            if ipc.state == 'draft':
+                raise UserError(_(
+                    'IPC %s is in Draft — submit it first to generate a journal entry.'
+                ) % ipc.name)
+            if ipc.state == 'paid':
+                raise UserError(_(
+                    'IPC %s is already Paid. Reset it to Draft via payment reversal '
+                    'before regenerating the journal entry.'
+                ) % ipc.name)
+
+            # ── 1. Delete existing JE (draft → unlink, no reversal artifact) ──
+            # Using reset-to-draft + unlink avoids leaving reversal entries in
+            # the partner ledger. Each regeneration produces exactly ONE JE.
+            old_move = ipc.x_account_move_id
+            old_move_name = old_move.name if old_move else '—'
+            if old_move:
+                if old_move.state == 'posted':
+                    old_move.sudo().button_draft()
+                old_move.sudo().unlink()
+            ipc.x_account_move_id = False
+
+            # ── 2. Create fresh multi-line JE ─────────────────────────────────
+            ipc._create_ipc_journal_entry()
+
+            # ── 3. Chatter ────────────────────────────────────────────────────
+            ipc.message_post(body=Markup(_(
+                '🔄 Journal entry regenerated by <b>%(user)s</b>.<br/>'
+                'Old entry <b>%(old)s</b> deleted.<br/>'
+                'New entry: <b>%(new)s</b>'
+            )) % {
+                'user': self.env.user.name,
+                'old': old_move_name,
+                'new': ipc.x_account_move_id.name if ipc.x_account_move_id else '—',
+            })
 
     def action_view_payments(self):
         self.ensure_one()
