@@ -78,6 +78,8 @@ class StockPickingSiteOps(models.Model):
     x_is_return_transfer = fields.Boolean(string='Is Return', default=False)
     x_original_issuance_id = fields.Many2one(
         'stock.picking', string='Original Issuance')
+    x_return_picking_ids = fields.One2many(
+        'stock.picking', 'x_original_issuance_id', string='Return Transfers')
     x_return_type = fields.Selection([
         ('normal', 'Normal Return'),
         ('damaged', 'Damaged / Lost'),
@@ -2102,7 +2104,10 @@ class StockPickingSiteOps(models.Model):
             raise UserError(_('Reset to Draft is only supported for Material Issuances.'))
 
         # Check for active return transfers
-        active_returns = self.x_return_picking_ids.filtered(lambda p: p.state != 'cancel')
+        active_returns = self.env['stock.picking'].search([
+            ('x_original_issuance_id', '=', self.id),
+            ('state', '!=', 'cancel'),
+        ])
         if active_returns:
             raise UserError(_(
                 'Cannot reset to draft: this issuance has active return transfers (%(returns)s).\n'
