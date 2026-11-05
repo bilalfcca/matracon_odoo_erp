@@ -90,7 +90,9 @@
                         specifications.
                     </p>
 
-                    <!-- Line items — Price / Tax / Total BLANK for vendor to fill -->
+                    <!-- Line items — Price / Tax / Total BLANK for vendor to fill if not priced, or printed if priced -->
+                    <t t-set="_rfq_has_prices"
+                       t-value="any((l.price_unit or 0.0) > 0 for l in o.order_line if not l.display_type)"/>
                     <table class="rfq-table">
                         <thead>
                             <tr>
@@ -98,12 +100,13 @@
                                 <t t-if="o.x_show_product_ref">
                                     <th style="width:8%; text-align:left;">Ref.</th>
                                 </t>
-                                <th t-attf-style="width:#{o.x_show_product_ref and '23%' or '31%'}; text-align:left;">Product / Description</th>
-                                <th style="width:9%;">UoM</th>
-                                <th style="width:11%;">Quantity</th>
-                                <th style="width:16%;">Unit Price (PKR)</th>
-                                <th style="width:11%;">Tax %</th>
-                                <th style="width:18%;">Total (PKR)</th>
+                                <th t-attf-style="width:#{o.x_show_product_ref and '24%' or '32%'}; text-align:left;">Product / Description</th>
+                                <th style="width:8%;">UoM</th>
+                                <th style="width:9%;">Quantity</th>
+                                <th style="width:13%; text-align:right;">Unit Price (PKR)</th>
+                                <th style="width:8%; text-align:center;">Disc. %</th>
+                                <th style="width:10%; text-align:center;">Tax %</th>
+                                <th style="width:16%; text-align:right;">Total (PKR)</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -112,6 +115,9 @@
                                 <t t-if="not line.display_type">
                                     <!-- qty cascade: approved → recommended → requested → product_qty -->
                                     <t t-set="rfq_qty" t-value="line._x_effective_qty()"/>
+                                    <t t-set="line_disc" t-value="line.discount or 0.0"/>
+                                    <t t-set="line_sub"
+                                       t-value="rfq_qty * (line.price_unit or 0.0) * (1.0 - line_disc / 100.0)"/>
                                     <tr>
                                         <td style="text-align:center; color:#222;">
                                             <t t-esc="line_no"/>
@@ -136,17 +142,40 @@
                                         <td style="text-align:center; font-weight:bold; color:#222;">
                                             <t t-esc="('{:,.0f}' if rfq_qty == int(rfq_qty) else '{:,.3f}').format(rfq_qty)"/>
                                         </td>
-                                        <!-- Price / Tax / Total: BLANK — vendor fills in -->
-                                        <td></td>
-                                        <td></td>
-                                        <td></td>
+                                        <!-- Price / Disc / Tax / Total: filled if priced, blank for vendor to fill if empty -->
+                                        <t t-if="line.price_unit">
+                                            <td style="text-align:right;">
+                                                <t t-esc="'{:,.2f}'.format(line.price_unit)"/>
+                                            </td>
+                                            <td style="text-align:center;">
+                                                <t t-if="line_disc > 0">
+                                                    <t t-esc="'{:,.2f}'.format(line_disc)"/>%
+                                                </t>
+                                                <t t-else="">—</t>
+                                            </td>
+                                            <td style="text-align:center;">
+                                                <t t-if="line.taxes_id">
+                                                    <t t-esc="', '.join(line.taxes_id.mapped('name'))"/>
+                                                </t>
+                                                <t t-else="">—</t>
+                                            </td>
+                                            <td style="text-align:right; font-weight:bold;">
+                                                <t t-esc="'{:,.2f}'.format(line_sub)"/>
+                                            </td>
+                                        </t>
+                                        <t t-else="">
+                                            <td></td>
+                                            <td></td>
+                                            <td></td>
+                                            <td></td>
+                                        </t>
                                     </tr>
                                 </t>
                                 <!-- Section / note lines ("Add a section" / "Add a note"
                                      on the order lines): print as a full-width row. -->
                                 <t t-elif="line.display_type and line.name">
                                     <tr>
-                                        <td t-att-colspan="7 + (1 if o.x_show_product_ref else 0)"
+                                        <td t-att-colspan="8 + (1 if o.x_show_product_ref else 0)"
                                             t-attf-style="text-align:left; color:#222; white-space:pre-line; #{line.display_type == 'line_note' and 'font-style:italic;' or 'font-weight:bold;'}">
                                             <t t-esc="line.name"/>
                                         </td>
@@ -154,6 +183,39 @@
                                 </t>
                             </t>
                         </tbody>
+                        <t t-if="_rfq_has_prices">
+                            <tbody class="rfq-totals">
+                                <tr>
+                                    <td t-att-colspan="7 + (1 if o.x_show_product_ref else 0)"
+                                        style="text-align:right; padding:6px 8px; font-weight:bold; background:#eef1f7; border:1px solid #ccc;">
+                                        Total Untaxed Amount (<t t-esc="o.currency_id.name or 'PKR'"/>)
+                                    </td>
+                                    <td style="text-align:right; padding:6px 8px; font-weight:bold; background:#eef1f7; border:1px solid #ccc;">
+                                        <t t-esc="'{:,.2f}'.format(o.amount_untaxed)"/>
+                                    </td>
+                                </tr>
+                                <t t-if="o.amount_tax">
+                                    <tr>
+                                        <td t-att-colspan="7 + (1 if o.x_show_product_ref else 0)"
+                                            style="text-align:right; padding:5px 8px; background:#eef1f7; border:1px solid #ccc;">
+                                            Taxes
+                                        </td>
+                                        <td style="text-align:right; padding:5px 8px; background:#eef1f7; border:1px solid #ccc;">
+                                            <t t-esc="'{:,.2f}'.format(o.amount_tax)"/>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td t-att-colspan="7 + (1 if o.x_show_product_ref else 0)"
+                                            style="text-align:right; padding:7px 8px; font-weight:bold; background:#d4daf0; border:1px solid #1a3a5c;">
+                                            Total Amount (<t t-esc="o.currency_id.name or 'PKR'"/>)
+                                        </td>
+                                        <td style="text-align:right; padding:7px 8px; font-weight:bold; background:#d4daf0; border:1px solid #1a3a5c;">
+                                            <t t-esc="'{:,.2f}'.format(o.amount_total)"/>
+                                        </td>
+                                    </tr>
+                                </t>
+                            </tbody>
+                        </t>
                     </table>
 
                     <!-- Terms &amp; Conditions -->
