@@ -140,7 +140,7 @@ class StockPickingSiteOps(models.Model):
     x_sa_review_status = fields.Char(
         string='SA Review',
         compute='_compute_x_sa_review_status',
-        store=True,
+        store=False,
     )
 
     @api.depends('x_submitted_to_sa', 'state')
