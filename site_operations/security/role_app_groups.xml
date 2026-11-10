@@ -105,6 +105,7 @@
                     ref('base.group_allow_export'),
                     ref('group_mtr_app_accounting'),
                     ref('group_mtr_app_attendance'),
+                    ref('group_mtr_app_hr'),
                 ])
             ]"/>
         </record>
