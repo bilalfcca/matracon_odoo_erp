@@ -4,6 +4,7 @@ from . import x_employee_presence_log
 from . import mail_presence_ext
 from . import hr_employee_ext
 from . import employee_document
+from . import hr_master_data_security
 from . import attendance_sheet
 from . import salary_sheet
 from . import petty_cash
