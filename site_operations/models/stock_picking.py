@@ -78,6 +78,8 @@ class StockPickingSiteOps(models.Model):
     x_is_return_transfer = fields.Boolean(string='Is Return', default=False)
     x_original_issuance_id = fields.Many2one(
         'stock.picking', string='Original Issuance')
+    x_return_picking_ids = fields.One2many(
+        'stock.picking', 'x_original_issuance_id', string='Return Transfers')
     x_return_type = fields.Selection([
         ('normal', 'Normal Return'),
         ('damaged', 'Damaged / Lost'),
@@ -138,7 +140,7 @@ class StockPickingSiteOps(models.Model):
     x_sa_review_status = fields.Char(
         string='SA Review',
         compute='_compute_x_sa_review_status',
-        store=True,
+        store=False,
     )
 
     @api.depends('x_submitted_to_sa', 'state')
@@ -2102,7 +2104,10 @@ class StockPickingSiteOps(models.Model):
             raise UserError(_('Reset to Draft is only supported for Material Issuances.'))
 
         # Check for active return transfers
-        active_returns = self.x_return_picking_ids.filtered(lambda p: p.state != 'cancel')
+        active_returns = self.env['stock.picking'].search([
+            ('x_original_issuance_id', '=', self.id),
+            ('state', '!=', 'cancel'),
+        ])
         if active_returns:
             raise UserError(_(
                 'Cannot reset to draft: this issuance has active return transfers (%(returns)s).\n'
@@ -2139,18 +2144,18 @@ class StockPickingSiteOps(models.Model):
                     pkg = getattr(line, 'package_id', False)
                     result_pkg = getattr(line, 'result_package_id', False)
                     owner = getattr(line, 'owner_id', False)
-                    # Deduct from destination location
-                    Quant._update_available_quantity(
-                        line.product_id, line.location_dest_id, -line.quantity,
-                        lot_id=lot, package_id=result_pkg, owner_id=owner,
-                        strict=False,
-                    )
-                    # Restore back to source location
-                    Quant._update_available_quantity(
-                        line.product_id, line.location_id, line.quantity,
-                        lot_id=lot, package_id=pkg, owner_id=owner,
-                        strict=False,
-                    )
+                    # Deduct from destination location if internal
+                    if line.location_dest_id.usage == 'internal':
+                        Quant._update_available_quantity(
+                            line.product_id, line.location_dest_id, -line.quantity,
+                            lot_id=lot, package_id=result_pkg, owner_id=owner,
+                        )
+                    # Restore back to source location if internal
+                    if line.location_id.usage == 'internal':
+                        Quant._update_available_quantity(
+                            line.product_id, line.location_id, line.quantity,
+                            lot_id=lot, package_id=pkg, owner_id=owner,
+                        )
 
             # Unlink stock valuation layers if any exist
             for move in self.move_ids:
