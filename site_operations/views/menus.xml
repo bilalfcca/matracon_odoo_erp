@@ -4,6 +4,19 @@
          Site Operations — Menu Placement
     ════════════════════════════════════════════════════════════════════════ -->
 
+    <!-- ── Site Accountant: direct Employees menu ───────────────────────────
+         The accountant already receives the HR Officer model capability through
+         the Attendance Officer group, but the native Employees navigation can
+         be hidden by menu-group configuration. This explicit menu exposes only
+         the employee list action; it does not grant HR Manager/configuration access.
+    ──────────────────────────────────────────────────────────────────────── -->
+    <menuitem id="menu_site_accountant_employees"
+              name="Employees"
+              parent="hr.menu_hr_root"
+              action="hr.open_view_employee_list_my"
+              sequence="5"
+              groups="site_operations.group_site_accountant"/>
+
     <!-- ── Rename Accounting > Customers > Payments → Receipts ─────────────── -->
     <record id="account.menu_action_account_payments_receivable" model="ir.ui.menu">
         <field name="name">Receipts</field>
