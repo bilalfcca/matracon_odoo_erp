@@ -1,0 +1,8 @@
+## Ignore documnets directory
+matracon_documents/
+
+## Ignore Python bytecode and cache directories
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
