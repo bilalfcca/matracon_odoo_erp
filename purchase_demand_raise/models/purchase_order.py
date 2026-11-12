@@ -1341,6 +1341,15 @@ class PurchaseOrder(models.Model):
                 )
         return result
 
+    def _mtr_done_receipt_count(self):
+        """Received (done) receipts still linked to this PO. Pending receipts
+        don't block a reset: button_cancel() cancels them."""
+        self.ensure_one()
+        return self.env['stock.picking'].sudo().search_count([
+            ('move_ids.purchase_line_id.order_id', '=', self.id),
+            ('state', '=', 'done'),
+        ])
+
     def action_reset_to_draft(self):
         """Role-specific partial revert — each user only undoes their own step.
 
@@ -1365,11 +1374,12 @@ class PurchaseOrder(models.Model):
 
             if is_admin:
                 # ── Admin: full reset ─────────────────────────────────────
-                if order.x_pr_state == 'po_locked' and order.incoming_picking_count:
+                done_receipts = order._mtr_done_receipt_count()
+                if order.x_pr_state == 'po_locked' and done_receipts:
                     raise UserError(_(
-                        'PO %(name)s has %(n)s receipt(s) already created. '
-                        'Reverse the receipts before resetting.',
-                        name=order.name, n=order.incoming_picking_count,
+                        'PO %(name)s has %(n)s received receipt(s). '
+                        'Cancel the receipts (Cancel Receipt button) before resetting.',
+                        name=order.name, n=done_receipts,
                     ))
                 if order.state == 'cancel':
                     order.sudo().button_draft()
@@ -1394,11 +1404,12 @@ class PurchaseOrder(models.Model):
                     raise UserError(_(
                         'No CEO decision to undo on %(name)s.', name=order.name
                     ))
-                if order.x_pr_state == 'po_locked' and order.incoming_picking_count:
+                done_receipts = order._mtr_done_receipt_count()
+                if order.x_pr_state == 'po_locked' and done_receipts:
                     raise UserError(_(
-                        'PO %(name)s has %(n)s receipt(s) already created. '
-                        'Reverse the receipts before undoing CEO approval.',
-                        name=order.name, n=order.incoming_picking_count,
+                        'PO %(name)s has %(n)s received receipt(s). '
+                        'Cancel the receipts (Cancel Receipt button) before undoing CEO approval.',
+                        name=order.name, n=done_receipts,
                     ))
                 # If PO was confirmed, cancel it back to draft via sudo
                 if order.state == 'purchase':
