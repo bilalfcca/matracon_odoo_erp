@@ -22,7 +22,7 @@
                 <div class="input-group flex-grow-1">
                     <span class="input-group-text"><i t-attf-class="fa {{ currentMode ? currentMode.icon : 'fa-search' }}"/></span>
                     <input t-ref="input" type="text" class="form-control form-control-lg"
-                           t-att-placeholder="placeholder" t-model="state.term" t-on-keydown="onKeydown"/>
+                           t-att-placeholder="placeholder" t-model="state.term" t-on-input="onInput" t-on-keydown="onKeydown"/>
                     <button class="btn btn-primary" t-on-click="search" t-att-disabled="state.loading">
                         <i t-if="state.loading" class="fa fa-spinner fa-spin"/>
                         <span t-else="">Search</span>
