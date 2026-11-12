@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <!-- Top bar: search + filter icons, next to chat and activities -->
+    <t t-name="matracon_global_search.Systray">
+        <div class="o_mtr_gs_systray d-flex align-items-center">
+            <button class="o_nav_entry btn btn-link px-2" title="Global Search" aria-label="Global Search"
+                    t-on-click="() => this.open(false)">
+                <i class="fa fa-search fa-lg"/>
+            </button>
+            <button class="o_nav_entry btn btn-link px-2" title="Global Search filters" aria-label="Global Search filters"
+                    t-on-click="() => this.open(true)">
+                <i class="fa fa-filter fa-lg"/>
+            </button>
+        </div>
+    </t>
+
+    <t t-name="matracon_global_search.GlobalSearchDialog">
+        <Dialog title="'Global Search'" size="'xl'" footer="false" contentClass="'o_mtr_gs'">
+            <!-- Search box -->
+            <div class="o_mtr_gs_bar d-flex gap-2 align-items-center">
+                <div class="input-group flex-grow-1">
+                    <span class="input-group-text"><i t-attf-class="fa {{ currentMode ? currentMode.icon : 'fa-search' }}"/></span>
+                    <input t-ref="input" type="text" class="form-control form-control-lg"
+                           t-att-placeholder="placeholder" t-model="state.term" t-on-keydown="onKeydown"/>
+                    <button class="btn btn-primary" t-on-click="search" t-att-disabled="state.loading">
+                        <i t-if="state.loading" class="fa fa-spinner fa-spin"/>
+                        <span t-else="">Search</span>
+                    </button>
+                </div>
+                <button class="btn btn-outline-secondary position-relative" t-on-click="toggleFilters"
+                        title="Filters">
+                    <i class="fa fa-filter"/>
+                    <span t-if="activeFilterCount" class="badge rounded-pill text-bg-primary ms-1" t-esc="activeFilterCount"/>
+                </button>
+            </div>
+
+            <!-- Search as -->
+            <div class="o_mtr_gs_modes d-flex flex-wrap gap-1 mt-2">
+                <span class="text-muted small align-self-center me-1">Search as:</span>
+                <t t-foreach="state.options.modes" t-as="m" t-key="m.key">
+                    <button t-attf-class="btn btn-sm {{ state.mode === m.key ? 'btn-primary' : 'btn-outline-secondary' }}"
+                            t-on-click="() => this.setMode(m.key)">
+                        <i t-attf-class="fa {{ m.icon }} me-1"/><t t-esc="m.label"/>
+                    </button>
+                </t>
+            </div>
+
+            <!-- Filters -->
+            <div t-if="state.showFilters" class="o_mtr_gs_filters border rounded p-2 mt-2">
+                <div class="row g-3">
+                    <div class="col-md-5">
+                        <div class="fw-bold small mb-1">Record types
+                            <span t-if="!state.types.length" class="text-muted fw-normal">(all)</span>
+                        </div>
+                        <div t-if="state.types.length" class="d-flex flex-wrap gap-1 mb-1">
+                            <t t-foreach="typeLabels" t-as="t" t-key="t.model">
+                                <span class="badge text-bg-primary o_mtr_gs_chip" t-on-click="() => this.toggleType(t.model)">
+                                    <t t-esc="t.label"/> <i class="fa fa-times ms-1"/>
+                                </span>
+                            </t>
+                        </div>
+                        <input type="text" class="form-control form-control-sm" placeholder="Find a record type…"
+                               t-model="state.typeQuery"/>
+                        <div class="o_mtr_gs_typelist border rounded mt-1">
+                            <t t-foreach="filteredTypes" t-as="t" t-key="t.model">
+                                <label class="d-flex align-items-center gap-2 px-2 py-1 small">
+                                    <input type="checkbox" t-att-checked="state.types.includes(t.model)"
+                                           t-on-change="() => this.toggleType(t.model)"/>
+                                    <t t-esc="t.label"/>
+                                </label>
+                            </t>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="fw-bold small mb-1">Date range</div>
+                        <label class="small text-muted">From</label>
+                        <input type="date" class="form-control form-control-sm" t-model="state.dateFrom"/>
+                        <label class="small text-muted mt-1">To</label>
+                        <input type="date" class="form-control form-control-sm" t-model="state.dateTo"/>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="fw-bold small mb-1">Status</div>
+                        <div t-if="!availableStates.length" class="small text-muted">
+                            Search once — the statuses found in the results appear here.
+                        </div>
+                        <div class="o_mtr_gs_typelist">
+                            <t t-foreach="availableStates" t-as="s" t-key="s.key">
+                                <label class="d-flex align-items-center gap-2 px-1 small">
+                                    <input type="checkbox" t-att-checked="state.states.includes(s.key)"
+                                           t-on-change="() => this.toggleState(s.key)"/>
+                                    <t t-esc="s.label"/>
+                                </label>
+                            </t>
+                        </div>
+                    </div>
+                </div>
+                <div class="d-flex justify-content-end gap-2 mt-2">
+                    <button class="btn btn-sm btn-link" t-on-click="clearFilters">Clear filters</button>
+                    <button class="btn btn-sm btn-primary" t-on-click="search">Apply</button>
+                </div>
+            </div>
+
+            <!-- Messages -->
+            <div t-if="state.error" class="alert alert-warning mt-2 mb-0" t-esc="state.error"/>
+
+            <!-- Results -->
+            <div class="o_mtr_gs_results mt-3">
+                <div t-if="state.loading" class="text-center text-muted py-4">
+                    <i class="fa fa-spinner fa-spin me-1"/> Searching every app…
+                </div>
+                <t t-elif="state.result">
+                    <div class="small text-muted mb-2">
+                        <t t-esc="totalCount"/> result(s) in <t t-esc="state.result.groups.length"/> record type(s)
+                        · <t t-esc="state.result.seconds"/>s
+                        <span t-if="state.result.partial" class="text-warning ms-2">
+                            <i class="fa fa-exclamation-triangle"/> Some record types took too long and were skipped —
+                            narrow the search with Record types or a date range.
+                        </span>
+                    </div>
+                    <div t-if="!state.result.groups.length" class="text-center text-muted py-4">
+                        Nothing found.
+                    </div>
+                    <t t-foreach="state.result.groups" t-as="g" t-key="g.model">
+                        <div class="o_mtr_gs_group mb-3">
+                            <div class="d-flex justify-content-between align-items-center border-bottom pb-1 mb-1">
+                                <span class="fw-bold">
+                                    <t t-esc="g.label"/>
+                                    <span class="badge text-bg-light ms-1">
+                                        <t t-esc="g.count_capped ? '1000+' : g.count"/>
+                                    </span>
+                                </span>
+                                <button t-if="g.domain and g.count > g.records.length" class="btn btn-sm btn-link"
+                                        t-on-click="() => this.openAll(g)">
+                                    See all <i class="fa fa-arrow-right ms-1"/>
+                                </button>
+                            </div>
+                            <t t-foreach="g.records" t-as="r" t-key="r_index">
+                                <div class="o_mtr_gs_row px-2 py-1 rounded" t-on-click="() => this.openRecord(r)">
+                                    <div class="d-flex justify-content-between gap-2">
+                                        <span class="fw-semibold text-truncate" t-esc="r.name"/>
+                                        <span class="small text-muted text-truncate text-end" t-esc="r.subtitle"/>
+                                    </div>
+                                    <div t-if="r.snippet" class="small text-muted text-truncate" t-esc="r.snippet"/>
+                                </div>
+                            </t>
+                        </div>
+                    </t>
+                </t>
+                <div t-else="" class="text-center text-muted py-4">
+                    Type what you are looking for, choose <b>Search as</b>, then press <b>Enter</b>.
+                </div>
+            </div>
+        </Dialog>
+    </t>
+</templates>
