@@ -6,17 +6,6 @@ import { useAutofocus, useService } from "@web/core/utils/hooks";
 
 const MODEL = "matracon.global.search";
 
-// Kept between openings so the last search is still there when reopened.
-const memory = {
-    term: "",
-    mode: "all",
-    types: [],
-    dateFrom: "",
-    dateTo: "",
-    states: [],
-    result: null,
-};
-
 export class GlobalSearchDialog extends Component {
     static template = "matracon_global_search.GlobalSearchDialog";
     static components = { Dialog };
@@ -30,13 +19,13 @@ export class GlobalSearchDialog extends Component {
         this.action = useService("action");
         this.inputRef = useAutofocus({ refName: "input", selectAll: true });
         this.state = useState({
-            term: memory.term,
-            mode: memory.mode,
-            types: [...memory.types],
-            dateFrom: memory.dateFrom,
-            dateTo: memory.dateTo,
-            states: [...memory.states],
-            result: memory.result,
+            term: "",
+            mode: "all",
+            types: [],
+            dateFrom: "",
+            dateTo: "",
+            states: [],
+            result: null,
             showFilters: !!this.props.showFilters,
             typeQuery: "",
             loading: false,
@@ -123,6 +112,13 @@ export class GlobalSearchDialog extends Component {
     clearFilters() {
         Object.assign(this.state, { types: [], states: [], dateFrom: "", dateTo: "" });
     }
+    onInput(ev) {
+        // Clearing the box clears the previous results too.
+        if (!ev.target.value.trim()) {
+            this.state.result = null;
+            this.state.error = "";
+        }
+    }
     onKeydown(ev) {
         if (ev.key === "Enter") {
             ev.preventDefault();
@@ -148,15 +144,6 @@ export class GlobalSearchDialog extends Component {
                 states: this.state.states.length ? this.state.states : null,
             });
             this.state.result = result;
-            Object.assign(memory, {
-                term,
-                mode: this.state.mode,
-                types: [...this.state.types],
-                dateFrom: this.state.dateFrom,
-                dateTo: this.state.dateTo,
-                states: [...this.state.states],
-                result,
-            });
         } catch (e) {
             this.state.error = e?.data?.message || e?.message || _t("Search failed.");
             this.state.result = null;
