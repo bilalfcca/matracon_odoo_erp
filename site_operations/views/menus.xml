@@ -10,12 +10,12 @@
          be hidden by menu-group configuration. This explicit menu exposes only
          the employee list action; it does not grant HR Manager/configuration access.
     ──────────────────────────────────────────────────────────────────────── -->
-    <menuitem id="menu_site_accountant_employees"
+    <!-- <menuitem id="menu_site_accountant_employees"
               name="Employees"
               parent="hr.menu_hr_root"
               action="hr.open_view_employee_list_my"
               sequence="5"
-              groups="site_operations.group_site_accountant"/>
+              groups="site_operations.group_site_accountant"/> -->
 
     <!-- ── Rename Accounting > Customers > Payments → Receipts ─────────────── -->
     <record id="account.menu_action_account_payments_receivable" model="ir.ui.menu">
