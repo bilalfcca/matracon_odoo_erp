@@ -1,6 +1,6 @@
 {
     'name': 'Matracon Global Search',
-    'version': '19.0.1.0.0',
+    'version': '19.0.1.0.1',
     'summary': 'Search and filter every record in Odoo from the top bar',
     'description': """
 Global search for every app, from the 🔍 icon in the top bar (next to chat and
