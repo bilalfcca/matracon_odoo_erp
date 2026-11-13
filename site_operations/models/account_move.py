@@ -1,5 +1,6 @@
 import logging
 import re
+from contextlib import contextmanager
 
 from dateutil.relativedelta import relativedelta
 from markupsafe import Markup
@@ -518,6 +519,86 @@ class AccountMoveSiteOps(models.Model):
             # _compute_financial_completion_pct depends on x_billed_to_client;
             # call it explicitly to flush all dependent stored fields at once.
             projects._compute_financial_completion_pct()
+
+    # ── Invoices / bills never stop on "The entry is not balanced" ──────────
+    # Users enter invoice and bill lines in the Journal Items tab, which hides
+    # the auto-managed client receivable / vendor payable (payment_term) line.
+    # If, after Odoo re-syncs the lines on save, a draft invoice or bill is
+    # off by any amount, that hidden line absorbs the difference instead of
+    # blocking the user. The entry is therefore always balanced (Debit =
+    # Credit) - the ledger stays correct - and the dialog never appears.
+    # Journal entries (move_type 'entry') keep Odoo's normal check.
+    @contextmanager
+    def _check_balanced(self, container):
+        stack = self.env.cr.cache.get('account_disable_recursion_stack')
+        try:
+            current = stack['check_move_validity'] if stack is not None else None
+        except KeyError:
+            current = None
+        if current is None:
+            current = self.env.context.get('check_move_validity', True)
+        outermost = current is not False
+        with super()._check_balanced(container):
+            yield
+            if outermost:
+                self._mtr_absorb_invoice_imbalance(container)
+
+    def _mtr_absorb_invoice_imbalance(self, container):
+        moves = container['records'].filtered(
+            lambda m: m.state == 'draft'
+            and m.is_invoice(include_receipts=True)
+            and m.line_ids
+        )
+        if not moves:
+            return
+        unbalanced = self._get_unbalanced_moves({'records': moves})
+        if not unbalanced:
+            return
+        Line = self.env['account.move.line'].sudo().with_context(
+            skip_invoice_sync=True, check_move_validity=False)
+        for move_id, debit, credit in unbalanced:
+            move = self.browse(move_id)
+            company_currency = move.company_id.currency_id
+            if move.currency_id != company_currency:
+                continue  # foreign currency: leave Odoo's own check in place
+            diff = company_currency.round(debit - credit)
+            if company_currency.is_zero(diff):
+                continue
+            term = Line.search([('move_id', '=', move.id), ('display_type', '=', 'payment_term')])
+            if term:
+                line = term.sorted(lambda l: (l.date_maturity or fields.Date.today(), l.id))[-1]
+                new_balance = company_currency.round(line.balance - diff)
+                line.write({'balance': new_balance, 'amount_currency': new_balance})
+            else:
+                partner = move.commercial_partner_id.with_company(move.company_id)
+                account = (
+                    partner.property_account_receivable_id
+                    if move.is_sale_document(include_receipts=True)
+                    else partner.property_account_payable_id
+                )
+                if not account:
+                    account = self.env['account.account'].sudo().search([
+                        ('company_ids', 'parent_of', move.company_id.id),
+                        ('account_type', '=', 'asset_receivable'
+                         if move.is_sale_document(include_receipts=True)
+                         else 'liability_payable'),
+                        ('active', '=', True),
+                    ], limit=1)
+                if not account:
+                    continue
+                Line.create({
+                    'move_id': move.id,
+                    'display_type': 'payment_term',
+                    'account_id': account.id,
+                    'partner_id': move.commercial_partner_id.id,
+                    'name': move.payment_reference or '',
+                    'date_maturity': move.invoice_date_due or move.invoice_date or move.date,
+                    'currency_id': company_currency.id,
+                    'balance': -diff,
+                    'amount_currency': -diff,
+                })
+            _logger.info("Matracon: absorbed %s imbalance on %s into receivable/payable",
+                         diff, move.display_name)
 
     def action_post(self):
         # ── 1. Identify pre-balanced invoices BEFORE any writes ──────────────────
