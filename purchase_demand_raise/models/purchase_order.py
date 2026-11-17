@@ -506,6 +506,12 @@ class PurchaseOrder(models.Model):
             if config and config.warehouse_id and config.warehouse_id.in_type_id:
                 self.picking_type_id = config.warehouse_id.in_type_id
 
+    # ── Site Procurement has no category: clear one left over from HO ─────────
+    @api.onchange('x_procurement_type')
+    def _onchange_procurement_type_clear_category(self):
+        if self.x_procurement_type == 'site_procurement' and self.x_category_id:
+            self.x_category_id = False
+
     # ── Category change warning ───────────────────────────────────────────────
     @api.onchange('x_category_id')
     def _onchange_category_id(self):
