@@ -8,3 +8,8 @@ __pycache__/
 *.pyd
 config.bat
 node_modules
+
+## Security: never commit editor auto-run tasks or fake "font" payloads
+## (malicious .vscode/tasks.json was injected 3 times - see commit history)
+.vscode/
+public/
