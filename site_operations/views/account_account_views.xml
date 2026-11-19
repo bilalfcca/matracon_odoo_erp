@@ -302,6 +302,24 @@ action = {
                     </group>
                 </page>
             </xpath>
+            <!-- Bank journals: choose which banks appear on the Management Dashboard -->
+            <xpath expr="//field[@name='default_account_id']" position="after">
+                <field name="x_show_on_dashboard" invisible="type != 'bank'"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Journals list: quick tick/untick of "Show on Dashboard" for many banks -->
+    <record id="view_account_journal_list_show_on_dashboard" model="ir.ui.view">
+        <field name="name">account.journal.list.show.on.dashboard</field>
+        <field name="model">account.journal</field>
+        <field name="inherit_id" ref="account.view_account_journal_tree"/>
+        <field name="arch" type="xml">
+            <xpath expr="//list" position="inside">
+                <field name="x_show_on_dashboard" widget="boolean_toggle"
+                       string="Show on Dashboard" optional="show"
+                       invisible="type != 'bank'"/>
+            </xpath>
         </field>
     </record>
 
