@@ -324,7 +324,8 @@ class PurchaseOrderLine(models.Model):
     # ── Product domain: category filter ──────────────────────────────────────
     @api.onchange('product_id')
     def _onchange_product_id_category_check(self):
-        if self.order_id.x_category_id and self.product_id:
+        if (self.order_id.x_category_id and self.product_id
+                and self.order_id.x_procurement_type != 'site_procurement'):
             if self.product_id.categ_id != self.order_id.x_category_id:
                 self.product_id = False
                 return {

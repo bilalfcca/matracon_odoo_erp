@@ -1,5 +1,11 @@
+import logging
+
+from markupsafe import Markup
+
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
+
+_logger = logging.getLogger(__name__)
 
 
 class StockPickingPR(models.Model):
@@ -134,14 +140,34 @@ class StockPickingPR(models.Model):
             and p.picking_type_code == 'incoming'
             and p.purchase_id
         ):
-            po = picking.purchase_id
-            if po.x_procurement_type == 'site_procurement':
-                if po.x_add_to_liability_sheet:
-                    # Swap in the local supplier as partner so the bill creation works
-                    if po.x_site_vendor_id and not po.partner_id:
-                        po.sudo().write({'partner_id': po.x_site_vendor_id.id})
-                    self.env['account.move']._matracon_create_draft_bill_from_po_receipt(picking)
-                else:
-                    self.env['x.petty.cash.expense']._matracon_create_from_po_receipt(picking)
-            else:
+            # The receipt is a stock operation: an accounting problem while
+            # drafting the bill / expense must never stop material being
+            # received. Run it in a savepoint; on failure keep the receipt,
+            # roll back the half-made document and leave a note to create it
+            # manually.
+            try:
+                with self.env.cr.savepoint():
+                    picking._matracon_create_receipt_document()
+            except Exception as err:  # noqa: BLE001 - never block the receipt
+                _logger.exception(
+                    "Draft bill/expense for receipt %s could not be created", picking.name)
+                picking.sudo().message_post(body=Markup(_(
+                    '<b>Material received.</b> The draft vendor bill / petty cash '
+                    'expense could not be created automatically, so please create '
+                    'it manually.<br/>Reason: %s'
+                )) % (str(err) or err.__class__.__name__))
+
+    def _matracon_create_receipt_document(self):
+        self.ensure_one()
+        picking = self
+        po = picking.purchase_id
+        if po.x_procurement_type == 'site_procurement':
+            if po.x_add_to_liability_sheet:
+                # Swap in the local supplier as partner so the bill creation works
+                if po.x_site_vendor_id and not po.partner_id:
+                    po.sudo().write({'partner_id': po.x_site_vendor_id.id})
                 self.env['account.move']._matracon_create_draft_bill_from_po_receipt(picking)
+            else:
+                self.env['x.petty.cash.expense']._matracon_create_from_po_receipt(picking)
+        else:
+            self.env['account.move']._matracon_create_draft_bill_from_po_receipt(picking)

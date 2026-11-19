@@ -4,6 +4,7 @@ from . import x_employee_presence_log
 from . import mail_presence_ext
 from . import hr_employee_ext
 from . import employee_document
+from . import hr_master_data_security
 from . import attendance_sheet
 from . import salary_sheet
 from . import petty_cash
@@ -32,6 +33,7 @@ from . import batch_payment
 from . import liability_sheet
 from . import project_project
 from . import stock_picking_po_receipt
+from . import stock_picking_po_receipt_cancel  # Cancel & delete a validated PO receipt
 from . import project_project_drilldown
 from . import project_site_config
 from . import account_move

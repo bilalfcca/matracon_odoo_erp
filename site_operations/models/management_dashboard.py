@@ -414,6 +414,7 @@ class ManagementDashboard(models.TransientModel):
         journals = self.env['account.journal'].search([
             ('type', '=', 'bank'),
             ('company_id', '=', company.id),
+            ('x_show_on_dashboard', '=', True),
         ])
         lines = []
         total = 0.0

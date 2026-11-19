@@ -1,6 +1,7 @@
 from datetime import timedelta
 
 from odoo import models, fields, api, _
+from odoo.exceptions import ValidationError
 
 from .constants import ONLINE_THRESHOLD_SECONDS  # shared with mail_presence_ext.py
 
@@ -256,12 +257,43 @@ class HrEmployeeMatracon(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         user = self.env.user
+        is_site_accountant = user.has_group('site_operations.group_site_accountant')
+        analytic = getattr(user, 'x_default_analytic_account_id', False)
+
+        if is_site_accountant and not analytic:
+            raise ValidationError(_(
+                "Your user account does not have a default site/project assigned. "
+                "Please ask an administrator to assign your site before creating employees."
+            ))
+
         for vals in vals_list:
-            if not vals.get('x_project_analytic_account_id'):
-                analytic = getattr(user, 'x_default_analytic_account_id', False)
-                if analytic:
-                    vals['x_project_analytic_account_id'] = analytic.id
+            if is_site_accountant:
+                # Site Accountants must not create employees under another project,
+                # even if they manually submit a different analytic account value.
+                vals['x_project_analytic_account_id'] = analytic.id
+            elif not vals.get('x_project_analytic_account_id') and analytic:
+                vals['x_project_analytic_account_id'] = analytic.id
+
         return super().create(vals_list)
+
+    def write(self, vals):
+        user = self.env.user
+        if user.has_group('site_operations.group_site_accountant'):
+            analytic = getattr(user, 'x_default_analytic_account_id', False)
+            if not analytic:
+                raise ValidationError(_(
+                    "Your user account does not have a default site/project assigned. "
+                    "Please ask an administrator to assign your site."
+                ))
+
+            if 'x_project_analytic_account_id' in vals:
+                requested_project_id = vals.get('x_project_analytic_account_id')
+                if requested_project_id != analytic.id:
+                    raise ValidationError(_(
+                        "You can only assign employees to your own site/project."
+                    ))
+
+        return super().write(vals)
 
     def action_print_employee_card(self):
         return self.env.ref(

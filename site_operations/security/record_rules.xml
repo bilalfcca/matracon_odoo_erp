@@ -264,16 +264,18 @@
             <field name="perm_unlink" eval="False"/>
         </record>
 
-        <!-- Employees: Site Accountant sees only employees assigned to their project -->
+        <!-- Employees: Site Accountant has full CRUD, limited to their assigned project.
+             The Python create/write guard in hr_employee_ext.py also prevents assigning
+             or moving an employee to another project. -->
         <record id="rule_hr_employee_site_accountant" model="ir.rule">
-            <field name="name">Employee: Site Accountant own project</field>
+            <field name="name">Employee: Site Accountant own project only</field>
             <field name="model_id" ref="hr.model_hr_employee"/>
-            <field name="domain_force">[('x_project_analytic_account_id', '=', user.x_default_analytic_account_id.id)]</field>
+            <field name="domain_force">['&amp;', ('x_project_analytic_account_id', '=', user.x_default_analytic_account_id.id), ('x_project_analytic_account_id', '!=', False)]</field>
             <field name="groups" eval="[(4, ref('site_operations.group_site_accountant'))]"/>
             <field name="perm_read" eval="True"/>
             <field name="perm_write" eval="True"/>
             <field name="perm_create" eval="True"/>
-            <field name="perm_unlink" eval="False"/>
+            <field name="perm_unlink" eval="True"/>
         </record>
 
         <!-- ═══════════════════════════════════════════════════════════════════
