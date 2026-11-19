@@ -44,6 +44,14 @@
             <xpath expr="//button[@name='button_validate'][hasclass('o_btn_validate')][hasclass('o_btn_mark_received')]" position="attributes">
                 <attribute name="invisible">picking_type_code != 'incoming' or (not purchase_id and not x_source_po_id) or state in ('waiting', 'assigned', 'done', 'cancel')</attribute>
             </xpath>
+            <!-- Cancel & delete a validated PO receipt (Admin / Procurement Officer / Site Store) -->
+            <xpath expr="//header" position="inside">
+                <field name="x_mtr_can_cancel_receipt" invisible="1"/>
+                <button name="action_mtr_cancel_po_receipt" type="object"
+                        string="Cancel Receipt"
+                        invisible="not x_mtr_can_cancel_receipt"
+                        confirm="This takes the received stock back out of the warehouse, undoes any returns of this receipt, deletes its draft vendor bill / petty cash expense, and deletes the receipt so the Purchase Order is unlinked. This cannot be undone. Continue?"/>
+            </xpath>
         </field>
     </record>
 </odoo>

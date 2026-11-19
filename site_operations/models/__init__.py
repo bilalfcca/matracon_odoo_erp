@@ -33,6 +33,7 @@ from . import batch_payment
 from . import liability_sheet
 from . import project_project
 from . import stock_picking_po_receipt
+from . import stock_picking_po_receipt_cancel  # Cancel & delete a validated PO receipt
 from . import project_project_drilldown
 from . import project_site_config
 from . import account_move

@@ -7,6 +7,13 @@ class AccountJournalSiteOps(models.Model):
     bg_facility_ids = fields.One2many(
         'x.bank.guarantee.facility', 'journal_id', string='Bank Guarantee Facilities'
     )
+    x_show_on_dashboard = fields.Boolean(
+        string='Show on Dashboard',
+        default=True,
+        help='Bank journals: include this bank in the Management Dashboard '
+             '(Bank Balance Overview and the Bank Balance total). '
+             'Untick to hide it from the dashboard.',
+    )
     x_cash_margin_account_id = fields.Many2one(
         'account.account',
         string='Cash Margin Account',

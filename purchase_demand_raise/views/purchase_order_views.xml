@@ -594,7 +594,8 @@
     <!-- ═══════════════════════════════════════
          CATEGORY FILTER on product_id in lines
          When x_category_id is set (HO Procurement): restrict to that category.
-         When x_category_id is not set (Site Procurement): show all purchasable products.
+         Site Procurement (or no category): show all purchasable products — a
+         category left over from switching HO → Site is ignored (it is hidden).
          ═══════════════════════════════════════ -->
     <record id="view_purchase_order_form_category_domain" model="ir.ui.view">
         <field name="name">purchase.order.form.category.domain</field>
@@ -602,7 +603,7 @@
         <field name="inherit_id" ref="purchase.purchase_order_form"/>
         <field name="arch" type="xml">
             <field name="product_id" position="attributes">
-                <attribute name="domain">[('categ_id', '=', parent.x_category_id), ('purchase_ok', '=', True)] if parent.x_category_id else [('purchase_ok', '=', True)]</attribute>
+                <attribute name="domain">[('categ_id', '=', parent.x_category_id), ('purchase_ok', '=', True)] if parent.x_category_id and parent.x_procurement_type != 'site_procurement' else [('purchase_ok', '=', True)]</attribute>
             </field>
         </field>
     </record>
