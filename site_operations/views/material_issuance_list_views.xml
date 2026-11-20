@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-
-    <!-- Material Issuance List View -->
+    <!-- Material Issuance search/list view additions: product grouping + date-range capable date filter -->
     <record id="view_material_issuance_list" model="ir.ui.view">
         <field name="name">stock.picking.material.issuance.list</field>
         <field name="model">stock.picking</field>
@@ -15,64 +14,50 @@
             </list>
         </field>
     </record>
-
-    <!-- Material Issuance Search View -->
     <record id="view_material_issuance_search" model="ir.ui.view">
         <field name="name">stock.picking.material.issuance.search</field>
         <field name="model">stock.picking</field>
         <field name="arch" type="xml">
             <search string="Material Issuance">
-
-                <!-- Existing Search Fields -->
                 <field name="name" string="Reference"/>
                 <field name="x_contact_id" string="Contact"/>
-
-                <!-- New Product Search -->
-                <field name="move_ids"
-                       string="Product"
-                       filter_domain="[('move_ids', 'any', [('product_id.name', 'ilike', self)])]"/>
-
                 <field name="x_issuance_project_id" string="Project"/>
                 <field name="scheduled_date" string="Scheduled Date"/>
-
-                <!-- Date Range Filter -->
-                <filter name="scheduled_date_range"
-                        string="Date Range"
-                        date="scheduled_date"/>
-
+                <filter name="scheduled_date_range" string="Date Range" date="scheduled_date"/>
                 <separator/>
-
-                <!-- Existing Group By Options -->
-                <filter name="group_by_project"
-                        string="Group by Project"
-                        context="{'group_by':'x_issuance_project_id'}"/>
-
-                <filter name="group_by_contact"
-                        string="Group by Contact"
-                        context="{'group_by':'x_contact_id'}"/>
-
-                <filter name="group_by_issue_type"
-                        string="Group by Issue Type"
-                        context="{'group_by':'x_issue_type'}"/>
-
-                <filter name="group_by_inventory_type"
-                        string="Group by Inventory Type"
-                        context="{'group_by':'x_inventory_type'}"/>
-
-                <filter name="group_by_transfer_purpose"
-                        string="Group by Transfer Purpose"
-                        context="{'group_by':'x_transfer_purpose'}"/>
-
-                <filter name="group_by_status"
-                        string="Group by Status"
-                        context="{'group_by':'state'}"/>
-
-                <filter name="group_by_date"
-                        string="Group by Date"
-                        context="{'group_by':'scheduled_date'}"/>
-
+                <filter name="group_by_project" string="Group by Project" context="{'group_by':'x_issuance_project_id'}"/>
+                <filter name="group_by_contact" string="Group by Contact" context="{'group_by':'x_contact_id'}"/>
+                <filter name="group_by_issue_type" string="Group by Issue Type" context="{'group_by':'x_issue_type'}"/>
+                <filter name="group_by_inventory_type" string="Group by Inventory Type" context="{'group_by':'x_inventory_type'}"/>
+                <filter name="group_by_transfer_purpose" string="Group by Transfer Purpose" context="{'group_by':'x_transfer_purpose'}"/>
+                <filter name="group_by_status" string="Group by Status" context="{'group_by':'state'}"/>
+                <filter name="group_by_date" string="Group by Date" context="{'group_by':'scheduled_date'}"/>
             </search>
         </field>
     </record>
-
+    <!-- Product-level report is based on stock.move, since each picking can contain multiple products. -->
+    <record id="action_material_issuance_product_report" model="ir.actions.act_window">
+        <field name="name">Material Issuance by Product</field>
+        <field name="res_model">stock.move</field>
+        <field name="view_mode">list,pivot,graph</field>
+        <field name="domain">[('picking_id.x_transfer_purpose','=','material_issuance'),('picking_id.x_is_return_transfer','=',False)]</field>
+        <field name="context">{'search_default_groupby_product': 1, 'group_by': ['product_id']}</field>
+    </record>
+    <record id="view_material_issuance_product_search" model="ir.ui.view">
+        <field name="name">stock.move.material.issuance.product.search</field>
+        <field name="model">stock.move</field>
+        <field name="arch" type="xml">
+            <search string="Material Issuance by Product">
+                <field name="product_id"/>
+                <field name="picking_id"/>
+                <field name="date"/>
+                <filter name="date_range" string="Date Range" date="date"/>
+                <filter name="issuance_only" string="Material Issuance" domain="[('picking_id.x_transfer_purpose','=','material_issuance'),('picking_id.x_is_return_transfer','=',False)]"/>
+                <group expand="0" string="Group By">
+                    <filter name="groupby_product" string="Product" context="{'group_by':'product_id'}"/>
+                    <filter name="groupby_date" string="Date" context="{'group_by':'date'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
 </odoo>
