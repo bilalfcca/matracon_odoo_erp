@@ -25,6 +25,14 @@
                  between the standard header fields and the Operations notebook.
                  The flag is outside the conditionally-visible group so it is
                  always loaded by the OWL renderer regardless of picking type. -->
+            <!-- Invoice / DC No: on every receipt, right under Source Document -->
+            <xpath expr="//field[@name='origin']" position="after">
+                <field name="x_invoice_dc_number"
+                       placeholder="Vendor invoice or delivery challan no…"
+                       invisible="picking_type_code != 'incoming'"
+                       readonly="state in ['cancel', 'done']"/>
+            </xpath>
+
             <xpath expr="//sheet/notebook" position="before">
 
                 <!-- Always-visible invisible flag — tells the form whether this is
@@ -151,6 +159,7 @@
             </xpath>
             <xpath expr="//field[@name='origin']" position="after">
                 <field name="x_gate_pass_no" string="Gate Pass No"/>
+                <field name="x_invoice_dc_number" string="Invoice / DC No"/>
                 <field name="purchase_id" string="Purchase Order"/>
                 <field name="x_project_analytic_account_id" string="Project"/>
             </xpath>
@@ -170,6 +179,7 @@
             <xpath expr="//field[@name='name']" position="after">
                 <field name="x_dmr_no" string="DMR No" optional="show"/>
                 <field name="x_gate_pass_no" string="Gate Pass No" optional="hide"/>
+                <field name="x_invoice_dc_number" string="Invoice / DC No" optional="show"/>
             </xpath>
         </field>
     </record>

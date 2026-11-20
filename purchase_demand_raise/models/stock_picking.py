@@ -27,6 +27,17 @@ class StockPickingPR(models.Model):
         help='Physical gate pass number issued when the vehicle/material enters the site.',
     )
 
+    # ── Vendor Invoice / Delivery Challan No ──────────────────────────────────
+    x_invoice_dc_number = fields.Char(
+        string='Invoice / DC No',
+        copy=False,
+        index='trigram',
+        tracking=True,
+        help='Vendor invoice number or delivery challan (DC) number printed on the '
+             'documents that came with the material. Used to match this receipt '
+             'against the physical paperwork.',
+    )
+
     # ── Weight Document ───────────────────────────────────────────────────────
     # Legacy single-file field — data moved to x_weight_document_attachment_ids
     x_weight_document = fields.Binary(
