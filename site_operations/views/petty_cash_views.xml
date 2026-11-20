@@ -152,7 +152,7 @@
                             You can attach more than one file.
                         </div>
                         <field name="x_pm_signed_document_attachment_ids"
-                               widget="many2many_binary"
+                               widget="matracon_multi_file"
                                string="Upload PM Signed Document"
                                readonly="state != 'draft'"/>
                     </group>
@@ -369,7 +369,7 @@
                         <label for="x_signed_voucher_attachment_ids" string="Signed Voucher"/>
                         <div class="o_row">
                             <field name="x_signed_voucher_attachment_ids"
-                                   widget="many2many_binary"
+                                   widget="matracon_multi_file"
                                    readonly="state == 'posted'"/>
                             <button name="action_view_signed_voucher"
                                     type="object"
@@ -384,7 +384,7 @@
                         <label for="receipt_attachment_ids" string="Receipt / Invoice"/>
                         <div class="o_row">
                             <field name="receipt_attachment_ids"
-                                   widget="many2many_binary"
+                                   widget="matracon_multi_file"
                                    readonly="state == 'posted'"/>
                             <button name="action_view_receipt"
                                     type="object"

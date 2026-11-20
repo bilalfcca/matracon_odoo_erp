@@ -80,7 +80,7 @@
                             </group>
                             <group string="Files">
                                 <field name="file_attachment_ids"
-                                       widget="many2many_binary"
+                                       widget="matracon_multi_file"
                                        string="Upload Files"
                                        required="1"
                                        nolabel="1" colspan="2"/>

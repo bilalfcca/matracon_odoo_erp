@@ -91,7 +91,7 @@
                             Download the sheet → get it signed by PM &amp; Site Accountant → upload the signed copy here (you can attach more than one file). The <b>Submit for CEO Approval</b> button appears once uploaded.
                         </div>
                         <field name="signed_sheet_attachment_ids"
-                               widget="many2many_binary"
+                               widget="matracon_multi_file"
                                string="Upload Signed Copy"
                                readonly="state != 'draft'"/>
                     </group>
@@ -99,7 +99,7 @@
                            invisible="not signed_sheet_attachment_ids"
                            name="matracon_signed_upload_done">
                         <field name="signed_sheet_attachment_ids"
-                               widget="many2many_binary"
+                               widget="matracon_multi_file"
                                string="Signed Copy"
                                readonly="state != 'draft'"/>
                     </group>

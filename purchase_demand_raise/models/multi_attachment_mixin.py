@@ -3,7 +3,7 @@ from odoo import api, models, _
 
 class MatraconMultiAttachmentMixin(models.AbstractModel):
     """Support for multi-file upload fields (Many2many → ir.attachment shown
-    with widget="many2many_binary").
+    with widget="matracon_multi_file").
 
     The many2many_binary widget uploads each file with res_id = 0 when the
     record is still unsaved.  Odoo only lets the uploader (and admins) read
@@ -39,11 +39,48 @@ class MatraconMultiAttachmentMixin(models.AbstractModel):
         return records
 
     def write(self, vals):
-        res = super().write(vals)
         used = [n for n in self._matracon_attachment_field_names() if n in vals]
+        before = {}
+        if used:
+            for rec in self.sudo():
+                before[rec.id] = rec._matracon_all_attachments(used)
+        res = super().write(vals)
         if used:
             self._matracon_bind_attachments(used)
+            self._matracon_delete_removed_attachments(before, used)
         return res
+
+    def _matracon_all_attachments(self, field_names):
+        self.ensure_one()
+        attachments = self.env['ir.attachment'].sudo()
+        for name in field_names:
+            attachments |= self.sudo()[name]
+        return attachments
+
+    def _matracon_delete_removed_attachments(self, before, field_names):
+        """Files cleared or replaced in an upload field are deleted, like
+        clearing the old single-file Binary field deleted its file.
+        A file is kept when it is
+          - still used in another upload field of the same record,
+          - owned by another record (e.g. a PR file shared elsewhere), or
+          - attached to a chatter message (so message history stays intact).
+        """
+        Message = self.env['mail.message'].sudo()
+        all_names = self._matracon_attachment_field_names()
+        for rec in self.sudo():
+            removed = before.get(rec.id, self.env['ir.attachment'].sudo()) \
+                - rec._matracon_all_attachments(all_names)
+            removed = removed.exists().filtered(
+                lambda a: a.res_model == rec._name
+                and a.res_id == rec.id
+                and not a.res_field
+            )
+            if not removed:
+                continue
+            in_chatter = Message.search([('attachment_ids', 'in', removed.ids)]).attachment_ids
+            to_delete = removed - in_chatter
+            if to_delete:
+                to_delete.unlink()
 
     def _matracon_bind_attachments(self, field_names=None):
         """Link unbound files in the given attachment fields to their record.

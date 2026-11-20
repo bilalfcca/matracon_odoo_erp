@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="purchase_demand_raise.MatraconMultiFileField">
+        <div t-attf-class="o_field_matracon_multi_file d-flex flex-column gap-1 w-100 {{ props.className or '' }}">
+
+            <t t-foreach="files" t-as="file" t-key="file.id">
+                <!-- Editable: same controls as the standard binary widget -->
+                <div t-if="!props.readonly" class="w-100 d-inline-flex align-items-center gap-1 o_mmf_row">
+                    <input type="text" class="o_input" t-att-value="file.name" t-att-title="file.name" readonly="readonly"/>
+                    <a class="btn btn-link btn-sm lh-1 fa fa-download o_download_file_button"
+                       t-att-href="getUrl(file.id)" download=""
+                       data-tooltip="Download" aria-label="Download"/>
+                    <FileInput acceptedFileExtensions="props.acceptedFileExtensions"
+                               multiUpload="false"
+                               onUpload="(uploaded) => this.onFileReplaced(file.id, uploaded)"
+                               resModel="props.record.resModel"
+                               resId="resIdForUpload">
+                        <button type="button"
+                                class="btn btn-link btn-sm lh-1 fa fa-pencil o_select_file_button"
+                                data-tooltip="Edit" aria-label="Edit"/>
+                    </FileInput>
+                    <button type="button"
+                            class="btn btn-link btn-sm lh-1 fa fa-trash o_clear_file_button"
+                            data-tooltip="Clear" aria-label="Clear"
+                            t-on-click="() => this.onFileRemove(file.id)"/>
+                </div>
+                <!-- Read-only: download link, like the standard binary widget -->
+                <a t-else="" class="o_form_uri" t-att-href="getUrl(file.id)" download="">
+                    <span class="fa fa-download me-2"/>
+                    <t t-esc="file.name"/>
+                </a>
+            </t>
+
+            <!-- Upload button: "Upload your file" when empty, "Upload another file" after -->
+            <div t-if="!props.readonly and canAddMore">
+                <FileInput acceptedFileExtensions="props.acceptedFileExtensions"
+                           multiUpload="true"
+                           onUpload.bind="onFileUploaded"
+                           resModel="props.record.resModel"
+                           resId="resIdForUpload">
+                    <button t-if="!files.length" type="button" class="btn btn-primary o_select_file_button">
+                        Upload your file
+                    </button>
+                    <button t-else="" type="button" class="btn btn-link btn-sm px-0 o_select_file_button">
+                        <i class="fa fa-plus me-1"/>Upload another file
+                    </button>
+                </FileInput>
+            </div>
+        </div>
+    </t>
+
+</templates>

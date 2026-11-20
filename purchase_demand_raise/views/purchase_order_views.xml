@@ -320,7 +320,7 @@
 
                 <!-- PM Signed PR — Site Store: upload field with instructional label -->
                 <field name="x_pm_signed_pr_attachment_ids"
-                       widget="many2many_binary"
+                       widget="matracon_multi_file"
                        string="PM Signed PR (Attach before Submit)"
                        groups="purchase_demand_raise.group_site_store"
                        invisible="not x_is_pr_document and not x_is_site_store and not x_is_alternative_rfq"
@@ -328,7 +328,7 @@
                        help="Scan(s) of the PM-signed printed PR. You can attach more than one file. At least one must be attached before you can submit."/>
                 <!-- PM Signed PR — HO/CEO/Head Office: read-only view, neutral label, no instructions -->
                 <field name="x_pm_signed_pr_attachment_ids"
-                       widget="many2many_binary"
+                       widget="matracon_multi_file"
                        string="PM Signed Document"
                        groups="purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"
                        invisible="not x_pm_signed_pr_attachment_ids or (not x_is_pr_document and not x_is_alternative_rfq)"

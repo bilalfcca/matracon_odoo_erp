@@ -39,6 +39,9 @@
     'assets': {
         'web.assets_backend': [
             'purchase_demand_raise/static/src/scss/matracon_dashboard.scss',
+            # Multi-file upload widget (binary-style Upload / Edit / Clear per file)
+            'purchase_demand_raise/static/src/js/matracon_multi_file_field.js',
+            'purchase_demand_raise/static/src/xml/matracon_multi_file_field.xml',
         ],
     },
 }

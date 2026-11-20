@@ -126,7 +126,7 @@
                                     <span class="text-muted fw-semibold"
                                           invisible="x_is_site_accountant">PM Signed Copy: </span>
                                     <field name="pm_signed_sheet_attachment_ids"
-                                           widget="many2many_binary"
+                                           widget="matracon_multi_file"
                                            nolabel="1"
                                            readonly="state not in ['draft']"
                                            class="d-inline-block"/>

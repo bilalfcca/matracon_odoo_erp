@@ -135,7 +135,7 @@
                         </group>
                         <group string="IPC Document">
                             <field name="ipc_document_attachment_ids"
-                                   widget="many2many_binary"
+                                   widget="matracon_multi_file"
                                    string="IPC Document"
                                    required="state == 'draft'"
                                    readonly="state != 'draft'"/>
