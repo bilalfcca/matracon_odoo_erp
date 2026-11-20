@@ -13,14 +13,6 @@
                   decoration-danger="state == 'cancel'"
                   decoration-muted="state == 'draft'"
                   decoration-warning="state in ('waiting', 'confirmed', 'assigned')">
-                <header>
-                    <button name="%(site_operations.action_material_issuance_date_range_wizard)d"
-                            type="action"
-                            string="Date Range"
-                            icon="fa-calendar"
-                            class="btn-secondary"
-                            display="always"/>
-                </header>
                 <!-- ── Always visible ────────────────────────────────── -->
                 <field name="name" string="Reference"/>
                 <field name="x_contact_id" string="Contact" optional="show"/>
@@ -76,12 +68,17 @@
                 <field name="x_issuance_project_id" string="Project"/>
                 <field name="origin" string="Source Document"/>
                 <field name="product_id" string="Product"/>
+                <!-- Date range: type a date in the search box, pick "Date From" / "Date To" -->
+                <field name="x_issuance_date" string="Date From"
+                       filter_domain="[('x_issuance_date', '&gt;=', self)]"/>
+                <field name="x_issuance_date" string="Date To"
+                       filter_domain="[('x_issuance_date', '&lt;=', self)]"/>
 
                 <!-- ── Date Filters ── -->
                 <separator/>
                 <filter name="filter_issuance_date"
                         string="Issuance Date"
-                        date="scheduled_date"/>
+                        date="x_issuance_date"/>
                 <filter name="filter_effective_date"
                         string="Effective Date"
                         date="date_done"/>
@@ -164,7 +161,7 @@
                         context="{'group_by': 'state'}"/>
                 <filter name="group_by_issuance_date"
                         string="Group by Issuance Date"
-                        context="{'group_by': 'scheduled_date:day'}"/>
+                        context="{'group_by': 'x_issuance_date:day'}"/>
             </search>
         </field>
     </record>
@@ -175,7 +172,7 @@
         <field name="res_model">stock.picking</field>
         <field name="view_mode">list,form</field>
         <field name="domain">[('x_transfer_purpose', 'in', ['material_issuance', 'site_to_site'])]</field>
-        <field name="context">{'x_mi_source_action': 'site_operations.action_material_issuance_all'}</field>
+        <field name="context">{}</field>
         <field name="view_ids" eval="[
             (5, 0, 0),
             (0, 0, {'view_mode': 'list', 'view_id': ref('view_material_issuance_list')}),
@@ -190,7 +187,7 @@
         <field name="res_model">stock.picking</field>
         <field name="view_mode">list,form</field>
         <field name="domain">[('x_transfer_purpose', '=', 'material_issuance'), ('x_submitted_to_sa', '=', True), ('x_is_return_transfer', '=', False)]</field>
-        <field name="context">{'x_mi_source_action': 'site_operations.action_sa_pending_issuances'}</field>
+        <field name="context">{}</field>
         <field name="view_ids" eval="[
             (5, 0, 0),
             (0, 0, {'view_mode': 'list', 'view_id': ref('view_material_issuance_list')}),
@@ -205,7 +202,7 @@
         <field name="res_model">stock.picking</field>
         <field name="view_mode">list,form</field>
         <field name="domain">[('x_transfer_purpose', '=', 'material_issuance'), ('x_is_return_transfer', '=', False)]</field>
-        <field name="context">{'default_x_transfer_purpose': 'material_issuance', 'default_x_is_return_transfer': False, 'x_mi_source_action': 'site_operations.action_material_issuance_only'}</field>
+        <field name="context">{'default_x_transfer_purpose': 'material_issuance', 'default_x_is_return_transfer': False}</field>
         <field name="view_ids" eval="[
             (5, 0, 0),
             (0, 0, {'view_mode': 'list', 'view_id': ref('view_material_issuance_list')}),
@@ -319,7 +316,7 @@
         <field name="res_model">stock.picking</field>
         <field name="view_mode">list,form</field>
         <field name="domain">[('x_transfer_purpose', '=', 'site_to_site')]</field>
-        <field name="context">{'default_x_transfer_purpose': 'site_to_site', 'x_mi_source_action': 'site_operations.action_site_to_site_transfers'}</field>
+        <field name="context">{'default_x_transfer_purpose': 'site_to_site'}</field>
         <field name="view_ids" eval="[
             (5, 0, 0),
             (0, 0, {'view_mode': 'list', 'view_id': ref('view_material_issuance_list')}),

@@ -63,7 +63,6 @@
         'views/material_issuance_form_views.xml',
         'views/stock_picking_po_receipt_views.xml',
         'views/backcharge_views.xml',
-        'views/material_issuance_date_range_wizard_views.xml',
         'views/material_issuance_list_views.xml',
         'views/site_store_dashboard_views.xml',
         'views/liability_sheet_views.xml',

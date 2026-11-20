@@ -69,6 +69,15 @@ class StockPickingSiteOps(models.Model):
              'Material Issuance list can be grouped by product.',
     )
 
+    # ── Issuance date (local calendar date of scheduled_date) ─────────────────
+    x_issuance_date = fields.Date(
+        string='Issuance Date',
+        compute='_compute_issuance_date',
+        store=True, index=True,
+        help='Calendar date (company time zone) of the scheduled date. '
+             'Used by the Date From / Date To search options.',
+    )
+
     # ── Gate Pass ─────────────────────────────────────────────────────────────
     x_generate_gate_pass = fields.Boolean(
         string='Generate Gate Pass Outward', default=True)
@@ -295,6 +304,18 @@ class StockPickingSiteOps(models.Model):
         if warehouse and warehouse.lot_stock_id:
             return warehouse.lot_stock_id.id
         return False
+
+    @api.depends('scheduled_date', 'company_id')
+    def _compute_issuance_date(self):
+        for pick in self:
+            if not pick.scheduled_date:
+                pick.x_issuance_date = False
+                continue
+            tz_name = (pick.company_id.partner_id.tz
+                       or self.env.user.tz
+                       or 'Asia/Karachi')
+            pick.x_issuance_date = fields.Date.context_today(
+                pick.with_context(tz=tz_name), timestamp=pick.scheduled_date)
 
     @api.depends('move_ids.product_id')
     def _compute_issued_product_ids(self):
