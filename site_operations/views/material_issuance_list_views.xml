@@ -68,13 +68,10 @@
                 <field name="x_issuance_project_id" string="Project"/>
                 <field name="origin" string="Source Document"/>
                 <field name="product_id" string="Product"/>
-                <!-- Date range: type a date in the search box, pick "Date From" / "Date To" -->
-                <field name="x_issuance_date" string="Date From"
-                       filter_domain="[('x_issuance_date', '&gt;=', self)]"/>
-                <field name="x_issuance_date" string="Date To"
-                       filter_domain="[('x_issuance_date', '&lt;=', self)]"/>
 
-                <!-- ── Date Filters ── -->
+                <!-- ── Date Filters ──
+                     filter_issuance_date also enables the "Date Range" picker
+                     (static/src/js/material_issuance_date_range.js) -->
                 <separator/>
                 <filter name="filter_issuance_date"
                         string="Issuance Date"

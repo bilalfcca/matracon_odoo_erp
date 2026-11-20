@@ -139,6 +139,9 @@
             'site_operations/static/src/xml/account_report_analytic_lock.xml',
             # "All Dates" option in every accounting-report date filter
             'site_operations/static/src/xml/account_report_all_dates.xml',
+            # Material Issuance: Date Range picker in the search panel
+            'site_operations/static/src/js/material_issuance_date_range.js',
+            'site_operations/static/src/xml/material_issuance_date_range.xml',
         ],
     },
     'demo': [
