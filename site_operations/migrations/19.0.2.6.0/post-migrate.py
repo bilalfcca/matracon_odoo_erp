@@ -16,8 +16,6 @@ SPECS = [
      'signed_sheet_attachment_ids', 'signed_salary_sheet'),
     ('x.liability.sheet', 'pm_signed_sheet', 'pm_signed_sheet_filename',
      'pm_signed_sheet_attachment_ids', 'pm_signed_liability_sheet'),
-    ('account.move', 'x_bill_copy', 'x_bill_copy_filename',
-     'x_bill_copy_attachment_ids', 'bill_copy'),
     ('x.subcontractor.ipc', 'ipc_document', 'ipc_document_filename',
      'ipc_document_attachment_ids', 'ipc_document'),
     ('x.employee.document', 'file', 'filename',

@@ -1,4 +1,12 @@
 from odoo import api, models, _
+from odoo.exceptions import UserError
+
+# Upload "holding" model used by the matracon_multi_file widget: files are
+# uploaded with this res_model and res_id = 0 so no other module's upload hooks
+# run (e.g. Accounting's ir.attachment._post_add_create, which tries to import an
+# uploaded file into the vendor bill and crashes on unsaved bills). The files
+# are linked to the real record when it is saved (_matracon_bind_attachments).
+STAGING_MODEL = 'matracon.multi.attachment.mixin'
 
 
 class MatraconMultiAttachmentMixin(models.AbstractModel):
@@ -78,9 +86,15 @@ class MatraconMultiAttachmentMixin(models.AbstractModel):
             if not removed:
                 continue
             in_chatter = Message.search([('attachment_ids', 'in', removed.ids)]).attachment_ids
-            to_delete = removed - in_chatter
-            if to_delete:
-                to_delete.unlink()
+            for attachment in removed - in_chatter:
+                try:
+                    with self.env.cr.savepoint():
+                        attachment.unlink()
+                except UserError:
+                    # e.g. Accounting's restricted audit trail forbids deleting a
+                    # PDF of a posted bill — it is already removed from the
+                    # field, so just keep the file in the database.
+                    continue
 
     def _matracon_bind_attachments(self, field_names=None):
         """Link unbound files in the given attachment fields to their record.
@@ -94,7 +108,7 @@ class MatraconMultiAttachmentMixin(models.AbstractModel):
             unbound = attachments.filtered(
                 lambda a: not a.res_id
                 and not a.res_field
-                and a.res_model in (False, rec._name)
+                and a.res_model in (False, rec._name, STAGING_MODEL)
             )
             if unbound:
                 unbound.write({'res_model': rec._name, 'res_id': rec.id})

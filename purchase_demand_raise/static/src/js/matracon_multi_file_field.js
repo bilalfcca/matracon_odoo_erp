@@ -27,8 +27,18 @@ export class MatraconMultiFileField extends Many2ManyBinaryField {
         return !this.props.numberOfFiles || this.files.length < this.props.numberOfFiles;
     }
 
-    get resIdForUpload() {
-        return this.props.record.resId || 0;
+    /**
+     * Files are uploaded to a neutral holding model (res_id 0) instead of the
+     * record itself, so other modules' upload hooks do not run — e.g.
+     * Accounting tries to import any file uploaded on a vendor bill and fails
+     * on unsaved bills. The server links the files to the record on save.
+     */
+    get uploadResModel() {
+        return "matracon.multi.attachment.mixin";
+    }
+
+    get uploadResId() {
+        return 0;
     }
 
     async onFileReplaced(oldId, files) {

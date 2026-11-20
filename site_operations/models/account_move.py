@@ -15,8 +15,7 @@ _logger = logging.getLogger(__name__)
 
 class AccountMoveSiteOps(models.Model):
     """Vendor bills: PO link, liability sheet, project balance, notifications."""
-    _name = 'account.move'
-    _inherit = ['account.move', 'matracon.multi.attachment.mixin']
+    _inherit = 'account.move'
 
     @api.model
     def _register_hook(self):
@@ -156,20 +155,13 @@ class AccountMoveSiteOps(models.Model):
         readonly=True, copy=False, index=True,
         help='Material issuance that generated this backcharge journal entry.',
     )
-    # Legacy single-file field — data moved to x_bill_copy_attachment_ids
     x_bill_copy = fields.Binary(
-        string='Bill Copy (Legacy)',
+        string='Bill Copy',
         attachment=True,
         copy=False,
         help='Attach a scanned / digital copy of the physical vendor bill.',
     )
     x_bill_copy_filename = fields.Char(string='Bill Copy Filename')
-    x_bill_copy_attachment_ids = fields.Many2many(
-        'ir.attachment', 'account_move_bill_copy_rel',
-        'move_id', 'attachment_id',
-        string='Bill Copies', copy=False,
-        help='Scanned / digital copies of the physical vendor bill. '
-             'One or more files can be attached.')
     x_wht_tax_id = fields.Many2one(
         'account.tax', string='Withholding Tax (WHT)',
         domain="[('type_tax_use', '=', 'purchase'), ('active', '=', True)]",
@@ -749,7 +741,7 @@ class AccountMoveSiteOps(models.Model):
                     m.move_type == 'in_invoice'
                     and m.state != 'posted'
                     and not m.x_source_picking_id
-                    and not m.x_bill_copy_attachment_ids
+                    and not m.x_bill_copy
                 )
             )
         else:

@@ -14,8 +14,8 @@
                     <FileInput acceptedFileExtensions="props.acceptedFileExtensions"
                                multiUpload="false"
                                onUpload="(uploaded) => this.onFileReplaced(file.id, uploaded)"
-                               resModel="props.record.resModel"
-                               resId="resIdForUpload">
+                               resModel="uploadResModel"
+                               resId="uploadResId">
                         <button type="button"
                                 class="btn btn-link btn-sm lh-1 fa fa-pencil o_select_file_button"
                                 data-tooltip="Edit" aria-label="Edit"/>
@@ -37,8 +37,8 @@
                 <FileInput acceptedFileExtensions="props.acceptedFileExtensions"
                            multiUpload="true"
                            onUpload.bind="onFileUploaded"
-                           resModel="props.record.resModel"
-                           resId="resIdForUpload">
+                           resModel="uploadResModel"
+                           resId="uploadResId">
                     <button t-if="!files.length" type="button" class="btn btn-primary o_select_file_button">
                         Upload your file
                     </button>
