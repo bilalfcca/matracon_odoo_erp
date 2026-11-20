@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <data>
+        <record id="bg_nature_bid_security" model="x.bg.nature">
+            <field name="name">Bid Security</field>
+            <field name="code">bid_security</field>
+            <field name="sequence">1</field>
+        </record>
+        <record id="bg_nature_mob_advance" model="x.bg.nature">
+            <field name="name">Mob Advance Security</field>
+            <field name="code">mob_advance</field>
+            <field name="sequence">2</field>
+        </record>
+        <record id="bg_nature_performance" model="x.bg.nature">
+            <field name="name">Performance Security</field>
+            <field name="code">performance</field>
+            <field name="sequence">3</field>
+        </record>
+        <record id="bg_nature_other" model="x.bg.nature">
+            <field name="name">Other</field>
+            <field name="code">other</field>
+            <field name="sequence">99</field>
+        </record>
+    </data>
+</odoo>

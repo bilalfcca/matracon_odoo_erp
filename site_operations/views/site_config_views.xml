@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ── Inter-Project AML list view ──────────────────────────────────────
+         Opened by action_view_inter_project_lines().  Shows only the columns
+         relevant for inter-project transactions: date, JE ref, partner,
+         description, debit (this project owes) and credit (this project is owed). -->
+    <record id="view_inter_project_aml_list" model="ir.ui.view">
+        <field name="name">account.move.line.inter.project.list</field>
+        <field name="model">account.move.line</field>
+        <field name="arch" type="xml">
+            <list string="Inter-Project Transactions" create="false" delete="false"
+                  decoration-danger="debit > 0"
+                  decoration-success="credit > 0">
+                <field name="date" string="Date"/>
+                <field name="move_id" string="Journal Entry"/>
+                <field name="ref" string="Reference" optional="show"/>
+                <field name="partner_id" string="Partner" optional="show"/>
+                <field name="name" string="Description"/>
+                <field name="debit" string="Payable (We Owe)"
+                       decoration-danger="debit > 0" sum="Total Payable"/>
+                <field name="credit" string="Receivable (Owed to Us)"
+                       decoration-success="credit > 0" sum="Total Receivable"/>
+                <field name="analytic_distribution" widget="analytic_distribution"
+                       string="Analytic" optional="show"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ── Site Config form — site_operations additions ─────────────────── -->
+    <record id="view_project_site_config_form_site_ops" model="ir.ui.view">
+        <field name="name">x.project.site.config.form.site_ops</field>
+        <field name="model">x.project.site.config</field>
+        <field name="inherit_id" ref="purchase_demand_raise.view_project_site_config_form"/>
+        <field name="arch" type="xml">
+
+            <xpath expr="//sheet" position="before">
+                <header>
+                    <button name="action_convert_to_rewarded"
+                            string="Convert to Rewarded"
+                            type="object"
+                            class="btn-primary"
+                            invisible="x_award_status == 'rewarded'"/>
+                    <button name="action_convert_to_not_rewarded"
+                            string="Mark as Not Rewarded"
+                            type="object"
+                            class="btn-secondary"
+                            invisible="x_award_status == 'not_rewarded'"/>
+                    <field name="x_award_status" widget="statusbar" statusbar_visible="not_rewarded,rewarded"/>
+                </header>
+            </xpath>
+
+            <field name="analytic_account_id" position="after">
+                <field name="project_id" readonly="1"/>
+            </field>
+
+            <!-- Petty Cash, Material Issue, and Inter-Project Accounts -->
+            <field name="warehouse_id" position="after">
+                <field name="x_petty_cash_account_id"
+                       string="Petty Cash Account (Cash in Hand)"
+                       options="{'no_create': True}"
+                       help="The GL account for this site's petty cash (e.g. Cash in Hand — RWASA). Once set here, it auto-fills on all petty cash expenses, HO fund releases, and site cash-out entries for this project."/>
+                <field name="x_material_issue_account_id"
+                       string="Material Issue Account"
+                       options="{'no_create': True}"
+                       help="GL account debited when materials are issued from this site (normal or subcontractor). Saving this immediately updates both the Employee and Subcontractor issue locations so new issuances hit it automatically. Use 'Fix Old Issuances' to retroactively correct already-posted entries."/>
+                <field name="x_inter_project_account_id"
+                       string="Inter-Project Account"
+                       options="{'no_create': True}"
+                       help="Single GL account for all inter-project transactions (one account shared across all sites). When this site pays on behalf of another, this account is credited here (we are owed) and debited at the other site (they owe). Differentiated by analytic account — no hardcoded values."/>
+                <!-- "Fix Old Inter-Project Entries", "Fix Old Issuances" and
+                     "Fix Analytic Visibility" moved to Settings → Fix Tools
+                     (see matracon_admin_tools) -->
+            </field>
+
+            <!-- Smart button: Inter-Project Transactions -->
+            <button name="action_view_users" position="after">
+                <button name="action_open_project"
+                        type="object"
+                        class="oe_stat_button"
+                        icon="fa-folder-open"
+                        invisible="not project_id">
+                    <span class="o_stat_text">Odoo Project</span>
+                </button>
+                <button name="action_view_accountants"
+                        type="object"
+                        class="oe_stat_button"
+                        icon="fa-calculator">
+                    <field name="x_accountant_count" widget="statinfo" string="Accountants"/>
+                </button>
+                <button name="action_view_inter_project_lines"
+                        type="object"
+                        class="oe_stat_button"
+                        icon="fa-exchange"
+                        invisible="not x_inter_project_account_id or not analytic_account_id">
+                    <field name="x_inter_project_line_count" widget="statinfo"
+                           string="Inter-Project"/>
+                </button>
+            </button>
+
+            <page name="site_users" position="after">
+                <page string="Site Accountants" name="site_accountants">
+                    <div class="alert alert-info" role="alert">
+                        <strong>How this works:</strong>
+                        Adding a user here automatically assigns them to the
+                        <strong>Site Accountant</strong> security group and sets their
+                        default analytic account and warehouse for this project.
+                        Removing a user reverses this automatically.
+                    </div>
+                    <field name="x_site_accountant_ids" widget="many2many">
+                        <list>
+                            <field name="name"/>
+                            <field name="login"/>
+                            <field name="x_default_analytic_account_id" readonly="1" string="Analytic Account"/>
+                            <field name="x_default_warehouse_id" readonly="1" string="Warehouse"/>
+                            <field name="x_site_config_id" readonly="1" string="Site Config"/>
+                        </list>
+                    </field>
+                </page>
+
+                <!-- Inter-Project Balance Summary tab -->
+                <page string="Inter-Project Balance" name="inter_project_balance"
+                      invisible="not x_inter_project_account_id">
+                    <div class="alert alert-info" role="alert">
+                        <i class="fa fa-info-circle me-2"/>
+                        <strong>How inter-project balances work:</strong>
+                        When this site pays on behalf of another site, the
+                        <strong>Inter-Project Account</strong> is
+                        <em>credited</em> here (others owe us) and
+                        <em>debited</em> at the other site (they owe us).
+                        Click the <strong>Inter-Project</strong> smart button
+                        to see all individual transactions.
+                    </div>
+                    <group string="Net Position for this Site" col="2">
+                        <group>
+                            <field name="x_inter_project_receivable"
+                                   string="Receivable from Other Projects"
+                                   readonly="1"
+                                   decoration-success="x_inter_project_receivable > 0"
+                                   class="fw-bold"/>
+                            <div class="text-muted small">
+                                Other projects owe TO this project (credit balance)
+                            </div>
+                        </group>
+                        <group>
+                            <field name="x_inter_project_payable"
+                                   string="Payable to Other Projects"
+                                   readonly="1"
+                                   decoration-danger="x_inter_project_payable > 0"
+                                   class="fw-bold"/>
+                            <div class="text-muted small">
+                                This project owes TO other projects (debit balance)
+                            </div>
+                        </group>
+                    </group>
+                </page>
+
+                <page string="Project Details" name="project_details">
+                    <group string="Project Timeline">
+                        <group>
+                            <field name="x_project_start_date" string="Project Start Date"/>
+                            <field name="x_project_deadline" string="Original Deadline (Baseline)"/>
+                        </group>
+                        <group>
+                            <field name="x_current_deadline" string="Current Deadline" readonly="1"
+                                   decoration-success="x_current_deadline != x_project_deadline"
+                                   class="fw-bold"/>
+                        </group>
+                    </group>
+
+                    <separator string="Extension of Time (EOT) History"/>
+                    <field name="x_eot_ids" nolabel="1">
+                        <list editable="bottom">
+                            <field name="eot_no" string="No." readonly="1" width="48px"/>
+                            <field name="eot_date" string="Approval Date"/>
+                            <field name="duration_months" string="Duration (Months)"/>
+                            <field name="effective_deadline" string="Effective Deadline" readonly="1"
+                                   decoration-bf="1"/>
+                            <field name="notes" string="Notes / Reference"/>
+                        </list>
+                    </field>
+
+                    <div class="alert alert-info mt-2" role="alert"
+                         invisible="not x_project_deadline">
+                        <i class="fa fa-info-circle me-2"/>
+                        <strong>How EOT works:</strong>
+                        Each row adds months to the previous deadline cumulatively.
+                        The <strong>Current Deadline</strong> above reflects the sum of all EOTs.
+                    </div>
+                </page>
+            </page>
+
+        </field>
+    </record>
+
+    <record id="view_project_site_config_list_site_ops" model="ir.ui.view">
+        <field name="name">x.project.site.config.list.site_ops</field>
+        <field name="model">x.project.site.config</field>
+        <field name="inherit_id" ref="purchase_demand_raise.view_project_site_config_list"/>
+        <field name="arch" type="xml">
+            <field name="name" position="after">
+                <field name="x_award_status" string="Status" widget="badge"
+                       decoration-warning="x_award_status == 'not_rewarded'"
+                       decoration-success="x_award_status == 'rewarded'"/>
+            </field>
+        </field>
+    </record>
+</odoo>

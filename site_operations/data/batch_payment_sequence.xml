@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="seq_batch_payment" model="ir.sequence">
+        <field name="name">Batch Vendor Payment</field>
+        <field name="code">x.batch.payment</field>
+        <field name="prefix">BATCH/%(year)s/%(month)s/</field>
+        <field name="padding">4</field>
+        <field name="company_id" eval="False"/>
+    </record>
+</odoo>

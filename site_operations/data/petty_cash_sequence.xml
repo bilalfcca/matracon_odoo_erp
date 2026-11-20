@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="seq_petty_cash_request" model="ir.sequence">
+        <field name="name">Petty Cash Request</field>
+        <field name="code">x.petty.cash.request</field>
+        <field name="prefix">PCR/</field>
+        <field name="padding">5</field>
+    </record>
+
+    <record id="seq_petty_cash_expense" model="ir.sequence">
+        <field name="name">Petty Cash Expense Voucher</field>
+        <field name="code">x.petty.cash.expense</field>
+        <field name="prefix">PCE/%(year)s/</field>
+        <field name="padding">4</field>
+    </record>
+
+</odoo>

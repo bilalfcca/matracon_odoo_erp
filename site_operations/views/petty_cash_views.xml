@@ -1,0 +1,583 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_petty_cash_fund_form" model="ir.ui.view">
+        <field name="name">x.petty.cash.fund.form</field>
+        <field name="model">x.petty.cash.fund</field>
+        <field name="arch" type="xml">
+            <form string="Petty Cash Fund">
+                <sheet>
+                    <group>
+                        <field name="is_ho_fund"/>
+                        <field name="project_analytic_account_id"
+                               readonly="1"
+                               invisible="is_ho_fund"/>
+                        <field name="x_petty_cash_account_id"
+                               options="{'no_create': True}"
+                               help="The Cash in Hand account for this fund. Set here or via the Site Project Configuration."/>
+                        <field name="balance" readonly="1"/>
+                        <field name="total_released" readonly="1"/>
+                        <field name="total_expensed" readonly="1"/>
+                        <field name="currency_id" invisible="1"/>
+                    </group>
+                    <notebook>
+                        <page string="Requests">
+                            <field name="request_ids" readonly="1">
+                                <list>
+                                    <field name="name"/>
+                                    <field name="requested_amount"/>
+                                    <field name="released_amount"/>
+                                    <field name="state" widget="badge"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Expenses">
+                            <field name="expense_ids">
+                                <list editable="bottom">
+                                    <field name="expense_date"/>
+                                    <field name="x_ref"/>
+                                    <field name="name"/>
+                                    <field name="amount"/>
+                                    <field name="x_balance_before"/>
+                                    <field name="x_balance_after"/>
+                                    <field name="state" widget="badge"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_petty_cash_request_form" model="ir.ui.view">
+        <field name="name">x.petty.cash.request.form</field>
+        <field name="model">x.petty.cash.request</field>
+        <field name="arch" type="xml">
+            <form string="Petty Cash Request">
+                <header>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,submitted,ceo_approved,released,confirmed"/>
+                    <button name="action_submit" type="object" string="Submit to Finance HO"
+                            class="btn-primary" invisible="state != 'draft'"
+                            groups="site_operations.group_site_accountant,site_operations.group_finance_ho"/>
+                    <!-- Reset to Draft — Site Accountant / Finance HO:
+                         any non-draft state; payment reversal runs automatically -->
+                    <button name="action_reset_to_draft" type="object"
+                            string="↩ Reset to Draft"
+                            class="btn-secondary"
+                            invisible="state == 'draft'"
+                            groups="site_operations.group_site_accountant,site_operations.group_finance_ho"
+                            confirm="Reset this petty cash request to Draft? If a release payment exists it will be reversed and cancelled. This cannot be undone."/>
+                    <!-- Reset to Draft — CEO / Admin: any non-draft state -->
+                    <button name="action_reset_to_draft" type="object"
+                            string="↩ Reset to Draft"
+                            class="btn-secondary"
+                            invisible="state == 'draft'"
+                            groups="purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,base.group_system,site_operations.group_finance_ho"
+                            confirm="Reset to Draft? If a release payment exists it will be reversed and cancelled."/>
+                    <button name="action_ceo_approve" type="object" string="Approve (CEO)"
+                            class="btn-success" invisible="state != 'submitted'"
+                            groups="purchase_demand_raise.group_ceo_approval"/>
+                    <button name="action_release" type="object" string="Release Petty Cash"
+                            class="btn-primary" invisible="state != 'ceo_approved'"
+                            groups="site_operations.group_finance_ho"/>
+                    <button name="action_confirm_receipt" type="object" string="Confirm Receipt"
+                            class="btn-success" invisible="state != 'released'"
+                            groups="site_operations.group_site_accountant,site_operations.group_finance_ho"/>
+                    <button name="action_print_payment_voucher" type="object"
+                            string="Print Payment Voucher"
+                            class="btn-secondary"
+                            icon="fa-print"
+                            invisible="state not in ('released', 'confirmed') or not payment_id"/>
+                    <!-- "Fix GL Entry" moved to Settings → Fix Tools (see matracon_admin_tools) -->
+                    <button name="action_delete_draft" type="object"
+                            string="Delete" class="btn-danger"
+                            invisible="state != 'draft'"
+                            confirm="This petty cash request will be permanently deleted. Are you sure?"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button type="object" name="action_view_fund"
+                                class="oe_stat_button" icon="fa-money">
+                            <div class="o_field_widget o_stat_info">
+                                <span class="o_stat_value">
+                                    <field name="current_balance" widget="monetary"
+                                           options="{'currency_field': 'currency_id'}"/>
+                                </span>
+                                <span class="o_stat_text">Site Cash Balance</span>
+                            </div>
+                        </button>
+                        <button type="object" name="action_view_payment"
+                                class="oe_stat_button" icon="fa-credit-card"
+                                invisible="not payment_id">
+                            <div class="o_field_widget o_stat_info">
+                                <span class="o_stat_text">Release</span>
+                                <span class="o_stat_text">Payment</span>
+                            </div>
+                        </button>
+                    </div>
+                    <group>
+                        <field name="name" readonly="1"/>
+                        <field name="fund_id" readonly="state != 'draft'"/>
+                        <field name="project_analytic_account_id" readonly="1"/>
+                        <field name="requested_amount" readonly="state != 'draft'"/>
+                        <field name="reason" readonly="state != 'draft'"/>
+                        <field name="ceo_amount_type"
+                               invisible="state not in ('submitted', 'ceo_approved', 'released', 'confirmed')"
+                               readonly="state != 'submitted'"/>
+                        <field name="ceo_approved_amount"
+                               invisible="state not in ('submitted', 'ceo_approved', 'released', 'confirmed')"
+                               readonly="state != 'submitted'"/>
+                        <field name="released_amount" readonly="1"/>
+                        <field name="payment_id" readonly="1"/>
+                        <field name="x_cheque_number"
+                               invisible="state not in ('ceo_approved', 'released', 'confirmed')"
+                               readonly="state in ('confirmed', 'rejected')"
+                               placeholder="e.g. CHQ-001 / Bank Ref"/>
+                        <field name="currency_id" invisible="1"/>
+                    </group>
+
+                    <!-- PM-signed document — MANDATORY before submitting.
+                         Workflow: print this request, get it physically signed
+                         by the Project Manager, scan/photograph it and upload here.
+                         action_submit() raises UserError if this is empty. -->
+                    <group string="PM Signed Document (Required before submitting)">
+                        <div colspan="2" class="alert alert-warning" role="alert"
+                             invisible="x_pm_signed_document or state != 'draft'">
+                            <strong>Action Required:</strong>
+                            Print this request, obtain the Project Manager's signature,
+                            scan it and upload the signed copy below before submitting.
+                        </div>
+                        <field name="x_pm_signed_document"
+                               widget="binary"
+                               filename="x_pm_signed_document_filename"
+                               string="Upload PM Signed Document"
+                               readonly="state != 'draft'"/>
+                        <field name="x_pm_signed_document_filename" invisible="1"/>
+                    </group>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- Unified Requests list — used by all roles via action_petty_cash_request.
+         CEO columns (Decision Type, CEO Approved) are restricted by groups so only
+         CEO sees/edits them inline; everyone else sees a clean read-only list.
+         multi_edit lets CEO bulk-set amounts before using "CEO Approve Selected". -->
+    <record id="view_petty_cash_request_list" model="ir.ui.view">
+        <field name="name">x.petty.cash.request.list</field>
+        <field name="model">x.petty.cash.request</field>
+        <field name="arch" type="xml">
+            <list multi_edit="1"
+                  decoration-muted="state == 'draft'"
+                  decoration-warning="state == 'submitted'"
+                  decoration-info="state == 'ceo_approved'"
+                  decoration-primary="state == 'released'"
+                  decoration-success="state == 'confirmed'"
+                  decoration-danger="state == 'rejected'">
+                <field name="create_date" string="Request Date" widget="date" readonly="1" optional="show"/>
+                <field name="name" readonly="1"/>
+                <field name="project_analytic_account_id" string="Site Project" readonly="1"/>
+                <field name="requested_amount" string="Required Amount" readonly="1"/>
+                <!-- CEO-only inline edit: visible + editable only when user is CEO -->
+                <field name="ceo_amount_type" string="Decision Type"
+                       groups="purchase_demand_raise.group_ceo_approval"
+                       readonly="state not in ('submitted',)"/>
+                <field name="ceo_approved_amount" string="CEO Approved"
+                       groups="purchase_demand_raise.group_ceo_approval"
+                       readonly="state not in ('submitted',)"/>
+                <field name="released_amount" string="Released Amount" readonly="1" optional="show"/>
+                <field name="x_cheque_number" string="Cheque No." optional="show"/>
+                <field name="currency_id" invisible="1"/>
+                <field name="state" widget="badge"
+                       readonly="1"
+                       decoration-muted="state == 'draft'"
+                       decoration-warning="state == 'submitted'"
+                       decoration-info="state == 'ceo_approved'"
+                       decoration-primary="state == 'released'"
+                       decoration-success="state == 'confirmed'"
+                       decoration-danger="state == 'rejected'"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_petty_cash_expense_form" model="ir.ui.view">
+        <field name="name">x.petty.cash.expense.form</field>
+        <field name="model">x.petty.cash.expense</field>
+        <field name="arch" type="xml">
+            <form string="Petty Cash Expense">
+                <header>
+                    <button name="action_post" type="object" string="Post Expense"
+                            class="btn-primary" invisible="state != 'draft'"
+                            groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_head_office,site_operations.group_accountant_ho"/>
+                    <!-- Reset to Draft — Site Accountant / Finance HO / Admin.
+                         Resets the linked JE to draft and reverses any employee advance balance. -->
+                    <button name="action_reset_to_draft" type="object"
+                            string="↩ Reset to Draft"
+                            class="btn-secondary"
+                            invisible="state != 'posted'"
+                            groups="site_operations.group_site_accountant,site_operations.group_accountant_ho,site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin,base.group_system,purchase_demand_raise.group_ceo_approval"
+                            confirm="Reset this expense to Draft? The linked journal entry will be reset to draft so you can make changes and re-post."/>
+                    <field name="state" widget="statusbar"/>
+                    <button name="action_delete_draft" type="object"
+                            string="Delete" class="btn-danger"
+                            invisible="state != 'draft'"
+                            confirm="This petty cash expense will be permanently deleted. Are you sure?"/>
+                </header>
+                <sheet>
+                    <!-- Smart buttons -->
+                    <div class="oe_button_box" name="button_box">
+                        <button type="object" class="oe_stat_button" icon="fa-book"
+                                name="action_view_journal_entry"
+                                invisible="not x_account_move_id">
+                            <div class="o_field_widget o_stat_info">
+                                <span class="o_stat_text">Journal</span>
+                                <span class="o_stat_text">Entry</span>
+                            </div>
+                        </button>
+                        <button type="object" class="oe_stat_button" icon="fa-shopping-cart"
+                                name="action_view_pr_from_expense"
+                                invisible="not x_purchase_order_id">
+                            <div class="o_field_widget o_stat_info">
+                                <span class="o_stat_text">Purchase</span>
+                                <span class="o_stat_text">Requisition</span>
+                            </div>
+                        </button>
+                        <button type="object" class="oe_stat_button" icon="fa-truck"
+                                name="action_view_picking_from_expense"
+                                invisible="not x_picking_id">
+                            <div class="o_field_widget o_stat_info">
+                                <span class="o_stat_text">Material</span>
+                                <span class="o_stat_text">Receipt</span>
+                            </div>
+                        </button>
+                    </div>
+
+                    <group>
+                        <group string="Fund">
+                            <field name="fund_id" readonly="state == 'posted'"/>
+                            <field name="project_analytic_account_id" readonly="1"/>
+                            <field name="available_balance" readonly="1"
+                                   widget="monetary"
+                                   options="{'currency_field': 'currency_id'}"
+                                   force_save="1"/>
+                        </group>
+                        <group string="Voucher">
+                            <!-- Reference: auto-filled from source doc or entered manually -->
+                            <field name="x_ref"
+                                   string="Reference"
+                                   placeholder="e.g. MCH|N00003"
+                                   readonly="state == 'posted'"/>
+                            <field name="expense_date" readonly="state == 'posted'"/>
+                            <field name="name" string="Voucher Title"
+                                   placeholder="e.g. July fuel + worker advances"
+                                   readonly="state == 'posted'"/>
+                            <field name="category" readonly="state == 'posted'"
+                                   help="Used as fallback expense account when a line has no account set."/>
+                            <field name="currency_id" invisible="1"/>
+                            <!-- journal_id is used internally only; not shown to users -->
+                            <field name="journal_id" invisible="1"/>
+                        </group>
+                    </group>
+
+                    <!-- ── Expense Lines ────────────────────────────────────── -->
+                    <field name="line_ids" readonly="state == 'posted'">
+                        <list editable="bottom" optional="show">
+                            <field name="sequence" widget="handle"/>
+                            <field name="name" string="Description"
+                                   placeholder="What is this for?"/>
+                            <field name="amount" string="Amount"
+                                   widget="monetary"
+                                   options="{'currency_field': 'currency_id'}"/>
+                            <field name="expense_account_id"
+                                   string="Account (Debit)"
+                                   options="{'no_create': True}"
+                                   domain="parent.project_analytic_account_id and ['|', ('account_type', 'in', ['liability_payable', 'asset_receivable']), '&amp;', ('x_ho_only', '=', False), '|', ('x_site_ids', '=', False), ('x_site_ids', 'in', [parent.project_analytic_account_id])] or []"
+                                   placeholder="Leave blank for category default"/>
+                            <field name="partner_id" string="Partner"
+                                   options="{'no_create': True, 'no_quick_create': True}"
+                                   placeholder="Anyone from Contacts"/>
+                            <field name="is_employee_advance" string="Emp. Adv."/>
+                            <!-- Employee column: always visible; cell hidden when flag is off -->
+                            <field name="employee_id"
+                                   string="Employee"
+                                   invisible="not is_employee_advance"
+                                   required="is_employee_advance"/>
+                            <field name="is_subcontractor_advance" string="SC Adv."/>
+                            <!-- Subcontractor column: always visible; cell hidden when flag is off -->
+                            <field name="advance_subcontractor_id"
+                                   string="Subcontractor"
+                                   invisible="not is_subcontractor_advance"
+                                   required="is_subcontractor_advance"
+                                   options="{'no_quick_create': True}"/>
+                            <field name="currency_id" column_invisible="True"/>
+                            <field name="project_analytic_account_id" column_invisible="True"/>
+                        </list>
+                    </field>
+
+                    <!-- Total (read-only computed from lines) -->
+                    <group>
+                        <group/>
+                        <group>
+                            <field name="amount" readonly="1" string="Total Amount"
+                                   widget="monetary"
+                                   options="{'currency_field': 'currency_id'}"/>
+                        </group>
+                    </group>
+
+                    <!-- ── Credit account ──────────────────────────────────── -->
+                    <group string="Credit (Cash Out)">
+                        <group>
+                            <field name="x_petty_cash_account_id"
+                                   string="Petty Cash Account (Credit)"
+                                   readonly="1"
+                                   force_save="1"
+                                   options="{'no_create': True}"
+                                   help="Cash in Hand account — auto-configured from the site project. Always readonly."/>
+                        </group>
+                    </group>
+
+                    <group string="Site Procurement Reference"
+                           invisible="not x_purchase_order_id">
+                        <field name="x_purchase_order_id" readonly="1"
+                               string="Purchase Requisition"
+                               options="{'no_open': False}"/>
+                        <field name="x_picking_id" readonly="1"
+                               string="Material Receipt"
+                               options="{'no_open': False}"/>
+                    </group>
+
+                    <!-- Balance snapshot (visible after posting) -->
+                    <group string="Balance" invisible="state == 'draft'">
+                        <field name="x_balance_before" readonly="1" string="Balance Before"/>
+                        <field name="x_balance_after" readonly="1" string="Balance After"/>
+                    </group>
+
+                    <!-- Signed voucher — MANDATORY before posting.
+                         Workflow: print the voucher (Print menu), get it physically
+                         signed by all parties, scan it and upload here.
+                         action_post() raises UserError if this is empty. -->
+                    <group string="Signed Voucher (Required before posting)">
+                        <div colspan="2" class="alert alert-warning" role="alert"
+                             invisible="x_signed_voucher or state == 'posted'">
+                            <strong>Action Required:</strong>
+                            Print this voucher, obtain physical signatures, scan it and upload below before posting.
+                        </div>
+                        <label for="x_signed_voucher" string="Signed Voucher"/>
+                        <div class="o_row">
+                            <field name="x_signed_voucher" widget="binary"
+                                   filename="x_signed_voucher_filename"
+                                   readonly="state == 'posted'"/>
+                            <button name="action_view_signed_voucher"
+                                    type="object"
+                                    string="View Voucher"
+                                    icon="fa-eye"
+                                    class="btn btn-sm btn-outline-primary"
+                                    invisible="not x_signed_voucher"/>
+                        </div>
+                        <field name="x_signed_voucher_filename" invisible="1"/>
+                    </group>
+
+                    <group string="Supporting Receipt (Optional)">
+                        <label for="receipt" string="Receipt / Invoice"/>
+                        <div class="o_row">
+                            <field name="receipt" widget="binary"
+                                   filename="receipt_filename"
+                                   readonly="state == 'posted'"/>
+                            <button name="action_view_receipt"
+                                    type="object"
+                                    string="View Receipt"
+                                    icon="fa-eye"
+                                    class="btn btn-sm btn-outline-primary"
+                                    invisible="not receipt"/>
+                        </div>
+                        <field name="receipt_filename" invisible="1"/>
+                    </group>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- List view with reference and running balance columns -->
+    <record id="view_petty_cash_expense_list" model="ir.ui.view">
+        <field name="name">x.petty.cash.expense.list</field>
+        <field name="model">x.petty.cash.expense</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="expense_date"/>
+                <field name="x_ref" string="Reference"/>
+                <field name="name" string="Description"/>
+                <field name="project_analytic_account_id" string="Project" optional="show"/>
+                <field name="category" optional="show"/>
+                <field name="amount"/>
+                <field name="currency_id" invisible="1"/>
+                <!-- Opening/Closing balance per row — first of day = opening, last = closing -->
+                <field name="x_balance_before" string="Balance Before" optional="show"/>
+                <field name="x_balance_after" string="Balance After"/>
+                <field name="state" widget="badge"
+                       decoration-success="state == 'posted'"
+                       decoration-muted="state == 'draft'"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         CEO-SPECIFIC: Petty Cash Requests list
+         • Editable: ceo_amount_type + ceo_approved_amount settable inline
+         • Used by action_petty_cash_request_ceo (domain excludes draft)
+         ══════════════════════════════════════════════════════════════════════ -->
+    <record id="view_petty_cash_request_list_ceo" model="ir.ui.view">
+        <field name="name">x.petty.cash.request.list.ceo</field>
+        <field name="model">x.petty.cash.request</field>
+        <field name="arch" type="xml">
+            <list create="0" multi_edit="1"
+                  decoration-warning="state == 'submitted'"
+                  decoration-info="state == 'ceo_approved'"
+                  decoration-primary="state == 'released'"
+                  decoration-success="state == 'confirmed'"
+                  decoration-danger="state == 'rejected'">
+                <field name="name" readonly="1"/>
+                <field name="project_analytic_account_id" string="Site Project" readonly="1"/>
+                <field name="requested_amount" string="Required Amount" readonly="1"/>
+                <!-- CEO editable columns -->
+                <field name="ceo_amount_type" string="Decision Type"
+                       readonly="state not in ('submitted',)"/>
+                <field name="ceo_approved_amount" string="CEO Approved"
+                       readonly="state not in ('submitted',)"/>
+                <field name="released_amount" string="Released Amount" readonly="1"/>
+                <field name="currency_id" invisible="1"/>
+                <field name="state" widget="badge"
+                       readonly="1"
+                       decoration-warning="state == 'submitted'"
+                       decoration-info="state == 'ceo_approved'"
+                       decoration-primary="state == 'released'"
+                       decoration-success="state == 'confirmed'"
+                       decoration-danger="state == 'rejected'"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_petty_cash_request_search" model="ir.ui.view">
+        <field name="name">x.petty.cash.request.search</field>
+        <field name="model">x.petty.cash.request</field>
+        <field name="arch" type="xml">
+            <search string="Search Petty Cash Requests">
+                <field name="name"/>
+                <field name="project_analytic_account_id" string="Project"/>
+                <field name="fund_id"/>
+                <field name="create_date" string="Request Date" filter_domain="[('create_date', '&gt;=', self)]"/>
+                <separator/>
+                <filter name="filter_draft" string="Draft"
+                        domain="[('state', '=', 'draft')]"/>
+                <filter name="filter_submitted" string="Submitted"
+                        domain="[('state', '=', 'submitted')]"/>
+                <filter name="filter_approved" string="CEO Approved"
+                        domain="[('state', '=', 'ceo_approved')]"/>
+                <filter name="filter_released" string="Released"
+                        domain="[('state', '=', 'released')]"/>
+                <filter name="filter_confirmed" string="Confirmed"
+                        domain="[('state', '=', 'confirmed')]"/>
+                <separator/>
+                <!-- Date quick-filters on Request Date (create_date) -->
+                <filter name="filter_req_today" string="Today"
+                        domain="[('create_date', '&gt;=', context_today().strftime('%Y-%m-%d 00:00:00')),
+                                  ('create_date', '&lt;', (context_today() + datetime.timedelta(days=1)).strftime('%Y-%m-%d 00:00:00'))]"/>
+                <filter name="filter_req_this_month" string="This Month"
+                        domain="[('create_date', '&gt;=', context_today().strftime('%Y-%m-01 00:00:00'))]"/>
+                <separator/>
+                <filter name="group_by_project" string="By Project"
+                        context="{'group_by': 'project_analytic_account_id'}"/>
+                <filter name="group_by_state" string="By Status"
+                        context="{'group_by': 'state'}"/>
+                <filter name="group_by_date" string="By Month"
+                        context="{'group_by': 'create_date:month'}"/>
+            </search>
+        </field>
+    </record>
+
+    <!-- CEO window action — excludes Draft, uses CEO editable list -->
+    <record id="action_petty_cash_request_ceo" model="ir.actions.act_window">
+        <field name="name">Petty Cash Requests</field>
+        <field name="res_model">x.petty.cash.request</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('state', '!=', 'draft')]</field>
+        <field name="view_ids" eval="[
+            (5, 0, 0),
+            (0, 0, {'view_mode': 'list', 'view_id': ref('view_petty_cash_request_list_ceo')}),
+        ]"/>
+        <field name="context">{'search_default_group_by_project': 1}</field>
+        <field name="search_view_id" ref="view_petty_cash_request_search"/>
+    </record>
+
+    <!-- Server action: CEO bulk approve — appears in Actions dropdown when
+         one or more requests are selected in any request list view.
+         The Python method itself enforces CEO-group access. -->
+    <record id="action_server_ceo_bulk_approve" model="ir.actions.server">
+        <field name="name">CEO Approve Selected</field>
+        <field name="model_id" ref="site_operations.model_x_petty_cash_request"/>
+        <field name="binding_model_id" ref="site_operations.model_x_petty_cash_request"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_ceo_bulk_approve()</field>
+    </record>
+
+    <record id="view_petty_cash_expense_search" model="ir.ui.view">
+        <field name="name">x.petty.cash.expense.search</field>
+        <field name="model">x.petty.cash.expense</field>
+        <field name="arch" type="xml">
+            <search string="Search Petty Cash Expenses">
+                <field name="name" string="Description"/>
+                <field name="x_ref" string="Reference"/>
+                <field name="project_analytic_account_id" string="Project"/>
+                <field name="fund_id"/>
+                <field name="expense_date" string="Expense Date" filter_domain="[('expense_date', '=', self)]"/>
+                <separator/>
+                <filter name="filter_draft" string="Draft"
+                        domain="[('state', '=', 'draft')]"/>
+                <filter name="filter_posted" string="Posted"
+                        domain="[('state', '=', 'posted')]"/>
+                <separator/>
+                <!-- Date quick-filters on Expense Date -->
+                <filter name="filter_exp_today" string="Today"
+                        domain="[('expense_date', '=', context_today().strftime('%Y-%m-%d'))]"/>
+                <filter name="filter_exp_this_month" string="This Month"
+                        domain="[('expense_date', '&gt;=', context_today().strftime('%Y-%m-01'))]"/>
+                <separator/>
+                <filter name="group_by_project" string="By Project"
+                        context="{'group_by': 'project_analytic_account_id'}"/>
+                <filter name="group_by_date" string="By Month"
+                        context="{'group_by': 'expense_date:month'}"/>
+                <filter name="group_by_category" string="By Category"
+                        context="{'group_by': 'category'}"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_petty_cash_request" model="ir.actions.act_window">
+        <field name="name">Petty Cash Requests</field>
+        <field name="res_model">x.petty.cash.request</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_petty_cash_request_search"/>
+        <field name="context">{'search_default_group_by_project': 1}</field>
+    </record>
+
+    <record id="action_petty_cash_expense" model="ir.actions.act_window">
+        <field name="name">Petty Cash Expenses</field>
+        <field name="res_model">x.petty.cash.expense</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_petty_cash_expense_search"/>
+        <field name="context">{'search_default_group_by_project': 1}</field>
+    </record>
+
+    <record id="action_petty_cash_fund" model="ir.actions.act_window">
+        <field name="name">Petty Cash Funds</field>
+        <field name="res_model">x.petty.cash.fund</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+
+</odoo>

@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+  <!-- ── Digital Signature + Backdate Default on Preferences dialog ── -->
+  <record id="view_users_preferences_matracon_backdate" model="ir.ui.view">
+    <field name="name">res.users.preferences.matracon.backdate</field>
+    <field name="model">res.users</field>
+    <field name="inherit_id" ref="base.view_users_form_simple_modif"/>
+    <field name="arch" type="xml">
+      <!-- Signature section — appears at the bottom of the Preferences dialog -->
+      <group name="other_preferences" position="before">
+        <group string="My Signature" name="matracon_signature">
+          <field name="x_sign_signature"
+                 widget="signature"
+                 string="Digital Signature"
+                 nolabel="1"
+                 options="{'full_name': 'name', 'size': [300, 100]}"
+                 help="Draw, type, or upload your signature. It will be automatically applied to all printed documents (BPV, Purchase Orders, Salary Sheets, Petty Cash, Liability Sheets, Material Issuances, etc.) where you are the signatory."/>
+          <p class="text-muted" colspan="2" style="font-size:12px; margin-top:-4px;">
+            Click the signature area to draw with mouse/touch, type your initials, or upload an image.
+          </p>
+        </group>
+      </group>
+      <group name="other_preferences" position="inside">
+        <field name="x_backdate_default"
+               string="Default Entry Date"
+               help="Set a date to use as the default for all new journal entries, invoices, and payments you create. Leave empty to use today's date. Clear when done with the backdated batch."/>
+      </group>
+    </field>
+  </record>
+
+  <!-- ── Last Online on Users form (Preferences tab → Other Preferences) ── -->
+  <record id="view_users_form_matracon_last_online" model="ir.ui.view">
+    <field name="name">res.users.form.matracon.last.online</field>
+    <field name="model">res.users</field>
+    <field name="inherit_id" ref="base.view_users_form"/>
+    <field name="arch" type="xml">
+      <xpath expr="//group[@name='other_preferences']" position="inside">
+        <field name="x_last_online" readonly="1" string="Last Online"
+               help="Last time this user had an active browser tab. Updated every ~60 s."/>
+      </xpath>
+    </field>
+  </record>
+
+  <record id="view_users_form_matracon_app_access" model="ir.ui.view">
+    <field name="name">res.users.form.matracon.app.access</field>
+    <field name="model">res.users</field>
+    <field name="inherit_id" ref="base.view_users_form"/>
+    <field name="arch" type="xml">
+      <xpath expr="//notebook" position="inside">
+        <page string="Matracon App Access"
+              name="matracon_app_access"
+              groups="purchase_demand_raise.group_matracon_admin,base.group_system">
+          <group string="Home Screen Apps (override role defaults)">
+            <field name="group_ids"
+                   widget="many2many_checkboxes"
+                   domain="[('id', 'in', matracon_app_group_ids)]"
+                   options="{'no_create': True}"/>
+            <field name="matracon_app_group_ids" invisible="1"/>
+          </group>
+          <p class="text-muted">
+            Tick extra apps to show on this user's home screen.
+            Role groups already include default apps; use this to add or remove app visibility groups.
+          </p>
+        </page>
+      </xpath>
+    </field>
+  </record>
+</odoo>

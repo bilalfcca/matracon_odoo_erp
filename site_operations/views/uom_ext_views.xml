@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ── UoM Form: add Alternative Names field ──────────────────────────── -->
+    <record id="view_uom_form_aliases" model="ir.ui.view">
+        <field name="name">uom.uom.form.aliases</field>
+        <field name="model">uom.uom</field>
+        <field name="inherit_id" ref="uom.product_uom_form_view"/>
+        <field name="arch" type="xml">
+            <field name="name" position="after">
+                <field name="x_aliases"
+                       string="Alternative Names"
+                       placeholder="e.g. bag, sack, gunny bag  (comma-separated)"
+                       help="Users can type any of these names to find this unit in Inventory, Purchase, and all other apps."/>
+            </field>
+        </field>
+    </record>
+
+    <!-- ── UoM List: show alternatives alongside the primary name ─────────── -->
+    <record id="view_uom_list_aliases" model="ir.ui.view">
+        <field name="name">uom.uom.list.aliases</field>
+        <field name="model">uom.uom</field>
+        <field name="inherit_id" ref="uom.product_uom_tree_view"/>
+        <field name="arch" type="xml">
+            <field name="name" position="after">
+                <field name="x_aliases" string="Alternative Names" optional="show"/>
+            </field>
+        </field>
+    </record>
+
+    <!-- ── UoM Search: allow searching by alias ───────────────────────────── -->
+    <record id="view_uom_search_aliases" model="ir.ui.view">
+        <field name="name">uom.uom.search.aliases</field>
+        <field name="model">uom.uom</field>
+        <field name="inherit_id" ref="uom.uom_uom_view_search"/>
+        <field name="arch" type="xml">
+            <field name="name" position="after">
+                <field name="x_aliases" string="Alternative Name"/>
+            </field>
+        </field>
+    </record>
+
+</odoo>

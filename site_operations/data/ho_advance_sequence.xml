@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="seq_subcontractor_ho_advance" model="ir.sequence">
+        <field name="name">Subcontractor HO Advance</field>
+        <field name="code">x.subcontractor.ho.advance</field>
+        <field name="prefix">HOADV/%(year)s/</field>
+        <field name="padding">4</field>
+        <field name="company_id" eval="False"/>
+    </record>
+</odoo>

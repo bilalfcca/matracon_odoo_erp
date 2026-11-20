@@ -1,0 +1,428 @@
+"""Native project.project extended as the financial + access anchor for each site."""
+
+from odoo import models, fields, api
+
+
+class ProjectProjectMatracon(models.Model):
+    _inherit = 'project.project'
+
+    @api.model
+    def _register_hook(self):
+        self.env.cr.execute("""
+            ALTER TABLE project_project
+                ADD COLUMN IF NOT EXISTS x_balance_adjustment DOUBLE PRECISION
+                    NOT NULL DEFAULT 0.0
+        """)
+        return super()._register_hook()
+
+    x_analytic_account_id = fields.Many2one(
+        'account.analytic.account',
+        string='Project Analytic Account',
+        tracking=True,
+        index=True,
+        help='Single analytic account for all costs, payments, and reporting on this project.',
+    )
+    x_site_config_id = fields.Many2one(
+        'x.project.site.config',
+        string='Site Configuration',
+        readonly=True,
+        copy=False,
+    )
+    x_award_status = fields.Selection([
+        ('not_rewarded', 'Not Rewarded'),
+        ('rewarded', 'Rewarded'),
+    ], string='Status', default='not_rewarded', tracking=True, index=True)
+    x_site_store_user_ids = fields.Many2many(
+        'res.users',
+        'project_site_store_user_rel',
+        'project_id', 'user_id',
+        string='Site Store Managers',
+        help='Users who manage inventory and procurement for this project site.',
+    )
+    x_site_accountant_user_ids = fields.Many2many(
+        'res.users',
+        'project_site_accountant_user_rel',
+        'project_id', 'user_id',
+        string='Site Accountants',
+        help='Users who manage liabilities, petty cash, and payroll for this project site.',
+    )
+
+    # ── Live financial metrics (fund pool model) ───────────────────────────────
+    x_opening_balance = fields.Monetary(
+        string='Opening Balance',
+        currency_field='currency_id',
+        default=0.0,
+        help=(
+            'One-time opening balance for this project — representing funds that '
+            'existed before the system was set up. Added on top of Funds Received '
+            'when computing Available Balance.'
+        ),
+    )
+    x_balance_adjustment = fields.Monetary(
+        string='Balance Correction',
+        currency_field='currency_id',
+        default=0.0,
+        help=(
+            'One-time correction for historical payments or receipts NOT captured '
+            'in Odoo (e.g. payments made before proper tracking was set up). '
+            'Enter a NEGATIVE amount to reduce the balance for past untracked '
+            'spends; enter a POSITIVE amount to add untracked fund receipts. '
+            'Does not create any journal entries — purely a balance offset.'
+        ),
+    )
+    x_funds_received = fields.Monetary(
+        string='Funds Received',
+        compute='_compute_project_financials',
+        currency_field='currency_id',
+        help='Inbound client / HO fund receipts tagged to this project.',
+    )
+    x_total_spent = fields.Monetary(
+        string='Total Spent (Paid)',
+        compute='_compute_project_financials',
+        currency_field='currency_id',
+        help='Outbound payments allocated from this project fund pool.',
+    )
+    x_available_balance = fields.Monetary(
+        string='Available Balance',
+        compute='_compute_project_financials',
+        search='_search_available_balance',
+        currency_field='currency_id',
+        help='Funds received minus amounts already paid out from this project.',
+    )
+    x_total_vendor_liability = fields.Monetary(
+        string='Vendor Liabilities',
+        compute='_compute_project_financials',
+        currency_field='currency_id',
+        help='Outstanding vendor payables tagged to this project.',
+    )
+    x_total_sub_liability = fields.Monetary(
+        string='Subcontractor Liabilities',
+        compute='_compute_project_financials',
+        currency_field='currency_id',
+        help='Outstanding subcontractor payables tagged to this project.',
+    )
+    # ── Contract & Completion Tracking ────────────────────────────────────────
+    x_contract_value = fields.Monetary(
+        string='Contract Value',
+        currency_field='currency_id',
+        tracking=True,
+        help='Total value of the project contract with the client.',
+    )
+    x_billed_to_client = fields.Monetary(
+        string='Billed to Client',
+        compute='_compute_billed_to_client',
+        store=True,
+        currency_field='currency_id',
+        help=(
+            'Auto-calculated: sum of all posted Customer Invoices (minus credit notes) '
+            'linked to this project via Analytic Account. '
+            'Updates automatically when invoices are posted or cancelled.'
+        ),
+    )
+    x_work_completion_pct = fields.Float(
+        string='Work Completion %',
+        digits=(5, 1),
+        tracking=True,
+        help='Manual entry: percentage of physical work completed on site.',
+    )
+    x_financial_completion_pct = fields.Float(
+        string='Financial Completion %',
+        compute='_compute_financial_completion_pct',
+        digits=(16, 4),
+        store=True,
+        help='Auto: Billed to Client ÷ Contract Value × 100.',
+    )
+    x_remaining_work_value = fields.Monetary(
+        string='Remaining to Bill',
+        compute='_compute_financial_completion_pct',
+        currency_field='currency_id',
+        store=True,
+        help='Auto: Contract Value − Billed to Client (amount still left to invoice).',
+    )
+
+    currency_id = fields.Many2one(
+        'res.currency',
+        compute='_compute_currency_id',
+        store=False,
+    )
+
+    @api.depends('company_id')
+    def _compute_currency_id(self):
+        for project in self:
+            project.currency_id = (
+                project.company_id.currency_id
+                or self.env.company.currency_id
+            )
+
+    @api.depends('x_analytic_account_id')
+    def _compute_billed_to_client(self):
+        """Compute billed amount from posted Customer Invoices/credit notes.
+
+        Sums ``amount_untaxed`` of every posted ``out_invoice`` linked to this
+        project via ``x_project_analytic_account_id``, then subtracts the same
+        for ``out_refund`` (credit notes).  This method is also called directly
+        from ``account.move`` whenever an invoice is posted, reset to draft, or
+        re-assigned to a different project.
+        """
+        Move = self.env['account.move'].sudo()
+        for project in self:
+            analytic = project.x_analytic_account_id
+            if not analytic:
+                project.x_billed_to_client = 0.0
+                continue
+            moves = Move.search([
+                ('move_type', 'in', ('out_invoice', 'out_refund')),
+                ('state', '=', 'posted'),
+                ('x_project_analytic_account_id', '=', analytic.id),
+            ])
+            billed = sum(
+                m.amount_untaxed * (1.0 if m.move_type == 'out_invoice' else -1.0)
+                for m in moves
+            )
+            project.x_billed_to_client = max(billed, 0.0)
+
+    @api.depends('x_contract_value', 'x_billed_to_client')
+    def _compute_financial_completion_pct(self):
+        for project in self:
+            if project.x_contract_value:
+                project.x_financial_completion_pct = (
+                    project.x_billed_to_client / project.x_contract_value * 100.0
+                )
+                project.x_remaining_work_value = max(
+                    project.x_contract_value - project.x_billed_to_client, 0.0
+                )
+            else:
+                project.x_financial_completion_pct = 0.0
+                project.x_remaining_work_value = 0.0
+
+    @api.depends('x_analytic_account_id', 'x_opening_balance', 'x_balance_adjustment')
+    def _compute_project_financials(self):
+        Payment = self.env['account.payment']
+        Allocation = self.env['x.payment.project.allocation']
+        AML = self.env['account.move.line']
+
+        for project in self:
+            analytic = project.x_analytic_account_id
+            if not analytic:
+                project.update({
+                    'x_funds_received': 0.0,
+                    'x_total_spent': 0.0,
+                    'x_available_balance': 0.0,
+                    'x_total_vendor_liability': 0.0,
+                    'x_total_sub_liability': 0.0,
+                })
+                continue
+
+            metrics = project._get_fund_metrics(Payment, Allocation, AML)
+            project.update(metrics)
+
+    @api.model
+    def _search_available_balance(self, operator, value):
+        """Allow search filters on non-stored available balance (Odoo 19)."""
+        if operator not in ('<', '<=', '>', '>=', '=', '!='):
+            return []
+        Payment = self.env['account.payment']
+        Allocation = self.env['x.payment.project.allocation']
+        AML = self.env['account.move.line']
+        matching = []
+        for project in self.search([('x_analytic_account_id', '!=', False)]):
+            balance = project._get_fund_metrics(
+                Payment, Allocation, AML)['x_available_balance']
+            if operator == '<' and balance < value:
+                matching.append(project.id)
+            elif operator == '<=' and balance <= value:
+                matching.append(project.id)
+            elif operator == '>' and balance > value:
+                matching.append(project.id)
+            elif operator == '>=' and balance >= value:
+                matching.append(project.id)
+            elif operator == '=' and balance == value:
+                matching.append(project.id)
+            elif operator == '!=' and balance != value:
+                matching.append(project.id)
+        return [('id', 'in', matching)]
+
+    def _get_fund_metrics(self, Payment, Allocation, AML):
+        """Compute fund-pool metrics for one project."""
+        self.ensure_one()
+        analytic = self.x_analytic_account_id
+        analytic_id = analytic.id
+
+        # ── Funds IN: posted inbound payments tagged to this project ────────
+        inbound = Payment.search([
+            ('payment_type', '=', 'inbound'),
+            ('state', 'in', ('in_process', 'paid', 'partial', 'posted')),
+            ('x_fund_project_id', '=', analytic_id),
+        ])
+        funds_received = sum(inbound.mapped('amount'))
+
+        # ── Funds OUT: posted outbound allocations from this source project ───
+        allocations = Allocation.search([
+            ('project_analytic_account_id', '=', analytic_id),
+            ('payment_id.payment_type', '=', 'outbound'),
+            ('payment_id.state', 'in', ('in_process', 'paid', 'partial', 'posted')),
+        ])
+        total_spent = sum(allocations.mapped('allocation_amount'))
+
+        # Outbound payments with no allocation lines but single fund project
+        outbound_direct = Payment.search([
+            ('payment_type', '=', 'outbound'),
+            ('state', 'in', ('in_process', 'paid', 'partial', 'posted')),
+            ('x_fund_project_id', '=', analytic_id),
+            ('x_allocation_ids', '=', False),
+        ])
+        total_spent += sum(outbound_direct.mapped('amount'))
+
+        # ── Finance HO Journal Entry payments (x_ho_source_project_id) ──────
+        # When Finance HO makes a payment via a manual journal entry (instead
+        # of the Vendor Payment wizard), they set x_ho_source_project_id on
+        # the move.  Sum the credit on non-payable/non-receivable lines (i.e.
+        # the bank / cash outflow lines) to capture the fund outflow from this
+        # source project.  account.payment-based payments are already captured
+        # above via x_fund_project_id / x_allocation_ids — no double-counting.
+        #
+        # IMPORTANT: JEs that have Fund Allocation tab lines (x_je_allocation_ids)
+        # are tracked via the x.je.project.allocation table below — exclude them
+        # here with NOT EXISTS to prevent double-counting.
+        self.env.cr.execute("""
+            SELECT COALESCE(SUM(aml.credit), 0)
+              FROM account_move_line aml
+              JOIN account_move      am  ON am.id  = aml.move_id
+              JOIN account_account   aa  ON aa.id  = aml.account_id
+             WHERE am.state                  = 'posted'
+               AND am.move_type              = 'entry'
+               AND am.x_ho_source_project_id = %s
+               AND aa.account_type NOT IN (
+                       'liability_payable', 'asset_receivable'
+                   )
+               AND aml.credit > 0
+               AND NOT EXISTS (
+                   SELECT 1 FROM x_je_project_allocation
+                    WHERE move_id = am.id
+               )
+        """, [analytic_id])
+        total_spent += self.env.cr.fetchone()[0] or 0.0
+
+        # ── JE Fund Allocation tab lines (x_je_allocation_ids — multi-source) ─
+        # New JEs that use the Fund Allocation tab (x.je.project.allocation)
+        # are tracked here instead of via the GL credit SQL above.
+        # This covers both single-source and multi-source JEs that specify
+        # allocation amounts explicitly through the Fund Allocation tab.
+        self.env.cr.execute("""
+            SELECT COALESCE(SUM(ja.allocation_amount), 0)
+              FROM x_je_project_allocation ja
+              JOIN account_move            am ON am.id = ja.move_id
+             WHERE am.state                         = 'posted'
+               AND ja.project_analytic_account_id   = %s
+        """, [analytic_id])
+        total_spent += self.env.cr.fetchone()[0] or 0.0
+
+        available = (
+            self.x_opening_balance
+            + self.x_balance_adjustment
+            + funds_received
+            - total_spent
+        )
+
+        # ── Liabilities: from partner ledger (GL) — single source of truth ──────
+        # Matches the Partner Ledger exactly; net of ALL payments regardless of
+        # method (account.payment, direct JE, Excel import, petty cash advances).
+        # This replaces the old two-tier (sheet primary + AML fallback) approach
+        # which diverged from the ledger when JE-based payments were made.
+        vendor_liability = 0.0
+        sub_liability = 0.0
+        str_aid = str(analytic_id)
+        self.env.cr.execute("""
+            SELECT aml.partner_id, SUM(aml.credit - aml.debit) AS net_balance
+              FROM account_move_line aml
+              JOIN account_move am  ON am.id  = aml.move_id
+              JOIN account_account aa ON aa.id = aml.account_id
+             WHERE am.state        = 'posted'
+               AND aa.account_type = 'liability_payable'
+               AND aml.partner_id  IS NOT NULL
+               AND (
+                   am.x_project_analytic_account_id = %s
+                   OR (aml.analytic_distribution IS NOT NULL
+                       AND aml.analytic_distribution ? %s)
+               )
+             GROUP BY aml.partner_id
+            HAVING SUM(aml.credit - aml.debit) > 0.005
+        """, [analytic_id, str_aid])
+        for row in self.env.cr.fetchall():
+            partner_id_row, net_balance = row
+            partner = self.env['res.partner'].sudo().browse(partner_id_row)
+            if partner.category_id.filtered(
+                lambda c: 'subcontractor' in (c.name or '').lower()
+            ):
+                sub_liability += net_balance
+            else:
+                vendor_liability += net_balance
+
+        return {
+            'x_funds_received': funds_received,
+            'x_total_spent': total_spent,
+            'x_available_balance': available,
+            'x_total_vendor_liability': vendor_liability,
+            'x_total_sub_liability': sub_liability,
+        }
+
+    @api.model
+    def get_available_balance_for_analytic(self, analytic_account):
+        """Used by payment fund allocation — available pool for a source project."""
+        if not analytic_account:
+            return 0.0
+        project = self.search(
+            [('x_analytic_account_id', '=', analytic_account.id)], limit=1)
+        if project:
+            project.invalidate_recordset(
+                ['x_funds_received', 'x_total_spent', 'x_available_balance'])
+            return project.x_available_balance
+        # Fallback when project record not yet linked
+        Payment = self.env['account.payment']
+        Allocation = self.env['x.payment.project.allocation']
+        aid = analytic_account.id
+        funds_in = sum(Payment.search([
+            ('payment_type', '=', 'inbound'),
+            ('state', 'in', ('in_process', 'paid', 'partial', 'posted')),
+            ('x_fund_project_id', '=', aid),
+        ]).mapped('amount'))
+        spent = sum(Allocation.search([
+            ('project_analytic_account_id', '=', aid),
+            ('payment_id.payment_type', '=', 'outbound'),
+            ('payment_id.state', 'in', ('in_process', 'paid', 'partial', 'posted')),
+        ]).mapped('allocation_amount'))
+        spent += sum(Payment.search([
+            ('payment_type', '=', 'outbound'),
+            ('state', 'in', ('in_process', 'paid', 'partial', 'posted')),
+            ('x_fund_project_id', '=', aid),
+            ('x_allocation_ids', '=', False),
+        ]).mapped('amount'))
+        # Fallback path — no project record; opening balance can't be retrieved
+        return funds_in - spent
+
+    @api.model
+    def sync_from_site_configs(self):
+        """Create/link project.project for every site configuration (install/upgrade)."""
+        Config = self.env['x.project.site.config']
+        for config in Config.search([]):
+            config._ensure_project_record()
+
+    def action_convert_to_rewarded(self):
+        self.write({'x_award_status': 'rewarded'})
+        for project in self:
+            if project.x_site_config_id:
+                project.x_site_config_id.sudo().write({'x_award_status': 'rewarded'})
+
+    def action_convert_to_not_rewarded(self):
+        self.write({'x_award_status': 'not_rewarded'})
+        for project in self:
+            if project.x_site_config_id:
+                project.x_site_config_id.sudo().write({'x_award_status': 'not_rewarded'})
+
+    def write(self, vals):
+        res = super().write(vals)
+        if 'x_award_status' in vals:
+            for project in self:
+                if project.x_site_config_id and project.x_site_config_id.x_award_status != vals['x_award_status']:
+                    project.x_site_config_id.sudo().write({'x_award_status': vals['x_award_status']})
+        return res

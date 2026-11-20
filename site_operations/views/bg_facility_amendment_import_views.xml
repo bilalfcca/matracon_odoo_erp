@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ════════════════════════════════════════════════════════════════════
+         Bank Facility Import Wizard
+    ════════════════════════════════════════════════════════════════════ -->
+
+    <record id="view_bg_facility_import_wizard_form" model="ir.ui.view">
+        <field name="name">x.bg.facility.import.wizard.form</field>
+        <field name="model">x.bg.facility.import.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Import Bank Facility Limits">
+
+                <!-- Step 1: Upload -->
+                <group invisible="state != 'draft'">
+                    <group string="Step 1 — Download Template">
+                        <div colspan="2" class="alert alert-info" role="alert">
+                            <i class="fa fa-download me-1"/>
+                            Click <b>Download Template</b> to get a pre-formatted Excel sheet.
+                            Fill in one row per bank facility, then upload it below.
+                        </div>
+                    </group>
+                    <group string="Step 2 — Upload Filled File">
+                        <field name="excel_file" widget="binary" filename="excel_filename"
+                               string="Excel File (.xlsx)"/>
+                        <field name="excel_filename" invisible="1"/>
+                    </group>
+                    <div class="alert alert-secondary mt-2" role="alert">
+                        <b>Template columns:</b>
+                        Bank / Journal Name · Reference No · Date of Issuance · Expiry Date ·
+                        Cash Margin % · Commission % · Sanctioned Limit
+                        <br/>
+                        If a facility already exists for that bank, it will be <b>updated</b> (not duplicated).
+                    </div>
+                </group>
+
+                <!-- Step 2: Result -->
+                <group invisible="state != 'done'">
+                    <table style="width:100%; border-collapse:separate; border-spacing:8px 0; margin-bottom:12px;">
+                        <tr>
+                            <td style="width:33%; text-align:center; background:#28a745; color:#fff; border-radius:6px; padding:10px 6px;">
+                                <div style="font-size:28px; font-weight:bold;">
+                                    <field name="imported_count" readonly="1" nolabel="1"/>
+                                </div>
+                                <div style="font-size:13px;">Created</div>
+                            </td>
+                            <td style="width:33%; text-align:center; background:#17a2b8; color:#fff; border-radius:6px; padding:10px 6px;">
+                                <div style="font-size:28px; font-weight:bold;">
+                                    <field name="skipped_count" readonly="1" nolabel="1"/>
+                                </div>
+                                <div style="font-size:13px;">Updated</div>
+                            </td>
+                            <td style="width:34%; text-align:center; background:#dc3545; color:#fff; border-radius:6px; padding:10px 6px;">
+                                <div style="font-size:28px; font-weight:bold;">
+                                    <field name="error_count" readonly="1" nolabel="1"/>
+                                </div>
+                                <div style="font-size:13px;">Errors</div>
+                            </td>
+                        </tr>
+                    </table>
+                    <field name="result_html" nolabel="1" colspan="2" readonly="1"/>
+                </group>
+
+                <footer>
+                    <button name="action_download_template" type="object"
+                            string="Download Template"
+                            class="btn-secondary"
+                            icon="fa-download"
+                            invisible="state != 'draft'"/>
+                    <button name="action_import" type="object"
+                            string="Import"
+                            class="btn-primary"
+                            icon="fa-upload"
+                            invisible="state != 'draft' or not excel_file"
+                            confirm="Import bank facility data from the uploaded file?"/>
+                    <button name="action_view_facilities" type="object"
+                            string="View Facilities"
+                            class="btn-success"
+                            invisible="state != 'done' or imported_count + skipped_count == 0"/>
+                    <button string="Close" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_bg_facility_import_wizard" model="ir.actions.act_window">
+        <field name="name">Import Bank Facility Limits</field>
+        <field name="res_model">x.bg.facility.import.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+    <!-- ════════════════════════════════════════════════════════════════════
+         BG Amendment Import Wizard
+    ════════════════════════════════════════════════════════════════════ -->
+
+    <record id="view_bg_amendment_import_wizard_form" model="ir.ui.view">
+        <field name="name">x.bg.amendment.import.wizard.form</field>
+        <field name="model">x.bg.amendment.import.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Import BG Amendments">
+
+                <!-- Step 1: Upload -->
+                <group invisible="state != 'draft'">
+                    <group string="Step 1 — Download Template">
+                        <div colspan="2" class="alert alert-info" role="alert">
+                            <i class="fa fa-download me-1"/>
+                            Click <b>Download Template</b> to get a pre-formatted Excel sheet.
+                            Each row is one amendment for a specific Bank Guarantee.
+                        </div>
+                    </group>
+                    <group string="Step 2 — Upload Filled File">
+                        <field name="excel_file" widget="binary" filename="excel_filename"
+                               string="Excel File (.xlsx)"/>
+                        <field name="excel_filename" invisible="1"/>
+                    </group>
+                    <div class="alert alert-secondary mt-2" role="alert">
+                        <b>Template columns:</b>
+                        Guarantee No · Amendment Date · Amendment Type · Description ·
+                        Amount Change · New Expiry Date
+                        <br/>
+                        <b>Amendment Type values:</b>
+                        Original · Extension · Increase · Decrease · Release · Other
+                        <br/>
+                        The <b>Guarantee No</b> must exactly match what is printed on the BG in Odoo.
+                        For <b>Extension</b> type, fill New Expiry Date — it will automatically update the BG expiry.
+                    </div>
+                </group>
+
+                <!-- Step 2: Result -->
+                <group invisible="state != 'done'">
+                    <table style="width:100%; border-collapse:separate; border-spacing:8px 0; margin-bottom:12px;">
+                        <tr>
+                            <td style="width:33%; text-align:center; background:#28a745; color:#fff; border-radius:6px; padding:10px 6px;">
+                                <div style="font-size:28px; font-weight:bold;">
+                                    <field name="imported_count" readonly="1" nolabel="1"/>
+                                </div>
+                                <div style="font-size:13px;">Imported</div>
+                            </td>
+                            <td style="width:33%; text-align:center; background:#e6a817; color:#fff; border-radius:6px; padding:10px 6px;">
+                                <div style="font-size:28px; font-weight:bold;">
+                                    <field name="skipped_count" readonly="1" nolabel="1"/>
+                                </div>
+                                <div style="font-size:13px;">Skipped</div>
+                            </td>
+                            <td style="width:34%; text-align:center; background:#dc3545; color:#fff; border-radius:6px; padding:10px 6px;">
+                                <div style="font-size:28px; font-weight:bold;">
+                                    <field name="error_count" readonly="1" nolabel="1"/>
+                                </div>
+                                <div style="font-size:13px;">Errors</div>
+                            </td>
+                        </tr>
+                    </table>
+                    <field name="result_html" nolabel="1" colspan="2" readonly="1"/>
+                </group>
+
+                <footer>
+                    <button name="action_download_template" type="object"
+                            string="Download Template"
+                            class="btn-secondary"
+                            icon="fa-download"
+                            invisible="state != 'draft'"/>
+                    <button name="action_import" type="object"
+                            string="Import"
+                            class="btn-primary"
+                            icon="fa-upload"
+                            invisible="state != 'draft' or not excel_file"
+                            confirm="Add amendments to the matching Bank Guarantees from the uploaded file?"/>
+                    <button name="action_view_amendments" type="object"
+                            string="View Amendments"
+                            class="btn-success"
+                            invisible="state != 'done' or imported_count == 0"/>
+                    <button string="Close" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_bg_amendment_import_wizard" model="ir.actions.act_window">
+        <field name="name">Import BG Amendments</field>
+        <field name="res_model">x.bg.amendment.import.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+</odoo>

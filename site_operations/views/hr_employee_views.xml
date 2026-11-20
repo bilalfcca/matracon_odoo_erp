@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_hr_employee_form_matracon" model="ir.ui.view">
+        <field name="name">hr.employee.form.matracon</field>
+        <field name="model">hr.employee</field>
+        <field name="inherit_id" ref="hr.view_employee_form"/>
+        <field name="arch" type="xml">
+
+            <!-- Last Seen — shown in Settings > User group, only when user is linked -->
+            <xpath expr="//group[@name='user']" position="inside">
+                <field name="x_last_online"
+                       readonly="1"
+                       string="Last Seen"
+                       invisible="not user_id"
+                       widget="datetime"/>
+            </xpath>
+
+            <!-- Print Employee Card button in button_box -->
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_print_employee_card"
+                        type="object"
+                        string="Print Card"
+                        class="oe_stat_button"
+                        icon="fa-id-card"
+                        groups="purchase_demand_raise.group_matracon_admin,site_operations.group_finance_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_ceo_approval"/>
+                <button name="action_view_backcharges"
+                        type="object"
+                        class="oe_stat_button"
+                        icon="fa-exclamation-triangle"
+                        groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system,purchase_demand_raise.group_ceo_approval">
+                    <div class="o_field_widget o_stat_info">
+                        <span class="o_stat_value">
+                            <field name="x_backcharge_count"/>
+                        </span>
+                        <span class="o_stat_text">Backcharges</span>
+                    </div>
+                </button>
+            </xpath>
+
+            <xpath expr="//page[@name='personal_information']" position="after">
+                <page string="Matracon Payroll" name="matracon_payroll">
+                    <group>
+                        <field name="x_project_analytic_account_id"/>
+                        <field name="x_father_name"/>
+                        <field name="x_cnic"/>
+                        <field name="x_basic_salary"/>
+                        <field name="x_hra"/>
+                        <field name="x_site_allowance"/>
+                        <field name="x_advance_balance"/>
+                        <field name="x_wht_rate"/>
+                        <field name="x_eobi_amount"/>
+                        <field name="x_backcharge_balance" readonly="1"
+                               string="Outstanding Backcharge Balance"/>
+                    </group>
+                </page>
+                <page string="Documents" name="matracon_documents">
+                    <field name="x_document_ids">
+                        <list editable="bottom">
+                            <field name="document_type"/>
+                            <field name="name"/>
+                            <field name="file" filename="filename" widget="binary"/>
+                            <field name="filename" column_invisible="1"/>
+                            <field name="issue_date"/>
+                            <field name="expiry_date"/>
+                            <field name="notes"/>
+                        </list>
+                    </field>
+                </page>
+
+                <!-- Online History — session log: Online At / Offline At / Duration -->
+                <page string="Online History" name="online_history"
+                      invisible="not user_id"
+                      groups="purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_head_office,site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval">
+                    <field name="x_presence_log_ids" readonly="1">
+                        <list create="0" delete="0" default_order="online_at desc">
+                            <field name="online_at" string="Online At" widget="datetime"/>
+                            <field name="offline_at" string="Offline At" widget="datetime"/>
+                            <field name="duration" string="Duration"
+                                   decoration-success="not offline_at"/>
+                        </list>
+                    </field>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ── Employee List view — Last Seen optional column ── -->
+    <record id="view_hr_employee_list_matracon" model="ir.ui.view">
+        <field name="name">hr.employee.list.matracon</field>
+        <field name="model">hr.employee</field>
+        <field name="inherit_id" ref="hr.view_employee_tree"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='user_id']" position="after">
+                <field name="x_last_online"
+                       string="Last Seen"
+                       readonly="1"
+                       optional="show"
+                       widget="datetime"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ── Employee Kanban — WhatsApp-style Online / Last seen ── -->
+    <record id="view_hr_employee_kanban_matracon" model="ir.ui.view">
+        <field name="name">hr.employee.kanban.matracon</field>
+        <field name="model">hr.employee</field>
+        <field name="inherit_id" ref="hr.hr_kanban_view_employees"/>
+        <field name="arch" type="xml">
+            <!-- Declare fields needed by the kanban template -->
+            <xpath expr="//kanban/field[@name='show_hr_icon_display']" position="after">
+                <field name="x_last_online"/>
+                <field name="x_is_currently_online"/>
+            </xpath>
+
+            <!--
+                WhatsApp-style presence indicator:
+                  • Green dot  + "Online"               when x_is_currently_online == True
+                  • Grey  dot  + "Last seen [datetime]" when offline but last_poll known
+                  • Nothing                             when no user linked / never seen
+            -->
+            <xpath expr="//footer" position="before">
+                <div t-if="record.user_id.raw_value"
+                     class="small mt-1 d-flex align-items-center gap-1">
+                    <t t-if="record.x_is_currently_online.raw_value">
+                        <!-- Online -->
+                        <span class="rounded-circle d-inline-block"
+                              style="width:8px;height:8px;background:#16a34a;flex-shrink:0;"/>
+                        <span style="color:#16a34a;" class="fw-semibold">Online</span>
+                    </t>
+                    <t t-elif="record.x_last_online.raw_value">
+                        <!-- Offline — yellow dot + Last Seen timestamp -->
+                        <span class="rounded-circle d-inline-block"
+                              style="width:8px;height:8px;background:#ca8a04;flex-shrink:0;"/>
+                        <span style="color:#92400e;">Last Seen:
+                            <field name="x_last_online" readonly="1" class="oe_inline" widget="datetime"/>
+                        </span>
+                    </t>
+                    <!-- else: no presence data — show nothing -->
+                </div>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

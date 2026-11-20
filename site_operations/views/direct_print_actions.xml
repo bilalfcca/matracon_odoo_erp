@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+        Direct Print — List-view Action menu entries
+        ============================================
+        Each server action below appears in the "Action" dropdown when one or
+        more records are selected in the respective list view.  Clicking it
+        opens a new browser tab that renders the QWeb report as HTML and
+        immediately triggers the browser's print dialog.
+
+        PDF download is already available via the standard "Print" (🖨) toolbar
+        button that Odoo renders for every ir.actions.report bound to the model.
+    -->
+
+    <!-- ── Bank Guarantee ─────────────────────────────────────────────────── -->
+    <record id="server_action_direct_print_bg" model="ir.actions.server">
+        <field name="name">Print Bank Guarantee</field>
+        <field name="model_id" ref="model_x_bank_guarantee"/>
+        <field name="binding_model_id" ref="model_x_bank_guarantee"/>
+        <field name="binding_type">action</field>
+        <field name="state">code</field>
+        <field name="code">
+ids = ','.join(str(i) for i in records.ids)
+action = {
+    'type': 'ir.actions.act_url',
+    'url': '/site_operations/print/x.bank.guarantee/' + ids,
+    'target': 'new',
+}
+        </field>
+    </record>
+
+    <!-- ── Petty Cash Request ──────────────────────────────────────────────── -->
+    <record id="server_action_direct_print_pcr" model="ir.actions.server">
+        <field name="name">Print Petty Cash Request</field>
+        <field name="model_id" ref="model_x_petty_cash_request"/>
+        <field name="binding_model_id" ref="model_x_petty_cash_request"/>
+        <field name="binding_type">action</field>
+        <field name="state">code</field>
+        <field name="code">
+ids = ','.join(str(i) for i in records.ids)
+action = {
+    'type': 'ir.actions.act_url',
+    'url': '/site_operations/print/x.petty.cash.request/' + ids,
+    'target': 'new',
+}
+        </field>
+    </record>
+
+    <!-- ── Petty Cash Expense Voucher ─────────────────────────────────────── -->
+    <record id="server_action_direct_print_pce" model="ir.actions.server">
+        <field name="name">Print Expense Voucher</field>
+        <field name="model_id" ref="model_x_petty_cash_expense"/>
+        <field name="binding_model_id" ref="model_x_petty_cash_expense"/>
+        <field name="binding_type">action</field>
+        <field name="state">code</field>
+        <field name="code">
+ids = ','.join(str(i) for i in records.ids)
+action = {
+    'type': 'ir.actions.act_url',
+    'url': '/site_operations/print/x.petty.cash.expense/' + ids,
+    'target': 'new',
+}
+        </field>
+    </record>
+
+    <!-- ── Bank Payment Voucher (account.payment) ─────────────────────────── -->
+    <record id="server_action_direct_print_bpv" model="ir.actions.server">
+        <field name="name">Print Bank Payment Voucher</field>
+        <field name="model_id" ref="account.model_account_payment"/>
+        <field name="binding_model_id" ref="account.model_account_payment"/>
+        <field name="binding_type">action</field>
+        <field name="state">code</field>
+        <field name="code">
+ids = ','.join(str(i) for i in records.ids)
+action = {
+    'type': 'ir.actions.act_url',
+    'url': '/site_operations/print/account.payment/' + ids,
+    'target': 'new',
+}
+        </field>
+    </record>
+
+    <!-- ── PR Internal (purchase.order) ───────────────────────────────────── -->
+    <record id="server_action_direct_print_pr" model="ir.actions.server">
+        <field name="name">Print PR Internal</field>
+        <field name="model_id" ref="purchase.model_purchase_order"/>
+        <field name="binding_model_id" ref="purchase.model_purchase_order"/>
+        <field name="binding_type">action</field>
+        <field name="state">code</field>
+        <field name="code">
+ids = ','.join(str(i) for i in records.ids)
+action = {
+    'type': 'ir.actions.act_url',
+    'url': '/site_operations/print/purchase.order/' + ids,
+    'target': 'new',
+}
+        </field>
+    </record>
+
+</odoo>

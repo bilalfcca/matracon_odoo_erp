@@ -1,0 +1,490 @@
+"""
+Bank Guarantee Registry — Export Wizard (Excel + PDF)
+
+Generates a formatted XLSX or PDF file with optional grouping by Bank and/or
+Project. Each grouping level gets a section header row and a subtotal row.
+Both groupings together produce a Bank → Project two-level hierarchy.
+
+Optional column groups let users append Project Timeline and/or Project
+Financial columns to the standard registry columns.
+"""
+import base64
+import datetime as dt
+import logging
+from collections import defaultdict
+from io import BytesIO
+
+import xlsxwriter
+
+from odoo import models, fields, _
+from odoo.exceptions import UserError
+
+_logger = logging.getLogger(__name__)
+
+# ── Base columns (always exported) ─────────────────────────────────────────────
+# (column_header, bg_field_path, col_width_chars, fmt_type)
+# fmt_type: 'text' | 'num' | 'pct' | 'date'
+# bg_field_path: dot-separated path resolved via _get(); direct attr for related fields
+_BASE_COLUMNS = [
+    ('Sr No',              'sr_no',               10, 'text'),
+    ('Guarantee No',       'guarantee_number',     18, 'text'),
+    ('Nature',             'nature_id.name',       15, 'text'),
+    ('Bank',               'journal_id.name',      20, 'text'),
+    ('Project',            'project_display',      22, 'text'),
+    ('Beneficiary',        'beneficiary_name',     24, 'text'),
+    ('Type',               'bidder_display',        10, 'text'),
+    ('Issue Date',         'issue_date',           12, 'date'),
+    ('Expiry Date',        'expiry_date',          12, 'date'),
+    ('BG Amount',          'bg_amount',            16, 'num'),
+    ('Released Amount',    'released_amount',      16, 'num'),
+    ('Cash Margin %',      'cash_margin_percent',  12, 'pct'),
+    ('Cash Margin Amt',    'margin_amount',        18, 'num'),
+    ('Commission %',       'pricing_percent',      12, 'pct'),
+    ('Quarters',           'quarter_numbers',      10, 'num'),
+    ('Commission Amt',     'commission_amount',    18, 'num'),
+    ('FED %',              'fed_percent',           8, 'pct'),
+    ('FED Amount',         'fed_amount',           14, 'num'),
+    ('Status',             'state',                12, 'text'),
+]
+
+# ── Optional: Project Timeline (from Site Project Configuration) ────────────────
+_OPT_TIMELINE = [
+    ('Project Start Date',   'x_proj_start_date',          14, 'date'),
+    ('Original Deadline',    'x_proj_original_deadline',   14, 'date'),
+    ('Current Deadline',     'x_proj_current_deadline',    14, 'date'),
+]
+
+# ── Optional: Project Financials (from linked Odoo project) ────────────────────
+# Note: 'num' columns are included in group subtotals; 'pct' columns are not.
+_OPT_FINANCIALS = [
+    ('Contract Value',        'x_proj_contract_value',           18, 'num'),
+    ('Billed to Client',      'x_proj_billed_to_client',         18, 'num'),
+    ('Work Completion %',     'x_proj_work_completion_pct',      14, 'pct'),
+    ('Financial Cmpl %',      'x_proj_financial_completion_pct', 16, 'pct'),
+    ('Remaining to Bill',     'x_proj_remaining_to_bill',        18, 'num'),
+]
+
+# Index of the first numeric (summable) column in the base set — used for
+# label-merge width in subtotal rows.  bg_amount is always at position 9.
+_FIRST_AMT_FIELD = 'bg_amount'
+
+
+class BgExportWizard(models.TransientModel):
+    _name = 'x.bg.export.wizard'
+    _description = 'Bank Guarantee Registry Export'
+
+    group_by_bank = fields.Boolean('Group by Bank', default=True)
+    group_by_project = fields.Boolean('Group by Project', default=False)
+    include_released = fields.Boolean(
+        'Include Released / Expired / Cancelled', default=False,
+        help='When unchecked only Draft, Pending, Active, and Locked BGs are exported.')
+
+    col_project_timeline = fields.Boolean(
+        'Project Timeline', default=False,
+        help='Appends three date columns: Project Start Date, Original Deadline '
+             '(Baseline), and Current Deadline (after EOTs).')
+    col_project_financials = fields.Boolean(
+        'Project Financials', default=False,
+        help='Appends five columns: Contract Value, Billed to Client, '
+             'Work Completion %, Financial Completion %, and Remaining to Bill. '
+             'Monetary columns are included in group subtotals.')
+
+    export_format = fields.Selection(
+        [('xlsx', 'Excel (.xlsx)'), ('pdf', 'PDF')],
+        string='Export Format', default='xlsx', required=True,
+    )
+
+    def _build_columns(self):
+        """Return the final ordered column list based on wizard options."""
+        cols = list(_BASE_COLUMNS)
+        if self.col_project_timeline:
+            cols += _OPT_TIMELINE
+        if self.col_project_financials:
+            cols += _OPT_FINANCIALS
+        return cols
+
+    def action_export(self):
+        """Dispatch to Excel or PDF export based on selected format."""
+        self.ensure_one()
+        if self.export_format == 'pdf':
+            return self._export_pdf()
+        return self._export_xlsx()
+
+    # ── PDF export ─────────────────────────────────────────────────────────
+
+    def _export_pdf(self):
+        """Render the BG Registry as a landscape PDF and return a download action."""
+        domain = []
+        if not self.include_released:
+            domain += [('state', 'not in', ('released', 'expired', 'cancelled'))]
+        if not self.env['x.bank.guarantee'].sudo().search_count(domain):
+            raise UserError(_('No Bank Guarantees found matching the selected filters.'))
+
+        pdf_bytes, _ = self.env['ir.actions.report']._render_qweb_pdf(
+            'site_operations.action_bg_registry_pdf_report', self.ids,
+        )
+        attachment = self.env['ir.attachment'].sudo().create({
+            'name': 'BG_Registry.pdf',
+            'datas': base64.b64encode(pdf_bytes),
+            'res_model': self._name,
+            'res_id': self.id,
+            'mimetype': 'application/pdf',
+        })
+        return {
+            'type': 'ir.actions.act_url',
+            'url': f'/web/content/{attachment.id}?download=true',
+            'target': 'self',
+        }
+
+    def _get_pdf_data(self):
+        """Build flat rendering data consumed by the BG Registry PDF template."""
+        columns = self._build_columns()
+        n_cols = len(columns)
+        state_map = dict(self.env['x.bank.guarantee']._fields['state'].selection)
+
+        domain = []
+        if not self.include_released:
+            domain += [('state', 'not in', ('released', 'expired', 'cancelled'))]
+        bgs = self.env['x.bank.guarantee'].sudo().search(
+            domain, order='journal_id, project_id, issue_date, id')
+
+        def _get(bg, field):
+            if field == 'state':
+                return state_map.get(bg.state, bg.state)
+            v = bg
+            for part in field.split('.'):
+                v = getattr(v, part, False)
+                if not v and v != 0:
+                    return False
+            return v
+
+        def _fmt(val, ftype):
+            if ftype == 'date':
+                if val and hasattr(val, 'strftime'):
+                    return val.strftime('%d/%m/%Y')
+                return str(val) if val else ''
+            if ftype == 'num':
+                return '{:,.0f}'.format(float(val or 0))
+            if ftype == 'pct':
+                return '{:.2f}%'.format(float(val or 0))
+            return str(val) if val else ''
+
+        def _row_cells(bg):
+            return [_fmt(_get(bg, field), ftype) for _, field, _, ftype in columns]
+
+        def _totals_raw(recs):
+            t = defaultdict(float)
+            for bg in recs:
+                for i, (_, field, _, ftype) in enumerate(columns):
+                    if ftype == 'num':
+                        t[i] += float(_get(bg, field) or 0)
+            return dict(t)
+
+        def _fmt_totals(raw):
+            return {str(i): '{:,.0f}'.format(v) for i, v in raw.items()}
+
+        first_num_col = next(
+            (i for i, (_, _, _, ft) in enumerate(columns) if ft == 'num'), n_cols - 1
+        )
+
+        flat_rows = []
+        grand_raw = defaultdict(float)
+
+        if self.group_by_bank and self.group_by_project:
+            banks = defaultdict(lambda: defaultdict(list))
+            for bg in bgs:
+                banks[bg.journal_id][bg.project_id].append(bg)
+            for bank in sorted(banks, key=lambda b: b.name or ''):
+                flat_rows.append({'type': 'group', 'label': f'Bank: {bank.name}'})
+                bank_raw = defaultdict(float)
+                for proj in sorted(banks[bank], key=lambda p: p.name or ''):
+                    flat_rows.append({'type': 'subgroup',
+                                      'label': f'  Project: {proj.name or "(No Project)"}'})
+                    recs = banks[bank][proj]
+                    for bg in recs:
+                        flat_rows.append({'type': 'data', 'cells': _row_cells(bg)})
+                    pt = _totals_raw(recs)
+                    flat_rows.append({'type': 'subtotal',
+                                      'label': f'Subtotal — {proj.name or "(No Project)"}',
+                                      'cells': _fmt_totals(pt)})
+                    for i, v in pt.items():
+                        bank_raw[i] += v
+                flat_rows.append({'type': 'subtotal',
+                                   'label': f'Bank Total — {bank.name}',
+                                   'cells': _fmt_totals(dict(bank_raw))})
+                for i, v in bank_raw.items():
+                    grand_raw[i] += v
+
+        elif self.group_by_bank:
+            banks = defaultdict(list)
+            for bg in bgs:
+                banks[bg.journal_id].append(bg)
+            for bank in sorted(banks, key=lambda b: b.name or ''):
+                flat_rows.append({'type': 'group', 'label': f'Bank: {bank.name}'})
+                recs = banks[bank]
+                for bg in recs:
+                    flat_rows.append({'type': 'data', 'cells': _row_cells(bg)})
+                bt = _totals_raw(recs)
+                flat_rows.append({'type': 'subtotal',
+                                   'label': f'Bank Total — {bank.name}',
+                                   'cells': _fmt_totals(bt)})
+                for i, v in bt.items():
+                    grand_raw[i] += v
+
+        elif self.group_by_project:
+            projects = defaultdict(list)
+            for bg in bgs:
+                projects[bg.project_id].append(bg)
+            for proj in sorted(projects, key=lambda p: p.name or ''):
+                flat_rows.append({'type': 'group',
+                                   'label': f'Project: {proj.name or "(No Project)"}'})
+                recs = projects[proj]
+                for bg in recs:
+                    flat_rows.append({'type': 'data', 'cells': _row_cells(bg)})
+                pt = _totals_raw(recs)
+                flat_rows.append({'type': 'subtotal',
+                                   'label': f'Project Total — {proj.name or "(No Project)"}',
+                                   'cells': _fmt_totals(pt)})
+                for i, v in pt.items():
+                    grand_raw[i] += v
+
+        else:
+            for bg in bgs:
+                flat_rows.append({'type': 'data', 'cells': _row_cells(bg)})
+                for i, (_, field, _, ftype) in enumerate(columns):
+                    if ftype == 'num':
+                        grand_raw[i] += float(_get(bg, field) or 0)
+
+        flat_rows.append({'type': 'grand', 'label': 'GRAND TOTAL',
+                           'cells': _fmt_totals(dict(grand_raw))})
+
+        return {
+            'header_cols': [(label, ftype) for label, _, _, ftype in columns],
+            'n_cols': n_cols,
+            'first_num_col': first_num_col,
+            'n_base_cols': len(_BASE_COLUMNS),
+            'flat_rows': flat_rows,
+        }
+
+    # ── Excel export ────────────────────────────────────────────────────────
+
+    def _export_xlsx(self):
+        self.ensure_one()
+
+        # ── Dynamic column metadata ────────────────────────────────────────
+        columns = self._build_columns()
+        ncols = len(columns)
+        field_idx = {col[1]: i for i, col in enumerate(columns)}
+        # Columns to sum in subtotal rows (all 'num' type)
+        amt_cols = [i for i, (_, _, _, ft) in enumerate(columns) if ft == 'num']
+        # Merge label from col 0 → first_amt-1 in subtotal rows
+        first_amt = field_idx.get(_FIRST_AMT_FIELD, 9)
+
+        # ── Data ──────────────────────────────────────────────────────────
+        domain = []
+        if not self.include_released:
+            domain += [('state', 'not in', ('released', 'expired', 'cancelled'))]
+        bgs = self.env['x.bank.guarantee'].sudo().search(
+            domain, order='journal_id, project_id, issue_date, id')
+
+        if not bgs:
+            raise UserError(_('No Bank Guarantees found matching the selected filters.'))
+
+        buf = BytesIO()
+        wb = xlsxwriter.Workbook(buf, {'in_memory': True, 'remove_timezone': True})
+        ws = wb.add_worksheet('BG Registry')
+
+        # ── Formats ───────────────────────────────────────────────────────
+        NAVY = '#003366'
+        f = {
+            'title':      wb.add_format({'bold': True, 'font_size': 13, 'align': 'center',
+                                          'valign': 'vcenter', 'bg_color': NAVY,
+                                          'font_color': 'white', 'border': 1}),
+            'header':     wb.add_format({'bold': True, 'font_size': 10, 'align': 'center',
+                                          'valign': 'vcenter', 'bg_color': NAVY,
+                                          'font_color': 'white', 'border': 1, 'text_wrap': True}),
+            'header_opt': wb.add_format({'bold': True, 'font_size': 10, 'align': 'center',
+                                          'valign': 'vcenter', 'bg_color': '#1a5276',
+                                          'font_color': 'white', 'border': 1, 'text_wrap': True,
+                                          'italic': True}),
+            'group':      wb.add_format({'bold': True, 'bg_color': '#C6DEFF', 'border': 1,
+                                          'font_size': 10, 'valign': 'vcenter'}),
+            'subgroup':   wb.add_format({'bold': True, 'bg_color': '#DDEEFF', 'border': 1,
+                                          'font_size': 10, 'valign': 'vcenter', 'indent': 1}),
+            'text':       wb.add_format({'border': 1, 'font_size': 9, 'valign': 'vcenter'}),
+            'num':        wb.add_format({'border': 1, 'font_size': 9, 'num_format': '#,##0',
+                                          'valign': 'vcenter'}),
+            'pct':        wb.add_format({'border': 1, 'font_size': 9, 'num_format': '0.00"%"',
+                                          'valign': 'vcenter'}),
+            'date':       wb.add_format({'border': 1, 'font_size': 9, 'num_format': 'dd/mm/yyyy',
+                                          'valign': 'vcenter'}),
+            'sub_lbl':    wb.add_format({'bold': True, 'bg_color': '#C8F0DA', 'border': 1,
+                                          'font_size': 9, 'align': 'right', 'valign': 'vcenter'}),
+            'sub_num':    wb.add_format({'bold': True, 'bg_color': '#C8F0DA', 'border': 1,
+                                          'font_size': 9, 'num_format': '#,##0', 'valign': 'vcenter'}),
+            'grand_lbl':  wb.add_format({'bold': True, 'bg_color': '#FFE5B4', 'border': 1,
+                                          'font_size': 10, 'align': 'right', 'valign': 'vcenter'}),
+            'grand_num':  wb.add_format({'bold': True, 'bg_color': '#FFE5B4', 'border': 1,
+                                          'font_size': 10, 'num_format': '#,##0', 'valign': 'vcenter'}),
+        }
+
+        ws.freeze_panes(2, 0)
+
+        # Column widths
+        for c, (_, _, w, _) in enumerate(columns):
+            ws.set_column(c, c, w)
+
+        # Row 0: title
+        ws.merge_range(0, 0, 0, ncols - 1, 'Bank Guarantee Registry', f['title'])
+        ws.set_row(0, 22)
+
+        # Row 1: headers — optional columns use a slightly different shade to distinguish
+        n_base = len(_BASE_COLUMNS)
+        for c, (label, _, _, _) in enumerate(columns):
+            hdr_fmt = f['header_opt'] if c >= n_base else f['header']
+            ws.write(1, c, label, hdr_fmt)
+        ws.set_row(1, 30)
+
+        row = 2
+
+        # ── Field value helpers ────────────────────────────────────────────
+        state_map = dict(self.env['x.bank.guarantee']._fields['state'].selection)
+
+        def _get(bg, field):
+            """Resolve a dot-separated field path on a bg record."""
+            if field == 'state':
+                return state_map.get(bg.state, bg.state)
+            v = bg
+            for part in field.split('.'):
+                v = getattr(v, part, False)
+                if not v and v != 0:
+                    return False
+            return v
+
+        def _write_data_row(r, bg):
+            for c, (_, field, _, ftype) in enumerate(columns):
+                v = _get(bg, field)
+                if ftype == 'date':
+                    if v and isinstance(v, dt.date):
+                        ws.write_datetime(r, c, dt.datetime.combine(v, dt.time()), f['date'])
+                    else:
+                        ws.write(r, c, '', f['text'])
+                elif ftype == 'num':
+                    ws.write_number(r, c, float(v or 0), f['num'])
+                elif ftype == 'pct':
+                    ws.write_number(r, c, float(v or 0), f['pct'])
+                else:
+                    ws.write(r, c, str(v) if v else '', f['text'])
+            return r + 1
+
+        def _totals(recs):
+            """Sum all 'num' columns across recs; keyed by column index."""
+            result = defaultdict(float)
+            for bg in recs:
+                for i, (_, field, _, ftype) in enumerate(columns):
+                    if ftype == 'num':
+                        result[i] += float(_get(bg, field) or 0)
+            return dict(result)
+
+        def _write_subtotal(r, label, totals, lbl_fmt, num_fmt):
+            """Merge cols 0..first_amt-1 for label; write totals in num cols; blank elsewhere."""
+            ws.merge_range(r, 0, r, first_amt - 1, label, lbl_fmt)
+            for c in range(first_amt, ncols):
+                if c in amt_cols:
+                    ws.write_number(r, c, totals.get(c, 0.0), num_fmt)
+                else:
+                    ws.write(r, c, '', lbl_fmt)
+            return r + 1
+
+        # ── Grouping ───────────────────────────────────────────────────────
+
+        if self.group_by_bank and self.group_by_project:
+            banks = defaultdict(lambda: defaultdict(list))
+            for bg in bgs:
+                banks[bg.journal_id][bg.project_id].append(bg)
+
+            grand = defaultdict(float)
+            for bank in sorted(banks, key=lambda b: b.name or ''):
+                ws.merge_range(row, 0, row, ncols - 1, f'Bank: {bank.name}', f['group'])
+                row += 1
+                bank_t = defaultdict(float)
+                for project in sorted(banks[bank], key=lambda p: p.name or ''):
+                    ws.merge_range(row, 0, row, ncols - 1,
+                                   f'  Project: {project.name or "(No Project)"}', f['subgroup'])
+                    row += 1
+                    recs = banks[bank][project]
+                    for bg in recs:
+                        row = _write_data_row(row, bg)
+                    pt = _totals(recs)
+                    row = _write_subtotal(row, f'Subtotal — {project.name or "(No Project)"}',
+                                          pt, f['sub_lbl'], f['sub_num'])
+                    for c, v in pt.items():
+                        bank_t[c] += v
+                row = _write_subtotal(row, f'Bank Total — {bank.name}',
+                                       dict(bank_t), f['sub_lbl'], f['sub_num'])
+                for c, v in bank_t.items():
+                    grand[c] += v
+            row = _write_subtotal(row, 'GRAND TOTAL', dict(grand), f['grand_lbl'], f['grand_num'])
+
+        elif self.group_by_bank:
+            banks = defaultdict(list)
+            for bg in bgs:
+                banks[bg.journal_id].append(bg)
+            grand = defaultdict(float)
+            for bank in sorted(banks, key=lambda b: b.name or ''):
+                ws.merge_range(row, 0, row, ncols - 1, f'Bank: {bank.name}', f['group'])
+                row += 1
+                recs = banks[bank]
+                for bg in recs:
+                    row = _write_data_row(row, bg)
+                bt = _totals(recs)
+                row = _write_subtotal(row, f'Bank Total — {bank.name}',
+                                       bt, f['sub_lbl'], f['sub_num'])
+                for c, v in bt.items():
+                    grand[c] += v
+            row = _write_subtotal(row, 'GRAND TOTAL', dict(grand), f['grand_lbl'], f['grand_num'])
+
+        elif self.group_by_project:
+            projects = defaultdict(list)
+            for bg in bgs:
+                projects[bg.project_id].append(bg)
+            grand = defaultdict(float)
+            for project in sorted(projects, key=lambda p: p.name or ''):
+                ws.merge_range(row, 0, row, ncols - 1,
+                               f'Project: {project.name or "(No Project)"}', f['group'])
+                row += 1
+                recs = projects[project]
+                for bg in recs:
+                    row = _write_data_row(row, bg)
+                pt = _totals(recs)
+                row = _write_subtotal(row, f'Project Total — {project.name or "(No Project)"}',
+                                       pt, f['sub_lbl'], f['sub_num'])
+                for c, v in pt.items():
+                    grand[c] += v
+            row = _write_subtotal(row, 'GRAND TOTAL', dict(grand), f['grand_lbl'], f['grand_num'])
+
+        else:
+            # Flat export — no grouping
+            grand = defaultdict(float)
+            for bg in bgs:
+                row = _write_data_row(row, bg)
+                for i, (_, field, _, ftype) in enumerate(columns):
+                    if ftype == 'num':
+                        grand[i] += float(_get(bg, field) or 0)
+            row = _write_subtotal(row, 'GRAND TOTAL', dict(grand), f['grand_lbl'], f['grand_num'])
+
+        wb.close()
+        buf.seek(0)
+
+        attachment = self.env['ir.attachment'].sudo().create({
+            'name': 'BG_Registry.xlsx',
+            'datas': base64.b64encode(buf.read()),
+            'res_model': self._name,
+            'res_id': self.id,
+            'mimetype': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        })
+        return {
+            'type': 'ir.actions.act_url',
+            'url': f'/web/content/{attachment.id}?download=true',
+            'target': 'self',
+        }

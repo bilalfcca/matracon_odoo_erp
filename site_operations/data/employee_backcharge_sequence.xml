@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="seq_employee_backcharge" model="ir.sequence">
+        <field name="name">Employee Backcharge</field>
+        <field name="code">x.employee.backcharge</field>
+        <field name="prefix">EBC/%(year)s/</field>
+        <field name="padding">4</field>
+        <field name="company_id" eval="False"/>
+    </record>
+</odoo>

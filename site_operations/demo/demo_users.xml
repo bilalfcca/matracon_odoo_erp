@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        10 demo users — mirrors production roles (see site_operations/hooks.py).
+        Bilal Khan: password admin | all others: password user
+    -->
+
+    <!-- ── Head Office ─────────────────────────────────────────────────── -->
+    <record id="demo_user_bilal_khan" model="res.users">
+        <field name="name">Bilal Khan</field>
+        <field name="login">bilal.khan@matracon.pk</field>
+        <field name="password">admin</field>
+        <field name="group_ids" eval="[
+            (4, ref('base.group_user')),
+            (4, ref('base.group_system')),
+            (4, ref('purchase_demand_raise.group_head_office')),
+        ]"/>
+    </record>
+
+    <record id="demo_user_ceo" model="res.users">
+        <field name="name">CEO</field>
+        <field name="login">ceo@matracon.pk</field>
+        <field name="password">user</field>
+        <field name="group_ids" eval="[
+            (4, ref('base.group_user')),
+            (4, ref('purchase_demand_raise.group_ceo_approval')),
+            (4, ref('purchase_demand_raise.group_head_office')),
+        ]"/>
+    </record>
+
+    <record id="demo_user_procurement_ho" model="res.users">
+        <field name="name">Procurement HO</field>
+        <field name="login">procurement@matracon.pk</field>
+        <field name="password">user</field>
+        <field name="group_ids" eval="[
+            (4, ref('base.group_user')),
+            (4, ref('purchase_demand_raise.group_procurement_ho')),
+            (4, ref('purchase_demand_raise.group_head_office')),
+        ]"/>
+    </record>
+
+    <record id="demo_user_finance_ho" model="res.users">
+        <field name="name">Finance HO</field>
+        <field name="login">finance@matracon.pk</field>
+        <field name="password">user</field>
+        <field name="group_ids" eval="[
+            (4, ref('base.group_user')),
+            (4, ref('site_operations.group_finance_ho')),
+            (4, ref('purchase_demand_raise.group_head_office')),
+        ]"/>
+    </record>
+
+    <!-- ── MCH - BAHAWALNAGAR ──────────────────────────────────────────── -->
+    <record id="demo_user_accountant_mch" model="res.users">
+        <field name="name">MCH Site Accountant</field>
+        <field name="login">accountant.mch@matracon.pk</field>
+        <field name="password">user</field>
+        <field name="group_ids" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <record id="demo_user_store_mch" model="res.users">
+        <field name="name">MCH Site Store</field>
+        <field name="login">store.mch@matracon.pk</field>
+        <field name="password">user</field>
+        <field name="group_ids" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <!-- ── RWASA ───────────────────────────────────────────────────────── -->
+    <record id="demo_user_accountant_rwasa" model="res.users">
+        <field name="name">RWASA Site Accountant</field>
+        <field name="login">accountant.rwasa@matracon.pk</field>
+        <field name="password">user</field>
+        <field name="group_ids" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <record id="demo_user_store_rwasa" model="res.users">
+        <field name="name">RWASA Site Store</field>
+        <field name="login">store.rwasa@matracon.pk</field>
+        <field name="password">user</field>
+        <field name="group_ids" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <!-- ── STP - MARDAN ────────────────────────────────────────────────── -->
+    <record id="demo_user_accountant_stp" model="res.users">
+        <field name="name">STP Site Accountant</field>
+        <field name="login">accountant.stp@matracon.pk</field>
+        <field name="password">user</field>
+        <field name="group_ids" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <record id="demo_user_store_stp" model="res.users">
+        <field name="name">STP Site Store</field>
+        <field name="login">store.stp@matracon.pk</field>
+        <field name="password">user</field>
+        <field name="group_ids" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <!-- ── Link site users to projects (auto-assigns groups + analytic) ── -->
+    <record id="site_config_mch" model="x.project.site.config">
+        <field name="site_user_ids" eval="[(4, ref('demo_user_store_mch'))]"/>
+        <field name="x_site_accountant_ids" eval="[(4, ref('demo_user_accountant_mch'))]"/>
+    </record>
+
+    <record id="site_config_rwasa" model="x.project.site.config">
+        <field name="site_user_ids" eval="[(4, ref('demo_user_store_rwasa'))]"/>
+        <field name="x_site_accountant_ids" eval="[(4, ref('demo_user_accountant_rwasa'))]"/>
+    </record>
+
+    <record id="site_config_stp" model="x.project.site.config">
+        <field name="site_user_ids" eval="[(4, ref('demo_user_store_stp'))]"/>
+        <field name="x_site_accountant_ids" eval="[(4, ref('demo_user_accountant_stp'))]"/>
+    </record>
+
+</odoo>

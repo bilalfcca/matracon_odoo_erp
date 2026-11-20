@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_salary_sheet_import_wizard" model="ir.ui.view">
+        <field name="name">x.salary.sheet.import.form</field>
+        <field name="model">x.salary.sheet.import</field>
+        <field name="arch" type="xml">
+            <form string="Import Salary Lines">
+                <sheet>
+                    <group string="Instructions" col="1">
+                        <div class="alert alert-info" role="alert">
+                            <strong>How to import:</strong>
+                            <ol style="margin-bottom:0">
+                                <li>Click <em>Download Template</em> to get the Excel file.</li>
+                                <li>Fill in <strong>Employee</strong> (exact or partial name) and <strong>Paid Days</strong> for each employee.</li>
+                                <li>Leave optional columns blank — salary, WHT, EOBI, advances will be auto-computed from the employee master.</li>
+                                <li>Upload the completed file and click <em>Import</em>.</li>
+                            </ol>
+                        </div>
+                    </group>
+                    <group>
+                        <field name="sheet_id" readonly="1"/>
+                        <field name="import_file"
+                               widget="binary"
+                               filename="import_filename"
+                               string="Upload File (.xlsx or .csv)"/>
+                        <field name="import_filename" invisible="1"/>
+                        <field name="replace_existing"
+                               help="Replace all lines: clears the sheet and re-imports entirely.&#10;Update: adds new employees and updates paid-days for existing ones."/>
+                    </group>
+                </sheet>
+                <footer>
+                    <button name="action_import" type="object"
+                            string="Import" class="btn-primary"/>
+                    <button name="action_download_template" type="object"
+                            string="Download Template" class="btn-secondary"/>
+                    <button special="cancel" string="Cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+</odoo>

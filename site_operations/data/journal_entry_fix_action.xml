@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        Admin server action: Recompute x_site_analytic_ids for ALL journal entries.
+
+        Old HO-filled journal entries may have an empty x_site_analytic_ids M2M,
+        causing the SA record rule to exclude them.  Running this once rebuilds
+        the M2M from line-level analytic_distribution so SA can see all relevant
+        old entries.
+
+        Appears in: Accounting → Journal Entries list view → Action menu (⚙)
+        Restricted to Matracon Admin and System Administrator (enforced in Python).
+        Safe to run multiple times.
+    -->
+    <record id="action_server_rebuild_site_analytic_links" model="ir.actions.server">
+        <field name="name">Rebuild Site Analytics (Fix Old JE Visibility for SA)</field>
+        <field name="model_id" ref="account.model_account_move"/>
+        <field name="binding_model_id" ref="account.model_account_move"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">model.action_rebuild_site_analytic_links()</field>
+    </record>
+</odoo>
