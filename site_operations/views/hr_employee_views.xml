@@ -55,16 +55,37 @@
                     </group>
                 </page>
                 <page string="Documents" name="matracon_documents">
+                    <!-- Rows open in a small form so several files can be
+                         attached per document (multi-file upload). -->
                     <field name="x_document_ids">
-                        <list editable="bottom">
+                        <list>
                             <field name="document_type"/>
                             <field name="name"/>
-                            <field name="file" filename="filename" widget="binary"/>
-                            <field name="filename" column_invisible="1"/>
+                            <field name="file_attachment_ids" widget="many2many_tags" string="Files"/>
                             <field name="issue_date"/>
                             <field name="expiry_date"/>
                             <field name="notes"/>
                         </list>
+                        <form string="Employee Document">
+                            <group>
+                                <group>
+                                    <field name="document_type"/>
+                                    <field name="name"/>
+                                    <field name="notes"/>
+                                </group>
+                                <group>
+                                    <field name="issue_date"/>
+                                    <field name="expiry_date"/>
+                                </group>
+                            </group>
+                            <group string="Files">
+                                <field name="file_attachment_ids"
+                                       widget="many2many_binary"
+                                       string="Upload Files"
+                                       required="1"
+                                       nolabel="1" colspan="2"/>
+                            </group>
+                        </form>
                     </field>
                 </page>
 

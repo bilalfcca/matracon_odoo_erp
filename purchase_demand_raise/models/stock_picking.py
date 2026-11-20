@@ -9,7 +9,8 @@ _logger = logging.getLogger(__name__)
 
 
 class StockPickingPR(models.Model):
-    _inherit = 'stock.picking'
+    _name = 'stock.picking'
+    _inherit = ['stock.picking', 'matracon.multi.attachment.mixin']
 
     # ── DMR No — auto-generated on creation, never editable ──────────────────
     x_dmr_no = fields.Char(
@@ -27,13 +28,20 @@ class StockPickingPR(models.Model):
     )
 
     # ── Weight Document ───────────────────────────────────────────────────────
+    # Legacy single-file field — data moved to x_weight_document_attachment_ids
     x_weight_document = fields.Binary(
-        string='Weight Document',
+        string='Weight Document (Legacy)',
         attachment=True,
         copy=False,
         help='Weighbridge / weight-slip proof for the delivered material.',
     )
     x_weight_document_filename = fields.Char(string='Weight Document Filename')
+    x_weight_document_attachment_ids = fields.Many2many(
+        'ir.attachment', 'stock_picking_weight_document_rel',
+        'picking_id', 'attachment_id',
+        string='Weight/PO Documents', copy=False,
+        help='Weighbridge / weight-slip / PO proof for the delivered material. '
+             'One or more files can be attached.')
 
     # ── Procurement type mirror — lets the receipt form condition on this ─────
     x_is_site_procurement = fields.Boolean(
@@ -119,7 +127,7 @@ class StockPickingPR(models.Model):
             if (picking.picking_type_code == 'incoming'
                     and picking.purchase_id
                     and picking.purchase_id.x_is_pr_document):
-                if not picking.x_weight_document:
+                if not picking.x_weight_document_attachment_ids:
                     raise UserError(_(
                         'Please upload the Weight/PO Document before marking the receipt as received.'
                     ))

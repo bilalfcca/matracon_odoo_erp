@@ -1508,21 +1508,21 @@ def post_migrate_hook(env):
 
 
 def backfill_petty_cash_voucher_attachments(env):
-    """Ensure all existing petty cash expenses with uploaded signed vouchers or receipts
-    have corresponding ir.attachment records linked to chatter with proper viewable mimetypes.
+    """Ensure all signed vouchers / receipts uploaded on petty cash expenses are
+    linked to their expense (res_model / res_id) so they open from chatter and are
+    readable by everyone who can read the expense.
+
+    Since 19.0.2.6.0 vouchers and receipts are multi-file fields
+    (x_signed_voucher_attachment_ids / receipt_attachment_ids); the old single-file
+    binaries are migrated by migrations/19.0.2.6.0/post-migrate.py.
     """
     expenses = env['x.petty.cash.expense'].sudo().search([
         '|',
-        ('x_signed_voucher', '!=', False),
-        ('receipt', '!=', False),
+        ('x_signed_voucher_attachment_ids', '!=', False),
+        ('receipt_attachment_ids', '!=', False),
     ])
-    for expense in expenses:
-        if expense.x_signed_voucher:
-            v_name = expense.x_signed_voucher_filename or 'signed_voucher.pdf'
-            expense._create_chat_attachment(v_name, expense.x_signed_voucher)
-        if expense.receipt:
-            r_name = expense.receipt_filename or 'receipt.pdf'
-            expense._create_chat_attachment(r_name, expense.receipt)
+    expenses._matracon_bind_attachments(
+        ['x_signed_voucher_attachment_ids', 'receipt_attachment_ids'])
 
 
 def backfill_payment_cheque_numbers(env):

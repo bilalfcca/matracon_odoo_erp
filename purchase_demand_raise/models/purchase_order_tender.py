@@ -359,6 +359,22 @@ class PurchaseOrderTender(models.Model):
                 'x_qty_adjustment_reason': root_line.x_qty_adjustment_reason,
             })
 
+    def _matracon_copy_pm_signed_files(self, root):
+        """Return independent copies of the root PR's PM signed files, linked to
+        this alternative.  Copies made earlier for this alternative are removed
+        first, so re-running replaces them (same as overwriting the old single
+        binary field) instead of piling up duplicates."""
+        self.ensure_one()
+        Attachment = self.env['ir.attachment'].sudo()
+        own_old = self.sudo().x_pm_signed_pr_attachment_ids.filtered(
+            lambda a: a.res_model == self._name and a.res_id == self.id)
+        copies = Attachment
+        for att in root.sudo().x_pm_signed_pr_attachment_ids:
+            copies |= att.copy({'res_model': self._name, 'res_id': self.id})
+        if own_old:
+            own_old.unlink()
+        return copies
+
     def _copy_static_fields_from_root_pr(self, root):
         """One-time copy when an alternative RFQ is linked to a PR tender group."""
         self.ensure_one()
@@ -375,9 +391,8 @@ class PurchaseOrderTender(models.Model):
             'x_initiator_id': root.x_initiator_id.id,
             'picking_type_id': root.picking_type_id.id,
             'date_planned': root.date_planned,
-            # Copy PM signed file from root PR
-            'x_pm_signed_pr': root.x_pm_signed_pr,
-            'x_pm_signed_pr_filename': root.x_pm_signed_pr_filename,
+            # Copy PM signed files from root PR — the alternative gets its own copies
+            'x_pm_signed_pr_attachment_ids': [(6, 0, self._matracon_copy_pm_signed_files(root).ids)],
             # Copy approval state so the alternative starts at the same step in the workflow.
             # After creation each alternative operates independently — changes in one
             # do not propagate to others (no further sync is triggered once
@@ -433,10 +448,16 @@ class PurchaseOrderTender(models.Model):
             root = pr_docs.sorted(key=lambda o: o.id)[0]
             for alt in group.order_ids.filtered(lambda o: o.id != root.id):
                 if not alt.x_is_alternative_rfq:
+                    # Delete the alternative's own PM signed files (the old code
+                    # cleared its single binary field the same way).
+                    alt.sudo().x_pm_signed_pr_attachment_ids.filtered(
+                        lambda a: a.res_model == alt._name and a.res_id == alt.id
+                    ).unlink()
                     alt.with_context(matracon_skip_alt_sync=True).write({
                         'x_is_alternative_rfq': True,
                         'x_pm_signed_pr': False,
                         'x_pm_signed_pr_filename': False,
+                        'x_pm_signed_pr_attachment_ids': [(5, 0, 0)],
                     })
                 alt._copy_static_fields_from_root_pr(root)
         for order in self.search([

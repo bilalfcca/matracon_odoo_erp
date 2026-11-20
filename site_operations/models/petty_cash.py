@@ -224,7 +224,7 @@ class PettyCashFund(models.Model):
 class PettyCashRequest(models.Model):
     _name = 'x.petty.cash.request'
     _description = 'Petty Cash Request'
-    _inherit = ['mail.thread', 'mail.activity.mixin']
+    _inherit = ['mail.thread', 'mail.activity.mixin', 'matracon.multi.attachment.mixin']
     _order = 'create_date desc'
 
     name = fields.Char(
@@ -287,8 +287,9 @@ class PettyCashRequest(models.Model):
     # Workflow: print the petty cash request, get it physically signed by the
     # Project Manager, scan/photograph it and upload here.  action_submit()
     # raises UserError if this is empty.
+    # Legacy single-file field — data moved to x_pm_signed_document_attachment_ids
     x_pm_signed_document = fields.Binary(
-        string='PM Signed Document',
+        string='PM Signed Document (Legacy)',
         attachment=True,
         copy=False,
     )
@@ -296,6 +297,11 @@ class PettyCashRequest(models.Model):
         string='PM Signed Document Filename',
         copy=False,
     )
+    x_pm_signed_document_attachment_ids = fields.Many2many(
+        'ir.attachment', 'x_pc_request_pm_signed_doc_rel',
+        'request_id', 'attachment_id',
+        string='PM Signed Documents', copy=False,
+        help='Scans of the PM-signed petty cash request. One or more files can be attached.')
 
     @api.model
     def default_get(self, fields_list):
@@ -491,7 +497,7 @@ class PettyCashRequest(models.Model):
         for req in self:
             if req.requested_amount <= 0:
                 raise UserError(_('Enter a valid requested amount.'))
-            if not req.x_pm_signed_document:
+            if not req.x_pm_signed_document_attachment_ids:
                 raise UserError(_(
                     'A PM-signed document is required before submitting.\n'
                     'Please print this request, get it signed by the Project Manager, '
@@ -993,7 +999,7 @@ class PettyCashExpenseLine(models.Model):
 class PettyCashExpense(models.Model):
     _name = 'x.petty.cash.expense'
     _description = 'Petty Cash Expense'
-    _inherit = ['mail.thread', 'mail.activity.mixin']
+    _inherit = ['mail.thread', 'mail.activity.mixin', 'matracon.multi.attachment.mixin']
     _order = 'expense_date desc, id desc'
 
     # ── Identity ─────────────────────────────────────────────────────────────
@@ -1120,17 +1126,29 @@ class PettyCashExpense(models.Model):
         help='Journal entry created when this expense is posted. '
              'Used by the IPC payment query to avoid double-counting.')
 
-    receipt = fields.Binary(string='Receipt / Voucher', attachment=True)
+    # Legacy single-file field — data moved to receipt_attachment_ids
+    receipt = fields.Binary(string='Receipt / Voucher (Legacy)', attachment=True)
     receipt_filename = fields.Char()
+    receipt_attachment_ids = fields.Many2many(
+        'ir.attachment', 'x_pc_expense_receipt_rel',
+        'expense_id', 'attachment_id',
+        string='Receipts / Invoices', copy=False,
+        help='Supporting receipts / invoices. One or more files can be attached.')
 
     # Signed voucher — mandatory upload before posting.
     # Workflow: accountant prints the expense voucher, gets it physically signed,
     # scans it, and uploads here.  action_post() enforces this.
+    # Legacy single-file field — data moved to x_signed_voucher_attachment_ids
     x_signed_voucher = fields.Binary(
-        string='Signed Voucher',
+        string='Signed Voucher (Legacy)',
         attachment=True,
     )
     x_signed_voucher_filename = fields.Char(string='Signed Voucher Filename')
+    x_signed_voucher_attachment_ids = fields.Many2many(
+        'ir.attachment', 'x_pc_expense_signed_voucher_rel',
+        'expense_id', 'attachment_id',
+        string='Signed Vouchers', copy=False,
+        help='Scans of the physically signed expense voucher. One or more files can be attached.')
 
     state = fields.Selection([
         ('draft', 'Draft'),
@@ -1198,18 +1216,25 @@ class PettyCashExpense(models.Model):
                     vals['x_petty_cash_account_id'] = pc_acct.id
         records = super().create(vals_list)
         for expense in records:
-            if expense.x_signed_voucher:
-                expense._post_voucher_uploaded_to_chatter('x_signed_voucher')
-            if expense.receipt:
-                expense._post_voucher_uploaded_to_chatter('receipt')
+            for fname in self._VOUCHER_UPLOAD_FIELDS:
+                if expense[fname]:
+                    expense._post_voucher_uploaded_to_chatter(fname, expense[fname])
         return records
 
+    # Multi-file upload fields that post a chatter note when files are added
+    _VOUCHER_UPLOAD_FIELDS = ('x_signed_voucher_attachment_ids', 'receipt_attachment_ids')
+
     def write(self, vals):
+        watched = [f for f in self._VOUCHER_UPLOAD_FIELDS if f in vals]
+        before = {
+            (rec.id, f): rec[f] for rec in self for f in watched
+        } if watched else {}
         res = super().write(vals)
-        if 'x_signed_voucher' in vals and vals.get('x_signed_voucher'):
-            self._post_voucher_uploaded_to_chatter('x_signed_voucher')
-        if 'receipt' in vals and vals.get('receipt'):
-            self._post_voucher_uploaded_to_chatter('receipt')
+        for rec in self:
+            for fname in watched:
+                added = rec[fname] - before[(rec.id, fname)]
+                if added:
+                    rec._post_voucher_uploaded_to_chatter(fname, added)
         return res
 
     def _create_chat_attachment(self, filename, datas):
@@ -1270,15 +1295,13 @@ class PettyCashExpense(models.Model):
             'mimetype': mimetype,
         })
 
-    def _post_voucher_uploaded_to_chatter(self, field_name='x_signed_voucher'):
-        """Post a chatter message with the uploaded voucher document and entry details."""
+    def _post_voucher_uploaded_to_chatter(self, field_name='x_signed_voucher_attachment_ids',
+                                          attachments=None):
+        """Post a chatter message with the uploaded voucher document(s) and entry details."""
         for expense in self:
-            datas = getattr(expense, field_name)
-            if not datas:
+            atts = attachments if attachments is not None else expense[field_name]
+            if not atts:
                 continue
-            default_fname = 'signed_voucher.pdf' if field_name == 'x_signed_voucher' else 'receipt.pdf'
-            filename = getattr(expense, f'{field_name}_filename') or default_fname
-            att = expense._create_chat_attachment(filename, datas)
 
             sym = expense.currency_id.symbol or 'PKR'
             lines_html = ''.join(
@@ -1290,7 +1313,8 @@ class PettyCashExpense(models.Model):
                 for line in expense.line_ids
             )
 
-            doc_label = _('Signed Voucher') if field_name == 'x_signed_voucher' else _('Supporting Receipt / Invoice')
+            doc_label = (_('Signed Voucher') if field_name == 'x_signed_voucher_attachment_ids'
+                         else _('Supporting Receipt / Invoice'))
 
             body = Markup(
                 '<b>{label} Uploaded</b><br/>'
@@ -1307,33 +1331,23 @@ class PettyCashExpense(models.Model):
                 lines_section=Markup(f'<b>Expense Entries:</b><ul>{lines_html}</ul>') if lines_html else '',
             )
 
-            expense.message_post(body=body, attachment_ids=[att.id])
+            expense.message_post(body=body, attachment_ids=atts.ids)
 
     def action_view_signed_voucher(self):
-        """Open the signed voucher in the browser / document viewer."""
+        """Open the signed voucher(s) in the browser / document viewer."""
         self.ensure_one()
-        if not self.x_signed_voucher:
+        if not self.x_signed_voucher_attachment_ids:
             raise UserError(_('No signed voucher has been uploaded.'))
-        filename = self.x_signed_voucher_filename or 'signed_voucher.pdf'
-        att = self._create_chat_attachment(filename, self.x_signed_voucher)
-        return {
-            'type': 'ir.actions.act_url',
-            'url': f'/web/content/{att.id}?filename={att.name}',
-            'target': 'new',
-        }
+        return self._matracon_action_open_attachments(
+            self.x_signed_voucher_attachment_ids, _('Signed Vouchers'))
 
     def action_view_receipt(self):
-        """Open the supporting receipt in the browser / document viewer."""
+        """Open the supporting receipt(s) in the browser / document viewer."""
         self.ensure_one()
-        if not self.receipt:
+        if not self.receipt_attachment_ids:
             raise UserError(_('No receipt has been uploaded.'))
-        filename = self.receipt_filename or 'receipt.pdf'
-        att = self._create_chat_attachment(filename, self.receipt)
-        return {
-            'type': 'ir.actions.act_url',
-            'url': f'/web/content/{att.id}?filename={att.name}',
-            'target': 'new',
-        }
+        return self._matracon_action_open_attachments(
+            self.receipt_attachment_ids, _('Receipts / Invoices'))
 
     @api.onchange('is_subcontractor_advance', 'advance_subcontractor_id')
     def _onchange_sub_advance_fill_account(self):
@@ -1406,7 +1420,7 @@ class PettyCashExpense(models.Model):
                     raise UserError(_(
                         'Line "%s": please select an Account for the Subcontractor Advance.'
                     ) % line.name)
-            if not expense.x_signed_voucher:
+            if not expense.x_signed_voucher_attachment_ids:
                 raise UserError(_(
                     'A signed voucher is required before posting.\n\n'
                     'Please:\n'
@@ -1500,16 +1514,10 @@ class PettyCashExpense(models.Model):
                 after=f'{balance_after:,.2f}',
             )
 
-            # Attach signed voucher and receipt to the chatter message if present
-            attachment_ids = []
-            if expense.x_signed_voucher:
-                v_name = expense.x_signed_voucher_filename or 'signed_voucher.pdf'
-                att_v = expense._create_chat_attachment(v_name, expense.x_signed_voucher)
-                attachment_ids.append(att_v.id)
-            if expense.receipt:
-                r_name = expense.receipt_filename or 'receipt.pdf'
-                att_r = expense._create_chat_attachment(r_name, expense.receipt)
-                attachment_ids.append(att_r.id)
+            # Attach signed voucher(s) and receipt(s) to the chatter message if present
+            attachment_ids = (
+                expense.x_signed_voucher_attachment_ids | expense.receipt_attachment_ids
+            ).ids
 
             expense.message_post(body=body, attachment_ids=attachment_ids)
 

@@ -55,7 +55,7 @@ class SubcontractorIPCBackchargeLine(models.Model):
 class SubcontractorIPC(models.Model):
     _name = 'x.subcontractor.ipc'
     _description = 'Subcontractor Interim Payment Certificate'
-    _inherit = ['mail.thread', 'mail.activity.mixin']
+    _inherit = ['mail.thread', 'mail.activity.mixin', 'matracon.multi.attachment.mixin']
     _order = 'ipc_date desc, id desc'
 
     # ── Identifiers ───────────────────────────────────────────────────────────
@@ -91,10 +91,16 @@ class SubcontractorIPC(models.Model):
         help='Retention percentage applied to gross work done. Default 5%.')
 
     # ── IPC Document (mandatory before submission) ────────────────────────────
+    # Legacy single-file field — data moved to ipc_document_attachment_ids
     ipc_document = fields.Binary(
-        string='IPC Document', attachment=True, copy=False,
+        string='IPC Document (Legacy)', attachment=True, copy=False,
         help='Signed/stamped IPC document — mandatory before submission.')
     ipc_document_filename = fields.Char(string='IPC Document Filename')
+    ipc_document_attachment_ids = fields.Many2many(
+        'ir.attachment', 'x_subcontractor_ipc_document_rel',
+        'ipc_id', 'attachment_id',
+        string='IPC Documents', copy=False,
+        help='Signed/stamped IPC documents — at least one is mandatory before submission.')
 
     # ── Previous IPC data (auto, same subcontractor + same project only) ──────
     previous_ipc_id = fields.Many2one(
@@ -788,7 +794,7 @@ class SubcontractorIPC(models.Model):
         for ipc in self:
             if ipc.state != 'draft':
                 raise UserError(_('Only draft IPCs can be submitted.'))
-            if not ipc.ipc_document:
+            if not ipc.ipc_document_attachment_ids:
                 raise UserError(_(
                     'Please attach the signed IPC document before submitting.\n\n'
                     'Upload the signed/stamped IPC file using the "IPC Document" field.'
