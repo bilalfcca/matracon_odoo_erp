@@ -1071,8 +1071,10 @@ class PettyCashExpense(models.Model):
     x_petty_cash_account_id = fields.Many2one(
         'account.account',
         string='Petty Cash Account (Credit)',
-        help='Cash in Hand account for this site. Credited when the expense is posted. '
-             'Auto-filled from the project\'s petty cash fund configuration.',
+        tracking=True,
+        help='Account credited when the expense is posted. Defaults to the site\'s '
+             'Cash in Hand account from the project\'s petty cash fund configuration; '
+             'can be changed to any account while the expense is in draft.',
     )
     journal_id = fields.Many2one(
         'account.journal',
@@ -1225,6 +1227,20 @@ class PettyCashExpense(models.Model):
     _VOUCHER_UPLOAD_FIELDS = ('x_signed_voucher_attachment_ids', 'receipt_attachment_ids')
 
     def write(self, vals):
+        # The credit account may be changed freely in draft. Once posted, the
+        # journal entry was created with it — changing it would desync the two
+        # (and the upgrade fix-up in hooks.fix_petty_cash_expense_accounts would
+        # then rewrite the posted JE). Filling an empty account is still allowed.
+        if 'x_petty_cash_account_id' in vals:
+            new_acct = vals.get('x_petty_cash_account_id') or False
+            for rec in self:
+                if (rec.state == 'posted'
+                        and rec.x_petty_cash_account_id
+                        and rec.x_petty_cash_account_id.id != new_acct):
+                    raise UserError(_(
+                        'The credit account of posted petty cash expense %s cannot be '
+                        'changed. Reset or reverse the entry first.',
+                        rec.x_ref or rec.name or rec.id))
         watched = [f for f in self._VOUCHER_UPLOAD_FIELDS if f in vals]
         before = {
             (rec.id, f): rec[f] for rec in self for f in watched

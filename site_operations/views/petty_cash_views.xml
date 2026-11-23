@@ -332,10 +332,10 @@
                         <group>
                             <field name="x_petty_cash_account_id"
                                    string="Petty Cash Account (Credit)"
-                                   readonly="1"
+                                   readonly="state == 'posted'"
                                    force_save="1"
                                    options="{'no_create': True}"
-                                   help="Cash in Hand account — auto-configured from the site project. Always readonly."/>
+                                   help="Defaults to the site's Cash in Hand account. You can pick any account from the Chart of Accounts while the expense is in draft."/>
                         </group>
                     </group>
 
