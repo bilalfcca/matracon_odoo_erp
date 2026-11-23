@@ -677,9 +677,9 @@
                 <attribute name="invisible">1</attribute>
             </xpath>
 
-            <!-- Receive Products: Site Store only (standard Odoo receipt form) -->
+            <!-- Receive Products: Site Store + Procurement HO (standard Odoo receipt form) -->
             <xpath expr="//header/button[@name='action_view_picking']" position="attributes">
-                <attribute name="groups">purchase_demand_raise.group_site_store</attribute>
+                <attribute name="groups">purchase_demand_raise.group_site_store,purchase_demand_raise.group_procurement_ho</attribute>
                 <attribute name="invisible">is_shipped or state not in ('purchase', 'done') or x_pr_state not in ('po_locked', 'dispatched')</attribute>
             </xpath>
 
