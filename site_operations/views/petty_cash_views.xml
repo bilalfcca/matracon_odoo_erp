@@ -145,17 +145,16 @@
                          action_submit() raises UserError if this is empty. -->
                     <group string="PM Signed Document (Required before submitting)">
                         <div colspan="2" class="alert alert-warning" role="alert"
-                             invisible="x_pm_signed_document or state != 'draft'">
+                             invisible="x_pm_signed_document_attachment_ids or state != 'draft'">
                             <strong>Action Required:</strong>
                             Print this request, obtain the Project Manager's signature,
                             scan it and upload the signed copy below before submitting.
+                            You can attach more than one file.
                         </div>
-                        <field name="x_pm_signed_document"
-                               widget="binary"
-                               filename="x_pm_signed_document_filename"
+                        <field name="x_pm_signed_document_attachment_ids"
+                               widget="matracon_multi_file"
                                string="Upload PM Signed Document"
                                readonly="state != 'draft'"/>
-                        <field name="x_pm_signed_document_filename" invisible="1"/>
                     </group>
                 </sheet>
                 <chatter/>
@@ -333,10 +332,10 @@
                         <group>
                             <field name="x_petty_cash_account_id"
                                    string="Petty Cash Account (Credit)"
-                                   readonly="1"
+                                   readonly="state == 'posted'"
                                    force_save="1"
                                    options="{'no_create': True}"
-                                   help="Cash in Hand account — auto-configured from the site project. Always readonly."/>
+                                   help="Defaults to the site's Cash in Hand account. You can pick any account from the Chart of Accounts while the expense is in draft."/>
                         </group>
                     </group>
 
@@ -362,39 +361,38 @@
                          action_post() raises UserError if this is empty. -->
                     <group string="Signed Voucher (Required before posting)">
                         <div colspan="2" class="alert alert-warning" role="alert"
-                             invisible="x_signed_voucher or state == 'posted'">
+                             invisible="x_signed_voucher_attachment_ids or state == 'posted'">
                             <strong>Action Required:</strong>
                             Print this voucher, obtain physical signatures, scan it and upload below before posting.
+                            You can attach more than one file.
                         </div>
-                        <label for="x_signed_voucher" string="Signed Voucher"/>
+                        <label for="x_signed_voucher_attachment_ids" string="Signed Voucher"/>
                         <div class="o_row">
-                            <field name="x_signed_voucher" widget="binary"
-                                   filename="x_signed_voucher_filename"
+                            <field name="x_signed_voucher_attachment_ids"
+                                   widget="matracon_multi_file"
                                    readonly="state == 'posted'"/>
                             <button name="action_view_signed_voucher"
                                     type="object"
                                     string="View Voucher"
                                     icon="fa-eye"
                                     class="btn btn-sm btn-outline-primary"
-                                    invisible="not x_signed_voucher"/>
+                                    invisible="not x_signed_voucher_attachment_ids"/>
                         </div>
-                        <field name="x_signed_voucher_filename" invisible="1"/>
                     </group>
 
                     <group string="Supporting Receipt (Optional)">
-                        <label for="receipt" string="Receipt / Invoice"/>
+                        <label for="receipt_attachment_ids" string="Receipt / Invoice"/>
                         <div class="o_row">
-                            <field name="receipt" widget="binary"
-                                   filename="receipt_filename"
+                            <field name="receipt_attachment_ids"
+                                   widget="matracon_multi_file"
                                    readonly="state == 'posted'"/>
                             <button name="action_view_receipt"
                                     type="object"
                                     string="View Receipt"
                                     icon="fa-eye"
                                     class="btn btn-sm btn-outline-primary"
-                                    invisible="not receipt"/>
+                                    invisible="not receipt_attachment_ids"/>
                         </div>
-                        <field name="receipt_filename" invisible="1"/>
                     </group>
                 </sheet>
                 <chatter/>
@@ -413,7 +411,7 @@
                 <field name="name" string="Description"/>
                 <field name="project_analytic_account_id" string="Project" optional="show"/>
                 <field name="category" optional="show"/>
-                <field name="amount"/>
+                <field name="amount" sum="Total Amount"/>
                 <field name="currency_id" invisible="1"/>
                 <!-- Opening/Closing balance per row — first of day = opening, last = closing -->
                 <field name="x_balance_before" string="Balance Before" optional="show"/>
@@ -535,6 +533,8 @@
                 <field name="project_analytic_account_id" string="Project"/>
                 <field name="fund_id"/>
                 <field name="expense_date" string="Expense Date" filter_domain="[('expense_date', '=', self)]"/>
+                <field name="line_ids" string="Debit Account"
+                       filter_domain="[('line_ids.x_summary_account_id', 'ilike', self)]"/>
                 <separator/>
                 <filter name="filter_draft" string="Draft"
                         domain="[('state', '=', 'draft')]"/>
@@ -546,6 +546,11 @@
                         domain="[('expense_date', '=', context_today().strftime('%Y-%m-%d'))]"/>
                 <filter name="filter_exp_this_month" string="This Month"
                         domain="[('expense_date', '&gt;=', context_today().strftime('%Y-%m-01'))]"/>
+                <separator/>
+                <!-- Pick any month / quarter / year. Also enables the "Date Range"
+                     and "Debit Account" pickers in the Filters panel
+                     (static/src/js/material_issuance_date_range.js). -->
+                <filter name="filter_expense_date" string="Expense Date" date="expense_date"/>
                 <separator/>
                 <filter name="group_by_project" string="By Project"
                         context="{'group_by': 'project_analytic_account_id'}"/>

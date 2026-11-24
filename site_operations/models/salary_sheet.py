@@ -14,7 +14,7 @@ from . import matracon_notifications as matracon_notify
 class SalarySheet(models.Model):
     _name = 'x.salary.sheet'
     _description = 'Project Salary Sheet'
-    _inherit = ['mail.thread', 'mail.activity.mixin']
+    _inherit = ['mail.thread', 'mail.activity.mixin', 'matracon.multi.attachment.mixin']
     _order = 'date_from desc, id desc'
 
     name = fields.Char(compute='_compute_name', store=True, readonly=True)
@@ -52,13 +52,20 @@ class SalarySheet(models.Model):
         help='User who CEO-approved this salary sheet. Signature shown on printed PDF.')
 
     # ── Physical Signature (download → sign → upload) ─────────────────────────
+    # Legacy single-file field — data moved to signed_sheet_attachment_ids
     signed_sheet = fields.Binary(
-        string='Signed Salary Sheet (Upload)',
+        string='Signed Salary Sheet (Legacy)',
         copy=False,
         help='Upload the physically signed salary sheet (scan/photo). '
              'Required before submitting for CEO approval.',
     )
     signed_sheet_filename = fields.Char(copy=False)
+    signed_sheet_attachment_ids = fields.Many2many(
+        'ir.attachment', 'x_salary_sheet_signed_rel',
+        'sheet_id', 'attachment_id',
+        string='Signed Salary Sheets', copy=False,
+        help='Scans/photos of the physically signed salary sheet. '
+             'One or more files can be attached. Required before submitting for CEO approval.')
 
     @api.depends('project_analytic_account_id', 'date_from', 'date_to')
     def _compute_name(self):
@@ -182,7 +189,7 @@ class SalarySheet(models.Model):
             if not sheet.line_ids:
                 raise UserError(_('Generate salary lines before submitting.'))
             # ── Signed document required ─────────────────────────────────────
-            if not sheet.signed_sheet:
+            if not sheet.signed_sheet_attachment_ids:
                 raise UserError(_(
                     'Upload the physically signed salary sheet before submitting.\n\n'
                     'Download the PDF, get it signed by PM and Site Accountant, '
