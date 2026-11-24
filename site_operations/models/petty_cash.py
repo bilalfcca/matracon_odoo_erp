@@ -890,6 +890,17 @@ class PettyCashRequest(models.Model):
         return self.fund_id._get_petty_cash_account()
 
 
+# Default debit account code per expense category — used when a line has no
+# Account (Debit). Shared by _create_journal_entry() and the summary account.
+PETTY_CASH_CATEGORY_ACCOUNT_CODES = {
+    'travel': '6270',
+    'supplies': '6280',
+    'utilities': '6300',
+    'meals': '6290',
+    'other': '6290',
+}
+
+
 class PettyCashExpenseLine(models.Model):
     """One debit line inside a petty cash expense voucher.
 
@@ -912,9 +923,17 @@ class PettyCashExpenseLine(models.Model):
     # "Missing required value" error when saving a draft line with 0 amount.
     amount = fields.Monetary(currency_field='currency_id')
     currency_id = fields.Many2one(
-        related='expense_id.currency_id', store=False, readonly=True)
+        related='expense_id.currency_id', store=True, readonly=True)
     project_analytic_account_id = fields.Many2one(
-        related='expense_id.project_analytic_account_id', store=False, readonly=True)
+        related='expense_id.project_analytic_account_id', store=True, readonly=True,
+        string='Project')
+
+    # ── Debit account actually charged (used by the "Debit Account" filter) ───
+    x_summary_account_id = fields.Many2one(
+        'account.account', string='Debit Account',
+        compute='_compute_summary_account', store=True, index=True,
+        help='Account this line is charged to: the line\'s Account (Debit), or the '
+             'expense category\'s default account when that is left blank.')
 
     # ── Debit account ─────────────────────────────────────────────────────────
     expense_account_id = fields.Many2one(
@@ -948,6 +967,23 @@ class PettyCashExpenseLine(models.Model):
              'Posted against the partner so it shows in the Partner Ledger.')
 
     # (no manual sync needed — parent amount is @api.depends computed)
+
+    @api.depends('expense_account_id', 'expense_id.category')
+    def _compute_summary_account(self):
+        Account = self.env['account.account'].sudo()
+        company = self.env.company
+        defaults = {}
+        for line in self:
+            account = line.expense_account_id
+            if not account:
+                code = PETTY_CASH_CATEGORY_ACCOUNT_CODES.get(line.expense_id.category, '6290')
+                if code not in defaults:
+                    defaults[code] = Account.search([
+                        ('code', '=like', code + '%'),
+                        ('company_ids', 'in', company.id),
+                    ], limit=1)
+                account = defaults[code]
+            line.x_summary_account_id = account
 
     @api.onchange('is_subcontractor_advance', 'advance_subcontractor_id')
     def _onchange_sc_advance_partner(self):
@@ -1616,13 +1652,7 @@ class PettyCashExpense(models.Model):
         # ── Debit lines: one per expense line ─────────────────────────────────
         # For subcontractor advances: stamp the subcontractor as partner so the
         # entry appears in the partner ledger and IPC "Payments Made" query.
-        CATEGORY_ACCOUNT_MAP = {
-            'travel': '6270',
-            'supplies': '6280',
-            'utilities': '6300',
-            'meals': '6290',
-            'other': '6290',
-        }
+        CATEGORY_ACCOUNT_MAP = PETTY_CASH_CATEGORY_ACCOUNT_CODES
 
         # Partner Ledger only lists Payable / Receivable lines. When a line has a
         # partner but its account is neither, the amount is also passed through
