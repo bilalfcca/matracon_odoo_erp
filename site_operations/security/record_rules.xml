@@ -138,6 +138,27 @@
             ]"/>
         </record>
 
+        <!-- Expense LINES follow the same visibility as their voucher (needed now
+             that lines can be listed directly in "Summary by Account"). -->
+        <record id="rule_petty_cash_expense_line_site_accountant" model="ir.rule">
+            <field name="name">Petty Cash Expense Line: Site Accountant own project</field>
+            <field name="model_id" ref="model_x_petty_cash_expense_line"/>
+            <field name="domain_force">[('expense_id.project_analytic_account_id', '=', user.x_default_analytic_account_id.id)]</field>
+            <field name="groups" eval="[(4, ref('site_operations.group_site_accountant'))]"/>
+        </record>
+
+        <record id="rule_petty_cash_expense_line_no_draft_ho" model="ir.rule">
+            <field name="name">Petty Cash Expense Line: HO/CEO cannot see Draft</field>
+            <field name="model_id" ref="model_x_petty_cash_expense_line"/>
+            <field name="domain_force">[('expense_id.state', '=', 'posted')]</field>
+            <field name="groups" eval="[
+                (3, ref('purchase_demand_raise.group_ceo_approval')),
+                (4, ref('purchase_demand_raise.group_head_office')),
+                (3, ref('site_operations.group_finance_ho')),
+                (4, ref('purchase_demand_raise.group_procurement_ho')),
+            ]"/>
+        </record>
+
         <record id="rule_petty_cash_fund_site_accountant" model="ir.rule">
             <field name="name">Petty Cash Fund: Site Accountant own project</field>
             <field name="model_id" ref="model_x_petty_cash_fund"/>

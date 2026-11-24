@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
 
-    <!-- Material Issuance: Date Range picker in the search panel's Filters column -->
+    <!-- Matracon pickers in the search panel's Filters column:
+         Date Range (Material Issuance, Petty Cash Expenses) and
+         Debit Account (Petty Cash Expenses). -->
     <t t-name="site_operations.SearchBarMenuDateRange" t-inherit="web.SearchBarMenu" t-inherit-mode="extension">
         <xpath expr="//DropdownItem[contains(@class, 'o_add_custom_filter')]" position="after">
             <t t-if="showMaterialDateRange">
@@ -9,6 +11,7 @@
                 <div class="o_mi_date_range px-3 py-1">
                     <div class="fw-bold mb-2">
                         <i class="fa fa-calendar me-1 text-primary"/>Date Range
+                        <span class="text-muted fw-normal small ms-1" t-esc="'(' + mdrRangeLabel + ')'"/>
                     </div>
                     <div class="d-flex align-items-center gap-2 mb-2">
                         <label class="text-muted mb-0" style="min-width: 2.5rem;">From</label>
@@ -28,6 +31,27 @@
                         <button t-if="mdrIsActive" type="button" class="btn btn-secondary btn-sm" t-on-click="onMdrClear">Clear</button>
                     </div>
                 </div>
+
+                <t t-if="showDebitAccountFilter">
+                    <div role="separator" class="dropdown-divider"/>
+                    <div class="o_mi_debit_account px-3 py-1" style="min-width: 18rem;">
+                        <div class="fw-bold mb-2">
+                            <i class="fa fa-book me-1 text-primary"/>Debit Account
+                        </div>
+                        <div class="mb-2">
+                            <MultiRecordSelector resModel="'account.account'"
+                                                 resIds="mdaState.accountIds"
+                                                 update.bind="onMdaUpdate"
+                                                 placeholder="'Search chart of accounts…'"
+                                                 fieldString="'Debit Account'"/>
+                        </div>
+                        <div t-if="mdaState.error" class="text-danger small mb-2" t-esc="mdaState.error"/>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-primary btn-sm" t-on-click="onMdaApply">Apply</button>
+                            <button t-if="mdaIsActive" type="button" class="btn btn-secondary btn-sm" t-on-click="onMdaClear">Clear</button>
+                        </div>
+                    </div>
+                </t>
             </t>
         </xpath>
     </t>

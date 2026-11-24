@@ -411,7 +411,7 @@
                 <field name="name" string="Description"/>
                 <field name="project_analytic_account_id" string="Project" optional="show"/>
                 <field name="category" optional="show"/>
-                <field name="amount"/>
+                <field name="amount" sum="Total Amount"/>
                 <field name="currency_id" invisible="1"/>
                 <!-- Opening/Closing balance per row — first of day = opening, last = closing -->
                 <field name="x_balance_before" string="Balance Before" optional="show"/>
@@ -533,6 +533,8 @@
                 <field name="project_analytic_account_id" string="Project"/>
                 <field name="fund_id"/>
                 <field name="expense_date" string="Expense Date" filter_domain="[('expense_date', '=', self)]"/>
+                <field name="line_ids" string="Debit Account"
+                       filter_domain="[('line_ids.x_summary_account_id', 'ilike', self)]"/>
                 <separator/>
                 <filter name="filter_draft" string="Draft"
                         domain="[('state', '=', 'draft')]"/>
@@ -544,6 +546,11 @@
                         domain="[('expense_date', '=', context_today().strftime('%Y-%m-%d'))]"/>
                 <filter name="filter_exp_this_month" string="This Month"
                         domain="[('expense_date', '&gt;=', context_today().strftime('%Y-%m-01'))]"/>
+                <separator/>
+                <!-- Pick any month / quarter / year. Also enables the "Date Range"
+                     and "Debit Account" pickers in the Filters panel
+                     (static/src/js/material_issuance_date_range.js). -->
+                <filter name="filter_expense_date" string="Expense Date" date="expense_date"/>
                 <separator/>
                 <filter name="group_by_project" string="By Project"
                         context="{'group_by': 'project_analytic_account_id'}"/>
