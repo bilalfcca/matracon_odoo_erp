@@ -67,6 +67,18 @@
                 <field name="x_contact_id" string="Issuance Contact"/>
                 <field name="x_issuance_project_id" string="Project"/>
                 <field name="origin" string="Source Document"/>
+                <field name="product_id" string="Product"/>
+
+                <!-- ── Date Filters ──
+                     filter_issuance_date also enables the "Date Range" picker
+                     (static/src/js/material_issuance_date_range.js) -->
+                <separator/>
+                <filter name="filter_issuance_date"
+                        string="Issuance Date"
+                        date="x_issuance_date"/>
+                <filter name="filter_effective_date"
+                        string="Effective Date"
+                        date="date_done"/>
 
                 <!-- ── Filters ── -->
                 <separator/>
@@ -129,6 +141,9 @@
                 <filter name="group_by_contact"
                         string="Group by Contact"
                         context="{'group_by': 'x_contact_id'}"/>
+                <filter name="group_by_product"
+                        string="Group by Product"
+                        context="{'group_by': 'x_issued_product_ids'}"/>
                 <filter name="group_by_issue_type"
                         string="Group by Issue Type"
                         context="{'group_by': 'x_issue_type'}"/>
@@ -141,6 +156,9 @@
                 <filter name="group_by_state"
                         string="Group by Status"
                         context="{'group_by': 'state'}"/>
+                <filter name="group_by_issuance_date"
+                        string="Group by Issuance Date"
+                        context="{'group_by': 'x_issuance_date:day'}"/>
             </search>
         </field>
     </record>

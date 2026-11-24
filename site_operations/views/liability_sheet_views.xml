@@ -125,13 +125,11 @@
                                           invisible="not x_is_site_accountant">PM Signed Copy (Required): </span>
                                     <span class="text-muted fw-semibold"
                                           invisible="x_is_site_accountant">PM Signed Copy: </span>
-                                    <field name="pm_signed_sheet"
-                                           widget="binary"
-                                           filename="pm_signed_sheet_filename"
+                                    <field name="pm_signed_sheet_attachment_ids"
+                                           widget="matracon_multi_file"
                                            nolabel="1"
                                            readonly="state not in ['draft']"
-                                           class="d-inline"/>
-                                    <field name="pm_signed_sheet_filename" invisible="1"/>
+                                           class="d-inline-block"/>
                                 </span>
                             </div>
                         </div>

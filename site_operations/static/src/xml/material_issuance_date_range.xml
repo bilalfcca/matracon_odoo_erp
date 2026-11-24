@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <!-- Material Issuance: Date Range picker in the search panel's Filters column -->
+    <t t-name="site_operations.SearchBarMenuDateRange" t-inherit="web.SearchBarMenu" t-inherit-mode="extension">
+        <xpath expr="//DropdownItem[contains(@class, 'o_add_custom_filter')]" position="after">
+            <t t-if="showMaterialDateRange">
+                <div role="separator" class="dropdown-divider"/>
+                <div class="o_mi_date_range px-3 py-1">
+                    <div class="fw-bold mb-2">
+                        <i class="fa fa-calendar me-1 text-primary"/>Date Range
+                    </div>
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <label class="text-muted mb-0" style="min-width: 2.5rem;">From</label>
+                        <input type="date" class="o_input form-control form-control-sm"
+                               t-model="mdrState.dateFrom"
+                               t-on-keydown="onMdrKeydown"/>
+                    </div>
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <label class="text-muted mb-0" style="min-width: 2.5rem;">To</label>
+                        <input type="date" class="o_input form-control form-control-sm"
+                               t-model="mdrState.dateTo"
+                               t-on-keydown="onMdrKeydown"/>
+                    </div>
+                    <div t-if="mdrState.error" class="text-danger small mb-2" t-esc="mdrState.error"/>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-primary btn-sm" t-on-click="onMdrApply">Apply</button>
+                        <button t-if="mdrIsActive" type="button" class="btn btn-secondary btn-sm" t-on-click="onMdrClear">Clear</button>
+                    </div>
+                </div>
+            </t>
+        </xpath>
+    </t>
+
+</templates>

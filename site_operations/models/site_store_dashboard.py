@@ -135,7 +135,7 @@ class SiteStoreDashboard(models.TransientModel):
         ])
         pending_sig = PO.search(po_base + [
             ('x_pr_state', '=', 'draft'),
-            ('x_pm_signed_pr', '=', False),
+            ('x_pm_signed_pr_attachment_ids', '=', False),
         ])
 
         # ── Receipts ─────────────────────────────────────────────────────────
