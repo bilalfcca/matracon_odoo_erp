@@ -53,6 +53,7 @@ from . import subcontractor_ipc
 from . import subcontractor_ho_advance
 from . import employee_ho_advance
 from . import issued_items
+from . import aml_project
 from . import material_cost_consumption
 from . import account_journal
 from . import account_analytic_account
