@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Reason box -->
+    <record id="view_po_force_complete_wizard_form" model="ir.ui.view">
+        <field name="name">x.po.force.complete.wizard.form</field>
+        <field name="model">x.po.force.complete.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Force Complete PO">
+                <p class="text-muted">
+                    The pending (not yet received) receipts below are cancelled and the PO
+                    is closed. Received quantities, stock and bills are not changed, and
+                    only what was received remains to be billed.
+                </p>
+                <field name="summary" nolabel="1" readonly="1"/>
+                <group>
+                    <field name="reason" placeholder="e.g. Vendor cannot supply the balance quantity"/>
+                    <field name="order_ids" invisible="1"/>
+                </group>
+                <footer>
+                    <button name="action_confirm" type="object" string="Force Complete" class="btn-primary"/>
+                    <button special="cancel" string="Cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- PO form: buttons + audit info -->
+    <record id="view_purchase_order_form_force_complete" model="ir.ui.view">
+        <field name="name">purchase.order.form.force.complete</field>
+        <field name="model">purchase.order</field>
+        <field name="inherit_id" ref="purchase.purchase_order_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header" position="inside">
+                <field name="x_can_force_complete" invisible="1"/>
+                <field name="x_can_reopen" invisible="1"/>
+                <button name="action_open_force_complete" type="object" string="Force Complete PO"
+                        invisible="not x_can_force_complete"
+                        help="Close this PO: cancel the receipts not yet received and stop expecting the balance."/>
+                <button name="action_reopen_force_completed" type="object" string="Reopen PO"
+                        invisible="not x_can_reopen"
+                        confirm="Reopen this PO and create a new receipt for the quantity not yet delivered?"/>
+            </xpath>
+            <xpath expr="//sheet/div[hasclass('oe_title')]" position="before">
+                <div class="alert alert-warning mb-2" role="status" invisible="not x_force_completed">
+                    <b>Force completed</b> by <field name="x_force_completed_by_id" readonly="1" class="oe_inline"/>
+                    on <field name="x_force_completed_on" readonly="1" class="oe_inline"/> —
+                    <field name="x_force_complete_reason" readonly="1" class="oe_inline"/>
+                    <field name="x_force_completed" invisible="1"/>
+                </div>
+            </xpath>
+            <xpath expr="//field[@name='order_line']/list/field[@name='qty_received']" position="after">
+                <field name="x_qty_not_delivered" optional="show"
+                       column_invisible="not parent.x_force_completed"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- PO list: Force Completed column + filter -->
+    <record id="view_purchase_order_list_force_complete" model="ir.ui.view">
+        <field name="name">purchase.order.list.force.complete</field>
+        <field name="model">purchase.order</field>
+        <field name="inherit_id" ref="purchase.purchase_order_view_tree"/>
+        <field name="arch" type="xml">
+            <xpath expr="//list" position="inside">
+                <field name="x_force_completed" optional="hide" widget="boolean"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_purchase_order_search_force_complete" model="ir.ui.view">
+        <field name="name">purchase.order.search.force.complete</field>
+        <field name="model">purchase.order</field>
+        <field name="inherit_id" ref="purchase.view_purchase_order_filter"/>
+        <field name="arch" type="xml">
+            <xpath expr="//search" position="inside">
+                <filter name="force_completed" string="Force Completed" domain="[('x_force_completed', '=', True)]"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- List view: Action ▸ Force Complete PO (several POs at once) -->
+    <record id="action_server_po_force_complete" model="ir.actions.server">
+        <field name="name">Force Complete PO</field>
+        <field name="model_id" ref="purchase.model_purchase_order"/>
+        <field name="binding_model_id" ref="purchase.model_purchase_order"/>
+        <field name="binding_view_types">list,form</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_open_force_complete()</field>
+    </record>
+
+</odoo>

@@ -67,3 +67,4 @@ access_po_sig_config_admin,x.po.signature.config admin,model_x_po_signature_conf
 access_po_sig_config_read,x.po.signature.config read,model_x_po_signature_config,purchase.group_purchase_user,1,0,0,0
 access_vendor_product_report_stock,x.vendor.product.report stock,model_x_vendor_product_report,stock.group_stock_user,1,0,0,0
 access_vendor_product_report_purchase,x.vendor.product.report purchase,model_x_vendor_product_report,purchase.group_purchase_user,1,0,0,0
+access_po_force_complete_wizard_user,x.po.force.complete.wizard user,model_x_po_force_complete_wizard,base.group_user,1,1,1,0
