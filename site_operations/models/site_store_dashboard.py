@@ -30,7 +30,7 @@ class SiteStoreDashboard(models.TransientModel):
         ('30', 'Last 30 Days'),
         ('90', 'Last 90 Days'),
         ('0', 'All Time'),
-    ], string='Date Range', default='30')
+    ], string='Date Range', default='0')
     filter_section = fields.Selection([
         ('all', 'All Sections'),
         ('prs', 'Requisitions'),
@@ -148,7 +148,8 @@ class SiteStoreDashboard(models.TransientModel):
         if analytic:
             receipt_domain.append(
                 ('purchase_id.x_project_analytic_account_id', '=', analytic.id))
-        pending_receipts = Picking.search(receipt_domain, limit=20)
+        all_pending_receipts = Picking.search(receipt_domain)
+        pending_receipts = all_pending_receipts[:20]  # list shows the first 20
         # Arrivals Today: match on picking's scheduled_date OR the linked PO's
         # date_planned (expected arrival). Both dates should agree when set properly,
         # but using an OR makes the count robust when one diverges from the other.
@@ -161,7 +162,8 @@ class SiteStoreDashboard(models.TransientModel):
             '&', ('purchase_id.date_planned', '>=', today_start),
                  ('purchase_id.date_planned', '<', today_end),
         ])
-        partial_receipts = pending_receipts.filtered(
+        # Count over ALL pending receipts (the list above is capped at 20).
+        partial_receipts = all_pending_receipts.filtered(
             lambda p: any(m.product_uom_qty > m.quantity for m in p.move_ids if m.product_id)
         )
         recent_grns = Picking.search([
@@ -200,6 +202,7 @@ class SiteStoreDashboard(models.TransientModel):
         ]
         if analytic:
             ret_domain.append(('x_issuance_project_id', '=', analytic.id))
+        pending_returns_count = Picking.search_count(ret_domain)
         pending_returns = Picking.search(ret_domain, limit=20)
 
         # ── Site-to-site transfers ────────────────────────────────────────────
@@ -208,10 +211,15 @@ class SiteStoreDashboard(models.TransientModel):
             xfer_domain += ['|',
                             ('x_issuance_project_id', '=', analytic.id),
                             ('x_dest_project_id', '=', analytic.id)]
-        transfers = Picking.search(
-            xfer_domain + [('x_site_transfer_state', '!=', 'done')],
-            order='id desc', limit=10,
-        )
+        # Open = not yet validated/cancelled and not rejected. (Destination
+        # receipts keep x_site_transfer_state 'approved' after validation, so
+        # the picking state is what tells whether a transfer is finished.)
+        xfer_open = xfer_domain + [
+            ('state', 'not in', ('done', 'cancel')),
+            ('x_site_transfer_state', 'not in', ('done', 'rejected')),
+        ]
+        pending_transfer_count = Picking.search_count(xfer_open)
+        transfers = Picking.search(xfer_open, order='id desc', limit=10)
         dest_receipts = Picking.search([
             ('x_is_dest_receipt', '=', True),
             ('state', 'not in', ('done', 'cancel')),
@@ -250,8 +258,8 @@ class SiteStoreDashboard(models.TransientModel):
             'arrivals_today_count': len(arrivals_today),
             'partial_receipts_count': len(partial_receipts),
             'issuance_mtd_count': len(issuances_mtd),
-            'pending_returns_count': len(pending_returns),
-            'pending_transfer_count': len(transfers),
+            'pending_returns_count': pending_returns_count,
+            'pending_transfer_count': pending_transfer_count,
             'dest_receipt_count': len(dest_receipts),
             'normal_issuance_pct': normal_pct,
             'subcontractor_issuance_pct': sub_pct,
@@ -320,7 +328,7 @@ class SiteStoreDashboard(models.TransientModel):
         self.ensure_one()
         self.write({
             'filter_pr_state': '',
-            'filter_period_days': '30',
+            'filter_period_days': '0',
             'filter_section': 'all',
         })
         return {
