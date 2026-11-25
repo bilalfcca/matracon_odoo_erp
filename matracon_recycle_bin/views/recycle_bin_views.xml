@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_recycle_bin_list" model="ir.ui.view">
+        <field name="name">x.recycle.bin.list</field>
+        <field name="model">x.recycle.bin</field>
+        <field name="arch" type="xml">
+            <list create="false" edit="false" delete="false"
+                  decoration-muted="source == 'system'">
+                <field name="deleted_on"/>
+                <field name="name"/>
+                <field name="app_name"/>
+                <field name="model_label"/>
+                <field name="deleted_by_id" widget="many2one_avatar_user"/>
+                <field name="source" optional="show"/>
+                <field name="line_count" optional="hide"/>
+                <field name="company_id" optional="hide" groups="base.group_multi_company"/>
+                <field name="res_id" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_recycle_bin_form" model="ir.ui.view">
+        <field name="name">x.recycle.bin.form</field>
+        <field name="model">x.recycle.bin</field>
+        <field name="arch" type="xml">
+            <form create="false" edit="false" delete="false">
+                <sheet>
+                    <div class="oe_title">
+                        <span class="text-muted"><field name="app_name" readonly="1"/> · <field name="model_label" readonly="1"/></span>
+                        <h1><field name="name" readonly="1"/></h1>
+                    </div>
+                    <group>
+                        <group string="Deletion">
+                            <field name="deleted_by_id" widget="many2one_avatar_user"/>
+                            <field name="deleted_on"/>
+                            <field name="source"/>
+                        </group>
+                        <group string="Original Record">
+                            <field name="res_model"/>
+                            <field name="res_id"/>
+                            <field name="original_create_uid"/>
+                            <field name="original_create_date"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Saved Details" name="details">
+                            <field name="details_html" nolabel="1" readonly="1"/>
+                        </page>
+                        <page string="Attachments" name="attachments" invisible="not attachment_names">
+                            <p class="text-muted">Names of the files that were attached to the record.</p>
+                            <field name="attachment_names" nolabel="1" readonly="1"/>
+                        </page>
+                        <page string="Raw Data" name="raw" groups="base.group_system">
+                            <field name="data_json" nolabel="1" readonly="1"/>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_recycle_bin_search" model="ir.ui.view">
+        <field name="name">x.recycle.bin.search</field>
+        <field name="model">x.recycle.bin</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name" string="Record"/>
+                <field name="app_name"/>
+                <field name="model_label"/>
+                <field name="deleted_by_id"/>
+                <field name="data_json" string="Any saved value"/>
+                <filter name="by_users" string="Deleted by Users" domain="[('source', '=', 'user')]"/>
+                <filter name="by_system" string="Automatic (system)" domain="[('source', '=', 'system')]"/>
+                <filter name="mine" string="Deleted by Me" domain="[('deleted_by_id', '=', uid)]"/>
+                <separator/>
+                <filter name="deleted_on" string="Deletion Date" date="deleted_on"/>
+                <group>
+                    <filter name="group_app" string="App / Module" context="{'group_by': 'app_name'}"/>
+                    <filter name="group_type" string="Record Type" context="{'group_by': 'model_label'}"/>
+                    <filter name="group_user" string="Deleted By" context="{'group_by': 'deleted_by_id'}"/>
+                    <filter name="group_day" string="Deletion Day" context="{'group_by': 'deleted_on:day'}"/>
+                    <filter name="group_month" string="Deletion Month" context="{'group_by': 'deleted_on:month'}"/>
+                    <filter name="group_source" string="How Deleted" context="{'group_by': 'source'}"/>
+                    <filter name="group_company" string="Company" context="{'group_by': 'company_id'}"
+                            groups="base.group_multi_company"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_recycle_bin" model="ir.actions.act_window">
+        <field name="name">Deleted Records</field>
+        <field name="res_model">x.recycle.bin</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_group_app': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_empty_folder">No deleted records yet</p>
+            <p>Every business record deleted from now on (by a user or by the
+               nightly draft cleanup) appears here with who deleted it and when.</p>
+        </field>
+    </record>
+
+    <menuitem id="menu_recycle_bin_root"
+              name="Recycle Bin"
+              web_icon="matracon_recycle_bin,static/description/icon.png"
+              sequence="900"
+              groups="purchase_demand_raise.group_matracon_admin,base.group_system"/>
+    <menuitem id="menu_recycle_bin_records"
+              name="Deleted Records"
+              parent="menu_recycle_bin_root"
+              action="action_recycle_bin"
+              sequence="10"
+              groups="purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
+</odoo>
