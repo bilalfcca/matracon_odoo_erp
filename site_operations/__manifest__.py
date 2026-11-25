@@ -1,6 +1,6 @@
 {
     'name': 'Site Operations',
-    'version': '19.0.2.6.7',
+    'version': '19.0.2.6.8',
     'summary': 'Material Issuance, Finance HO, Compliance (BG & Tax Notices), Attendance & Petty Cash',
     'author': 'Matracon Pakistan',
     'depends': [
@@ -94,6 +94,7 @@
         'views/direct_print_actions.xml',
         'views/menus.xml',
         'views/stock_report_xlsx_views.xml',
+        'views/issued_items_views.xml',
         'report/mif_report.xml',
         'report/mif_report_template.xml',
         'report/mtn_report.xml',

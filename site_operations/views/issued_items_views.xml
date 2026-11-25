@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ══ Issued Items (per person × project × item) ══════════════════════ -->
+    <record id="view_issued_item_report_list" model="ir.ui.view">
+        <field name="name">x.issued.item.report.list</field>
+        <field name="model">x.issued.item.report</field>
+        <field name="arch" type="xml">
+            <list create="false" edit="false" delete="false"
+                  decoration-danger="status == 'outstanding'"
+                  decoration-warning="status == 'partial'"
+                  decoration-success="status == 'returned'">
+                <header>
+                    <button name="action_open_history_all" type="object" string="Issue &amp; Return History"
+                            class="btn-secondary" display="always"/>
+                </header>
+                <field name="partner_id"/>
+                <field name="project_id" optional="show"/>
+                <field name="product_id"/>
+                <field name="categ_id" optional="hide"/>
+                <field name="inventory_type" optional="show"/>
+                <field name="issue_type" optional="hide"/>
+                <field name="first_issue_date" widget="date"/>
+                <field name="issued_qty" sum="Total Issued"/>
+                <field name="returned_qty" sum="Total Returned"/>
+                <field name="outstanding_qty" sum="Total Outstanding"/>
+                <field name="uom_id" optional="show"/>
+                <field name="last_return_date" widget="date" optional="show"/>
+                <field name="status" widget="badge"
+                       decoration-danger="status == 'outstanding'"
+                       decoration-warning="status == 'partial'"
+                       decoration-success="status == 'returned'"/>
+                <button name="action_view_history" type="object" icon="fa-history" title="History"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_issued_item_report_pivot" model="ir.ui.view">
+        <field name="name">x.issued.item.report.pivot</field>
+        <field name="model">x.issued.item.report</field>
+        <field name="arch" type="xml">
+            <pivot string="Issued Items" disable_linking="1">
+                <field name="partner_id" type="row"/>
+                <field name="status" type="col"/>
+                <field name="outstanding_qty" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
+    <record id="view_issued_item_report_search" model="ir.ui.view">
+        <field name="name">x.issued.item.report.search</field>
+        <field name="model">x.issued.item.report</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="partner_id"/>
+                <field name="product_id"/>
+                <field name="project_id"/>
+                <field name="categ_id"/>
+                <filter name="held" string="Currently Held" domain="[('outstanding_qty', '>', 0)]"/>
+                <separator/>
+                <filter name="st_outstanding" string="Outstanding" domain="[('status', '=', 'outstanding')]"/>
+                <filter name="st_partial" string="Partially Returned" domain="[('status', '=', 'partial')]"/>
+                <filter name="st_returned" string="Fully Returned" domain="[('status', '=', 'returned')]"/>
+                <separator/>
+                <filter name="assets" string="Assets" domain="[('inventory_type', '=', 'asset')]"/>
+                <filter name="consumables" string="Consumables" domain="[('inventory_type', '=', 'consumable')]"/>
+                <separator/>
+                <filter name="subcontractors" string="Subcontractors" domain="[('issue_type', '=', 'subcontractor')]"/>
+                <filter name="first_issue_date" string="Issue Date" date="first_issue_date"/>
+                <group>
+                    <filter name="group_partner" string="Person" context="{'group_by': 'partner_id'}"/>
+                    <filter name="group_project" string="Project" context="{'group_by': 'project_id'}"/>
+                    <filter name="group_product" string="Item" context="{'group_by': 'product_id'}"/>
+                    <filter name="group_status" string="Status" context="{'group_by': 'status'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_issued_item_report" model="ir.actions.act_window">
+        <field name="name">Issued Items</field>
+        <field name="res_model">x.issued.item.report</field>
+        <field name="view_mode">list,pivot</field>
+        <field name="context">{'search_default_group_partner': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_empty_folder">No issued items</p>
+            <p>Items issued through Material Issuance appear here per person, with what
+               was returned and what is still held.</p>
+        </field>
+    </record>
+
+    <!-- ══ Issue & Return History ══════════════════════════════════════════ -->
+    <record id="view_issued_item_history_list" model="ir.ui.view">
+        <field name="name">x.issued.item.history.list</field>
+        <field name="model">x.issued.item.history</field>
+        <field name="arch" type="xml">
+            <list create="false" edit="false" delete="false"
+                  decoration-success="move_type == 'return'">
+                <field name="date"/>
+                <field name="move_type" widget="badge" decoration-info="move_type == 'issue'"
+                       decoration-success="move_type == 'return'"/>
+                <field name="reference"/>
+                <field name="partner_id"/>
+                <field name="project_id" optional="show"/>
+                <field name="product_id"/>
+                <field name="qty"/>
+                <field name="signed_qty" sum="Net Outstanding"/>
+                <field name="uom_id" optional="show"/>
+                <field name="inventory_type" optional="show"/>
+                <field name="issue_type" optional="hide"/>
+                <field name="return_condition" optional="show"/>
+                <field name="picking_id" column_invisible="1"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_issued_item_history_search" model="ir.ui.view">
+        <field name="name">x.issued.item.history.search</field>
+        <field name="model">x.issued.item.history</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="partner_id"/>
+                <field name="product_id"/>
+                <field name="project_id"/>
+                <field name="reference"/>
+                <filter name="issues" string="Issues" domain="[('move_type', '=', 'issue')]"/>
+                <filter name="returns" string="Returns" domain="[('move_type', '=', 'return')]"/>
+                <separator/>
+                <filter name="order_date" string="Date" date="date"/>
+                <group>
+                    <filter name="group_partner" string="Person" context="{'group_by': 'partner_id'}"/>
+                    <filter name="group_product" string="Item" context="{'group_by': 'product_id'}"/>
+                    <filter name="group_project" string="Project" context="{'group_by': 'project_id'}"/>
+                    <filter name="group_month" string="Month" context="{'group_by': 'date:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_issued_item_history" model="ir.actions.act_window">
+        <field name="name">Issue &amp; Return History</field>
+        <field name="res_model">x.issued.item.history</field>
+        <field name="view_mode">list</field>
+    </record>
+
+    <menuitem id="menu_site_report_issued_items"
+              name="Issued Items"
+              parent="site_operations.menu_inventory_site_reports"
+              action="action_issued_item_report"
+              sequence="35"
+              groups="purchase_demand_raise.group_site_store,purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system,purchase_demand_raise.group_ceo_approval,site_operations.group_site_accountant"/>
+
+    <!-- ══ Smart buttons ═══════════════════════════════════════════════════ -->
+    <record id="view_partner_form_issued_items" model="ir.ui.view">
+        <field name="name">res.partner.form.issued.items</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_view_issued_items" type="object" class="oe_stat_button"
+                        icon="fa-cubes"
+                        groups="purchase_demand_raise.group_site_store,purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system,purchase_demand_raise.group_ceo_approval,site_operations.group_site_accountant">
+                    <field name="x_issued_items_count" widget="statinfo" string="Issued Items"/>
+                </button>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_employee_form_issued_items" model="ir.ui.view">
+        <field name="name">hr.employee.form.issued.items</field>
+        <field name="model">hr.employee</field>
+        <field name="inherit_id" ref="hr.view_employee_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_view_issued_items" type="object" class="oe_stat_button"
+                        icon="fa-cubes"
+                        groups="purchase_demand_raise.group_site_store,purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system,purchase_demand_raise.group_ceo_approval,site_operations.group_site_accountant">
+                    <field name="x_issued_items_count" widget="statinfo" string="Issued Items"/>
+                </button>
+            </xpath>
+        </field>
+    </record>
+</odoo>
