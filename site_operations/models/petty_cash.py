@@ -1,3 +1,4 @@
+from datetime import timedelta
 import logging
 
 from markupsafe import Markup
@@ -574,12 +575,17 @@ class PettyCashRequest(models.Model):
                 move = payment.move_id
 
                 if move and move.state == 'posted':
-                    # Create a proper counter-entry so the GL shows the reversal
+                    # Create a proper counter-entry so the GL shows the reversal.
+                    # Dated on the release date (first open date if that period is
+                    # locked) so the correction stays on the day it belongs to and
+                    # does not shift today's petty cash balance.
+                    locks = move.sudo()._get_violated_lock_dates(move.date, move._affect_tax_report())
+                    rev_date = (locks[-1][0] + timedelta(days=1)) if locks else move.date
                     move.sudo()._reverse_moves(
                         default_values_list=[{
                             'ref': _('Reversal: PCR %s cancelled by %s') % (
                                 req.name, self.env.user.name),
-                            'date': fields.Date.today(),
+                            'date': rev_date,
                         }],
                         cancel=True,   # posts reversal + marks original as 'cancel'
                     )

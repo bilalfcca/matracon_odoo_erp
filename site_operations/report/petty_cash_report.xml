@@ -248,7 +248,7 @@
                                     </td>
                                     <td style="width:22%;font-weight:600;">Balance Before</td>
                                     <td>
-                                        <t t-esc="exp.currency_id.symbol"/>&#160;<t t-esc="'{:,.0f}'.format(exp.x_balance_before or exp.available_balance + exp.amount)"/>
+                                        <t t-esc="exp.currency_id.symbol"/>&#160;<t t-esc="'{:,.0f}'.format(exp.x_balance_before if exp.state == 'posted' else exp.available_balance)"/>
                                     </td>
                                 </tr>
                                 <tr style="background:#eaf4ff;">
@@ -256,7 +256,7 @@
                                     <td></td>
                                     <td style="font-weight:600;">Balance After</td>
                                     <td class="fw-bold">
-                                        <t t-esc="exp.currency_id.symbol"/>&#160;<t t-esc="'{:,.0f}'.format(exp.x_balance_after or exp.available_balance)"/>
+                                        <t t-esc="exp.currency_id.symbol"/>&#160;<t t-esc="'{:,.0f}'.format(exp.x_balance_after if exp.state == 'posted' else exp.available_balance - exp.amount)"/>
                                     </td>
                                 </tr>
                             </tbody>
