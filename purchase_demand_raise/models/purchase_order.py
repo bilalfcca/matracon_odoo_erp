@@ -270,6 +270,36 @@ class PurchaseOrder(models.Model):
         help='Set when CEO approves directly from Submitted without HO review.',
     )
 
+    x_print_amounts = fields.Selection([
+        ('auto', 'Automatic (as configured on the lines)'),
+        ('excluded', 'Excluding tax'),
+        ('included', 'Including tax'),
+    ], string='Print Amounts', default='auto',
+        help='How line amounts are printed on the PO / RFQ PDF. Automatic: including '
+             'tax when a line has a tax that is included in its price, otherwise '
+             'excluding tax. Totals always match the PO.')
+
+    def _mtr_print_tax_included(self):
+        """True when the printed line amounts should include tax."""
+        self.ensure_one()
+        if self.x_print_amounts == 'included':
+            return True
+        if self.x_print_amounts == 'excluded':
+            return False
+        return any(t.price_include for t in self.order_line.tax_ids)
+
+    def _mtr_print_line(self, line, tax_included):
+        """Figures printed for one PO line — taken from the line's own computed
+        amounts so the PDF always matches the PO (and the bill)."""
+        qty = line.product_qty or 0.0
+        amount = line.price_total if tax_included else line.price_subtotal
+        disc = line.discount or 0.0
+        if qty and disc < 100.0:
+            unit = amount / qty / (1.0 - disc / 100.0)
+        else:
+            unit = line.price_unit or 0.0
+        return {'qty': qty, 'unit': unit, 'amount': amount, 'disc': disc}
+
     x_show_product_ref = fields.Boolean(
         string='Print Product Reference',
         default=False,
