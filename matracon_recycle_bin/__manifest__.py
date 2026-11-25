@@ -1,6 +1,6 @@
 {
     'name': 'Matracon Recycle Bin',
-    'version': '19.0.1.1.0',
+    'version': '19.0.1.1.1',
     'summary': 'Keeps a full copy of every deleted business record (Admin only)',
     'description': """
 Recycle Bin / Deleted Records

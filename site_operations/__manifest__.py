@@ -1,6 +1,6 @@
 {
     'name': 'Site Operations',
-    'version': '19.0.2.6.3',
+    'version': '19.0.2.6.4',
     'summary': 'Material Issuance, Finance HO, Compliance (BG & Tax Notices), Attendance & Petty Cash',
     'author': 'Matracon Pakistan',
     'depends': [
@@ -39,6 +39,7 @@
         'data/ipc_sequence.xml',
         'data/employee_backcharge_sequence.xml',
         'data/ho_advance_sequence.xml',
+        'data/employee_advance_sequence.xml',
         'data/batch_payment_sequence.xml',
         'data/app_visibility_data.xml',
         'data/currency_precision.xml',
@@ -86,6 +87,7 @@
         'views/ipc_account_config_views.xml',
         'views/subcontractor_ipc_views.xml',
         'views/subcontractor_ho_advance_views.xml',
+        'views/employee_ho_advance_views.xml',
         'views/employee_backcharge_views.xml',
         'views/material_cost_views.xml',
         'views/uom_ext_views.xml',

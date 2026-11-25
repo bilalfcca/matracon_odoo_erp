@@ -376,3 +376,8 @@ access_x_site_leave_head_office,x_site_leave head_office,model_x_site_leave,purc
 access_x_site_leave_matracon_admin,x_site_leave matracon_admin,model_x_site_leave,purchase_demand_raise.group_matracon_admin,1,1,1,1
 access_x_site_leave_ceo_approval,x_site_leave ceo_approval,model_x_site_leave,purchase_demand_raise.group_ceo_approval,1,0,0,0
 access_x_site_leave_system,x_site_leave system,model_x_site_leave,base.group_system,1,1,1,1
+access_employee_advance_fo,x.employee.advance fo,model_x_employee_advance,site_operations.group_finance_ho,1,1,1,1
+access_employee_advance_admin,x.employee.advance admin,model_x_employee_advance,purchase_demand_raise.group_matracon_admin,1,1,1,1
+access_employee_advance_system,x.employee.advance system,model_x_employee_advance,base.group_system,1,1,1,1
+access_employee_advance_ceo,x.employee.advance ceo,model_x_employee_advance,purchase_demand_raise.group_ceo_approval,1,0,0,0
+access_employee_advance_head_office,x.employee.advance head office,model_x_employee_advance,purchase_demand_raise.group_head_office,1,0,0,0

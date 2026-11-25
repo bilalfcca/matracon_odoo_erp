@@ -227,4 +227,8 @@
         <field name="model">x.fleet.vehicle.ledger</field>
         <field name="level">approval</field>
     </record>
+    <record id="deletion_policy_x_employee_advance" model="x.deletion.policy">
+        <field name="model">x.employee.advance</field>
+        <field name="level">approval</field>
+    </record>
 </odoo>

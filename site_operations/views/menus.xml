@@ -603,6 +603,14 @@
               sequence="32"
               groups="purchase_demand_raise.group_matracon_admin,base.group_system,purchase_demand_raise.group_ceo_approval"/>
 
+    <!-- HO Advance to Employee (separate from Petty Cash) -->
+    <menuitem id="menu_employee_ho_advance"
+              name="Employee Advances (HO)"
+              parent="account.menu_finance_payables"
+              action="site_operations.action_employee_ho_advance"
+              sequence="33"
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office,base.group_system"/>
+
     <!-- Accounting → Chart of Accounts (Site Accountant — sees only their site accounts) -->
     <menuitem id="menu_chart_of_accounts_site_accountant"
               name="Chart of Accounts"
