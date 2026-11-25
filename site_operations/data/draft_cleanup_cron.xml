@@ -2,10 +2,10 @@
 <odoo>
     <!-- ═══════════════════════════════════════════════════════════════════════
          Daily Draft Cleanup — every night at 00:00 server time
-         Deletes accounting-related draft records created more than 7 days ago.
+         Deletes accounting-related draft records created more than 14 days ago.
          Running daily (not weekly) guarantees every record survives at least
-         7 full days from its creation date — no record is deleted earlier than
-         its 7-day birthday regardless of which day of the week it was created.
+         14 full days from its creation date — no record is deleted earlier than
+         its 14-day birthday regardless of which day of the week it was created.
          Excluded: purchase requisitions, purchase orders, liability sheets,
                    comparative statements, stock pickings, and any payment
                    already submitted to the CEO for approval.
