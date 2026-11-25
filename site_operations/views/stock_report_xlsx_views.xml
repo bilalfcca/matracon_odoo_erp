@@ -23,6 +23,10 @@
                                placeholder="All categories"/>
                         <field name="vendor_ids" widget="many2many_tags" options="{'no_create': True}"
                                placeholder="All vendors"/>
+                        <field name="project_ids" widget="many2many_tags" options="{'no_create': True}"
+                               placeholder="All projects"/>
+                        <field name="product_ids" widget="many2many_tags" options="{'no_create': True}"
+                               placeholder="All products"/>
                     </group>
                 </group>
                 <group>

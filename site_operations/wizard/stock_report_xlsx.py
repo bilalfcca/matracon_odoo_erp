@@ -29,6 +29,9 @@ class StockReportXlsxWizard(models.TransientModel):
     warehouse_ids = fields.Many2many('stock.warehouse', string='Warehouse / Site',
                                      help='Leave empty for all warehouses you can see.')
     categ_ids = fields.Many2many('product.category', string='Product Categories')
+    product_ids = fields.Many2many('product.product', string='Products')
+    project_ids = fields.Many2many('account.analytic.account', string='Projects',
+                                   help='Site projects (their warehouses).')
     vendor_ids = fields.Many2many('res.partner', string='Vendors',
                                   help='Only products whose vendors include one of these.')
     include_issued = fields.Boolean(string='Include Material Issued sheet', default=True)
@@ -53,8 +56,26 @@ class StockReportXlsxWizard(models.TransientModel):
         return res
 
     # ── Data ─────────────────────────────────────────────────────────────────
+    def _site_configs(self):
+        return self.env['x.project.site.config'].sudo().search([])
+
+    def _issue_location_ids(self):
+        """Legacy 'Employees' / 'Subcontractor' locations (internal, inside each
+        site warehouse): stock there was ISSUED, it is not available."""
+        cfg = self._site_configs()
+        roots = (cfg.mapped('x_employee_location_id') | cfg.mapped('x_subcontractor_location_id'))
+        if not roots:
+            return set()
+        return set(self.env['stock.location'].sudo().search([('id', 'child_of', roots.ids)]).ids)
+
+    def _project_by_warehouse(self):
+        return {c.warehouse_id.id: c.analytic_account_id for c in self._site_configs() if c.warehouse_id}
+
     def _warehouses(self):
         whs = self.warehouse_ids or self.env['stock.warehouse'].search([])
+        if self.project_ids:
+            whs &= self._site_configs().filtered(
+                lambda c: c.analytic_account_id in self.project_ids).mapped('warehouse_id')
         if self.env.user.has_group('purchase_demand_raise.group_site_store') \
                 and not self.env.user._matracon_is_admin():
             own = self.env.user.x_default_warehouse_id
@@ -64,10 +85,12 @@ class StockReportXlsxWizard(models.TransientModel):
         return whs
 
     @staticmethod
-    def _classify(ml, inbound):
+    def _classify(ml, inbound, issue_locs=()):
         """Movement bucket for a done move line entering/leaving a warehouse."""
         pick = ml.picking_id
         other = ml.location_id if inbound else ml.location_dest_id
+        if other.id in issue_locs:          # legacy Employees / Subcontractor location
+            return 'returns_in' if inbound else 'issued'
         if pick and pick.x_transfer_purpose == 'material_issuance' and not pick.x_is_return_transfer:
             return 'issued' if not inbound else 'returns_in'
         if pick and pick.x_is_return_transfer and inbound:
@@ -85,11 +108,13 @@ class StockReportXlsxWizard(models.TransientModel):
         start = datetime.combine(self.date_from, time.min)
         end = datetime.combine(self.date_to, time.max)
         whs = self._warehouses()
+        issue_locs = self._issue_location_ids()
         loc_wh = {}
         for wh in whs:
             for loc in self.env['stock.location'].sudo().search([
                     ('id', 'child_of', wh.view_location_id.id), ('usage', '=', 'internal')]):
-                loc_wh[loc.id] = wh
+                if loc.id not in issue_locs:
+                    loc_wh[loc.id] = wh
         if not loc_wh:
             return [], []
         domain = [('state', '=', 'done'), ('date', '<=', end),
@@ -98,6 +123,8 @@ class StockReportXlsxWizard(models.TransientModel):
             domain.append(('product_id.categ_id', 'child_of', self.categ_ids.ids))
         if self.vendor_ids:
             domain.append(('product_id.x_vendor_ids', 'in', self.vendor_ids.ids))
+        if self.product_ids:
+            domain.append(('product_id', 'in', self.product_ids.ids))
         # Warehouses are already limited to what the user may report on (Site
         # Store: own warehouse only), so read that warehouse's moves in full —
         # otherwise moves without a transfer document (e.g. adjustments) would be
@@ -120,10 +147,11 @@ class StockReportXlsxWizard(models.TransientModel):
                 if not in_period:
                     row['opening'] += qty if inbound else -qty
                     continue
-                row[self._classify(ml, inbound)] += qty
+                kind = self._classify(ml, inbound, issue_locs)
+                row[kind] += qty
                 if not row['last'] or ml.date > row['last']:
                     row['last'] = ml.date
-                if not inbound and self.include_issued and self._classify(ml, False) == 'issued':
+                if not inbound and self.include_issued and kind == 'issued':
                     pick = ml.picking_id
                     issued.append({
                         'date': ml.date, 'ref': pick.name, 'product': ml.product_id,
@@ -136,11 +164,14 @@ class StockReportXlsxWizard(models.TransientModel):
                 pdomain.append(('categ_id', 'child_of', self.categ_ids.ids))
             if self.vendor_ids:
                 pdomain.append(('x_vendor_ids', 'in', self.vendor_ids.ids))
+            if self.product_ids:
+                pdomain.append(('id', 'in', self.product_ids.ids))
             for product in Product.search(pdomain):
                 for wh in whs:
                     data[(product.id, wh.id)]
         rows = []
         Product, WH = self.env['product.product'], self.env['stock.warehouse']
+        project_by_wh = self._project_by_warehouse()
         for (pid, whid), r in data.items():
             ins = r['purchased'] + r['returns_in'] + r['transfer_in'] + r['other_in']
             outs = r['issued'] + r['transfer_out'] + r['other_out']
@@ -149,6 +180,7 @@ class StockReportXlsxWizard(models.TransientModel):
                     abs(v) > 1e-9 for v in (r['opening'], ins, outs, closing)):
                 continue
             rows.append(dict(r, product=Product.browse(pid), warehouse=WH.browse(whid),
+                             project=project_by_wh.get(whid, self.env['account.analytic.account']),
                              ins=ins, outs=outs, closing=closing))
         rows.sort(key=lambda r: (r['warehouse'].name or '', r['product'].categ_id.complete_name or '',
                                  r['product'].display_name or ''))

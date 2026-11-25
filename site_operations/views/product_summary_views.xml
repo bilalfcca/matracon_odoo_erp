@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_product_summary_wizard_form" model="ir.ui.view">
+        <field name="name">x.product.summary.wizard.form</field>
+        <field name="model">x.product.summary.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Product Summary Report">
+                <p class="text-muted">
+                    Total purchased, consumed (issued − returned) and remaining stock per
+                    product and project, from purchase and inventory transactions.
+                    Leave <b>From</b> empty for "since the beginning".
+                </p>
+                <group>
+                    <group string="Date Range">
+                        <field name="date_from" placeholder="Beginning"/>
+                        <field name="date_to"/>
+                    </group>
+                    <group string="Filters">
+                        <field name="product_ids" widget="many2many_tags" options="{'no_create': True}" placeholder="All products"/>
+                        <field name="categ_ids" widget="many2many_tags" options="{'no_create': True}" placeholder="All categories"/>
+                        <field name="project_ids" widget="many2many_tags" options="{'no_create': True}" placeholder="All projects"/>
+                    </group>
+                </group>
+                <footer>
+                    <button name="action_show" type="object" string="Show Report" class="btn-primary"/>
+                    <button name="action_export" type="object" string="Download Excel" icon="fa-download"/>
+                    <button special="cancel" string="Cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_product_summary_wizard" model="ir.actions.act_window">
+        <field name="name">Product Summary</field>
+        <field name="res_model">x.product.summary.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+    <record id="view_product_summary_line_list" model="ir.ui.view">
+        <field name="name">x.product.summary.line.list</field>
+        <field name="model">x.product.summary.line</field>
+        <field name="arch" type="xml">
+            <list create="false" edit="false" delete="false" decoration-danger="remaining_qty &lt; 0">
+                <header>
+                    <button name="action_download_excel" type="object" string="Download Excel"
+                            icon="fa-download" display="always"/>
+                </header>
+                <field name="product_id"/>
+                <field name="default_code" optional="show"/>
+                <field name="categ_id" optional="show"/>
+                <field name="uom_id"/>
+                <field name="project_id" optional="show"/>
+                <field name="warehouse_id" optional="hide"/>
+                <field name="opening_qty" sum="Opening" optional="hide"/>
+                <field name="purchased_qty" sum="Total Purchased"/>
+                <field name="issued_qty" sum="Issued" optional="show"/>
+                <field name="returned_qty" sum="Returned" optional="show"/>
+                <field name="consumed_qty" sum="Total Consumed"/>
+                <field name="transfer_in_qty" sum="Transfers In" optional="hide"/>
+                <field name="transfer_out_qty" sum="Transfers Out" optional="hide"/>
+                <field name="adjustment_qty" sum="Adjustments" optional="hide"/>
+                <field name="remaining_qty" sum="Remaining Available" decoration-bf="1"/>
+                <field name="utilization_pct" widget="progressbar" optional="show"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_product_summary_line_pivot" model="ir.ui.view">
+        <field name="name">x.product.summary.line.pivot</field>
+        <field name="model">x.product.summary.line</field>
+        <field name="arch" type="xml">
+            <pivot string="Product Summary" disable_linking="1">
+                <field name="product_id" type="row"/>
+                <field name="project_id" type="col"/>
+                <field name="purchased_qty" type="measure"/>
+                <field name="consumed_qty" type="measure"/>
+                <field name="remaining_qty" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
+    <record id="view_product_summary_line_search" model="ir.ui.view">
+        <field name="name">x.product.summary.line.search</field>
+        <field name="model">x.product.summary.line</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="product_id"/>
+                <field name="categ_id"/>
+                <field name="project_id"/>
+                <filter name="with_stock" string="In Stock" domain="[('remaining_qty', '>', 0)]"/>
+                <filter name="consumed" string="Consumed" domain="[('consumed_qty', '>', 0)]"/>
+                <group>
+                    <filter name="group_product" string="Product" context="{'group_by': 'product_id'}"/>
+                    <filter name="group_categ" string="Category" context="{'group_by': 'categ_id'}"/>
+                    <filter name="group_project" string="Project" context="{'group_by': 'project_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <menuitem id="menu_site_report_product_summary"
+              name="Product Summary"
+              parent="site_operations.menu_inventory_site_reports"
+              action="action_product_summary_wizard"
+              sequence="22"
+              groups="purchase_demand_raise.group_site_store,purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system,purchase_demand_raise.group_ceo_approval"/>
+</odoo>
