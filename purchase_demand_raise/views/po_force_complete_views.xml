@@ -41,6 +41,11 @@
                         invisible="not x_can_reopen"
                         confirm="Reopen this PO and create a new receipt for the quantity not yet delivered?"/>
             </xpath>
+            <!-- Force-completed POs are reopened with "Reopen PO" (creates the
+                 receipt for the balance); plain Unlock would not, so hide it. -->
+            <xpath expr="//header/button[@name='button_unlock']" position="attributes">
+                <attribute name="invisible">not locked or x_force_completed</attribute>
+            </xpath>
             <xpath expr="//sheet/div[hasclass('oe_title')]" position="before">
                 <div class="alert alert-warning mb-2" role="status" invisible="not x_force_completed">
                     <b>Force completed</b> by <field name="x_force_completed_by_id" readonly="1" class="oe_inline"/>

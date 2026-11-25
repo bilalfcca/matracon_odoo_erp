@@ -130,6 +130,14 @@ class PurchaseOrderForceComplete(models.Model):
                     'user': self.env.user.name, 'pickings': ', '.join(new.mapped('name')) or _('none needed')})
         return True
 
+    def button_unlock(self):
+        """Force-completed POs must be reopened with 'Reopen PO' (which creates
+        the receipt for the balance), not plainly unlocked."""
+        if self.filtered('x_force_completed'):
+            raise UserError(_('This PO was force-completed. Use "Reopen PO" (Administrator) '
+                              'to reopen it and create a receipt for the balance.'))
+        return super().button_unlock()
+
     def _mtr_recompute_billing(self):
         """Re-run billing quantities and delivery status after force-complete /
         reopen (their compute methods check x_force_completed)."""
