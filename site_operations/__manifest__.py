@@ -1,6 +1,6 @@
 {
     'name': 'Site Operations',
-    'version': '19.0.2.6.10',
+    'version': '19.0.2.6.11',
     'summary': 'Material Issuance, Finance HO, Compliance (BG & Tax Notices), Attendance & Petty Cash',
     'author': 'Matracon Pakistan',
     'depends': [
@@ -97,6 +97,7 @@
         'views/issued_items_views.xml',
         'views/product_summary_views.xml',
         'views/aml_project_views.xml',
+        'views/smart_search_views.xml',
         'report/mif_report.xml',
         'report/mif_report_template.xml',
         'report/mtn_report.xml',
@@ -148,6 +149,9 @@
             # "All Dates" option in every accounting-report date filter
             'site_operations/static/src/xml/account_report_all_dates.xml',
             # Material Issuance: Date Range picker in the search panel
+            # Smart search: amount expressions + record suggestions in the search bar
+            'site_operations/static/src/js/smart_search.js',
+            'site_operations/static/src/xml/smart_search.xml',
             'site_operations/static/src/js/material_issuance_date_range.js',
             'site_operations/static/src/xml/material_issuance_date_range.xml',
         ],

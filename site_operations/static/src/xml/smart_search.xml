@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <!-- Smart record suggestions inside the search bar dropdown -->
+    <t t-inherit="web.SearchBar.QuickSearchItems" t-inherit-mode="extension">
+        <xpath expr="//t[@t-elif='item.isChild']" position="before">
+            <t t-elif="item.isMtrRecord">
+                <div t-if="item.isMtrFirst" class="o_mtr_smart_header small text-muted text-uppercase border-top pt-1 mb-1">
+                    <i class="fa fa-magic me-1"/>Matching records — click to open
+                </div>
+                <span class="o_mtr_smart_record d-flex flex-column lh-sm">
+                    <span><i class="fa fa-external-link-square me-1 text-muted"/><b t-esc="item.label"/></span>
+                    <small t-if="item.details" class="text-muted text-truncate ms-3" t-esc="item.details"/>
+                </span>
+            </t>
+        </xpath>
+    </t>
+</templates>

@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        Amount search (x_amt_* fields): the search bar offers them only when the
+        typed text is an amount expression, e.g. >50000, <1000, =2500, 1000-5000.
+    -->
+
+    <!-- Journal Items (incl. Chart of Accounts > Balance) -->
+    <record id="view_aml_filter_amount_search" model="ir.ui.view">
+        <field name="name">account.move.line.search.amount.mtr</field>
+        <field name="model">account.move.line</field>
+        <field name="inherit_id" ref="account.view_account_move_line_filter"/>
+        <field name="arch" type="xml">
+            <xpath expr="//search/field[1]" position="after">
+                <field name="x_amt_amount"/>
+                <field name="x_amt_debit"/>
+                <field name="x_amt_credit"/>
+                <field name="x_amt_balance"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Journal Entries -->
+    <record id="view_move_filter_amount_search" model="ir.ui.view">
+        <field name="name">account.move.select.amount.mtr</field>
+        <field name="model">account.move</field>
+        <field name="inherit_id" ref="account.view_account_move_filter"/>
+        <field name="arch" type="xml">
+            <xpath expr="//search/field[1]" position="after">
+                <field name="x_amt_total"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Bills / Invoices / Credit notes -->
+    <record id="view_invoice_filter_amount_search" model="ir.ui.view">
+        <field name="name">account.invoice.select.amount.mtr</field>
+        <field name="model">account.move</field>
+        <field name="inherit_id" ref="account.view_account_invoice_filter"/>
+        <field name="arch" type="xml">
+            <xpath expr="//search/field[1]" position="after">
+                <field name="x_amt_total"/>
+                <field name="x_amt_due"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Payments -->
+    <record id="view_payment_search_amount_search" model="ir.ui.view">
+        <field name="name">account.payment.search.amount.mtr</field>
+        <field name="model">account.payment</field>
+        <field name="inherit_id" ref="account.view_account_payment_search"/>
+        <field name="arch" type="xml">
+            <xpath expr="//search/field[1]" position="after">
+                <field name="x_amt_amount"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Chart of Accounts: balance search + Balance column -->
+    <record id="view_account_search_amount_search" model="ir.ui.view">
+        <field name="name">account.account.search.amount.mtr</field>
+        <field name="model">account.account</field>
+        <field name="inherit_id" ref="account.view_account_search"/>
+        <field name="arch" type="xml">
+            <xpath expr="//search/field[1]" position="after">
+                <field name="x_amt_balance"/>
+            </xpath>
+        </field>
+    </record>
+    <record id="view_account_list_balance_mtr" model="ir.ui.view">
+        <field name="name">account.account.list.balance.mtr</field>
+        <field name="model">account.account</field>
+        <field name="inherit_id" ref="account.view_account_list"/>
+        <field name="arch" type="xml">
+            <field name="account_type" position="after">
+                <field name="current_balance" string="Balance" optional="show"/>
+            </field>
+        </field>
+    </record>
+
+    <!-- Contacts: project-wise partner filter -->
+    <record id="view_partner_filter_project_mtr" model="ir.ui.view">
+        <field name="name">res.partner.select.project.mtr</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_res_partner_filter"/>
+        <field name="arch" type="xml">
+            <field name="category_id" position="before">
+                <field name="x_project_filter_id" string="Project"/>
+            </field>
+        </field>
+    </record>
+</odoo>
