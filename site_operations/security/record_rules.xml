@@ -994,5 +994,23 @@
             <field name="perm_unlink" eval="False"/>
         </record>
 
+        <!-- Product Summary report: each user sees only the report runs they
+             generated (the lines hold site stock figures). -->
+        <record id="rule_product_summary_line_own" model="ir.rule">
+            <field name="name">Product Summary lines: own report runs only</field>
+            <field name="model_id" ref="site_operations.model_x_product_summary_line"/>
+            <field name="domain_force">[('create_uid', '=', user.id)]</field>
+        </record>
+        <record id="rule_product_summary_wizard_own" model="ir.rule">
+            <field name="name">Product Summary: own report runs only</field>
+            <field name="model_id" ref="site_operations.model_x_product_summary_wizard"/>
+            <field name="domain_force">[('create_uid', '=', user.id)]</field>
+        </record>
+        <record id="rule_stock_report_xlsx_wizard_own" model="ir.rule">
+            <field name="name">Stock Report (Excel): own report runs only</field>
+            <field name="model_id" ref="site_operations.model_x_stock_report_xlsx_wizard"/>
+            <field name="domain_force">[('create_uid', '=', user.id)]</field>
+        </record>
+
     </data>
 </odoo>

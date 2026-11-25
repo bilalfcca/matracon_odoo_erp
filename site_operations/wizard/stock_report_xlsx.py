@@ -46,13 +46,51 @@ class StockReportXlsxWizard(models.TransientModel):
         for wiz in self:
             wiz.show_values = show
 
+    allowed_warehouse_ids = fields.Many2many('stock.warehouse', compute='_compute_allowed_sites')
+    allowed_project_ids = fields.Many2many('account.analytic.account', compute='_compute_allowed_sites')
+
+    @api.model
+    def _mtr_user_site_warehouses(self):
+        """Warehouses a site user may report on, or None when unrestricted.
+
+        Head Office / management (Admin, Head Office, Procurement HO, CEO,
+        Finance HO) keep full access. Site Store users (store keepers / site
+        accountants) are limited to the site(s) they are assigned to in Site
+        Project Configuration - the same anchor the stock record rules use.
+        """
+        user = self.env.user
+        if (not user.has_group('purchase_demand_raise.group_site_store')
+                or user._matracon_is_head_office() or user._matracon_is_procurement_officer()
+                or user._matracon_is_ceo() or user._matracon_is_finance_officer()):
+            return None
+        cfgs = self.env['x.project.site.config'].sudo().search([('site_user_ids', 'in', user.id)])
+        cfgs |= user.sudo().x_site_config_id
+        return cfgs.filtered('active').mapped('warehouse_id')
+
+    @api.model
+    def _mtr_allowed_sites(self):
+        """(warehouses, projects) the current user can pick in the report."""
+        own = self._mtr_user_site_warehouses()
+        if own is None:
+            return (self.env['stock.warehouse'].search([]),
+                    self._site_configs().mapped('analytic_account_id'))
+        by_wh = self._project_by_warehouse()
+        return own, self.env['account.analytic.account'].browse(
+            {by_wh[w.id].id for w in own if by_wh.get(w.id)})
+
+    @api.depends_context('uid')
+    def _compute_allowed_sites(self):
+        whs, projects = self._mtr_allowed_sites()
+        for wiz in self:
+            wiz.allowed_warehouse_ids = whs
+            wiz.allowed_project_ids = projects
+
     @api.model
     def default_get(self, fields_list):
         res = super().default_get(fields_list)
-        wh = self.env.user.x_default_warehouse_id
-        if wh and self.env.user.has_group('purchase_demand_raise.group_site_store') \
-                and 'warehouse_ids' in fields_list:
-            res['warehouse_ids'] = [(6, 0, wh.ids)]
+        own = self._mtr_user_site_warehouses()
+        if own and 'warehouse_ids' in fields_list:
+            res['warehouse_ids'] = [(6, 0, own.ids)]
         return res
 
     # ── Data ─────────────────────────────────────────────────────────────────
@@ -76,12 +114,15 @@ class StockReportXlsxWizard(models.TransientModel):
         if self.project_ids:
             whs &= self._site_configs().filtered(
                 lambda c: c.analytic_account_id in self.project_ids).mapped('warehouse_id')
-        if self.env.user.has_group('purchase_demand_raise.group_site_store') \
-                and not self.env.user._matracon_is_admin():
-            own = self.env.user.x_default_warehouse_id
-            whs = whs & own if own else whs.browse()
+        own = self._mtr_user_site_warehouses()
+        if own is not None:
+            if not own:
+                raise UserError(_('No site warehouse is assigned to your user. '
+                                  'Ask the Admin to add you to the Site Project Configuration.'))
+            whs = (whs & own) if (self.warehouse_ids or self.project_ids) else own
             if not whs:
-                raise UserError(_('No warehouse is assigned to your user.'))
+                raise UserError(_('You can only view stock of your own site: %s.',
+                                  ', '.join(own.mapped('name'))))
         return whs
 
     @staticmethod

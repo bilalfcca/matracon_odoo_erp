@@ -18,7 +18,9 @@
                     <group string="Filters">
                         <field name="product_ids" widget="many2many_tags" options="{'no_create': True}" placeholder="All products"/>
                         <field name="categ_ids" widget="many2many_tags" options="{'no_create': True}" placeholder="All categories"/>
-                        <field name="project_ids" widget="many2many_tags" options="{'no_create': True}" placeholder="All projects"/>
+                        <field name="allowed_project_ids" invisible="1"/>
+                        <field name="project_ids" widget="many2many_tags" options="{'no_create': True}" placeholder="All projects"
+                               domain="[('id', 'in', allowed_project_ids)]"/>
                     </group>
                 </group>
                 <footer>

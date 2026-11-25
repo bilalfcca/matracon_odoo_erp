@@ -23,7 +23,14 @@ class ProductSummaryWizard(models.TransientModel):
     product_ids = fields.Many2many('product.product', string='Products')
     categ_ids = fields.Many2many('product.category', string='Categories')
     project_ids = fields.Many2many('account.analytic.account', string='Projects')
+    allowed_project_ids = fields.Many2many('account.analytic.account', compute='_compute_allowed_projects')
     line_ids = fields.One2many('x.product.summary.line', 'wizard_id')
+
+    @api.depends_context('uid')
+    def _compute_allowed_projects(self):
+        projects = self.env['x.stock.report.xlsx.wizard']._mtr_allowed_sites()[1]
+        for wiz in self:
+            wiz.allowed_project_ids = projects
 
     def _stock_wizard(self):
         self.ensure_one()

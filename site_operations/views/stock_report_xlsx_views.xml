@@ -17,13 +17,17 @@
                         <field name="date_to"/>
                     </group>
                     <group string="Filters">
+                        <field name="allowed_warehouse_ids" invisible="1"/>
+                        <field name="allowed_project_ids" invisible="1"/>
                         <field name="warehouse_ids" widget="many2many_tags" options="{'no_create': True}"
+                               domain="[('id', 'in', allowed_warehouse_ids)]"
                                placeholder="All warehouses"/>
                         <field name="categ_ids" widget="many2many_tags" options="{'no_create': True}"
                                placeholder="All categories"/>
                         <field name="vendor_ids" widget="many2many_tags" options="{'no_create': True}"
                                placeholder="All vendors"/>
                         <field name="project_ids" widget="many2many_tags" options="{'no_create': True}"
+                               domain="[('id', 'in', allowed_project_ids)]"
                                placeholder="All projects"/>
                         <field name="product_ids" widget="many2many_tags" options="{'no_create': True}"
                                placeholder="All products"/>
