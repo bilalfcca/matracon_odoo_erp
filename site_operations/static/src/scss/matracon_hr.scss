@@ -36,6 +36,9 @@
 .matracon-attendance-legend__swatch--l {
     background-color: #f59e0b;
 }
+.matracon-attendance-legend__swatch--u {
+    background-color: #9333ea;
+}
 .matracon-attendance-legend__swatch--h {
     background-color: #3b82f6;
 }
@@ -60,6 +63,14 @@
 .o_list_view .o_data_cell.matracon-att-l,
 .o_form_view .matracon-attendance-grid .o_data_cell.matracon-att-l {
     color: #d97706 !important;
+    font-weight: 700;
+    font-size: 0.9rem;
+    text-align: center;
+}
+
+.o_list_view .o_data_cell.matracon-att-u,
+.o_form_view .matracon-attendance-grid .o_data_cell.matracon-att-u {
+    color: #9333ea !important;
     font-weight: 700;
     font-size: 0.9rem;
     text-align: center;

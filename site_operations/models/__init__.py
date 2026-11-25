@@ -6,6 +6,7 @@ from . import hr_employee_ext
 from . import employee_document
 from . import hr_master_data_security
 from . import attendance_sheet
+from . import site_leave
 from . import salary_sheet
 from . import petty_cash
 from . import management_dashboard

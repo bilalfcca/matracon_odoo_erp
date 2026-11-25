@@ -61,6 +61,20 @@
             <field name="groups" eval="[(4, ref('site_operations.group_site_accountant'))]"/>
         </record>
 
+        <record id="rule_site_leave_site_accountant" model="ir.rule">
+            <field name="name">Leave Application: Site Accountant own project</field>
+            <field name="model_id" ref="model_x_site_leave"/>
+            <field name="domain_force">[('project_analytic_account_id', '=', user.x_default_analytic_account_id.id)]</field>
+            <field name="groups" eval="[(4, ref('site_operations.group_site_accountant'))]"/>
+        </record>
+
+        <record id="rule_site_leave_allocation_site_accountant" model="ir.rule">
+            <field name="name">Leave Balance: Site Accountant own project</field>
+            <field name="model_id" ref="model_x_site_leave_allocation"/>
+            <field name="domain_force">[('project_analytic_account_id', '=', user.x_default_analytic_account_id.id)]</field>
+            <field name="groups" eval="[(4, ref('site_operations.group_site_accountant'))]"/>
+        </record>
+
         <record id="rule_salary_sheet_site_accountant" model="ir.rule">
             <field name="name">Salary Sheet: Site Accountant own project</field>
             <field name="model_id" ref="model_x_salary_sheet"/>

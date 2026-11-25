@@ -312,6 +312,28 @@
               sequence="5"
               groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system,purchase_demand_raise.group_ceo_approval"/>
 
+    <!-- Leave management for site employees (Site Accountant) -->
+    <menuitem id="menu_site_leave"
+              name="Leave Applications"
+              parent="hr_attendance.menu_hr_attendance_root"
+              action="site_operations.action_site_leave"
+              sequence="10"
+              groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system,purchase_demand_raise.group_ceo_approval"/>
+
+    <menuitem id="menu_site_leave_allocation"
+              name="Leave Balances"
+              parent="hr_attendance.menu_hr_attendance_root"
+              action="site_operations.action_site_leave_allocation"
+              sequence="12"
+              groups="site_operations.group_site_accountant,site_operations.group_finance_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system,purchase_demand_raise.group_ceo_approval"/>
+
+    <menuitem id="menu_site_leave_type"
+              name="Leave Types"
+              parent="hr_attendance.menu_hr_attendance_root"
+              action="site_operations.action_site_leave_type"
+              sequence="40"
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
     <menuitem id="menu_salary_sheets"
               name="Salary Sheets"
               parent="hr_attendance.menu_hr_attendance_root"
