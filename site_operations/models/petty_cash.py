@@ -1855,10 +1855,39 @@ class PettyCashExpense(models.Model):
                 ] + credit_extra,
             })
             existing_move.action_post()
+            move = existing_move
         else:
             move = self.env['account.move'].sudo().create(move_vals)
             move.action_post()
             self.x_account_move_id = move
+        self._mtr_reconcile_partner_pass_through(move)
+
+    @api.model
+    def _mtr_reconcile_partner_pass_through(self, moves):
+        """Close the partner pass-through pairs (Cr then Dr on the partner's
+        payable account, same partner / amount / label) by reconciling them, so
+        the entry leaves no outstanding payable against the partner.
+
+        Only exact Cr/Dr pairs inside the same entry are matched; a single open
+        payable line (e.g. a subcontractor advance recovered later by an IPC) is
+        never touched."""
+        for move in moves.sudo().filtered(lambda m: m.state == 'posted'):
+            lines = move.line_ids.filtered(
+                lambda l: l.partner_id and not l.reconciled and l.account_id.reconcile
+                and l.account_id.account_type in ('liability_payable', 'asset_receivable'))
+            used = set()
+            for cr in lines.filtered(lambda l: l.credit > 0):
+                if cr.id in used:
+                    continue
+                dr = lines.filtered(
+                    lambda l: l.id not in used and l.debit > 0
+                    and l.account_id == cr.account_id and l.partner_id == cr.partner_id
+                    and (l.name or '') == (cr.name or '')
+                    and move.currency_id.compare_amounts(l.debit, cr.credit) == 0)[:1]
+                if not dr:
+                    continue
+                (cr | dr).reconcile()
+                used.update((cr.id, dr.id))
 
     def action_reset_to_draft(self):
         """Reset a posted petty cash expense back to Draft.
@@ -1893,6 +1922,13 @@ class PettyCashExpense(models.Model):
             # ── 1. Reset the linked journal entry to draft ───────────────────
             move = expense.x_account_move_id
             if move and move.state != 'draft':
+                # Undo the pass-through pairs reconciled inside this entry
+                # (never reconciliations with other documents).
+                own = move.sudo().line_ids.filtered(lambda l: l.reconciled and (
+                    l.matched_debit_ids.debit_move_id | l.matched_credit_ids.credit_move_id
+                ).move_id == move)
+                if own:
+                    own.remove_move_reconcile()
                 move.sudo().button_draft()
 
             # ── 2. Reverse employee advance balance for each advance line ─────
