@@ -57,6 +57,13 @@ class RecycleBin(models.Model):
     line_count = fields.Integer(string='Lines Kept', readonly=True)
     attachment_names = fields.Text(string='Attachments (names)', readonly=True)
     data_json = fields.Text(string='Saved Data (JSON)', readonly=True)
+    # Deletion history (approval flow)
+    request_id = fields.Many2one('x.deletion.request', string='Deletion Request', readonly=True, index=True)
+    requested_by_id = fields.Many2one('res.users', string='Requested By', readonly=True)
+    requested_on = fields.Datetime(string='Requested On', readonly=True)
+    approved_by_id = fields.Many2one('res.users', string='Approved By', readonly=True, index=True)
+    approved_on = fields.Datetime(string='Approved On', readonly=True)
+    deletion_reason = fields.Text(string='Reason', readonly=True)
     details_html = fields.Html(string='Saved Details', compute='_compute_details_html',
                                sanitize=False)
 
@@ -174,6 +181,7 @@ class RecycleBin(models.Model):
         model_label = env['ir.model']._get(records._name).name or records._name
         app = self._app_name_for_model(records._name)
         Attachment = env['ir.attachment'].sudo()
+        history = self._history_vals(records)
         vals_list = []
         for rec in recs:
             data = self._record_values(rec)
@@ -195,8 +203,33 @@ class RecycleBin(models.Model):
                 'line_count': lines,
                 'attachment_names': '\n'.join(att.mapped('name')) or False,
                 'data_json': json.dumps(data, default=str, ensure_ascii=False),
+                **history,
             })
         self.sudo().with_context(_recycle_bin_internal=True).create(vals_list)
+
+    @api.model
+    def _history_vals(self, records):
+        """Who requested / approved the deletion, from the approval request or
+        the direct action of the person deleting."""
+        from .deletion_control import is_deletion_admin, user_started_delete
+        env = self.env
+        req_id = env.context.get('deletion_request_id')
+        if req_id:
+            req = env['x.deletion.request'].sudo().browse(req_id)
+            return {
+                'request_id': req.id, 'requested_by_id': req.requested_by_id.id,
+                'requested_on': req.requested_on, 'approved_by_id': env.user.id,
+                'approved_on': fields.Datetime.now(), 'deletion_reason': req.reason,
+            }
+        if env.uid == SUPERUSER_ID or not user_started_delete(records):
+            return {}
+        now = fields.Datetime.now()
+        vals = {'requested_by_id': env.user.id, 'requested_on': now}
+        level, controlled = env['x.deletion.policy']._level_for(records)
+        if controlled and is_deletion_admin(env.user):
+            vals.update({'approved_by_id': env.user.id, 'approved_on': now,
+                         'deletion_reason': _('Deleted directly by Administrator.')})
+        return vals
 
     @api.model
     def _display_name_for(self, rec, model_label):

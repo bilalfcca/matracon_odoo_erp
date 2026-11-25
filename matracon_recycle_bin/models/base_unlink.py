@@ -17,6 +17,9 @@ def recycle_then_unlink(records, do_unlink):
     if (not records or env.context.get('recycle_bin_skip')
             or env.context.get('recycle_bin_saved') == records._name):
         return do_unlink(records)
+    Policy = env.get('x.deletion.policy')
+    if Policy is not None:
+        Policy._enforce(records)   # Critical / Approval rules for a person's delete
     Bin = env.get('x.recycle.bin')
     if Bin is None or not Bin._is_tracked_model(records._name):
         return do_unlink(records)

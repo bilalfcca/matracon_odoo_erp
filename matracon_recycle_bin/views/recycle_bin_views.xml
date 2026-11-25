@@ -27,11 +27,11 @@
             <form create="false" edit="false" delete="false">
                 <sheet>
                     <div class="oe_title">
-                        <span class="text-muted"><field name="app_name" readonly="1"/> · <field name="model_label" readonly="1"/></span>
+                        <span class="text-muted"><field name="app_name" readonly="1" class="oe_inline"/> · <field name="model_label" readonly="1" class="oe_inline"/></span>
                         <h1><field name="name" readonly="1"/></h1>
                     </div>
                     <group>
-                        <group string="Deletion">
+                        <group string="Deletion" name="deletion">
                             <field name="deleted_by_id" widget="many2one_avatar_user"/>
                             <field name="deleted_on"/>
                             <field name="source"/>

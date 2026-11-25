@@ -1,0 +1,249 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ══ Request Deletion (reason box) ══════════════════════════════════ -->
+    <record id="view_deletion_request_wizard_form" model="ir.ui.view">
+        <field name="name">x.deletion.request.wizard.form</field>
+        <field name="model">x.deletion.request.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Request Deletion">
+                <p class="text-muted">
+                    These records need Administrator approval to be deleted. They stay
+                    unchanged until an Administrator approves; after approval a full copy
+                    is kept in Deleted Records.
+                </p>
+                <group>
+                    <field name="record_names" readonly="1"/>
+                    <field name="reason" placeholder="Why should these records be deleted?"/>
+                    <field name="res_model" invisible="1"/>
+                    <field name="res_ids" invisible="1"/>
+                </group>
+                <footer>
+                    <button name="action_submit" type="object" string="Send Request" class="btn-primary"/>
+                    <button special="cancel" string="Cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_deletion_request_wizard" model="ir.actions.act_window">
+        <field name="name">Request Deletion</field>
+        <field name="res_model">x.deletion.request.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+    <!-- ══ Deletion Requests ═══════════════════════════════════════════════ -->
+    <record id="view_deletion_request_list" model="ir.ui.view">
+        <field name="name">x.deletion.request.list</field>
+        <field name="model">x.deletion.request</field>
+        <field name="arch" type="xml">
+            <list create="false" delete="false"
+                  decoration-info="state == 'pending'"
+                  decoration-muted="state in ('rejected', 'cancelled')">
+                <field name="requested_on"/>
+                <field name="name"/>
+                <field name="app_name"/>
+                <field name="model_label"/>
+                <field name="record_count" optional="hide"/>
+                <field name="requested_by_id" widget="many2one_avatar_user"/>
+                <field name="reason" optional="show"/>
+                <field name="decided_by_id" optional="show" widget="many2one_avatar_user"/>
+                <field name="decided_on" optional="hide"/>
+                <field name="state" widget="badge"
+                       decoration-info="state == 'pending'"
+                       decoration-success="state == 'approved'"
+                       decoration-danger="state == 'rejected'"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_deletion_request_form" model="ir.ui.view">
+        <field name="name">x.deletion.request.form</field>
+        <field name="model">x.deletion.request</field>
+        <field name="arch" type="xml">
+            <form create="false" delete="false">
+                <header>
+                    <button name="action_approve" type="object" string="Approve &amp; Delete"
+                            class="btn-primary" invisible="state != 'pending'"
+                            groups="purchase_demand_raise.group_matracon_admin,base.group_system"
+                            confirm="Delete these records now? A full copy is kept in Deleted Records."/>
+                    <button name="action_reject" type="object" string="Reject"
+                            invisible="state != 'pending'"
+                            groups="purchase_demand_raise.group_matracon_admin,base.group_system"/>
+                    <button name="action_cancel" type="object" string="Cancel Request"
+                            invisible="state != 'pending'"/>
+                    <button name="action_open_records" type="object" string="Open Records"
+                            invisible="state != 'pending'"/>
+                    <field name="state" widget="statusbar" statusbar_visible="pending,approved"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <span class="text-muted"><field name="app_name" readonly="1" class="oe_inline"/> · <field name="model_label" readonly="1" class="oe_inline"/></span>
+                        <h1><field name="name" readonly="1"/></h1>
+                    </div>
+                    <group>
+                        <group string="Request">
+                            <field name="requested_by_id" widget="many2one_avatar_user"/>
+                            <field name="requested_on"/>
+                            <field name="record_count"/>
+                        </group>
+                        <group string="Decision">
+                            <field name="decided_by_id" widget="many2one_avatar_user"/>
+                            <field name="decided_on"/>
+                            <field name="reject_reason"
+                                   readonly="state != 'pending'"
+                                   groups="purchase_demand_raise.group_matracon_admin,base.group_system"
+                                   placeholder="Optional — sent to the requester when rejecting"/>
+                        </group>
+                    </group>
+                    <group>
+                        <field name="reason"/>
+                    </group>
+                    <field name="bin_entry_ids" invisible="not bin_entry_ids" readonly="1">
+                        <list>
+                            <field name="name"/>
+                            <field name="deleted_by_id"/>
+                            <field name="deleted_on"/>
+                        </list>
+                    </field>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_deletion_request_search" model="ir.ui.view">
+        <field name="name">x.deletion.request.search</field>
+        <field name="model">x.deletion.request</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name" string="Record"/>
+                <field name="model_label"/>
+                <field name="requested_by_id"/>
+                <filter name="pending" string="Pending" domain="[('state', '=', 'pending')]"/>
+                <filter name="approved" string="Approved" domain="[('state', '=', 'approved')]"/>
+                <filter name="rejected" string="Rejected" domain="[('state', '=', 'rejected')]"/>
+                <filter name="mine" string="My Requests" domain="[('requested_by_id', '=', uid)]"/>
+                <separator/>
+                <filter name="requested_on" string="Request Date" date="requested_on"/>
+                <group>
+                    <filter name="group_app" string="App / Module" context="{'group_by': 'app_name'}"/>
+                    <filter name="group_type" string="Record Type" context="{'group_by': 'model_label'}"/>
+                    <filter name="group_user" string="Requested By" context="{'group_by': 'requested_by_id'}"/>
+                    <filter name="group_state" string="Status" context="{'group_by': 'state'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_deletion_request" model="ir.actions.act_window">
+        <field name="name">Deletion Requests</field>
+        <field name="res_model">x.deletion.request</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_pending': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No pending deletion requests</p>
+            <p>When a user deletes a record that needs approval, the request appears here.</p>
+        </field>
+    </record>
+
+    <!-- ══ Deletion Rules ══════════════════════════════════════════════════ -->
+    <record id="view_deletion_policy_list" model="ir.ui.view">
+        <field name="name">x.deletion.policy.list</field>
+        <field name="model">x.deletion.policy</field>
+        <field name="arch" type="xml">
+            <list editable="bottom" decoration-danger="level == 'critical'" decoration-warning="level == 'approval'">
+                <field name="model_label"/>
+                <field name="model"/>
+                <field name="level"/>
+                <field name="apply_domain" optional="hide"/>
+                <field name="active" column_invisible="1"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_deletion_policy_search" model="ir.ui.view">
+        <field name="name">x.deletion.policy.search</field>
+        <field name="model">x.deletion.policy</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="model_label"/>
+                <field name="model"/>
+                <group>
+                    <filter name="group_level" string="Level" context="{'group_by': 'level'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_deletion_policy" model="ir.actions.act_window">
+        <field name="name">Deletion Rules</field>
+        <field name="res_model">x.deletion.policy</field>
+        <field name="view_mode">list</field>
+        <field name="context">{'search_default_group_level': 1}</field>
+    </record>
+
+    <!-- ══ Deleted Records: deletion history ═══════════════════════════════ -->
+    <record id="view_recycle_bin_form_history" model="ir.ui.view">
+        <field name="name">x.recycle.bin.form.history</field>
+        <field name="model">x.recycle.bin</field>
+        <field name="inherit_id" ref="view_recycle_bin_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//group[@name='deletion']" position="inside">
+                <field name="requested_by_id" widget="many2one_avatar_user" invisible="not requested_by_id"/>
+                <field name="requested_on" invisible="not requested_on"/>
+                <field name="approved_by_id" widget="many2one_avatar_user" invisible="not approved_by_id"/>
+                <field name="approved_on" invisible="not approved_on"/>
+                <field name="deletion_reason" invisible="not deletion_reason"/>
+                <field name="request_id" invisible="not request_id"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_recycle_bin_list_history" model="ir.ui.view">
+        <field name="name">x.recycle.bin.list.history</field>
+        <field name="model">x.recycle.bin</field>
+        <field name="inherit_id" ref="view_recycle_bin_list"/>
+        <field name="arch" type="xml">
+            <field name="deleted_by_id" position="before">
+                <field name="requested_by_id" optional="hide" widget="many2one_avatar_user"/>
+                <field name="approved_by_id" optional="show" widget="many2one_avatar_user"/>
+            </field>
+        </field>
+    </record>
+
+    <record id="view_recycle_bin_search_history" model="ir.ui.view">
+        <field name="name">x.recycle.bin.search.history</field>
+        <field name="model">x.recycle.bin</field>
+        <field name="inherit_id" ref="view_recycle_bin_search"/>
+        <field name="arch" type="xml">
+            <field name="deleted_by_id" position="after">
+                <field name="requested_by_id"/>
+                <field name="approved_by_id"/>
+            </field>
+            <filter name="mine" position="after">
+                <filter name="approved_requests" string="Deleted after Approval" domain="[('request_id', '!=', False)]"/>
+            </filter>
+            <filter name="group_source" position="after">
+                <filter name="group_approver" string="Approved By" context="{'group_by': 'approved_by_id'}"/>
+                <filter name="group_requester" string="Requested By" context="{'group_by': 'requested_by_id'}"/>
+            </filter>
+        </field>
+    </record>
+
+    <!-- ══ Menus ═══════════════════════════════════════════════════════════ -->
+    <menuitem id="menu_deletion_requests"
+              name="Deletion Requests"
+              parent="menu_recycle_bin_root"
+              action="action_deletion_request"
+              sequence="5"
+              groups="purchase_demand_raise.group_matracon_admin,base.group_system"/>
+    <menuitem id="menu_deletion_rules"
+              name="Deletion Rules"
+              parent="menu_recycle_bin_root"
+              action="action_deletion_policy"
+              sequence="20"
+              groups="purchase_demand_raise.group_matracon_admin,base.group_system"/>
+
+</odoo>
