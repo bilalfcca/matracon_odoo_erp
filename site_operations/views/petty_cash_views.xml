@@ -330,7 +330,26 @@
                     <!-- ── Credit account ──────────────────────────────────── -->
                     <group string="Credit (Cash Out)">
                         <group>
+                            <field name="x_advance_holder_id"
+                                   readonly="state == 'posted'"
+                                   options="{'no_create': True}"
+                                   placeholder="Leave empty if paid from Petty Cash"/>
+                            <field name="x_advance_holder_balance"
+                                   invisible="not x_advance_holder_id"/>
+                            <field name="x_advance_credit_account_id"
+                                   invisible="not x_advance_holder_id"
+                                   required="x_advance_holder_id and state != 'posted'"
+                                   readonly="state == 'posted'"
+                                   options="{'no_create': True}"/>
+                        </group>
+                        <group>
+                            <div class="alert alert-info mb-0" role="note" colspan="2"
+                                 invisible="not x_advance_holder_id">
+                                Spent from this employee's advance: credited to his advance
+                                account (not Petty Cash) and his outstanding advance is reduced.
+                            </div>
                             <field name="x_petty_cash_account_id"
+                                   invisible="x_advance_holder_id"
                                    string="Petty Cash Account (Credit)"
                                    readonly="state == 'posted'"
                                    force_save="1"
@@ -411,6 +430,7 @@
                 <field name="name" string="Description"/>
                 <field name="project_analytic_account_id" string="Project" optional="show"/>
                 <field name="category" optional="show"/>
+                <field name="x_advance_holder_id" string="Advance Holder" optional="show"/>
                 <field name="amount" sum="Total Amount"/>
                 <field name="currency_id" invisible="1"/>
                 <!-- Opening/Closing balance per row — first of day = opening, last = closing -->
@@ -532,6 +552,7 @@
                 <field name="x_ref" string="Reference"/>
                 <field name="project_analytic_account_id" string="Project"/>
                 <field name="fund_id"/>
+                <field name="x_advance_holder_id" string="Advance Holder"/>
                 <field name="expense_date" string="Expense Date" filter_domain="[('expense_date', '=', self)]"/>
                 <field name="line_ids" string="Debit Account"
                        filter_domain="[('line_ids.x_summary_account_id', 'ilike', self)]"/>
@@ -558,6 +579,8 @@
                         context="{'group_by': 'expense_date:month'}"/>
                 <filter name="group_by_category" string="By Category"
                         context="{'group_by': 'category'}"/>
+                <filter name="group_by_advance_holder" string="By Advance Holder"
+                        context="{'group_by': 'x_advance_holder_id'}"/>
             </search>
         </field>
     </record>

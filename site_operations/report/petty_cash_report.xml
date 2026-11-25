@@ -116,6 +116,10 @@
                             <div class="col-6">
                                 <span style="font-weight:600;font-size:13px;">Reference: </span>
                                 <span style="font-size:13px;"><t t-esc="exp.x_ref or '—'"/></span>
+                                <t t-if="exp.x_advance_holder_id">
+                                    <br/><span style="font-weight:600;font-size:13px;">Spent from advance of: </span>
+                                    <span style="font-size:13px;"><t t-esc="exp.x_advance_holder_id.name"/></span>
+                                </t>
                             </div>
                             <div class="col-6 text-end">
                                 <span style="font-weight:600;font-size:13px;">Date: </span>

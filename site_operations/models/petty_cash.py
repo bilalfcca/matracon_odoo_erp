@@ -1139,6 +1139,35 @@ class PettyCashExpense(models.Model):
         related='employee_id.x_advance_balance',
         currency_field='currency_id', readonly=True)
 
+    # ── Spent from an employee's advance (advance settlement) ────────────────
+    # The employee already received an advance (Dr Advance / Cr Petty Cash).
+    # When he submits bills for what he bought, the expense is credited to
+    # HIS advance account instead of Petty Cash:
+    #   Dr expense heads / Cr Advances to Employee (partner = employee)
+    # and his outstanding advance balance goes down. No cash leaves the box.
+    x_advance_holder_id = fields.Many2one(
+        'hr.employee', string='Partner (Advance Holder)', tracking=True,
+        domain="[('x_project_analytic_account_id', '=', project_analytic_account_id)]",
+        help='Employee who received an advance and spent it on these purchases. '
+             'The expense is credited to his advance account (not Petty Cash) and '
+             'his advance balance is reduced.')
+    x_advance_holder_balance = fields.Monetary(
+        string='Advance Outstanding', related='x_advance_holder_id.x_advance_balance',
+        currency_field='currency_id', readonly=True)
+    x_advance_credit_account_id = fields.Many2one(
+        'account.account', string='Advance Account (Credit)', tracking=True,
+        domain="[('x_is_main', '=', False)]",
+        help='Credited instead of Petty Cash when an Advance Holder is set. '
+             'Defaults to the company\'s Default Employee Advance Account; editable in draft.')
+    x_advance_settled_amount = fields.Monetary(
+        currency_field='currency_id', readonly=True, copy=False,
+        help='Technical: amount taken off the holder\'s advance balance on posting.')
+
+    @api.onchange('x_advance_holder_id')
+    def _onchange_advance_holder(self):
+        if self.x_advance_holder_id and not self.x_advance_credit_account_id:
+            self.x_advance_credit_account_id = self.env.company.x_employee_advance_account_id
+
     # ── Subcontractor Advance ────────────────────────────────────────────────
     is_subcontractor_advance = fields.Boolean(
         string='Subcontractor Advance',
@@ -1493,6 +1522,20 @@ class PettyCashExpense(models.Model):
                     'set the "Petty Cash Account (Cash in Hand)" field.\n\n'
                     'Then try posting again.'
                 ) % (expense.project_analytic_account_id.name or _('your site')))
+            holder = expense.x_advance_holder_id
+            if holder:
+                if not (expense.x_advance_credit_account_id or expense.env.company.x_employee_advance_account_id):
+                    raise UserError(_(
+                        'Select the Advance Account (Credit) for %s, or set the Default '
+                        'Employee Advance Account on the Company.') % holder.name)
+                outstanding = holder.sudo().x_advance_balance or 0.0
+                if expense.currency_id.compare_amounts(expense.amount, outstanding) > 0:
+                    raise UserError(_(
+                        '%(emp)s\'s outstanding advance is %(sym)s %(bal)s, but this expense is '
+                        '%(sym)s %(amt)s.\n\nPost only the part spent from the advance here, and '
+                        'the rest as a normal petty cash expense (without an Advance Holder).'
+                    ) % {'emp': holder.name, 'sym': expense.currency_id.symbol,
+                         'bal': f'{outstanding:,.2f}', 'amt': f'{expense.amount:,.2f}'})
             balance_before = expense.fund_id.balance
             # Site accountants are allowed to post even when the fund balance
             # is zero or negative — the balance will go negative and Finance HO
@@ -1504,7 +1547,7 @@ class PettyCashExpense(models.Model):
                 user.has_group('site_operations.group_site_accountant')
                 or user.has_group('site_operations.group_accountant_ho')
             )
-            if not is_site_accountant and balance_before < expense.amount - 0.01:
+            if not holder and not is_site_accountant and balance_before < expense.amount - 0.01:
                 raise UserError(_(
                     'Insufficient petty cash balance (available: %s %.2f).'
                 ) % (expense.currency_id.symbol, balance_before))
@@ -1513,12 +1556,31 @@ class PettyCashExpense(models.Model):
             expense._create_journal_entry()
             matracon_notify.close_activities(expense, summary_contains='Post petty cash expense')
 
-            balance_after = balance_before - expense.amount
+            # Spent from an advance: no cash leaves petty cash, fund balance unchanged.
+            balance_after = balance_before if holder else balance_before - expense.amount
             # Store the running balance snapshot
             expense.write({
                 'x_balance_before': balance_before,
                 'x_balance_after': balance_after,
             })
+
+            # Advance settlement: reduce the holder's outstanding advance
+            if holder:
+                emp = holder.sudo()
+                prev_balance = emp.x_advance_balance or 0.0
+                emp.x_advance_balance = prev_balance - expense.amount
+                expense.x_advance_settled_amount = expense.amount
+                expense.message_post(body=Markup(_(
+                    'Spent from the advance of <b>%(emp)s</b>: <b>−%(sym)s %(amount)s</b>. '
+                    'Outstanding advance: %(sym)s %(prev)s → <b>%(sym)s %(new)s</b>. '
+                    'Credited to %(acc)s (not Petty Cash).'
+                )) % {
+                    'emp': emp.name, 'sym': expense.currency_id.symbol,
+                    'amount': f'{expense.amount:,.2f}', 'prev': f'{prev_balance:,.2f}',
+                    'new': f'{emp.x_advance_balance:,.2f}',
+                    'acc': (expense.x_advance_credit_account_id
+                            or expense.env.company.x_employee_advance_account_id).display_name,
+                })
 
             # Update employee outstanding advance balance for each advance line
             for line in expense.line_ids:
@@ -1589,6 +1651,12 @@ class PettyCashExpense(models.Model):
 
         # ── Credit: petty cash account (Cash in Hand for this site) ──────────
         credit_account = self.x_petty_cash_account_id
+        holder_partner = self.env['res.partner']
+        if self.x_advance_holder_id:
+            # Spent from an employee's advance: credit HIS advance account.
+            credit_account = (self.x_advance_credit_account_id
+                              or self.env.company.x_employee_advance_account_id)
+            holder_partner = self.x_advance_holder_id.sudo()._get_or_create_partner()
 
         if not credit_account:
             # Fall back to cash journal default account
@@ -1727,6 +1795,21 @@ class PettyCashExpense(models.Model):
             credit_line_name = self.name
 
         ref_label = self.x_ref or self.name
+        if self.x_advance_holder_id:
+            ref_label = _('%(ref)s — spent from advance of %(emp)s') % {
+                'ref': ref_label, 'emp': self.x_advance_holder_id.name}
+        credit_extra = []
+        if holder_partner and credit_account.account_type not in partner_ledger_types:
+            # Same pass-through as the advance itself, so the holder shows the
+            # settlement in the Partner Ledger (nets to zero on his payable).
+            payable = holder_partner.with_company(self.env.company).property_account_payable_id
+            if payable:
+                for debit, credit in ((self.amount, 0.0), (0.0, self.amount)):
+                    credit_extra.append((0, 0, {
+                        'name': credit_line_name, 'account_id': payable.id,
+                        'partner_id': holder_partner.id, 'debit': debit, 'credit': credit,
+                        'analytic_distribution': analytic_distribution or False,
+                    }))
         move_vals = {
             'move_type': 'entry',
             'journal_id': cash_journal.id if cash_journal else False,
@@ -1736,11 +1819,12 @@ class PettyCashExpense(models.Model):
                 (0, 0, {
                     'name': credit_line_name,
                     'account_id': credit_account.id,
+                    'partner_id': holder_partner.id or False,
                     'debit': 0.0,
                     'credit': self.amount,
                     'analytic_distribution': analytic_distribution or False,
                 }),
-            ],
+            ] + credit_extra,
         }
         if not cash_journal:
             raise UserError(_(
@@ -1763,11 +1847,12 @@ class PettyCashExpense(models.Model):
                     (0, 0, {
                         'name': credit_line_name,
                         'account_id': credit_account.id,
+                        'partner_id': holder_partner.id or False,
                         'debit': 0.0,
                         'credit': self.amount,
                         'analytic_distribution': analytic_distribution or False,
                     }),
-                ],
+                ] + credit_extra,
             })
             existing_move.action_post()
         else:
@@ -1824,6 +1909,17 @@ class PettyCashExpense(models.Model):
                         'sym': expense.currency_id.symbol,
                         'amount': f'{line.amount:,.2f}',
                     })
+
+            # ── 2b. Advance settlement: restore the holder's outstanding advance
+            if expense.x_advance_settled_amount and expense.x_advance_holder_id:
+                emp = expense.x_advance_holder_id.sudo()
+                emp.x_advance_balance = (emp.x_advance_balance or 0.0) + expense.x_advance_settled_amount
+                expense.message_post(body=Markup(_(
+                    'Reset to Draft: advance of <b>%(emp)s</b> restored by '
+                    '<b>+%(sym)s %(amount)s</b>.')) % {
+                        'emp': emp.name, 'sym': expense.currency_id.symbol,
+                        'amount': f'{expense.x_advance_settled_amount:,.2f}'})
+                expense.x_advance_settled_amount = 0.0
 
             # ── 3. Clear snapshot fields ──────────────────────────────────────
             expense.write({
