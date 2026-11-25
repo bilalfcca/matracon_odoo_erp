@@ -381,3 +381,9 @@ access_employee_advance_admin,x.employee.advance admin,model_x_employee_advance,
 access_employee_advance_system,x.employee.advance system,model_x_employee_advance,base.group_system,1,1,1,1
 access_employee_advance_ceo,x.employee.advance ceo,model_x_employee_advance,purchase_demand_raise.group_ceo_approval,1,0,0,0
 access_employee_advance_head_office,x.employee.advance head office,model_x_employee_advance,purchase_demand_raise.group_head_office,1,0,0,0
+access_stock_report_xlsx_site_store,x.stock.report.xlsx.wizard group_site_store,model_x_stock_report_xlsx_wizard,purchase_demand_raise.group_site_store,1,1,1,0
+access_stock_report_xlsx_procurement_ho,x.stock.report.xlsx.wizard group_procurement_ho,model_x_stock_report_xlsx_wizard,purchase_demand_raise.group_procurement_ho,1,1,1,0
+access_stock_report_xlsx_head_office,x.stock.report.xlsx.wizard group_head_office,model_x_stock_report_xlsx_wizard,purchase_demand_raise.group_head_office,1,1,1,0
+access_stock_report_xlsx_matracon_admin,x.stock.report.xlsx.wizard group_matracon_admin,model_x_stock_report_xlsx_wizard,purchase_demand_raise.group_matracon_admin,1,1,1,0
+access_stock_report_xlsx_system,x.stock.report.xlsx.wizard group_system,model_x_stock_report_xlsx_wizard,base.group_system,1,1,1,0
+access_stock_report_xlsx_ceo_approval,x.stock.report.xlsx.wizard group_ceo_approval,model_x_stock_report_xlsx_wizard,purchase_demand_raise.group_ceo_approval,1,1,1,0

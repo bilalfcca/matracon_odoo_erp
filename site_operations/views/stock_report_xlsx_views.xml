@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_stock_report_xlsx_wizard_form" model="ir.ui.view">
+        <field name="name">x.stock.report.xlsx.wizard.form</field>
+        <field name="model">x.stock.report.xlsx.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Stock Report (Excel)">
+                <field name="show_values" invisible="1"/>
+                <p class="text-muted">
+                    Opening stock, purchased, issued, returns, transfers and closing stock per
+                    product and warehouse for the period, with an optional sheet of every
+                    material issued.<span invisible="not show_values"> Values at current average cost are included.</span>
+                </p>
+                <group>
+                    <group string="Period">
+                        <field name="date_from"/>
+                        <field name="date_to"/>
+                    </group>
+                    <group string="Filters">
+                        <field name="warehouse_ids" widget="many2many_tags" options="{'no_create': True}"
+                               placeholder="All warehouses"/>
+                        <field name="categ_ids" widget="many2many_tags" options="{'no_create': True}"
+                               placeholder="All categories"/>
+                        <field name="vendor_ids" widget="many2many_tags" options="{'no_create': True}"
+                               placeholder="All vendors"/>
+                    </group>
+                </group>
+                <group>
+                    <field name="include_issued"/>
+                    <field name="include_zero"/>
+                </group>
+                <footer>
+                    <button name="action_export" type="object" string="Download Excel" class="btn-primary" icon="fa-download"/>
+                    <button special="cancel" string="Cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_stock_report_xlsx_wizard" model="ir.actions.act_window">
+        <field name="name">Stock Report (Excel)</field>
+        <field name="res_model">x.stock.report.xlsx.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+    <menuitem id="menu_site_report_stock_xlsx"
+              name="Stock Report (Excel)"
+              parent="site_operations.menu_inventory_site_reports"
+              action="action_stock_report_xlsx_wizard"
+              sequence="25"
+              groups="purchase_demand_raise.group_site_store,purchase_demand_raise.group_procurement_ho,purchase_demand_raise.group_head_office,purchase_demand_raise.group_matracon_admin,base.group_system,purchase_demand_raise.group_ceo_approval"/>
+</odoo>
