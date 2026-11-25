@@ -122,9 +122,8 @@ class ProcurementHoDashboard(models.TransientModel):
             base + [('x_pr_state', '=', 'ceo_final')],
             order='date_order desc',
         )
-        # Active CS = Comparative Statements not yet confirmed whose PR is still
-        # being evaluated by HO (Submitted). Counted from the CS records, not
-        # from alternative RFQs (a PR can have a CS without alternatives).
+        # Active CS = Comparative Statements being prepared (vendors added, no
+        # winner yet) for PRs still under HO evaluation (Submitted).
         open_cs = self._active_cs_records(pending_review)
         active_cs = open_cs.mapped('x_purchase_order_id')
 
@@ -180,15 +179,18 @@ class ProcurementHoDashboard(models.TransientModel):
         }
 
     def _active_cs_records(self, submitted_prs):
-        """Open (draft) Comparative Statements of the given Submitted PRs."""
+        """Active CS of the given Submitted PRs: work on the CS has started
+        (at least one vendor added) and no winner has been decided yet.
+        The empty CS auto-created when a PR is submitted does not count."""
         if not submitted_prs:
             return self.env['x.comparative.statement']
         # sudo: some dashboard users (anyone who raised a PR) have no CS access
         # rights; the PRs themselves were already searched as the user, so this
         # only counts CS of PRs the user can see.
         return self.env['x.comparative.statement'].sudo().search([
-            ('x_state', '=', 'draft'),
             ('x_purchase_order_id', 'in', submitted_prs.ids),
+            ('x_vendor_line_ids', '!=', False),
+            ('x_recommended_vendor_line_id', '=', False),
         ])
 
     @api.model
