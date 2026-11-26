@@ -136,14 +136,13 @@ class MatraconMultiAttachmentMixin(models.AbstractModel):
 
 
 # ── Migration helper ──────────────────────────────────────────────────────────
-def _sniff_extension(raw):
-    if raw.startswith(b'%PDF'):
-        return '.pdf'
-    if raw.startswith(b'\xff\xd8\xff'):
-        return '.jpg'
-    if raw.startswith(b'\x89PNG\r\n\x1a\n'):
-        return '.png'
-    return ''
+_EXT_BY_MIMETYPE = {
+    'application/pdf': '.pdf', 'image/jpeg': '.jpg', 'image/jpg': '.jpg', 'image/png': '.png',
+}
+# ir.attachment columns copied from the legacy file (whatever exists in this DB)
+_COPY_COLUMNS = ('type', 'url', 'public', 'db_datas', 'store_fname', 'file_size', 'checksum',
+                 'mimetype', 'index_content', 'company_id', 'description',
+                 'create_uid', 'create_date', 'write_uid', 'write_date')
 
 
 def matracon_migrate_binary_to_attachments(env, model_name, binary_field,
@@ -151,61 +150,84 @@ def matracon_migrate_binary_to_attachments(env, model_name, binary_field,
     """Copy a legacy single-file Binary field into its new multi-file
     Many2many(ir.attachment) field, once per record.
 
+    Done entirely in SQL and memory-safe on any number of files: the legacy
+    Binary (attachment=True) is already an ir.attachment row, so the new
+    attachment is a copy of that row pointing to the SAME stored file
+    (store_fname / checksum). No file content is read, decoded or rewritten.
+
     - Records whose new field already has files are skipped (idempotent).
     - The legacy Binary value is left in place (hidden) as a safety copy.
-    - The relation row is inserted directly so model write() overrides
-      (posted-entry locks, chatter notifications, …) are not triggered.
+    - An identical file already linked to the record (same name and checksum,
+      e.g. the copy petty cash used to post in chatter) is reused.
+    - The relation rows are inserted directly, so model write() overrides
+      (posted-entry locks, chatter notifications, ...) are not triggered.
     Returns the number of records migrated.
     """
-    import base64
     import logging
     _logger = logging.getLogger(__name__)
 
     if model_name not in env:
         return 0
-    Model = env[model_name].sudo().with_context(active_test=False, prefetch_fields=False)
+    Model = env[model_name]
     if binary_field not in Model._fields or m2m_field not in Model._fields:
         return 0
-    rel = Model._fields[m2m_field]
+    env.flush_all()
     cr = env.cr
-    Attachment = env['ir.attachment'].sudo()
+    rel = Model._fields[m2m_field]
+    fname_field = Model._fields.get(filename_field) if filename_field else None
+    fname_sql = 't."%s"' % filename_field if fname_field and fname_field.store \
+        and fname_field.column_type else 'NULL'
+    ext_sql = 'CASE a.mimetype %s ELSE \'\' END' % ' '.join(
+        "WHEN '%s' THEN '%s'" % kv for kv in _EXT_BY_MIMETYPE.items())
 
-    migrated = 0
-    for rec in Model.search([(binary_field, '!=', False)]):
-        cr.execute(
-            f'SELECT 1 FROM "{rel.relation}" WHERE "{rel.column1}" = %s LIMIT 1',
-            (rec.id,))
-        if cr.fetchone():
-            continue
-        datas = rec[binary_field]
-        if not datas:
-            continue
-        name = (filename_field and rec[filename_field]) or ''
-        if not name:
-            try:
-                head = base64.b64decode(datas[:64]) if isinstance(datas, (str, bytes)) else b''
-            except Exception:
-                head = b''
-            name = default_stem + (_sniff_extension(head) or '')
-        # Reuse an identical file already linked to the record (e.g. the copy
-        # petty cash used to post in chatter) instead of storing it twice.
-        att = Attachment.search([
-            ('res_model', '=', model_name), ('res_id', '=', rec.id),
-            ('res_field', '=', False), ('name', '=', name),
-        ], limit=1)
-        if not att or att.datas != datas:
-            att = Attachment.create({
-                'name': name,
-                'datas': datas,
-                'res_model': model_name,
-                'res_id': rec.id,
-            })
-        cr.execute(
-            f'INSERT INTO "{rel.relation}" ("{rel.column1}", "{rel.column2}") '
-            f'VALUES (%s, %s) ON CONFLICT DO NOTHING',
-            (rec.id, att.id))
-        migrated += 1
-    Model.invalidate_model([m2m_field])
+    cr.execute("SELECT column_name FROM information_schema.columns WHERE table_name = 'ir_attachment'")
+    existing = {r[0] for r in cr.fetchall()}
+    cols = [c for c in _COPY_COLUMNS if c in existing]
+    col_list = ', '.join('"%s"' % c for c in cols)
+    src_list = ', '.join('a."%s"' % c for c in cols)
+
+    cr.execute("DROP TABLE IF EXISTS _mtr_att_src")
+    cr.execute(f"""
+        CREATE TEMP TABLE _mtr_att_src AS
+        SELECT DISTINCT ON (a.res_id)
+               a.id AS src_id, a.res_id AS rec_id, a.checksum,
+               COALESCE(NULLIF(TRIM({fname_sql}), ''), %s || {ext_sql}) AS fname,
+               NULL::integer AS att_id
+          FROM ir_attachment a
+          JOIN "{Model._table}" t ON t.id = a.res_id
+         WHERE a.res_model = %s AND a.res_field = %s
+           AND (a.store_fname IS NOT NULL OR a.db_datas IS NOT NULL)
+           AND NOT EXISTS (SELECT 1 FROM "{rel.relation}" r WHERE r."{rel.column1}" = a.res_id)
+      ORDER BY a.res_id, a.id DESC
+    """, (default_stem, model_name, binary_field))
+    # reuse an identical file already on the record
+    cr.execute("""
+        UPDATE _mtr_att_src s
+           SET att_id = (SELECT e.id FROM ir_attachment e
+                          WHERE e.res_model = %s AND e.res_id = s.rec_id AND e.res_field IS NULL
+                            AND e.name = s.fname AND e.checksum IS NOT DISTINCT FROM s.checksum
+                       ORDER BY e.id LIMIT 1)
+    """, (model_name,))
+    # new attachment rows sharing the legacy file
+    cr.execute(f"""
+        WITH ins AS (
+            INSERT INTO ir_attachment ({col_list}, name, res_model, res_id, res_field)
+            SELECT {src_list}, s.fname, %s, s.rec_id, NULL
+              FROM _mtr_att_src s JOIN ir_attachment a ON a.id = s.src_id
+             WHERE s.att_id IS NULL
+         RETURNING id, res_id
+        )
+        UPDATE _mtr_att_src s SET att_id = ins.id FROM ins
+         WHERE ins.res_id = s.rec_id AND s.att_id IS NULL
+    """, (model_name,))
+    cr.execute(f"""
+        INSERT INTO "{rel.relation}" ("{rel.column1}", "{rel.column2}")
+        SELECT rec_id, att_id FROM _mtr_att_src WHERE att_id IS NOT NULL
+        ON CONFLICT DO NOTHING
+    """)
+    migrated = cr.rowcount
+    cr.execute("DROP TABLE _mtr_att_src")
+    env.invalidate_all()
     _logger.info('Multi-file migration: %s.%s → %s: %s record(s)',
                  model_name, binary_field, m2m_field, migrated)
     return migrated
