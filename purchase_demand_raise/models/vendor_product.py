@@ -82,6 +82,8 @@ class ProductTemplateVendors(models.Model):
         ids = [r[0] for r in self.env.cr.fetchall() if r[0]]
         for i in range(0, len(ids), 500):
             self.browse(ids[i:i + 500])._mtr_refresh_vendors()
+            self.env.flush_all()
+            self.env.invalidate_all()   # keep memory flat on large catalogues
         return len(ids)
 
 

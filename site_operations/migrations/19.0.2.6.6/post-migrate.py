@@ -17,5 +17,7 @@ def migrate(cr, version):
     before = env['account.partial.reconcile'].search_count([])
     for i in range(0, len(moves), 200):
         env['x.petty.cash.expense']._mtr_reconcile_partner_pass_through(moves[i:i + 200])
+        env.flush_all()
+        env.invalidate_all()
     _logger.info("Petty cash: reconciled %s partner pass-through pair(s) in %s entries",
                  env['account.partial.reconcile'].search_count([]) - before, len(moves))
