@@ -11,6 +11,15 @@ _logger = logging.getLogger(__name__)
 def migrate(cr, version):
     env = api.Environment(cr, SUPERUSER_ID, {})
     n = env['product.template']._mtr_backfill_vendors()
+    env.flush_all()
+    # variants mirror the template's last vendor (stored related, column pre-created)
+    cr.execute("""
+        UPDATE product_product pp
+           SET x_last_vendor_id = pt.x_last_vendor_id
+          FROM product_template pt
+         WHERE pt.id = pp.product_tmpl_id
+           AND pp.x_last_vendor_id IS DISTINCT FROM pt.x_last_vendor_id
+    """)
     cr.execute("""
         UPDATE stock_move sm
            SET x_vendor_id = pt.x_last_vendor_id
