@@ -75,19 +75,24 @@ class PettyCashFundBalance(models.Model):
                 total += amt
                 prefix.append(total)
                 amount_by_key[key] = amount_by_key.get(key, 0.0) + amt
-            dom = [('fund_id', '=', fund.id), ('state', '=', 'posted')]
-            if date_from:
-                dom.append(('expense_date', '>=', date_from))
+            # expenses read in SQL: no ORM records loaded (memory-safe on large funds)
+            self.env.cr.execute("""
+                SELECT e.id, COALESCE(am.date, e.expense_date), COALESCE(am.id, 0),
+                       COALESCE(e.x_balance_before, 0), COALESCE(e.x_balance_after, 0)
+                  FROM x_petty_cash_expense e
+             LEFT JOIN account_move am ON am.id = e.x_account_move_id
+                 WHERE e.fund_id = %s AND e.state = 'posted'
+                   AND (%s::date IS NULL OR e.expense_date >= %s::date)
+            """, (fund.id, date_from or None, date_from or None))
             updates = []
-            for exp in Expense.sudo().search(dom):
-                move = exp.x_account_move_id
-                key = (move.date or exp.expense_date, move.id or 0)
+            for exp_id, d, move_id, old_before, old_after in self.env.cr.fetchall():
+                key = (d, move_id)
                 i = bisect.bisect_left(keys, key)
                 before = prefix[i]
                 after = before + amount_by_key.get(key, 0.0)
                 before, after = round(before, 2), round(after, 2)
-                if (round(exp.x_balance_before, 2), round(exp.x_balance_after, 2)) != (before, after):
-                    updates.append((before, after, exp.id))
+                if (round(float(old_before), 2), round(float(old_after), 2)) != (before, after):
+                    updates.append((before, after, exp_id))
             if updates:
                 self.env.cr.executemany(
                     "UPDATE x_petty_cash_expense SET x_balance_before = %s, x_balance_after = %s WHERE id = %s",
