@@ -19,6 +19,8 @@ class SiteAccountantDashboard(models.TransientModel):
     # ── Attendance KPIs ──────────────────────────────────────────────────────
     kpi_total_employees = fields.Integer(string='Total Employees', readonly=True)
     kpi_monthly_present_days = fields.Integer(string='Monthly Present (Man-Days)', readonly=True)
+    kpi_leave_to_approve = fields.Integer(string='Leaves to Approve', readonly=True)
+    kpi_on_leave_today = fields.Integer(string='On Leave Today', readonly=True)
     kpi_capacity_utilization_pct = fields.Float(
         string='Capacity Utilization %', readonly=True, digits=(5, 1))
     kpi_6m_avg_present = fields.Float(
@@ -254,7 +256,16 @@ class SiteAccountantDashboard(models.TransientModel):
         sub_lines    = [e for e in liability_lines if e['partner_type'] == 'subcontractor']
         vendor_lines = [e for e in liability_lines if e['partner_type'] == 'vendor']
 
+        Leave = self.env['x.site.leave'].sudo()
+        leave_to_approve = Leave.search_count([
+            ('project_analytic_account_id', '=', analytic.id), ('state', '=', 'draft')])
+        on_leave_today = Leave.search_count([
+            ('project_analytic_account_id', '=', analytic.id), ('state', '=', 'approved'),
+            ('date_from', '<=', today), ('date_to', '>=', today)])
+
         return {
+            'kpi_leave_to_approve': leave_to_approve,
+            'kpi_on_leave_today': on_leave_today,
             'kpi_total_employees': total_employees,
             'kpi_monthly_present_days': monthly_present,
             'kpi_capacity_utilization_pct': capacity_pct,
@@ -296,6 +307,17 @@ class SiteAccountantDashboard(models.TransientModel):
             'target': 'main',
             'flags': {'mode': 'readonly'},
         }
+
+    def _action_leaves(self, filter_name):
+        action = self.env['ir.actions.act_window']._for_xml_id('site_operations.action_site_leave')
+        action['context'] = {'search_default_%s' % filter_name: 1}
+        return action
+
+    def action_view_leaves_to_approve(self):
+        return self._action_leaves('filter_draft')
+
+    def action_view_on_leave_today(self):
+        return self._action_leaves('filter_today')
 
     def action_view_petty_cash(self):
         return {

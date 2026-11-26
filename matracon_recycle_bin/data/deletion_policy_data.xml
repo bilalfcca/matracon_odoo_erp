@@ -1,0 +1,234 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <!-- Starting deletion rules (approved list). Admins can change levels under
+         Recycle Bin > Deletion Rules; module updates never overwrite their changes. -->
+    <record id="deletion_policy_res_partner" model="x.deletion.policy">
+        <field name="model">res.partner</field>
+        <field name="level">critical</field>
+    </record>
+    <record id="deletion_policy_product_template" model="x.deletion.policy">
+        <field name="model">product.template</field>
+        <field name="level">critical</field>
+    </record>
+    <record id="deletion_policy_product_product" model="x.deletion.policy">
+        <field name="model">product.product</field>
+        <field name="level">critical</field>
+    </record>
+    <record id="deletion_policy_product_category" model="x.deletion.policy">
+        <field name="model">product.category</field>
+        <field name="level">critical</field>
+    </record>
+    <record id="deletion_policy_hr_employee" model="x.deletion.policy">
+        <field name="model">hr.employee</field>
+        <field name="level">critical</field>
+    </record>
+    <record id="deletion_policy_project_project" model="x.deletion.policy">
+        <field name="model">project.project</field>
+        <field name="level">critical</field>
+    </record>
+    <record id="deletion_policy_account_analytic_account" model="x.deletion.policy">
+        <field name="model">account.analytic.account</field>
+        <field name="level">critical</field>
+    </record>
+    <record id="deletion_policy_x_project_site_config" model="x.deletion.policy">
+        <field name="model">x.project.site.config</field>
+        <field name="level">critical</field>
+    </record>
+    <record id="deletion_policy_account_account" model="x.deletion.policy">
+        <field name="model">account.account</field>
+        <field name="level">critical</field>
+    </record>
+    <record id="deletion_policy_account_journal" model="x.deletion.policy">
+        <field name="model">account.journal</field>
+        <field name="level">critical</field>
+    </record>
+    <record id="deletion_policy_account_tax" model="x.deletion.policy">
+        <field name="model">account.tax</field>
+        <field name="level">critical</field>
+    </record>
+    <record id="deletion_policy_stock_warehouse" model="x.deletion.policy">
+        <field name="model">stock.warehouse</field>
+        <field name="level">critical</field>
+    </record>
+    <record id="deletion_policy_stock_location" model="x.deletion.policy">
+        <field name="model">stock.location</field>
+        <field name="level">critical</field>
+    </record>
+    <record id="deletion_policy_fleet_vehicle" model="x.deletion.policy">
+        <field name="model">fleet.vehicle</field>
+        <field name="level">critical</field>
+    </record>
+    <record id="deletion_policy_res_users" model="x.deletion.policy">
+        <field name="model">res.users</field>
+        <field name="level">critical</field>
+    </record>
+    <record id="deletion_policy_x_bank_guarantee" model="x.deletion.policy">
+        <field name="model">x.bank.guarantee</field>
+        <field name="level">critical</field>
+    </record>
+    <record id="deletion_policy_x_bank_guarantee_facility" model="x.deletion.policy">
+        <field name="model">x.bank.guarantee.facility</field>
+        <field name="level">critical</field>
+    </record>
+    <record id="deletion_policy_x_bank_guarantee_amendment" model="x.deletion.policy">
+        <field name="model">x.bank.guarantee.amendment</field>
+        <field name="level">critical</field>
+    </record>
+    <record id="deletion_policy_x_bank_guarantee_facility_renewal" model="x.deletion.policy">
+        <field name="model">x.bank.guarantee.facility.renewal</field>
+        <field name="level">critical</field>
+    </record>
+    <record id="deletion_policy_x_bg_cash_margin_slab" model="x.deletion.policy">
+        <field name="model">x.bg.cash.margin.slab</field>
+        <field name="level">critical</field>
+    </record>
+    <record id="deletion_policy_x_bg_facility_cash_margin_slab" model="x.deletion.policy">
+        <field name="model">x.bg.facility.cash.margin.slab</field>
+        <field name="level">critical</field>
+    </record>
+    <record id="deletion_policy_x_bg_nature" model="x.deletion.policy">
+        <field name="model">x.bg.nature</field>
+        <field name="level">critical</field>
+    </record>
+    <record id="deletion_policy_x_cheque_series" model="x.deletion.policy">
+        <field name="model">x.cheque.series</field>
+        <field name="level">critical</field>
+    </record>
+    <record id="deletion_policy_x_cheque_leaf" model="x.deletion.policy">
+        <field name="model">x.cheque.leaf</field>
+        <field name="level">critical</field>
+    </record>
+    <record id="deletion_policy_x_postdated_cheque" model="x.deletion.policy">
+        <field name="model">x.postdated.cheque</field>
+        <field name="level">critical</field>
+    </record>
+    <record id="deletion_policy_x_wht_certificate" model="x.deletion.policy">
+        <field name="model">x.wht.certificate</field>
+        <field name="level">critical</field>
+    </record>
+    <record id="deletion_policy_x_partner_wht_exemption" model="x.deletion.policy">
+        <field name="model">x.partner.wht.exemption</field>
+        <field name="level">critical</field>
+    </record>
+    <record id="deletion_policy_x_tax_notice_order" model="x.deletion.policy">
+        <field name="model">x.tax.notice.order</field>
+        <field name="level">critical</field>
+    </record>
+    <record id="deletion_policy_x_petty_cash_fund" model="x.deletion.policy">
+        <field name="model">x.petty.cash.fund</field>
+        <field name="level">critical</field>
+    </record>
+    <record id="deletion_policy_x_interproject_transfer" model="x.deletion.policy">
+        <field name="model">x.interproject.transfer</field>
+        <field name="level">critical</field>
+    </record>
+    <record id="deletion_policy_x_ipc_account_config" model="x.deletion.policy">
+        <field name="model">x.ipc.account.config</field>
+        <field name="level">critical</field>
+    </record>
+    <record id="deletion_policy_x_po_terms_template" model="x.deletion.policy">
+        <field name="model">x.po.terms.template</field>
+        <field name="level">critical</field>
+    </record>
+    <record id="deletion_policy_x_po_signature_config" model="x.deletion.policy">
+        <field name="model">x.po.signature.config</field>
+        <field name="level">critical</field>
+    </record>
+    <record id="deletion_policy_x_site_leave_type" model="x.deletion.policy">
+        <field name="model">x.site.leave.type</field>
+        <field name="level">critical</field>
+    </record>
+    <record id="deletion_policy_purchase_order" model="x.deletion.policy">
+        <field name="model">purchase.order</field>
+        <field name="level">approval</field>
+    </record>
+    <record id="deletion_policy_purchase_requisition" model="x.deletion.policy">
+        <field name="model">purchase.requisition</field>
+        <field name="level">approval</field>
+    </record>
+    <record id="deletion_policy_x_comparative_statement" model="x.deletion.policy">
+        <field name="model">x.comparative.statement</field>
+        <field name="level">approval</field>
+    </record>
+    <record id="deletion_policy_account_move" model="x.deletion.policy">
+        <field name="model">account.move</field>
+        <field name="level">approval</field>
+    </record>
+    <record id="deletion_policy_account_payment" model="x.deletion.policy">
+        <field name="model">account.payment</field>
+        <field name="level">approval</field>
+    </record>
+    <record id="deletion_policy_x_batch_payment" model="x.deletion.policy">
+        <field name="model">x.batch.payment</field>
+        <field name="level">approval</field>
+    </record>
+    <record id="deletion_policy_x_petty_cash_request" model="x.deletion.policy">
+        <field name="model">x.petty.cash.request</field>
+        <field name="level">approval</field>
+    </record>
+    <record id="deletion_policy_x_petty_cash_expense" model="x.deletion.policy">
+        <field name="model">x.petty.cash.expense</field>
+        <field name="level">approval</field>
+    </record>
+    <record id="deletion_policy_x_subcontractor_ipc" model="x.deletion.policy">
+        <field name="model">x.subcontractor.ipc</field>
+        <field name="level">approval</field>
+    </record>
+    <record id="deletion_policy_x_subcontractor_backcharge" model="x.deletion.policy">
+        <field name="model">x.subcontractor.backcharge</field>
+        <field name="level">approval</field>
+    </record>
+    <record id="deletion_policy_x_subcontractor_ho_advance" model="x.deletion.policy">
+        <field name="model">x.subcontractor.ho.advance</field>
+        <field name="level">approval</field>
+    </record>
+    <record id="deletion_policy_x_employee_backcharge" model="x.deletion.policy">
+        <field name="model">x.employee.backcharge</field>
+        <field name="level">approval</field>
+    </record>
+    <record id="deletion_policy_x_attendance_sheet" model="x.deletion.policy">
+        <field name="model">x.attendance.sheet</field>
+        <field name="level">approval</field>
+    </record>
+    <record id="deletion_policy_x_salary_sheet" model="x.deletion.policy">
+        <field name="model">x.salary.sheet</field>
+        <field name="level">approval</field>
+    </record>
+    <record id="deletion_policy_x_liability_sheet" model="x.deletion.policy">
+        <field name="model">x.liability.sheet</field>
+        <field name="level">approval</field>
+    </record>
+    <record id="deletion_policy_x_site_leave" model="x.deletion.policy">
+        <field name="model">x.site.leave</field>
+        <field name="level">approval</field>
+    </record>
+    <record id="deletion_policy_x_site_leave_allocation" model="x.deletion.policy">
+        <field name="model">x.site.leave.allocation</field>
+        <field name="level">approval</field>
+    </record>
+    <record id="deletion_policy_stock_picking" model="x.deletion.policy">
+        <field name="model">stock.picking</field>
+        <field name="level">approval</field>
+    </record>
+    <record id="deletion_policy_project_task" model="x.deletion.policy">
+        <field name="model">project.task</field>
+        <field name="level">approval</field>
+        <field name="apply_domain">[('project_id', '!=', False)]</field>
+    </record>
+    <record id="deletion_policy_x_project_eot" model="x.deletion.policy">
+        <field name="model">x.project.eot</field>
+        <field name="level">approval</field>
+    </record>
+    <record id="deletion_policy_x_fleet_vehicle_trip" model="x.deletion.policy">
+        <field name="model">x.fleet.vehicle.trip</field>
+        <field name="level">approval</field>
+    </record>
+    <record id="deletion_policy_x_fleet_vehicle_ledger" model="x.deletion.policy">
+        <field name="model">x.fleet.vehicle.ledger</field>
+        <field name="level">approval</field>
+    </record>
+    <record id="deletion_policy_x_employee_advance" model="x.deletion.policy">
+        <field name="model">x.employee.advance</field>
+        <field name="level">approval</field>
+    </record>
+</odoo>

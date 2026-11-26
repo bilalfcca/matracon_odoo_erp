@@ -1,7 +1,7 @@
 {
     'name': 'Counterpart Account Column',
-    'version': '1.0.1',
-    'summary': 'Adds an Offsetting/Counterpart Account column to the General Ledger report and Journal Items list',
+    'version': '1.0.2',
+    'summary': 'Adds Counterpart Account and Cheque No. columns to the General Ledger report (and Counterpart to Journal Items)',
     'description': """
 Counterpart Account Column
 ===========================
@@ -26,8 +26,12 @@ a single "counterpart account" has no meaning at that level of aggregation.
 
 When a journal entry has more than two lines, every other account on the
 entry is listed, comma-separated.
+
+The General Ledger also shows a **Cheque No.** column, read from the
+existing cheque fields (series leaf or typed number on the journal item,
+journal entry or payment). Included in PDF and XLSX exports.
 """,
-    'depends': ['account', 'account_reports'],
+    'depends': ['account', 'account_reports', 'site_operations'],
     'data': [
         'data/general_ledger_counterpart_column.xml',
         'views/account_move_line_views.xml',

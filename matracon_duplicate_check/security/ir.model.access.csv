@@ -1,0 +1,4 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_duplicate_rule_user,x.duplicate.rule user,model_x_duplicate_rule,base.group_user,1,0,0,0
+access_duplicate_rule_admin,x.duplicate.rule admin,model_x_duplicate_rule,purchase_demand_raise.group_matracon_admin,1,1,0,0
+access_duplicate_rule_system,x.duplicate.rule system,model_x_duplicate_rule,base.group_system,1,1,0,0

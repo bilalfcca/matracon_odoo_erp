@@ -1,12 +1,12 @@
 """Daily Draft Cleanup — deletes accounting-related draft records
-older than 7 days.
+older than 14 days.
 
-Running daily ensures every record survives at least 7 full days from its
+Running daily ensures every record survives at least 14 full days from its
 creation date.  A weekly Sunday cron would delete records on Sunday regardless
 of which day they were created — a record created on Monday would be checked
 the following Sunday (6-13 days later) and a record created the same Sunday
 could be only hours old at midnight.  Daily cadence removes that uncertainty:
-each record is deleted within 24 h of its 7-day birthday.
+each record is deleted within 24 h of its 14-day birthday.
 
 Excluded by design:
   • purchase.requisition / purchase.order  — procurement workflow
@@ -27,7 +27,7 @@ from odoo import models, api, fields
 _logger = logging.getLogger(__name__)
 
 # Records must be at least this many days old before they are deleted.
-_DRAFT_AGE_DAYS = 7
+_DRAFT_AGE_DAYS = 14
 
 
 class DraftCleanup(models.AbstractModel):
@@ -40,10 +40,10 @@ class DraftCleanup(models.AbstractModel):
 
     @api.model
     def action_cleanup_drafts(self):
-        """Delete accounting-related draft records older than 7 days.
+        """Delete accounting-related draft records older than 14 days.
 
         Called by the daily ir.cron at 00:00.  Running daily guarantees
-        every record survives at least 7 full days from creation.  Each
+        every record survives at least 14 full days from creation.  Each
         model is processed independently so a failure on one model does
         not abort the rest.
         """

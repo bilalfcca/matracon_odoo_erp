@@ -1,0 +1,9 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_recycle_bin_matracon_admin,x.recycle.bin matracon admin,model_x_recycle_bin,purchase_demand_raise.group_matracon_admin,1,0,0,0
+access_recycle_bin_system,x.recycle.bin system,model_x_recycle_bin,base.group_system,1,0,0,0
+access_deletion_policy_admin,x.deletion.policy admin,model_x_deletion_policy,purchase_demand_raise.group_matracon_admin,1,1,1,1
+access_deletion_policy_system,x.deletion.policy system,model_x_deletion_policy,base.group_system,1,1,1,1
+access_deletion_request_user,x.deletion.request user,model_x_deletion_request,base.group_user,1,0,0,0
+access_deletion_request_admin,x.deletion.request admin,model_x_deletion_request,purchase_demand_raise.group_matracon_admin,1,1,0,0
+access_deletion_request_system,x.deletion.request system,model_x_deletion_request,base.group_system,1,1,0,0
+access_deletion_request_wizard_user,x.deletion.request.wizard user,model_x_deletion_request_wizard,base.group_user,1,1,1,0

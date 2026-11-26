@@ -12,6 +12,10 @@
                     <button name="action_load_employees" type="object"
                             string="Load Employees" class="btn-secondary"
                             invisible="state != 'draft'"/>
+                    <button name="action_apply_approved_leaves" type="object"
+                            string="Apply Approved Leaves" class="btn-secondary"
+                            invisible="state != 'draft'"
+                            help="Mark this month's approved leave applications (L / U) on the sheet."/>
                     <button name="action_import_attendance" type="object"
                             string="Import from File" class="btn-primary"
                             invisible="state != 'draft'"
@@ -58,7 +62,7 @@
                     </group>
                     <group string="Upload Monthly Attendance (CSV or Excel)" invisible="state != 'draft'">
                         <field name="uploaded_file" filename="uploaded_filename"
-                               help="Upload CSV or Excel. Header: Employee Name | 1 | 2 | … | 31. Codes: P A L H"/>
+                               help="Upload CSV or Excel. Header: Employee Name | 1 | 2 | … | 31. Codes: P A L U H (U = Unpaid Leave)"/>
                         <field name="uploaded_filename" invisible="1"/>
                     </group>
                     <div class="matracon-attendance-legend" invisible="state == 'posted'">
@@ -72,7 +76,11 @@
                         </span>
                         <span class="matracon-attendance-legend__item">
                             <span class="matracon-attendance-legend__swatch matracon-attendance-legend__swatch--l"/>
-                            L
+                            L (Paid Leave)
+                        </span>
+                        <span class="matracon-attendance-legend__item">
+                            <span class="matracon-attendance-legend__swatch matracon-attendance-legend__swatch--u"/>
+                            U (Unpaid Leave)
                         </span>
                         <span class="matracon-attendance-legend__item">
                             <span class="matracon-attendance-legend__swatch matracon-attendance-legend__swatch--h"/>

@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_employee_ho_advance_form" model="ir.ui.view">
+        <field name="name">x.employee.advance.form</field>
+        <field name="model">x.employee.advance</field>
+        <field name="arch" type="xml">
+            <form string="HO Advance to Employee">
+                <header>
+                    <button name="action_create_payment" type="object" string="Create Payment"
+                            class="btn-primary" invisible="state != 'draft'"
+                            groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"/>
+                    <button name="action_open_payment" type="object" string="Open Payment"
+                            invisible="not payment_id"/>
+                    <button name="action_cancel" type="object" string="Cancel"
+                            invisible="state in ('paid', 'cancelled')"
+                            groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"/>
+                    <button name="action_reset_to_draft" type="object" string="Reset to Draft"
+                            invisible="state != 'cancelled'"
+                            groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"/>
+                    <button name="action_delete_draft" type="object" string="Delete" class="btn-danger"
+                            invisible="state != 'draft' or payment_id"
+                            groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin"
+                            confirm="Delete this draft advance?"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,payment,paid"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name" readonly="1"/></h1>
+                    </div>
+                    <group>
+                        <group string="Employee">
+                            <field name="employee_id" readonly="state != 'draft'" options="{'no_create': True}"/>
+                            <field name="project_analytic_account_id" readonly="state != 'draft'"
+                                   options="{'no_create': True}"/>
+                            <field name="employee_advance_balance" readonly="1" invisible="not employee_id"/>
+                        </group>
+                        <group string="Advance">
+                            <field name="currency_id" invisible="1"/>
+                            <field name="company_id" invisible="1"/>
+                            <field name="amount" readonly="state != 'draft'"/>
+                            <field name="advance_date" readonly="state != 'draft'"/>
+                            <field name="advance_account_id" readonly="state != 'draft'"
+                                   options="{'no_create': True}"/>
+                            <field name="journal_id" readonly="state != 'draft'"
+                                   options="{'no_create': True}"/>
+                            <field name="payment_reference" readonly="state in ('paid', 'cancelled')"/>
+                        </group>
+                    </group>
+                    <group>
+                        <field name="purpose" readonly="state in ('paid', 'cancelled')"
+                               placeholder="Purpose of this advance…"/>
+                    </group>
+                    <group string="Payment" invisible="not payment_id">
+                        <group>
+                            <field name="payment_id" readonly="1"/>
+                        </group>
+                        <group>
+                            <field name="payment_state" widget="badge"
+                                   decoration-warning="payment_state == 'draft'"
+                                   decoration-success="payment_state in ('in_process', 'paid')"/>
+                        </group>
+                    </group>
+                    <div class="alert alert-info" role="alert" invisible="state != 'draft'">
+                        Paid by Head Office — <b>not</b> from Petty Cash. Click <b>Create Payment</b>,
+                        choose the HO bank/cash journal on the payment and post it: the advance
+                        becomes <b>Paid</b> and is added to the employee's Advance Balance, which
+                        salary sheets recover as usual.
+                    </div>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_employee_ho_advance_list" model="ir.ui.view">
+        <field name="name">x.employee.advance.list</field>
+        <field name="model">x.employee.advance</field>
+        <field name="arch" type="xml">
+            <list decoration-muted="state == 'cancelled'" decoration-info="state == 'draft'">
+                <field name="name"/>
+                <field name="advance_date"/>
+                <field name="employee_id"/>
+                <field name="project_analytic_account_id" optional="show"/>
+                <field name="purpose" optional="show"/>
+                <field name="payment_reference" optional="show"/>
+                <field name="payment_id" optional="hide"/>
+                <field name="currency_id" column_invisible="1"/>
+                <field name="amount" sum="Total"/>
+                <field name="state" widget="badge" decoration-success="state == 'paid'"
+                       decoration-warning="state == 'payment'" decoration-info="state == 'draft'"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_employee_ho_advance_search" model="ir.ui.view">
+        <field name="name">x.employee.advance.search</field>
+        <field name="model">x.employee.advance</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="employee_id"/>
+                <field name="project_analytic_account_id"/>
+                <field name="payment_reference"/>
+                <field name="purpose"/>
+                <filter name="draft" string="Draft" domain="[('state', '=', 'draft')]"/>
+                <filter name="payment" string="Awaiting Payment" domain="[('state', '=', 'payment')]"/>
+                <filter name="paid" string="Paid" domain="[('state', '=', 'paid')]"/>
+                <separator/>
+                <filter name="advance_date" string="Date" date="advance_date"/>
+                <group>
+                    <filter name="group_employee" string="Employee" context="{'group_by': 'employee_id'}"/>
+                    <filter name="group_project" string="Project" context="{'group_by': 'project_analytic_account_id'}"/>
+                    <filter name="group_month" string="Month" context="{'group_by': 'advance_date:month'}"/>
+                    <filter name="group_state" string="Status" context="{'group_by': 'state'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_employee_ho_advance" model="ir.actions.act_window">
+        <field name="name">Employee Advances (HO)</field>
+        <field name="res_model">x.employee.advance</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Record an advance paid to an employee by Head Office</p>
+            <p>Separate from Petty Cash. Posting its payment adds it to the employee's
+               Advance Balance, recovered through salary sheets.</p>
+        </field>
+    </record>
+
+    <!-- Employee form: HO Advances smart button -->
+    <record id="view_employee_form_ho_advance" model="ir.ui.view">
+        <field name="name">hr.employee.form.ho.advance</field>
+        <field name="model">hr.employee</field>
+        <field name="inherit_id" ref="hr.view_employee_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_view_ho_advances" type="object" class="oe_stat_button"
+                        icon="fa-money"
+                        groups="site_operations.group_finance_ho,purchase_demand_raise.group_matracon_admin,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_head_office">
+                    <field name="x_ho_advance_count" widget="statinfo" string="HO Advances"/>
+                </button>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Payment form: link back to the advance -->
+    <record id="view_account_payment_form_employee_advance" model="ir.ui.view">
+        <field name="name">account.payment.form.employee.advance</field>
+        <field name="model">account.payment</field>
+        <field name="inherit_id" ref="account.view_account_payment_form"/>
+        <field name="arch" type="xml">
+            <field name="partner_id" position="after">
+                <field name="x_employee_advance_id" invisible="not x_employee_advance_id" readonly="1"/>
+            </field>
+        </field>
+    </record>
+
+</odoo>
