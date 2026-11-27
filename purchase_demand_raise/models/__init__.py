@@ -1,3 +1,4 @@
+from . import multi_attachment_mixin
 from . import cs_commercial_option
 from . import po_signature_config
 from . import product_template
@@ -10,3 +11,5 @@ from . import comparative_statement
 from . import purchase_order_tender
 from . import stock_picking
 from . import procurement_ho_dashboard
+from . import vendor_product
+from . import po_force_complete

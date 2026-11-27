@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="matracon_duplicate_check.DuplicateDialog">
+        <Dialog title="props.title" size="'lg'">
+            <p>
+                <i class="fa fa-exclamation-triangle text-warning me-1"/>
+                A similar record already exists. Please check it before creating a new one.
+            </p>
+            <t t-foreach="props.matches" t-as="match" t-key="match_index">
+                <div class="fw-bold mt-2 mb-1"><t t-esc="match.rule"/></div>
+                <div class="list-group mb-2">
+                    <t t-foreach="match.records" t-as="rec" t-key="rec.id">
+                        <div class="list-group-item d-flex justify-content-between align-items-start gap-2">
+                            <div>
+                                <div class="fw-semibold" t-esc="rec.name"/>
+                                <div class="small text-muted" t-if="rec.details" t-esc="rec.details"/>
+                                <div class="small text-muted" t-if="rec.created">Created by <t t-esc="rec.created"/></div>
+                            </div>
+                            <button class="btn btn-sm btn-secondary" t-on-click="() => this.choose('open', rec.id)">
+                                Open Existing
+                            </button>
+                        </div>
+                    </t>
+                </div>
+            </t>
+            <t t-set-slot="footer">
+                <button class="btn btn-primary" t-on-click="() => this.choose('proceed')">Create Anyway</button>
+                <button class="btn btn-secondary" t-on-click="() => this.choose('cancel')">Cancel</button>
+            </t>
+        </Dialog>
+    </t>
+</templates>

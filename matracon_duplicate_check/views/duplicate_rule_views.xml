@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_duplicate_rule_list" model="ir.ui.view">
+        <field name="name">x.duplicate.rule.list</field>
+        <field name="model">x.duplicate.rule</field>
+        <field name="arch" type="xml">
+            <list editable="bottom" create="false" delete="false">
+                <field name="model_label"/>
+                <field name="name"/>
+                <field name="active" widget="boolean_toggle" string="On"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_duplicate_rule_search" model="ir.ui.view">
+        <field name="name">x.duplicate.rule.search</field>
+        <field name="model">x.duplicate.rule</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="model_label"/>
+                <field name="name"/>
+                <filter name="inactive" string="Switched off" domain="[('active', '=', False)]"/>
+                <group>
+                    <filter name="group_model" string="Record Type" context="{'group_by': 'model_label'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+    <record id="action_duplicate_rule" model="ir.actions.act_window">
+        <field name="name">Duplicate Check Rules</field>
+        <field name="res_model">x.duplicate.rule</field>
+        <field name="view_mode">list</field>
+        <field name="context">{'search_default_group_model': 1, 'active_test': False}</field>
+    </record>
+    <menuitem id="menu_duplicate_rule"
+              name="Duplicate Check Rules"
+              parent="base.menu_administration"
+              action="action_duplicate_rule"
+              sequence="90"
+              groups="purchase_demand_raise.group_matracon_admin,base.group_system"/>
+</odoo>

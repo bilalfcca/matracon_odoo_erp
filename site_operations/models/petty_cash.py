@@ -1,3 +1,4 @@
+from datetime import timedelta
 import logging
 
 from markupsafe import Markup
@@ -224,7 +225,7 @@ class PettyCashFund(models.Model):
 class PettyCashRequest(models.Model):
     _name = 'x.petty.cash.request'
     _description = 'Petty Cash Request'
-    _inherit = ['mail.thread', 'mail.activity.mixin']
+    _inherit = ['mail.thread', 'mail.activity.mixin', 'matracon.multi.attachment.mixin']
     _order = 'create_date desc'
 
     name = fields.Char(
@@ -287,8 +288,9 @@ class PettyCashRequest(models.Model):
     # Workflow: print the petty cash request, get it physically signed by the
     # Project Manager, scan/photograph it and upload here.  action_submit()
     # raises UserError if this is empty.
+    # Legacy single-file field — data moved to x_pm_signed_document_attachment_ids
     x_pm_signed_document = fields.Binary(
-        string='PM Signed Document',
+        string='PM Signed Document (Legacy)',
         attachment=True,
         copy=False,
     )
@@ -296,6 +298,11 @@ class PettyCashRequest(models.Model):
         string='PM Signed Document Filename',
         copy=False,
     )
+    x_pm_signed_document_attachment_ids = fields.Many2many(
+        'ir.attachment', 'x_pc_request_pm_signed_doc_rel',
+        'request_id', 'attachment_id',
+        string='PM Signed Documents', copy=False,
+        help='Scans of the PM-signed petty cash request. One or more files can be attached.')
 
     @api.model
     def default_get(self, fields_list):
@@ -491,7 +498,7 @@ class PettyCashRequest(models.Model):
         for req in self:
             if req.requested_amount <= 0:
                 raise UserError(_('Enter a valid requested amount.'))
-            if not req.x_pm_signed_document:
+            if not req.x_pm_signed_document_attachment_ids:
                 raise UserError(_(
                     'A PM-signed document is required before submitting.\n'
                     'Please print this request, get it signed by the Project Manager, '
@@ -568,12 +575,17 @@ class PettyCashRequest(models.Model):
                 move = payment.move_id
 
                 if move and move.state == 'posted':
-                    # Create a proper counter-entry so the GL shows the reversal
+                    # Create a proper counter-entry so the GL shows the reversal.
+                    # Dated on the release date (first open date if that period is
+                    # locked) so the correction stays on the day it belongs to and
+                    # does not shift today's petty cash balance.
+                    locks = move.sudo()._get_violated_lock_dates(move.date, move._affect_tax_report())
+                    rev_date = (locks[-1][0] + timedelta(days=1)) if locks else move.date
                     move.sudo()._reverse_moves(
                         default_values_list=[{
                             'ref': _('Reversal: PCR %s cancelled by %s') % (
                                 req.name, self.env.user.name),
-                            'date': fields.Date.today(),
+                            'date': rev_date,
                         }],
                         cancel=True,   # posts reversal + marks original as 'cancel'
                     )
@@ -884,6 +896,17 @@ class PettyCashRequest(models.Model):
         return self.fund_id._get_petty_cash_account()
 
 
+# Default debit account code per expense category — used when a line has no
+# Account (Debit). Shared by _create_journal_entry() and the summary account.
+PETTY_CASH_CATEGORY_ACCOUNT_CODES = {
+    'travel': '6270',
+    'supplies': '6280',
+    'utilities': '6300',
+    'meals': '6290',
+    'other': '6290',
+}
+
+
 class PettyCashExpenseLine(models.Model):
     """One debit line inside a petty cash expense voucher.
 
@@ -906,9 +929,17 @@ class PettyCashExpenseLine(models.Model):
     # "Missing required value" error when saving a draft line with 0 amount.
     amount = fields.Monetary(currency_field='currency_id')
     currency_id = fields.Many2one(
-        related='expense_id.currency_id', store=False, readonly=True)
+        related='expense_id.currency_id', store=True, readonly=True)
     project_analytic_account_id = fields.Many2one(
-        related='expense_id.project_analytic_account_id', store=False, readonly=True)
+        related='expense_id.project_analytic_account_id', store=True, readonly=True,
+        string='Project')
+
+    # ── Debit account actually charged (used by the "Debit Account" filter) ───
+    x_summary_account_id = fields.Many2one(
+        'account.account', string='Debit Account',
+        compute='_compute_summary_account', store=True, index=True,
+        help='Account this line is charged to: the line\'s Account (Debit), or the '
+             'expense category\'s default account when that is left blank.')
 
     # ── Debit account ─────────────────────────────────────────────────────────
     expense_account_id = fields.Many2one(
@@ -942,6 +973,23 @@ class PettyCashExpenseLine(models.Model):
              'Posted against the partner so it shows in the Partner Ledger.')
 
     # (no manual sync needed — parent amount is @api.depends computed)
+
+    @api.depends('expense_account_id', 'expense_id.category')
+    def _compute_summary_account(self):
+        Account = self.env['account.account'].sudo()
+        company = self.env.company
+        defaults = {}
+        for line in self:
+            account = line.expense_account_id
+            if not account:
+                code = PETTY_CASH_CATEGORY_ACCOUNT_CODES.get(line.expense_id.category, '6290')
+                if code not in defaults:
+                    defaults[code] = Account.search([
+                        ('code', '=like', code + '%'),
+                        ('company_ids', 'in', company.id),
+                    ], limit=1)
+                account = defaults[code]
+            line.x_summary_account_id = account
 
     @api.onchange('is_subcontractor_advance', 'advance_subcontractor_id')
     def _onchange_sc_advance_partner(self):
@@ -993,7 +1041,7 @@ class PettyCashExpenseLine(models.Model):
 class PettyCashExpense(models.Model):
     _name = 'x.petty.cash.expense'
     _description = 'Petty Cash Expense'
-    _inherit = ['mail.thread', 'mail.activity.mixin']
+    _inherit = ['mail.thread', 'mail.activity.mixin', 'matracon.multi.attachment.mixin']
     _order = 'expense_date desc, id desc'
 
     # ── Identity ─────────────────────────────────────────────────────────────
@@ -1065,8 +1113,10 @@ class PettyCashExpense(models.Model):
     x_petty_cash_account_id = fields.Many2one(
         'account.account',
         string='Petty Cash Account (Credit)',
-        help='Cash in Hand account for this site. Credited when the expense is posted. '
-             'Auto-filled from the project\'s petty cash fund configuration.',
+        tracking=True,
+        help='Account credited when the expense is posted. Defaults to the site\'s '
+             'Cash in Hand account from the project\'s petty cash fund configuration; '
+             'can be changed to any account while the expense is in draft.',
     )
     journal_id = fields.Many2one(
         'account.journal',
@@ -1095,6 +1145,35 @@ class PettyCashExpense(models.Model):
         related='employee_id.x_advance_balance',
         currency_field='currency_id', readonly=True)
 
+    # ── Spent from an employee's advance (advance settlement) ────────────────
+    # The employee already received an advance (Dr Advance / Cr Petty Cash).
+    # When he submits bills for what he bought, the expense is credited to
+    # HIS advance account instead of Petty Cash:
+    #   Dr expense heads / Cr Advances to Employee (partner = employee)
+    # and his outstanding advance balance goes down. No cash leaves the box.
+    x_advance_holder_id = fields.Many2one(
+        'hr.employee', string='Partner (Advance Holder)', tracking=True,
+        domain="[('x_project_analytic_account_id', '=', project_analytic_account_id)]",
+        help='Employee who received an advance and spent it on these purchases. '
+             'The expense is credited to his advance account (not Petty Cash) and '
+             'his advance balance is reduced.')
+    x_advance_holder_balance = fields.Monetary(
+        string='Advance Outstanding', related='x_advance_holder_id.x_advance_balance',
+        currency_field='currency_id', readonly=True)
+    x_advance_credit_account_id = fields.Many2one(
+        'account.account', string='Advance Account (Credit)', tracking=True,
+        domain="[('x_is_main', '=', False)]",
+        help='Credited instead of Petty Cash when an Advance Holder is set. '
+             'Defaults to the company\'s Default Employee Advance Account; editable in draft.')
+    x_advance_settled_amount = fields.Monetary(
+        currency_field='currency_id', readonly=True, copy=False,
+        help='Technical: amount taken off the holder\'s advance balance on posting.')
+
+    @api.onchange('x_advance_holder_id')
+    def _onchange_advance_holder(self):
+        if self.x_advance_holder_id and not self.x_advance_credit_account_id:
+            self.x_advance_credit_account_id = self.env.company.x_employee_advance_account_id
+
     # ── Subcontractor Advance ────────────────────────────────────────────────
     is_subcontractor_advance = fields.Boolean(
         string='Subcontractor Advance',
@@ -1120,17 +1199,29 @@ class PettyCashExpense(models.Model):
         help='Journal entry created when this expense is posted. '
              'Used by the IPC payment query to avoid double-counting.')
 
-    receipt = fields.Binary(string='Receipt / Voucher', attachment=True)
+    # Legacy single-file field — data moved to receipt_attachment_ids
+    receipt = fields.Binary(string='Receipt / Voucher (Legacy)', attachment=True)
     receipt_filename = fields.Char()
+    receipt_attachment_ids = fields.Many2many(
+        'ir.attachment', 'x_pc_expense_receipt_rel',
+        'expense_id', 'attachment_id',
+        string='Receipts / Invoices', copy=False,
+        help='Supporting receipts / invoices. One or more files can be attached.')
 
     # Signed voucher — mandatory upload before posting.
     # Workflow: accountant prints the expense voucher, gets it physically signed,
     # scans it, and uploads here.  action_post() enforces this.
+    # Legacy single-file field — data moved to x_signed_voucher_attachment_ids
     x_signed_voucher = fields.Binary(
-        string='Signed Voucher',
+        string='Signed Voucher (Legacy)',
         attachment=True,
     )
     x_signed_voucher_filename = fields.Char(string='Signed Voucher Filename')
+    x_signed_voucher_attachment_ids = fields.Many2many(
+        'ir.attachment', 'x_pc_expense_signed_voucher_rel',
+        'expense_id', 'attachment_id',
+        string='Signed Vouchers', copy=False,
+        help='Scans of the physically signed expense voucher. One or more files can be attached.')
 
     state = fields.Selection([
         ('draft', 'Draft'),
@@ -1198,18 +1289,39 @@ class PettyCashExpense(models.Model):
                     vals['x_petty_cash_account_id'] = pc_acct.id
         records = super().create(vals_list)
         for expense in records:
-            if expense.x_signed_voucher:
-                expense._post_voucher_uploaded_to_chatter('x_signed_voucher')
-            if expense.receipt:
-                expense._post_voucher_uploaded_to_chatter('receipt')
+            for fname in self._VOUCHER_UPLOAD_FIELDS:
+                if expense[fname]:
+                    expense._post_voucher_uploaded_to_chatter(fname, expense[fname])
         return records
 
+    # Multi-file upload fields that post a chatter note when files are added
+    _VOUCHER_UPLOAD_FIELDS = ('x_signed_voucher_attachment_ids', 'receipt_attachment_ids')
+
     def write(self, vals):
+        # The credit account may be changed freely in draft. Once posted, the
+        # journal entry was created with it — changing it would desync the two
+        # (and the upgrade fix-up in hooks.fix_petty_cash_expense_accounts would
+        # then rewrite the posted JE). Filling an empty account is still allowed.
+        if 'x_petty_cash_account_id' in vals:
+            new_acct = vals.get('x_petty_cash_account_id') or False
+            for rec in self:
+                if (rec.state == 'posted'
+                        and rec.x_petty_cash_account_id
+                        and rec.x_petty_cash_account_id.id != new_acct):
+                    raise UserError(_(
+                        'The credit account of posted petty cash expense %s cannot be '
+                        'changed. Reset or reverse the entry first.',
+                        rec.x_ref or rec.name or rec.id))
+        watched = [f for f in self._VOUCHER_UPLOAD_FIELDS if f in vals]
+        before = {
+            (rec.id, f): rec[f] for rec in self for f in watched
+        } if watched else {}
         res = super().write(vals)
-        if 'x_signed_voucher' in vals and vals.get('x_signed_voucher'):
-            self._post_voucher_uploaded_to_chatter('x_signed_voucher')
-        if 'receipt' in vals and vals.get('receipt'):
-            self._post_voucher_uploaded_to_chatter('receipt')
+        for rec in self:
+            for fname in watched:
+                added = rec[fname] - before[(rec.id, fname)]
+                if added:
+                    rec._post_voucher_uploaded_to_chatter(fname, added)
         return res
 
     def _create_chat_attachment(self, filename, datas):
@@ -1270,15 +1382,13 @@ class PettyCashExpense(models.Model):
             'mimetype': mimetype,
         })
 
-    def _post_voucher_uploaded_to_chatter(self, field_name='x_signed_voucher'):
-        """Post a chatter message with the uploaded voucher document and entry details."""
+    def _post_voucher_uploaded_to_chatter(self, field_name='x_signed_voucher_attachment_ids',
+                                          attachments=None):
+        """Post a chatter message with the uploaded voucher document(s) and entry details."""
         for expense in self:
-            datas = getattr(expense, field_name)
-            if not datas:
+            atts = attachments if attachments is not None else expense[field_name]
+            if not atts:
                 continue
-            default_fname = 'signed_voucher.pdf' if field_name == 'x_signed_voucher' else 'receipt.pdf'
-            filename = getattr(expense, f'{field_name}_filename') or default_fname
-            att = expense._create_chat_attachment(filename, datas)
 
             sym = expense.currency_id.symbol or 'PKR'
             lines_html = ''.join(
@@ -1290,7 +1400,8 @@ class PettyCashExpense(models.Model):
                 for line in expense.line_ids
             )
 
-            doc_label = _('Signed Voucher') if field_name == 'x_signed_voucher' else _('Supporting Receipt / Invoice')
+            doc_label = (_('Signed Voucher') if field_name == 'x_signed_voucher_attachment_ids'
+                         else _('Supporting Receipt / Invoice'))
 
             body = Markup(
                 '<b>{label} Uploaded</b><br/>'
@@ -1307,33 +1418,23 @@ class PettyCashExpense(models.Model):
                 lines_section=Markup(f'<b>Expense Entries:</b><ul>{lines_html}</ul>') if lines_html else '',
             )
 
-            expense.message_post(body=body, attachment_ids=[att.id])
+            expense.message_post(body=body, attachment_ids=atts.ids)
 
     def action_view_signed_voucher(self):
-        """Open the signed voucher in the browser / document viewer."""
+        """Open the signed voucher(s) in the browser / document viewer."""
         self.ensure_one()
-        if not self.x_signed_voucher:
+        if not self.x_signed_voucher_attachment_ids:
             raise UserError(_('No signed voucher has been uploaded.'))
-        filename = self.x_signed_voucher_filename or 'signed_voucher.pdf'
-        att = self._create_chat_attachment(filename, self.x_signed_voucher)
-        return {
-            'type': 'ir.actions.act_url',
-            'url': f'/web/content/{att.id}?filename={att.name}',
-            'target': 'new',
-        }
+        return self._matracon_action_open_attachments(
+            self.x_signed_voucher_attachment_ids, _('Signed Vouchers'))
 
     def action_view_receipt(self):
-        """Open the supporting receipt in the browser / document viewer."""
+        """Open the supporting receipt(s) in the browser / document viewer."""
         self.ensure_one()
-        if not self.receipt:
+        if not self.receipt_attachment_ids:
             raise UserError(_('No receipt has been uploaded.'))
-        filename = self.receipt_filename or 'receipt.pdf'
-        att = self._create_chat_attachment(filename, self.receipt)
-        return {
-            'type': 'ir.actions.act_url',
-            'url': f'/web/content/{att.id}?filename={att.name}',
-            'target': 'new',
-        }
+        return self._matracon_action_open_attachments(
+            self.receipt_attachment_ids, _('Receipts / Invoices'))
 
     @api.onchange('is_subcontractor_advance', 'advance_subcontractor_id')
     def _onchange_sub_advance_fill_account(self):
@@ -1406,7 +1507,7 @@ class PettyCashExpense(models.Model):
                     raise UserError(_(
                         'Line "%s": please select an Account for the Subcontractor Advance.'
                     ) % line.name)
-            if not expense.x_signed_voucher:
+            if not expense.x_signed_voucher_attachment_ids:
                 raise UserError(_(
                     'A signed voucher is required before posting.\n\n'
                     'Please:\n'
@@ -1427,6 +1528,20 @@ class PettyCashExpense(models.Model):
                     'set the "Petty Cash Account (Cash in Hand)" field.\n\n'
                     'Then try posting again.'
                 ) % (expense.project_analytic_account_id.name or _('your site')))
+            holder = expense.x_advance_holder_id
+            if holder:
+                if not (expense.x_advance_credit_account_id or expense.env.company.x_employee_advance_account_id):
+                    raise UserError(_(
+                        'Select the Advance Account (Credit) for %s, or set the Default '
+                        'Employee Advance Account on the Company.') % holder.name)
+                outstanding = holder.sudo().x_advance_balance or 0.0
+                if expense.currency_id.compare_amounts(expense.amount, outstanding) > 0:
+                    raise UserError(_(
+                        '%(emp)s\'s outstanding advance is %(sym)s %(bal)s, but this expense is '
+                        '%(sym)s %(amt)s.\n\nPost only the part spent from the advance here, and '
+                        'the rest as a normal petty cash expense (without an Advance Holder).'
+                    ) % {'emp': holder.name, 'sym': expense.currency_id.symbol,
+                         'bal': f'{outstanding:,.2f}', 'amt': f'{expense.amount:,.2f}'})
             balance_before = expense.fund_id.balance
             # Site accountants are allowed to post even when the fund balance
             # is zero or negative — the balance will go negative and Finance HO
@@ -1438,7 +1553,7 @@ class PettyCashExpense(models.Model):
                 user.has_group('site_operations.group_site_accountant')
                 or user.has_group('site_operations.group_accountant_ho')
             )
-            if not is_site_accountant and balance_before < expense.amount - 0.01:
+            if not holder and not is_site_accountant and balance_before < expense.amount - 0.01:
                 raise UserError(_(
                     'Insufficient petty cash balance (available: %s %.2f).'
                 ) % (expense.currency_id.symbol, balance_before))
@@ -1447,12 +1562,31 @@ class PettyCashExpense(models.Model):
             expense._create_journal_entry()
             matracon_notify.close_activities(expense, summary_contains='Post petty cash expense')
 
-            balance_after = balance_before - expense.amount
+            # Spent from an advance: no cash leaves petty cash, fund balance unchanged.
+            balance_after = balance_before if holder else balance_before - expense.amount
             # Store the running balance snapshot
             expense.write({
                 'x_balance_before': balance_before,
                 'x_balance_after': balance_after,
             })
+
+            # Advance settlement: reduce the holder's outstanding advance
+            if holder:
+                emp = holder.sudo()
+                prev_balance = emp.x_advance_balance or 0.0
+                emp.x_advance_balance = prev_balance - expense.amount
+                expense.x_advance_settled_amount = expense.amount
+                expense.message_post(body=Markup(_(
+                    'Spent from the advance of <b>%(emp)s</b>: <b>−%(sym)s %(amount)s</b>. '
+                    'Outstanding advance: %(sym)s %(prev)s → <b>%(sym)s %(new)s</b>. '
+                    'Credited to %(acc)s (not Petty Cash).'
+                )) % {
+                    'emp': emp.name, 'sym': expense.currency_id.symbol,
+                    'amount': f'{expense.amount:,.2f}', 'prev': f'{prev_balance:,.2f}',
+                    'new': f'{emp.x_advance_balance:,.2f}',
+                    'acc': (expense.x_advance_credit_account_id
+                            or expense.env.company.x_employee_advance_account_id).display_name,
+                })
 
             # Update employee outstanding advance balance for each advance line
             for line in expense.line_ids:
@@ -1500,16 +1634,10 @@ class PettyCashExpense(models.Model):
                 after=f'{balance_after:,.2f}',
             )
 
-            # Attach signed voucher and receipt to the chatter message if present
-            attachment_ids = []
-            if expense.x_signed_voucher:
-                v_name = expense.x_signed_voucher_filename or 'signed_voucher.pdf'
-                att_v = expense._create_chat_attachment(v_name, expense.x_signed_voucher)
-                attachment_ids.append(att_v.id)
-            if expense.receipt:
-                r_name = expense.receipt_filename or 'receipt.pdf'
-                att_r = expense._create_chat_attachment(r_name, expense.receipt)
-                attachment_ids.append(att_r.id)
+            # Attach signed voucher(s) and receipt(s) to the chatter message if present
+            attachment_ids = (
+                expense.x_signed_voucher_attachment_ids | expense.receipt_attachment_ids
+            ).ids
 
             expense.message_post(body=body, attachment_ids=attachment_ids)
 
@@ -1529,6 +1657,12 @@ class PettyCashExpense(models.Model):
 
         # ── Credit: petty cash account (Cash in Hand for this site) ──────────
         credit_account = self.x_petty_cash_account_id
+        holder_partner = self.env['res.partner']
+        if self.x_advance_holder_id:
+            # Spent from an employee's advance: credit HIS advance account.
+            credit_account = (self.x_advance_credit_account_id
+                              or self.env.company.x_employee_advance_account_id)
+            holder_partner = self.x_advance_holder_id.sudo()._get_or_create_partner()
 
         if not credit_account:
             # Fall back to cash journal default account
@@ -1592,13 +1726,7 @@ class PettyCashExpense(models.Model):
         # ── Debit lines: one per expense line ─────────────────────────────────
         # For subcontractor advances: stamp the subcontractor as partner so the
         # entry appears in the partner ledger and IPC "Payments Made" query.
-        CATEGORY_ACCOUNT_MAP = {
-            'travel': '6270',
-            'supplies': '6280',
-            'utilities': '6300',
-            'meals': '6290',
-            'other': '6290',
-        }
+        CATEGORY_ACCOUNT_MAP = PETTY_CASH_CATEGORY_ACCOUNT_CODES
 
         # Partner Ledger only lists Payable / Receivable lines. When a line has a
         # partner but its account is neither, the amount is also passed through
@@ -1673,6 +1801,21 @@ class PettyCashExpense(models.Model):
             credit_line_name = self.name
 
         ref_label = self.x_ref or self.name
+        if self.x_advance_holder_id:
+            ref_label = _('%(ref)s — spent from advance of %(emp)s') % {
+                'ref': ref_label, 'emp': self.x_advance_holder_id.name}
+        credit_extra = []
+        if holder_partner and credit_account.account_type not in partner_ledger_types:
+            # Same pass-through as the advance itself, so the holder shows the
+            # settlement in the Partner Ledger (nets to zero on his payable).
+            payable = holder_partner.with_company(self.env.company).property_account_payable_id
+            if payable:
+                for debit, credit in ((self.amount, 0.0), (0.0, self.amount)):
+                    credit_extra.append((0, 0, {
+                        'name': credit_line_name, 'account_id': payable.id,
+                        'partner_id': holder_partner.id, 'debit': debit, 'credit': credit,
+                        'analytic_distribution': analytic_distribution or False,
+                    }))
         move_vals = {
             'move_type': 'entry',
             'journal_id': cash_journal.id if cash_journal else False,
@@ -1682,11 +1825,12 @@ class PettyCashExpense(models.Model):
                 (0, 0, {
                     'name': credit_line_name,
                     'account_id': credit_account.id,
+                    'partner_id': holder_partner.id or False,
                     'debit': 0.0,
                     'credit': self.amount,
                     'analytic_distribution': analytic_distribution or False,
                 }),
-            ],
+            ] + credit_extra,
         }
         if not cash_journal:
             raise UserError(_(
@@ -1709,17 +1853,47 @@ class PettyCashExpense(models.Model):
                     (0, 0, {
                         'name': credit_line_name,
                         'account_id': credit_account.id,
+                        'partner_id': holder_partner.id or False,
                         'debit': 0.0,
                         'credit': self.amount,
                         'analytic_distribution': analytic_distribution or False,
                     }),
-                ],
+                ] + credit_extra,
             })
             existing_move.action_post()
+            move = existing_move
         else:
             move = self.env['account.move'].sudo().create(move_vals)
             move.action_post()
             self.x_account_move_id = move
+        self._mtr_reconcile_partner_pass_through(move)
+
+    @api.model
+    def _mtr_reconcile_partner_pass_through(self, moves):
+        """Close the partner pass-through pairs (Cr then Dr on the partner's
+        payable account, same partner / amount / label) by reconciling them, so
+        the entry leaves no outstanding payable against the partner.
+
+        Only exact Cr/Dr pairs inside the same entry are matched; a single open
+        payable line (e.g. a subcontractor advance recovered later by an IPC) is
+        never touched."""
+        for move in moves.sudo().filtered(lambda m: m.state == 'posted'):
+            lines = move.line_ids.filtered(
+                lambda l: l.partner_id and not l.reconciled and l.account_id.reconcile
+                and l.account_id.account_type in ('liability_payable', 'asset_receivable'))
+            used = set()
+            for cr in lines.filtered(lambda l: l.credit > 0):
+                if cr.id in used:
+                    continue
+                dr = lines.filtered(
+                    lambda l: l.id not in used and l.debit > 0
+                    and l.account_id == cr.account_id and l.partner_id == cr.partner_id
+                    and (l.name or '') == (cr.name or '')
+                    and move.currency_id.compare_amounts(l.debit, cr.credit) == 0)[:1]
+                if not dr:
+                    continue
+                (cr | dr).reconcile()
+                used.update((cr.id, dr.id))
 
     def action_reset_to_draft(self):
         """Reset a posted petty cash expense back to Draft.
@@ -1754,6 +1928,13 @@ class PettyCashExpense(models.Model):
             # ── 1. Reset the linked journal entry to draft ───────────────────
             move = expense.x_account_move_id
             if move and move.state != 'draft':
+                # Undo the pass-through pairs reconciled inside this entry
+                # (never reconciliations with other documents).
+                own = move.sudo().line_ids.filtered(lambda l: l.reconciled and (
+                    l.matched_debit_ids.debit_move_id | l.matched_credit_ids.credit_move_id
+                ).move_id == move)
+                if own:
+                    own.remove_move_reconcile()
                 move.sudo().button_draft()
 
             # ── 2. Reverse employee advance balance for each advance line ─────
@@ -1770,6 +1951,17 @@ class PettyCashExpense(models.Model):
                         'sym': expense.currency_id.symbol,
                         'amount': f'{line.amount:,.2f}',
                     })
+
+            # ── 2b. Advance settlement: restore the holder's outstanding advance
+            if expense.x_advance_settled_amount and expense.x_advance_holder_id:
+                emp = expense.x_advance_holder_id.sudo()
+                emp.x_advance_balance = (emp.x_advance_balance or 0.0) + expense.x_advance_settled_amount
+                expense.message_post(body=Markup(_(
+                    'Reset to Draft: advance of <b>%(emp)s</b> restored by '
+                    '<b>+%(sym)s %(amount)s</b>.')) % {
+                        'emp': emp.name, 'sym': expense.currency_id.symbol,
+                        'amount': f'{expense.x_advance_settled_amount:,.2f}'})
+                expense.x_advance_settled_amount = 0.0
 
             # ── 3. Clear snapshot fields ──────────────────────────────────────
             expense.write({

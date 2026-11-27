@@ -7,6 +7,7 @@ const ATTENDANCE_CODE_CLASS = {
     P: "matracon-att-p",
     A: "matracon-att-a",
     L: "matracon-att-l",
+    U: "matracon-att-u",
     H: "matracon-att-h",
 };
 

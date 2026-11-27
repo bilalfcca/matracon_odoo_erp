@@ -57,6 +57,27 @@ class StockPickingSiteOps(models.Model):
         help='Products with stock at the site warehouse source location.',
     )
 
+    # ── Issued products (stored → usable in "Group by Product") ───────────────
+    x_issued_product_ids = fields.Many2many(
+        'product.product',
+        'stock_picking_issued_product_rel',
+        'picking_id', 'product_id',
+        string='Products',
+        compute='_compute_issued_product_ids',
+        store=True,
+        help='Products on this transfer’s operation lines. Stored so the '
+             'Material Issuance list can be grouped by product.',
+    )
+
+    # ── Issuance date (local calendar date of scheduled_date) ─────────────────
+    x_issuance_date = fields.Date(
+        string='Issuance Date',
+        compute='_compute_issuance_date',
+        store=True, index=True,
+        help='Calendar date (company time zone) of the scheduled date. '
+             'Used by the Date From / Date To search options.',
+    )
+
     # ── Gate Pass ─────────────────────────────────────────────────────────────
     x_generate_gate_pass = fields.Boolean(
         string='Generate Gate Pass Outward', default=True)
@@ -283,6 +304,23 @@ class StockPickingSiteOps(models.Model):
         if warehouse and warehouse.lot_stock_id:
             return warehouse.lot_stock_id.id
         return False
+
+    @api.depends('scheduled_date', 'company_id')
+    def _compute_issuance_date(self):
+        for pick in self:
+            if not pick.scheduled_date:
+                pick.x_issuance_date = False
+                continue
+            tz_name = (pick.company_id.partner_id.tz
+                       or self.env.user.tz
+                       or 'Asia/Karachi')
+            pick.x_issuance_date = fields.Date.context_today(
+                pick.with_context(tz=tz_name), timestamp=pick.scheduled_date)
+
+    @api.depends('move_ids.product_id')
+    def _compute_issued_product_ids(self):
+        for pick in self:
+            pick.x_issued_product_ids = [(6, 0, pick.move_ids.product_id.ids)]
 
     @api.depends('location_id', 'x_transfer_purpose', 'x_issuance_project_id')
     def _compute_product_ids_at_location(self):

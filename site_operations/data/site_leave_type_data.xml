@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <!-- Starting leave types; HO / Admin can edit days, paid flag or add more. -->
+    <record id="site_leave_type_annual" model="x.site.leave.type">
+        <field name="name">Annual Leave</field>
+        <field name="sequence">10</field>
+        <field name="days_per_year">14</field>
+        <field name="is_paid" eval="True"/>
+    </record>
+    <record id="site_leave_type_sick" model="x.site.leave.type">
+        <field name="name">Sick Leave</field>
+        <field name="sequence">20</field>
+        <field name="days_per_year">8</field>
+        <field name="is_paid" eval="True"/>
+    </record>
+    <record id="site_leave_type_casual" model="x.site.leave.type">
+        <field name="name">Casual Leave</field>
+        <field name="sequence">30</field>
+        <field name="days_per_year">10</field>
+        <field name="is_paid" eval="True"/>
+    </record>
+    <record id="site_leave_type_unpaid" model="x.site.leave.type">
+        <field name="name">Unpaid Leave</field>
+        <field name="sequence">40</field>
+        <field name="days_per_year">0</field>
+        <field name="is_paid" eval="False"/>
+    </record>
+</odoo>

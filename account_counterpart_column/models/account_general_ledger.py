@@ -34,6 +34,7 @@ class AccountGeneralLedgerReportHandler(models.AbstractModel):
         if not current_groupby:
             # Total line: aggregates every account, no single counterpart applies.
             result['counterpart_account'] = None
+            result['cheque_number'] = None
             return result
 
         if current_groupby != 'id_with_accumulated_balance':
@@ -41,6 +42,7 @@ class AccountGeneralLedgerReportHandler(models.AbstractModel):
             # entries; a single "counterpart account" would be meaningless.
             for _key, entry in result:
                 entry['counterpart_account'] = None
+                entry['cheque_number'] = None
             return result
 
         # At this groupby level, each key is either json.dumps([date, aml_id])
@@ -62,8 +64,15 @@ class AccountGeneralLedgerReportHandler(models.AbstractModel):
             list(aml_id_by_key.values())
         )
 
+        # Cheque No.: read from the existing cheque fields (series leaf or typed
+        # number on the line / entry / payment) - see site_operations aml_cheque.py.
+        cheque_by_aml_id = self.env['account.move.line']._mtr_get_cheque_numbers(
+            list(aml_id_by_key.values())
+        )
+
         for key, entry in result:
             aml_id = aml_id_by_key.get(key)
             entry['counterpart_account'] = counterpart_by_aml_id.get(aml_id) if aml_id else None
+            entry['cheque_number'] = cheque_by_aml_id.get(aml_id) if aml_id else None
 
         return result

@@ -61,6 +61,34 @@
             <field name="groups" eval="[(4, ref('site_operations.group_site_accountant'))]"/>
         </record>
 
+        <record id="rule_site_leave_site_accountant" model="ir.rule">
+            <field name="name">Leave Application: Site Accountant own project</field>
+            <field name="model_id" ref="model_x_site_leave"/>
+            <field name="domain_force">[('project_analytic_account_id', '=', user.x_default_analytic_account_id.id)]</field>
+            <field name="groups" eval="[(4, ref('site_operations.group_site_accountant'))]"/>
+        </record>
+
+        <record id="rule_site_leave_allocation_site_accountant" model="ir.rule">
+            <field name="name">Leave Balance: Site Accountant own project</field>
+            <field name="model_id" ref="model_x_site_leave_allocation"/>
+            <field name="domain_force">[('project_analytic_account_id', '=', user.x_default_analytic_account_id.id)]</field>
+            <field name="groups" eval="[(4, ref('site_operations.group_site_accountant'))]"/>
+        </record>
+
+        <!-- Issued Items: site roles see only their own project -->
+        <record id="rule_issued_item_report_site" model="ir.rule">
+            <field name="name">Issued Items: site roles own project</field>
+            <field name="model_id" ref="model_x_issued_item_report"/>
+            <field name="domain_force">[('project_id', '=', user.x_default_analytic_account_id.id)]</field>
+            <field name="groups" eval="[(4, ref('purchase_demand_raise.group_site_store')), (4, ref('site_operations.group_site_accountant'))]"/>
+        </record>
+        <record id="rule_issued_item_history_site" model="ir.rule">
+            <field name="name">Issued Items History: site roles own project</field>
+            <field name="model_id" ref="model_x_issued_item_history"/>
+            <field name="domain_force">[('project_id', '=', user.x_default_analytic_account_id.id)]</field>
+            <field name="groups" eval="[(4, ref('purchase_demand_raise.group_site_store')), (4, ref('site_operations.group_site_accountant'))]"/>
+        </record>
+
         <record id="rule_salary_sheet_site_accountant" model="ir.rule">
             <field name="name">Salary Sheet: Site Accountant own project</field>
             <field name="model_id" ref="model_x_salary_sheet"/>
@@ -130,6 +158,27 @@
             <field name="name">Petty Cash Expense: HO/CEO cannot see Draft</field>
             <field name="model_id" ref="model_x_petty_cash_expense"/>
             <field name="domain_force">[('state', '=', 'posted')]</field>
+            <field name="groups" eval="[
+                (3, ref('purchase_demand_raise.group_ceo_approval')),
+                (4, ref('purchase_demand_raise.group_head_office')),
+                (3, ref('site_operations.group_finance_ho')),
+                (4, ref('purchase_demand_raise.group_procurement_ho')),
+            ]"/>
+        </record>
+
+        <!-- Expense LINES follow the same visibility as their voucher (needed now
+             that lines can be listed directly in "Summary by Account"). -->
+        <record id="rule_petty_cash_expense_line_site_accountant" model="ir.rule">
+            <field name="name">Petty Cash Expense Line: Site Accountant own project</field>
+            <field name="model_id" ref="model_x_petty_cash_expense_line"/>
+            <field name="domain_force">[('expense_id.project_analytic_account_id', '=', user.x_default_analytic_account_id.id)]</field>
+            <field name="groups" eval="[(4, ref('site_operations.group_site_accountant'))]"/>
+        </record>
+
+        <record id="rule_petty_cash_expense_line_no_draft_ho" model="ir.rule">
+            <field name="name">Petty Cash Expense Line: HO/CEO cannot see Draft</field>
+            <field name="model_id" ref="model_x_petty_cash_expense_line"/>
+            <field name="domain_force">[('expense_id.state', '=', 'posted')]</field>
             <field name="groups" eval="[
                 (3, ref('purchase_demand_raise.group_ceo_approval')),
                 (4, ref('purchase_demand_raise.group_head_office')),
@@ -943,6 +992,24 @@
             <field name="perm_write" eval="False"/>
             <field name="perm_create" eval="False"/>
             <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <!-- Product Summary report: each user sees only the report runs they
+             generated (the lines hold site stock figures). -->
+        <record id="rule_product_summary_line_own" model="ir.rule">
+            <field name="name">Product Summary lines: own report runs only</field>
+            <field name="model_id" ref="site_operations.model_x_product_summary_line"/>
+            <field name="domain_force">[('create_uid', '=', user.id)]</field>
+        </record>
+        <record id="rule_product_summary_wizard_own" model="ir.rule">
+            <field name="name">Product Summary: own report runs only</field>
+            <field name="model_id" ref="site_operations.model_x_product_summary_wizard"/>
+            <field name="domain_force">[('create_uid', '=', user.id)]</field>
+        </record>
+        <record id="rule_stock_report_xlsx_wizard_own" model="ir.rule">
+            <field name="name">Stock Report (Excel): own report runs only</field>
+            <field name="model_id" ref="site_operations.model_x_stock_report_xlsx_wizard"/>
+            <field name="domain_force">[('create_uid', '=', user.id)]</field>
         </record>
 
     </data>

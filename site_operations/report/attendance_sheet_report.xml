@@ -64,6 +64,7 @@
                                     <th class="text-center">Present</th>
                                     <th class="text-center">Absent</th>
                                     <th class="text-center">Leave</th>
+                                    <th class="text-center">Unpaid</th>
                                     <th class="text-center">Holiday</th>
                                     <th class="text-center">Paid Days</th>
                                     <th class="text-center">Total Days</th>
@@ -78,6 +79,7 @@
                                         <td class="text-center"><t t-esc="line.present_days"/></td>
                                         <td class="text-center"><t t-esc="line.absent_days"/></td>
                                         <td class="text-center"><t t-esc="line.leave_days"/></td>
+                                        <td class="text-center"><t t-esc="line.unpaid_leave_days"/></td>
                                         <td class="text-center"><t t-esc="line.holiday_days"/></td>
                                         <td class="text-center fw-bold"><t t-esc="line.paid_days"/></td>
                                         <td class="text-center"><t t-esc="line.total_days"/></td>
@@ -96,6 +98,7 @@
                                     <td class="text-center"><t t-esc="sum(sheet.line_ids.mapped('present_days'))"/></td>
                                     <td class="text-center"><t t-esc="sum(sheet.line_ids.mapped('absent_days'))"/></td>
                                     <td class="text-center"><t t-esc="sum(sheet.line_ids.mapped('leave_days'))"/></td>
+                                    <td class="text-center"><t t-esc="sum(sheet.line_ids.mapped('unpaid_leave_days'))"/></td>
                                     <td class="text-center"><t t-esc="sum(sheet.line_ids.mapped('holiday_days'))"/></td>
                                     <td class="text-center"><t t-esc="sum(sheet.line_ids.mapped('paid_days'))"/></td>
                                     <td class="text-center"><t t-esc="sum(sheet.line_ids.mapped('total_days'))"/></td>

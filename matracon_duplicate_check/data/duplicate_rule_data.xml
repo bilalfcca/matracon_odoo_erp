@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <record id="rule_partner_vat" model="x.duplicate.rule">
+        <field name="code">partner_vat</field>
+        <field name="model">res.partner</field>
+        <field name="name">Same NTN / VAT</field>
+        <field name="sequence">10</field>
+    </record>
+    <record id="rule_partner_cnic" model="x.duplicate.rule">
+        <field name="code">partner_cnic</field>
+        <field name="model">res.partner</field>
+        <field name="name">Same CNIC</field>
+        <field name="sequence">20</field>
+    </record>
+    <record id="rule_partner_email" model="x.duplicate.rule">
+        <field name="code">partner_email</field>
+        <field name="model">res.partner</field>
+        <field name="name">Same email</field>
+        <field name="sequence">30</field>
+    </record>
+    <record id="rule_partner_phone" model="x.duplicate.rule">
+        <field name="code">partner_phone</field>
+        <field name="model">res.partner</field>
+        <field name="name">Same phone / mobile (last 10 digits)</field>
+        <field name="sequence">40</field>
+    </record>
+    <record id="rule_partner_name" model="x.duplicate.rule">
+        <field name="code">partner_name</field>
+        <field name="model">res.partner</field>
+        <field name="name">Same name</field>
+        <field name="sequence">50</field>
+    </record>
+    <record id="rule_employee_cnic" model="x.duplicate.rule">
+        <field name="code">employee_cnic</field>
+        <field name="model">hr.employee</field>
+        <field name="name">Same CNIC</field>
+        <field name="sequence">60</field>
+    </record>
+    <record id="rule_employee_name_father" model="x.duplicate.rule">
+        <field name="code">employee_name_father</field>
+        <field name="model">hr.employee</field>
+        <field name="name">Same name + father's name</field>
+        <field name="sequence">70</field>
+    </record>
+    <record id="rule_template_code" model="x.duplicate.rule">
+        <field name="code">template_code</field>
+        <field name="model">product.template</field>
+        <field name="name">Same Internal Reference</field>
+        <field name="sequence">80</field>
+    </record>
+    <record id="rule_template_barcode" model="x.duplicate.rule">
+        <field name="code">template_barcode</field>
+        <field name="model">product.template</field>
+        <field name="name">Same barcode</field>
+        <field name="sequence">90</field>
+    </record>
+    <record id="rule_template_name_uom" model="x.duplicate.rule">
+        <field name="code">template_name_uom</field>
+        <field name="model">product.template</field>
+        <field name="name">Same name + unit</field>
+        <field name="sequence">100</field>
+    </record>
+    <record id="rule_product_code" model="x.duplicate.rule">
+        <field name="code">product_code</field>
+        <field name="model">product.product</field>
+        <field name="name">Same Internal Reference</field>
+        <field name="sequence">110</field>
+    </record>
+    <record id="rule_product_barcode" model="x.duplicate.rule">
+        <field name="code">product_barcode</field>
+        <field name="model">product.product</field>
+        <field name="name">Same barcode</field>
+        <field name="sequence">120</field>
+    </record>
+    <record id="rule_product_name_uom" model="x.duplicate.rule">
+        <field name="code">product_name_uom</field>
+        <field name="model">product.product</field>
+        <field name="name">Same name + unit</field>
+        <field name="sequence">130</field>
+    </record>
+    <record id="rule_po_same_lines" model="x.duplicate.rule">
+        <field name="code">po_same_lines</field>
+        <field name="model">purchase.order</field>
+        <field name="name">Same project, vendor, products and quantities (last 7 days)</field>
+        <field name="sequence">140</field>
+    </record>
+    <record id="rule_bill_ref" model="x.duplicate.rule">
+        <field name="code">bill_ref</field>
+        <field name="model">account.move</field>
+        <field name="name">Vendor bill: same vendor + bill reference</field>
+        <field name="sequence">150</field>
+    </record>
+    <record id="rule_invoice_ref" model="x.duplicate.rule">
+        <field name="code">invoice_ref</field>
+        <field name="model">account.move</field>
+        <field name="name">Customer invoice: same customer + reference</field>
+        <field name="sequence">160</field>
+    </record>
+    <record id="rule_move_partner_amount_date" model="x.duplicate.rule">
+        <field name="code">move_partner_amount_date</field>
+        <field name="model">account.move</field>
+        <field name="name">Same partner + amount + date</field>
+        <field name="sequence">170</field>
+    </record>
+    <record id="rule_entry_ref_amount_date" model="x.duplicate.rule">
+        <field name="code">entry_ref_amount_date</field>
+        <field name="model">account.move</field>
+        <field name="name">Journal entry: same reference + amount + date</field>
+        <field name="sequence">180</field>
+    </record>
+    <record id="rule_payment_same" model="x.duplicate.rule">
+        <field name="code">payment_same</field>
+        <field name="model">account.payment</field>
+        <field name="name">Same partner + amount + date + journal</field>
+        <field name="sequence">190</field>
+    </record>
+    <record id="rule_pc_expense_same" model="x.duplicate.rule">
+        <field name="code">pc_expense_same</field>
+        <field name="model">x.petty.cash.expense</field>
+        <field name="name">Same site + amount + date + description</field>
+        <field name="sequence">200</field>
+    </record>
+    <record id="rule_pc_request_same" model="x.duplicate.rule">
+        <field name="code">pc_request_same</field>
+        <field name="model">x.petty.cash.request</field>
+        <field name="name">Same site + amount, requested today</field>
+        <field name="sequence">210</field>
+    </record>
+    <record id="rule_picking_same" model="x.duplicate.rule">
+        <field name="code">picking_same</field>
+        <field name="model">stock.picking</field>
+        <field name="name">Same person / vendor + products and quantities, same day</field>
+        <field name="sequence">220</field>
+    </record>
+    <record id="rule_project_name" model="x.duplicate.rule">
+        <field name="code">project_name</field>
+        <field name="model">project.project</field>
+        <field name="name">Same project name</field>
+        <field name="sequence">230</field>
+    </record>
+    <record id="rule_analytic_name_code" model="x.duplicate.rule">
+        <field name="code">analytic_name_code</field>
+        <field name="model">account.analytic.account</field>
+        <field name="name">Same name or code</field>
+        <field name="sequence">240</field>
+    </record>
+    <record id="rule_bg_number" model="x.duplicate.rule">
+        <field name="code">bg_number</field>
+        <field name="model">x.bank.guarantee</field>
+        <field name="name">Same BG number</field>
+        <field name="sequence">250</field>
+    </record>
+    <record id="rule_leave_overlap" model="x.duplicate.rule">
+        <field name="code">leave_overlap</field>
+        <field name="model">x.site.leave</field>
+        <field name="name">Same employee, overlapping dates</field>
+        <field name="sequence">260</field>
+    </record>
+</odoo>

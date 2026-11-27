@@ -1,6 +1,6 @@
 {
     'name': 'Site Operations',
-    'version': '19.0.2.5.8',
+    'version': '19.0.2.6.14',
     'summary': 'Material Issuance, Finance HO, Compliance (BG & Tax Notices), Attendance & Petty Cash',
     'author': 'Matracon Pakistan',
     'depends': [
@@ -39,6 +39,7 @@
         'data/ipc_sequence.xml',
         'data/employee_backcharge_sequence.xml',
         'data/ho_advance_sequence.xml',
+        'data/employee_advance_sequence.xml',
         'data/batch_payment_sequence.xml',
         'data/app_visibility_data.xml',
         'data/currency_precision.xml',
@@ -48,6 +49,8 @@
         'data/accounting_report_defaults.xml',
         'views/hr_employee_views.xml',
         'views/attendance_views.xml',
+        'data/site_leave_type_data.xml',
+        'views/site_leave_views.xml',
         'views/salary_views.xml',
         'views/salary_import_wizard.xml',
         'views/petty_cash_views.xml',
@@ -84,11 +87,20 @@
         'views/ipc_account_config_views.xml',
         'views/subcontractor_ipc_views.xml',
         'views/subcontractor_ho_advance_views.xml',
+        'views/employee_ho_advance_views.xml',
         'views/employee_backcharge_views.xml',
         'views/material_cost_views.xml',
         'views/uom_ext_views.xml',
         'views/direct_print_actions.xml',
         'views/menus.xml',
+        'data/iris_data.xml',
+        'views/iris_views.xml',
+        'views/stock_report_xlsx_views.xml',
+        'views/issued_items_views.xml',
+        'views/product_summary_views.xml',
+        'views/aml_project_views.xml',
+        'views/smart_search_views.xml',
+        'views/petty_cash_daily_views.xml',
         'report/mif_report.xml',
         'report/mif_report_template.xml',
         'report/mtn_report.xml',
@@ -139,6 +151,12 @@
             'site_operations/static/src/xml/account_report_analytic_lock.xml',
             # "All Dates" option in every accounting-report date filter
             'site_operations/static/src/xml/account_report_all_dates.xml',
+            # Material Issuance: Date Range picker in the search panel
+            # Smart search: amount expressions + record suggestions in the search bar
+            'site_operations/static/src/js/smart_search.js',
+            'site_operations/static/src/xml/smart_search.xml',
+            'site_operations/static/src/js/material_issuance_date_range.js',
+            'site_operations/static/src/xml/material_issuance_date_range.xml',
         ],
     },
     'demo': [

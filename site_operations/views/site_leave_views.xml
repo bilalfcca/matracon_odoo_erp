@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ══ Leave Applications ══════════════════════════════════════════════ -->
+    <record id="view_site_leave_form" model="ir.ui.view">
+        <field name="name">x.site.leave.form</field>
+        <field name="model">x.site.leave</field>
+        <field name="arch" type="xml">
+            <form string="Leave Application">
+                <header>
+                    <button name="action_approve" type="object" string="Approve"
+                            class="btn-primary" invisible="state != 'draft'"
+                            confirm="Approve this leave? It will be marked on the Attendance Registry."/>
+                    <button name="action_reject" type="object" string="Reject"
+                            invisible="state != 'draft'"/>
+                    <button name="action_reset_to_draft" type="object" string="Reset to Draft"
+                            invisible="state == 'draft'"
+                            confirm="Reset to draft? If approved, its days are removed from the draft Attendance Registry."/>
+                    <button name="action_cancel" type="object" string="Cancel Leave"
+                            invisible="state in ('cancelled', 'rejected')"
+                            confirm="Cancel this leave? If approved, its days are removed from the draft Attendance Registry."/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,approved"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name" readonly="1"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="employee_id" readonly="state != 'draft'"
+                                   options="{'no_create': True}"/>
+                            <field name="project_analytic_account_id" readonly="1"/>
+                            <field name="leave_type_id" readonly="state != 'draft'"
+                                   options="{'no_create': True, 'no_open': True}"/>
+                            <field name="remaining_days" readonly="1"
+                                   invisible="not leave_type_id"/>
+                        </group>
+                        <group>
+                            <field name="date_from" readonly="state != 'draft'"/>
+                            <field name="date_to" readonly="state != 'draft'"/>
+                            <field name="number_of_days" readonly="state != 'draft'"/>
+                            <field name="pm_document" filename="pm_document_filename"
+                                   readonly="state != 'draft'"
+                                   required="requires_pm_document and state == 'draft'"/>
+                            <field name="pm_document_filename" invisible="1"/>
+                            <field name="requires_pm_document" invisible="1"/>
+                        </group>
+                    </group>
+                    <group>
+                        <field name="reason" readonly="state != 'draft'"
+                               placeholder="Reason for leave…"/>
+                    </group>
+                    <group invisible="state != 'approved'">
+                        <field name="approved_by_id"/>
+                        <field name="approved_date"/>
+                    </group>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_site_leave_list" model="ir.ui.view">
+        <field name="name">x.site.leave.list</field>
+        <field name="model">x.site.leave</field>
+        <field name="arch" type="xml">
+            <list decoration-muted="state in ('cancelled', 'rejected')"
+                  decoration-info="state == 'draft'">
+                <field name="employee_id"/>
+                <field name="project_analytic_account_id" optional="show"/>
+                <field name="leave_type_id"/>
+                <field name="date_from"/>
+                <field name="date_to"/>
+                <field name="number_of_days" sum="Total Days"/>
+                <field name="approved_by_id" optional="hide"/>
+                <field name="state" widget="badge"
+                       decoration-success="state == 'approved'"
+                       decoration-info="state == 'draft'"
+                       decoration-danger="state == 'rejected'"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_site_leave_calendar" model="ir.ui.view">
+        <field name="name">x.site.leave.calendar</field>
+        <field name="model">x.site.leave</field>
+        <field name="arch" type="xml">
+            <calendar date_start="date_from" date_stop="date_to" color="leave_type_id"
+                      mode="month" quick_create="0">
+                <field name="employee_id"/>
+                <field name="leave_type_id"/>
+                <field name="state"/>
+            </calendar>
+        </field>
+    </record>
+
+    <record id="view_site_leave_search" model="ir.ui.view">
+        <field name="name">x.site.leave.search</field>
+        <field name="model">x.site.leave</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="employee_id"/>
+                <field name="leave_type_id"/>
+                <field name="project_analytic_account_id"/>
+                <filter name="filter_draft" string="To Approve" domain="[('state', '=', 'draft')]"/>
+                <filter name="filter_approved" string="Approved" domain="[('state', '=', 'approved')]"/>
+                <filter name="filter_today" string="On Leave Today"
+                        domain="[('state', '=', 'approved'), ('date_from', '&lt;=', context_today().strftime('%Y-%m-%d')), ('date_to', '&gt;=', context_today().strftime('%Y-%m-%d'))]"/>
+                <separator/>
+                <filter name="filter_date_from" string="Date" date="date_from"/>
+                <group>
+                    <filter name="group_employee" string="Employee" context="{'group_by': 'employee_id'}"/>
+                    <filter name="group_type" string="Leave Type" context="{'group_by': 'leave_type_id'}"/>
+                    <filter name="group_project" string="Site Project" context="{'group_by': 'project_analytic_account_id'}"/>
+                    <filter name="group_state" string="Status" context="{'group_by': 'state'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_site_leave" model="ir.actions.act_window">
+        <field name="name">Leave Applications</field>
+        <field name="res_model">x.site.leave</field>
+        <field name="view_mode">list,form,calendar</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Record a leave application</p>
+            <p>Enter the employee, leave type and dates, upload the Project Manager's
+               confirmation and approve. Approved leave is marked on the Attendance
+               Registry as L (paid) or U (unpaid).</p>
+        </field>
+    </record>
+
+    <!-- ══ Leave Balances ══════════════════════════════════════════════════ -->
+    <record id="view_site_leave_allocation_list" model="ir.ui.view">
+        <field name="name">x.site.leave.allocation.list</field>
+        <field name="model">x.site.leave.allocation</field>
+        <field name="arch" type="xml">
+            <list editable="bottom">
+                <header>
+                    <button name="action_generate_current_year" type="object"
+                            string="Generate This Year's Balances" class="btn-secondary"
+                            display="always"/>
+                </header>
+                <field name="employee_id" options="{'no_create': True}"/>
+                <field name="project_analytic_account_id" optional="show" readonly="1"/>
+                <field name="leave_type_id" options="{'no_create': True, 'no_open': True}"/>
+                <field name="year" options="{'enable_formatting': false}"/>
+                <field name="entitled_days"/>
+                <field name="taken_days"/>
+                <field name="remaining_days"
+                       decoration-danger="remaining_days &lt; 0"
+                       decoration-bf="1"/>
+                <field name="note" optional="show"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_site_leave_allocation_search" model="ir.ui.view">
+        <field name="name">x.site.leave.allocation.search</field>
+        <field name="model">x.site.leave.allocation</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="employee_id"/>
+                <field name="leave_type_id"/>
+                <field name="year"/>
+                <group>
+                    <filter name="group_employee" string="Employee" context="{'group_by': 'employee_id'}"/>
+                    <filter name="group_type" string="Leave Type" context="{'group_by': 'leave_type_id'}"/>
+                    <filter name="group_year" string="Year" context="{'group_by': 'year'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_site_leave_allocation" model="ir.actions.act_window">
+        <field name="name">Leave Balances</field>
+        <field name="res_model">x.site.leave.allocation</field>
+        <field name="view_mode">list</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No leave balances yet</p>
+            <p>Click "Generate This Year's Balances", or balances are created
+               automatically when a leave is approved. Entitled days can be
+               adjusted per employee.</p>
+        </field>
+    </record>
+
+    <!-- ══ Leave Types ═════════════════════════════════════════════════════ -->
+    <record id="view_site_leave_type_list" model="ir.ui.view">
+        <field name="name">x.site.leave.type.list</field>
+        <field name="model">x.site.leave.type</field>
+        <field name="arch" type="xml">
+            <list editable="bottom">
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="days_per_year"/>
+                <field name="is_paid"/>
+                <field name="requires_pm_document"/>
+                <field name="active" column_invisible="1"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_site_leave_type" model="ir.actions.act_window">
+        <field name="name">Leave Types</field>
+        <field name="res_model">x.site.leave.type</field>
+        <field name="view_mode">list</field>
+    </record>
+
+</odoo>

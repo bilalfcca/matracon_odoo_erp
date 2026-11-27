@@ -7,7 +7,8 @@ _logger = logging.getLogger(__name__)
 
 
 class PurchaseOrder(models.Model):
-    _inherit = 'purchase.order'
+    _name = 'purchase.order'
+    _inherit = ['purchase.order', 'matracon.multi.attachment.mixin']
 
     # ── Fix: Make vendor NOT required (Site Store raises PR without vendor) ──
     # Domain restricts the vendor dropdown to contacts tagged as "Vendor" in the Contacts app.
@@ -105,8 +106,15 @@ class PurchaseOrder(models.Model):
     )
 
     # ── PM Signed PR Attachment ───────────────────────────────────────────────
-    x_pm_signed_pr = fields.Binary(string='PM Signed PR', attachment=True)
+    # Legacy single-file field — kept only so existing data is preserved; its
+    # content is moved into x_pm_signed_pr_attachment_ids by the 1.4.15 migration.
+    x_pm_signed_pr = fields.Binary(string='PM Signed PR (Legacy)', attachment=True)
     x_pm_signed_pr_filename = fields.Char(string='PM Signed PR Filename')
+    x_pm_signed_pr_attachment_ids = fields.Many2many(
+        'ir.attachment', 'purchase_order_pm_signed_pr_rel',
+        'order_id', 'attachment_id',
+        string='PM Signed PR', copy=False,
+        help='Scans of the PM-signed printed PR. One or more files can be attached.')
 
     # ── Project Site Config (PO selects when raising a PR directly) ──────────
     x_project_site_config_id = fields.Many2one(
@@ -165,7 +173,7 @@ class PurchaseOrder(models.Model):
              'False for Odoo native alternative RFQs.',
     )
 
-    @api.depends('x_pr_state', 'x_pm_signed_pr', 'x_category_id', 'x_is_alternative_rfq', 'x_pr_origin', 'x_procurement_type')
+    @api.depends('x_pr_state', 'x_pm_signed_pr_attachment_ids', 'x_category_id', 'x_is_alternative_rfq', 'x_pr_origin', 'x_procurement_type')
     def _compute_is_pr_document(self):
         for order in self:
             if order.x_is_alternative_rfq:
@@ -173,7 +181,7 @@ class PurchaseOrder(models.Model):
                 continue
             order.x_is_pr_document = bool(
                 order.x_pr_state != 'draft'                        # Already progressed in workflow
-                or order.x_pm_signed_pr                             # PM doc attached → it's a PR
+                or order.x_pm_signed_pr_attachment_ids              # PM doc attached → it's a PR
                 or order.x_category_id                              # Category selected → our PR form
                 or order.x_pr_origin == 'procurement_ho'            # PO-raised PR (always PR workflow)
                 or order.x_procurement_type == 'site_procurement'   # Site Procurement type selected
@@ -262,6 +270,36 @@ class PurchaseOrder(models.Model):
         help='Set when CEO approves directly from Submitted without HO review.',
     )
 
+    x_print_amounts = fields.Selection([
+        ('auto', 'Automatic (as configured on the lines)'),
+        ('excluded', 'Excluding tax'),
+        ('included', 'Including tax'),
+    ], string='Print Amounts', default='auto',
+        help='How line amounts are printed on the PO / RFQ PDF. Automatic: including '
+             'tax when a line has a tax that is included in its price, otherwise '
+             'excluding tax. Totals always match the PO.')
+
+    def _mtr_print_tax_included(self):
+        """True when the printed line amounts should include tax."""
+        self.ensure_one()
+        if self.x_print_amounts == 'included':
+            return True
+        if self.x_print_amounts == 'excluded':
+            return False
+        return any(t.price_include for t in self.order_line.tax_ids)
+
+    def _mtr_print_line(self, line, tax_included):
+        """Figures printed for one PO line — taken from the line's own computed
+        amounts so the PDF always matches the PO (and the bill)."""
+        qty = line.product_qty or 0.0
+        amount = line.price_total if tax_included else line.price_subtotal
+        disc = line.discount or 0.0
+        if qty and disc < 100.0:
+            unit = amount / qty / (1.0 - disc / 100.0)
+        else:
+            unit = line.price_unit or 0.0
+        return {'qty': qty, 'unit': unit, 'amount': amount, 'disc': disc}
+
     x_show_product_ref = fields.Boolean(
         string='Print Product Reference',
         default=False,
@@ -295,7 +333,7 @@ class PurchaseOrder(models.Model):
     # ── Computed helper: can Submit button be enabled? ────────────────────────
     x_can_submit = fields.Boolean(compute='_compute_can_submit')
 
-    @api.depends('x_pm_signed_pr', 'x_pr_state', 'order_line', 'x_pr_origin')
+    @api.depends('x_pm_signed_pr_attachment_ids', 'x_pr_state', 'order_line', 'x_pr_origin')
     def _compute_can_submit(self):
         is_ho = self.env.user.has_group('purchase_demand_raise.group_procurement_ho')
         for order in self:
@@ -305,7 +343,7 @@ class PurchaseOrder(models.Model):
             if order.x_pr_origin == 'procurement_ho' or is_ho:
                 order.x_can_submit = True
             else:
-                order.x_can_submit = bool(order.x_pm_signed_pr)
+                order.x_can_submit = bool(order.x_pm_signed_pr_attachment_ids)
 
     # ── Override create: set initiator + PR flag + analytic for site users ──────
     @api.model
@@ -445,6 +483,7 @@ class PurchaseOrder(models.Model):
             # Clear PM-signed document
             'x_pm_signed_pr': False,
             'x_pm_signed_pr_filename': False,
+            'x_pm_signed_pr_attachment_ids': [(5, 0, 0)],
             # Clear vendor — selected by HO during approval
             'partner_id': False,
         })
@@ -648,7 +687,7 @@ class PurchaseOrder(models.Model):
         """Submit PR — Site Store (with PM doc) or Procurement Officer (direct to CEO)."""
         for order in self:
             is_ho = self.env.user.has_group('purchase_demand_raise.group_procurement_ho')
-            if not is_ho and not order.x_pm_signed_pr:
+            if not is_ho and not order.x_pm_signed_pr_attachment_ids:
                 raise UserError(_('Please attach the PM Signed PR before submitting.'))
             if not order.order_line:
                 raise UserError(_('Please add at least one product line before submitting.'))

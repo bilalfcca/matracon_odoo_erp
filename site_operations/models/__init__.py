@@ -6,6 +6,7 @@ from . import hr_employee_ext
 from . import employee_document
 from . import hr_master_data_security
 from . import attendance_sheet
+from . import site_leave
 from . import salary_sheet
 from . import petty_cash
 from . import management_dashboard
@@ -50,6 +51,12 @@ from . import ipc_account_config
 from . import subcontractor_backcharge
 from . import subcontractor_ipc
 from . import subcontractor_ho_advance
+from . import employee_ho_advance
+from . import issued_items
+from . import aml_project
+from . import smart_search
+from . import aml_cheque
+from . import petty_cash_balance
 from . import material_cost_consumption
 from . import account_journal
 from . import account_analytic_account
@@ -61,3 +68,4 @@ from . import uom_ext  # UoM alternative name search aliases
 from . import product_category_ext  # x_add_to_dashboard flag on product category
 from . import uom_change_wizard  # Change product UoM + convert all open quantities
 from . import ir_ui_menu  # Accountant HO: only Petty Cash → Expenses in the Invoicing app
+from . import iris_feed  # IRIS / FBR email feed into Tax Notices

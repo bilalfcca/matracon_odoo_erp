@@ -14,7 +14,7 @@ from . import matracon_notifications as matracon_notify
 class LiabilitySheet(models.Model):
     _name = 'x.liability.sheet'
     _description = 'Liability Sheet'
-    _inherit = ['mail.thread', 'mail.activity.mixin']
+    _inherit = ['mail.thread', 'mail.activity.mixin', 'matracon.multi.attachment.mixin']
     _order = 'date_from desc, id desc'
 
     # ── Schema guard: runs on every server startup ────────────────────────────
@@ -78,8 +78,14 @@ class LiabilitySheet(models.Model):
         string='Signed by PM', default=False, tracking=True, readonly=True)
     pm_signature_date = fields.Datetime(
         string='PM Signed On', readonly=True)
-    pm_signed_sheet = fields.Binary(string='PM Signed Copy (Upload)')
+    # Legacy single-file field — data moved to pm_signed_sheet_attachment_ids
+    pm_signed_sheet = fields.Binary(string='PM Signed Copy (Legacy)')
     pm_signed_sheet_filename = fields.Char()
+    pm_signed_sheet_attachment_ids = fields.Many2many(
+        'ir.attachment', 'x_liability_sheet_pm_signed_rel',
+        'sheet_id', 'attachment_id',
+        string='PM Signed Copies', copy=False,
+        help='Scans of the PM-signed liability sheet. One or more files can be attached.')
 
     # ── Approval tracking for digital signatures on PDF ───────────────────
     x_ceo_approved_by_id = fields.Many2one(
@@ -281,7 +287,7 @@ class LiabilitySheet(models.Model):
                     'Select at least one vendor line to submit. '
                     'Tick the "Submit" checkbox on the lines you want the CEO to approve.'
                 ))
-            if not sheet.pm_signed_sheet:
+            if not sheet.pm_signed_sheet_attachment_ids:
                 raise UserError(_(
                     'Upload the physically signed PM document before submitting. '
                     'Download the PDF, get it signed offline, then attach the scan.'

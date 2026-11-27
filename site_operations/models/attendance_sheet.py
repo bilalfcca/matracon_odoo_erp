@@ -18,6 +18,7 @@ ATTENDANCE_CODE_SELECTION = [
     ('P', 'P'),
     ('A', 'A'),
     ('L', 'L'),
+    ('U', 'U'),
     ('H', 'H'),
 ]
 
@@ -122,6 +123,8 @@ class AttendanceLine(models.Model):
     absent_days = fields.Integer(compute='_compute_day_counts', store=True)
     leave_days = fields.Integer(compute='_compute_day_counts', store=True)
     holiday_days = fields.Integer(compute='_compute_day_counts', store=True)
+    unpaid_leave_days = fields.Integer(
+        string='Unpaid Leave', compute='_compute_unpaid_leave_days', store=True)
     paid_days = fields.Integer(compute='_compute_day_counts', store=True)
     total_days = fields.Integer(compute='_compute_day_counts', store=True)
     total_display = fields.Char(compute='_compute_day_counts', store=True)
@@ -185,9 +188,18 @@ class AttendanceLine(models.Model):
             line.absent_days = absent
             line.leave_days = leave
             line.holiday_days = holiday
-            line.paid_days = present + holiday
+            # Paid = Present + Holiday + Paid Leave (L). Unpaid leave (U) and
+            # Absent (A) are not paid.
+            line.paid_days = present + holiday + leave
             line.total_days = days_in_month
             line.total_display = f'{line.paid_days}/{days_in_month}'
+
+
+    @api.depends('sheet_id.date_from', *DAY_FIELD_NAMES)
+    def _compute_unpaid_leave_days(self):
+        for line in self:
+            line.unpaid_leave_days = sum(
+                1 for d in range(1, 32) if getattr(line, f'day_{d:02d}', False) == 'U')
 
 
 class AttendanceSheet(models.Model):
@@ -305,14 +317,15 @@ class AttendanceSheet(models.Model):
 
         Expected format (header row):
             Employee Name | Month | 1 | 2 | 3 | … | 31 | Advance
-        Codes: P = Present, A = Absent, L = Paid Leave, H = Public Holiday
+        Codes: P = Present, A = Absent, L = Paid Leave, U = Unpaid Leave,
+               H = Public Holiday
 
         The optional 'Month' column in the header is used for validation only
         (not per-row data). The first data row's Month cell is read and
         compared against this sheet's date_from month/year. If they differ,
         the import is blocked with a clear error message.
         """
-        VALID_CODES = {'P', 'A', 'L', 'H'}
+        VALID_CODES = {'P', 'A', 'L', 'U', 'H'}
         MONTH_NAMES = {
             'jan': 1, 'feb': 2, 'mar': 3, 'apr': 4, 'may': 5, 'jun': 6,
             'jul': 7, 'aug': 8, 'sep': 9, 'oct': 10, 'nov': 11, 'dec': 12,
@@ -516,7 +529,16 @@ class AttendanceSheet(models.Model):
                         'x_advance_amount': emp.x_advance_balance or 0.0,
                         'x_backcharge_amount': sum(bcs.mapped('remaining_amount')),
                     })
+            self.env['x.site.leave']._apply_approved_to_sheet(sheet)
             sheet.message_post(body=_('Employee list refreshed from project roster.'))
+
+    def action_apply_approved_leaves(self):
+        """Mark approved leave applications of this month (L / U) on the sheet."""
+        for sheet in self:
+            if sheet.state != 'draft':
+                raise UserError(_('Only draft sheets can be updated.'))
+            count = self.env['x.site.leave']._apply_approved_to_sheet(sheet)
+            sheet.message_post(body=_('%s approved leave application(s) applied.') % count)
 
     def action_verify(self):
         for sheet in self:

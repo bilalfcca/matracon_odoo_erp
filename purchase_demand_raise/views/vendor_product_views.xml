@@ -1,0 +1,204 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ══ Vendor-wise Products report ═════════════════════════════════════ -->
+    <record id="view_vendor_product_report_list" model="ir.ui.view">
+        <field name="name">x.vendor.product.report.list</field>
+        <field name="model">x.vendor.product.report</field>
+        <field name="arch" type="xml">
+            <list create="false" edit="false" delete="false"
+                  decoration-muted="source == 'planned'">
+                <field name="vendor_id"/>
+                <field name="product_id"/>
+                <field name="categ_id" optional="show"/>
+                <field name="source" optional="show"/>
+                <field name="po_count"/>
+                <field name="qty_ordered" optional="show"/>
+                <field name="qty_received" optional="show"/>
+                <field name="uom_id" optional="show"/>
+                <field name="qty_available" optional="show"/>
+                <field name="last_purchase_date" optional="show"/>
+                <field name="currency_id" column_invisible="1"/>
+                <field name="last_price" optional="show" groups="!purchase_demand_raise.group_site_store"/>
+                <button name="action_view_purchase_lines" type="object" icon="fa-list"
+                        title="Purchase lines" invisible="po_count == 0"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_vendor_product_report_pivot" model="ir.ui.view">
+        <field name="name">x.vendor.product.report.pivot</field>
+        <field name="model">x.vendor.product.report</field>
+        <field name="arch" type="xml">
+            <pivot string="Vendor-wise Products" disable_linking="1">
+                <field name="vendor_id" type="row"/>
+                <field name="product_id" type="row"/>
+                <field name="qty_ordered" type="measure"/>
+                <field name="qty_received" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
+    <record id="view_vendor_product_report_search" model="ir.ui.view">
+        <field name="name">x.vendor.product.report.search</field>
+        <field name="model">x.vendor.product.report</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="vendor_id"/>
+                <field name="product_id"/>
+                <field name="categ_id"/>
+                <filter name="purchased" string="Purchased" domain="[('source', '=', 'purchased')]"/>
+                <filter name="planned" string="Planned only" domain="[('source', '=', 'planned')]"/>
+                <separator/>
+                <filter name="last_purchase_date" string="Last Purchased" date="last_purchase_date"/>
+                <group>
+                    <filter name="group_vendor" string="Vendor" context="{'group_by': 'vendor_id'}"/>
+                    <filter name="group_product" string="Product" context="{'group_by': 'product_id'}"/>
+                    <filter name="group_categ" string="Category" context="{'group_by': 'categ_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_vendor_product_report" model="ir.actions.act_window">
+        <field name="name">Vendor-wise Products</field>
+        <field name="res_model">x.vendor.product.report</field>
+        <field name="view_mode">list,pivot</field>
+        <field name="context">{'search_default_group_vendor': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_empty_folder">No vendor-product data yet</p>
+            <p>Products appear under each vendor once a purchase order is confirmed,
+               or when a vendor is added to a product's Vendor Pricelist.</p>
+        </field>
+    </record>
+
+    <menuitem id="menu_vendor_product_report"
+              name="Vendor-wise Products"
+              parent="stock.menu_warehouse_report"
+              action="action_vendor_product_report"
+              sequence="5"/>
+
+    <!-- ══ Product form: vendors ═══════════════════════════════════════════ -->
+    <record id="view_product_template_form_vendors" model="ir.ui.view">
+        <field name="name">product.template.form.vendors</field>
+        <field name="model">product.template</field>
+        <field name="inherit_id" ref="product.product_template_form_view"/>
+        <field name="arch" type="xml">
+            <group name="purchase" position="before">
+                <group string="Vendors (from confirmed POs and Vendor Pricelists)" name="mtr_vendors">
+                    <field name="x_vendor_ids" widget="many2many_tags" readonly="1"/>
+                    <field name="x_last_vendor_id" readonly="1"/>
+                    <field name="x_last_purchase_date" readonly="1"/>
+                </group>
+            </group>
+        </field>
+    </record>
+
+    <!-- ══ Stock report (Inventory → Reporting → Stock) ════════════════════ -->
+    <record id="view_product_stock_tree_vendors" model="ir.ui.view">
+        <field name="name">product.product.stock.list.vendors</field>
+        <field name="model">product.product</field>
+        <field name="inherit_id" ref="stock.product_product_stock_tree"/>
+        <field name="arch" type="xml">
+            <field name="display_name" position="after">
+                <field name="x_last_vendor_id" optional="show"/>
+                <field name="x_vendor_ids" widget="many2many_tags" optional="hide"/>
+            </field>
+        </field>
+    </record>
+
+    <record id="view_product_stock_search_vendors" model="ir.ui.view">
+        <field name="name">product.product.stock.search.vendors</field>
+        <field name="model">product.product</field>
+        <field name="inherit_id" ref="stock.product_search_form_view_stock_report"/>
+        <field name="arch" type="xml">
+            <xpath expr="//search" position="inside">
+                <field name="x_vendor_ids" string="Vendor"/>
+                <group>
+                    <filter name="group_last_vendor" string="Vendor (last)" context="{'group_by': 'x_last_vendor_id'}"/>
+                </group>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ══ Product In / Out: Moves History (stock.move.line) ═══════════════ -->
+    <record id="view_move_line_tree_vendor" model="ir.ui.view">
+        <field name="name">stock.move.line.list.vendor</field>
+        <field name="model">stock.move.line</field>
+        <field name="inherit_id" ref="stock.view_move_line_tree"/>
+        <field name="arch" type="xml">
+            <field name="product_id" position="after">
+                <field name="x_vendor_id" optional="show"/>
+            </field>
+        </field>
+    </record>
+
+    <record id="view_move_line_search_vendor" model="ir.ui.view">
+        <field name="name">stock.move.line.search.vendor</field>
+        <field name="model">stock.move.line</field>
+        <field name="inherit_id" ref="stock.stock_move_line_view_search"/>
+        <field name="arch" type="xml">
+            <field name="product_id" position="after">
+                <field name="x_vendor_id"/>
+            </field>
+            <filter name="groupby_product_id" position="before">
+                <filter string="Vendor" name="groupby_vendor" context="{'group_by': 'x_vendor_id'}"/>
+            </filter>
+        </field>
+    </record>
+
+    <!-- ══ Product In / Out: Moves Analysis (stock.move) ═══════════════════ -->
+    <record id="view_move_tree_vendor" model="ir.ui.view">
+        <field name="name">stock.move.list.vendor</field>
+        <field name="model">stock.move</field>
+        <field name="inherit_id" ref="stock.view_move_tree"/>
+        <field name="arch" type="xml">
+            <field name="product_id" position="after">
+                <field name="x_vendor_id" optional="show"/>
+            </field>
+        </field>
+    </record>
+
+    <record id="view_move_search_vendor" model="ir.ui.view">
+        <field name="name">stock.move.search.vendor</field>
+        <field name="model">stock.move</field>
+        <field name="inherit_id" ref="stock.view_move_search"/>
+        <field name="arch" type="xml">
+            <field name="product_id" position="after">
+                <field name="x_vendor_id"/>
+            </field>
+            <filter name="by_product" position="before">
+                <filter string="Vendor" name="by_vendor" context="{'group_by': 'x_vendor_id'}"/>
+            </filter>
+        </field>
+    </record>
+
+    <!-- ══ Product Purchase: Purchase Analysis (purchase.report) ═══════════ -->
+    <record id="view_purchase_report_search_vendor" model="ir.ui.view">
+        <field name="name">purchase.report.search.vendor</field>
+        <field name="model">purchase.report</field>
+        <field name="inherit_id" ref="purchase.view_purchase_order_search"/>
+        <field name="arch" type="xml">
+            <xpath expr="//search" position="inside">
+                <group>
+                    <filter name="group_vendor_mtr" string="Vendor" context="{'group_by': 'partner_id'}"/>
+                    <filter name="group_product_mtr" string="Product" context="{'group_by': 'product_id'}"/>
+                </group>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ══ PR / PO lines: which vendors supply this product ════════════════ -->
+    <record id="view_purchase_order_form_product_vendors" model="ir.ui.view">
+        <field name="name">purchase.order.form.product.vendors</field>
+        <field name="model">purchase.order</field>
+        <field name="inherit_id" ref="purchase.purchase_order_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='order_line']/list/field[@name='product_id']" position="after">
+                <field name="x_product_vendor_ids" widget="many2many_tags" optional="hide"
+                       string="Known Vendors"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

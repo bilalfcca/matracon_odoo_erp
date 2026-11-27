@@ -42,12 +42,12 @@ class ProcurementHoDashboard(models.TransientModel):
         ('30', 'Last 30 Days'),
         ('90', 'Last 90 Days'),
         ('0', 'All Time'),
-    ], string='Date Range', default='30')
+    ], string='Date Range', default='0')
     filter_section = fields.Selection([
         ('all', 'All Sections'),
         ('pending_review', 'Pending HO Review'),
         ('ceo_approval', 'Pending CEO Approval'),
-        ('active_cs', 'Active CS / RFQ'),
+        ('active_cs', 'Active CS'),
         ('critical', 'Critical Site Demands'),
     ], string='Focus', default='all')
 
@@ -122,17 +122,19 @@ class ProcurementHoDashboard(models.TransientModel):
             base + [('x_pr_state', '=', 'ceo_final')],
             order='date_order desc',
         )
-        active_cs = pending_review.filtered(lambda o: o.x_has_tender_alternatives)
+        # Active CS = Comparative Statements being prepared (vendors added, no
+        # winner yet) for PRs still under HO evaluation (Submitted).
+        open_cs = self._active_cs_records(pending_review)
+        active_cs = open_cs.mapped('x_purchase_order_id')
 
         ready_dispatch = PO.search(
             base + [('x_pr_state', '=', 'po_locked')],
             order='date_order desc',
         )
-        confirmed = PO.search(
-            base + [('x_pr_state', '=', 'po_locked'),
-                    ('state', 'in', ('purchase', 'done'))],
-            order='date_order desc', limit=20,
-        )
+        confirmed_domain = base + [('x_pr_state', '=', 'po_locked'),
+                                   ('state', 'in', ('purchase', 'done'))]
+        confirmed_count = PO.search_count(confirmed_domain)
+        confirmed = PO.search(confirmed_domain, order='date_order desc', limit=20)
         cutoff_critical = fields.Datetime.to_datetime(today - timedelta(days=3))
         critical = PO.search(
             base + [
@@ -163,9 +165,9 @@ class ProcurementHoDashboard(models.TransientModel):
             'user_name': user.name,
             # Scalar KPIs
             'pending_review_count': len(pending_review),
-            'active_cs_count': len(active_cs),
+            'active_cs_count': len(open_cs),
             'ceo_pending_count': len(ceo_pending),
-            'confirmed_orders_count': len(confirmed),
+            'confirmed_orders_count': confirmed_count,
             # Recordsets (M2M)
             'available_project_ids': site_projects,
             'pending_review_ids': pending_review,
@@ -175,6 +177,21 @@ class ProcurementHoDashboard(models.TransientModel):
             'recent_po_ids': recent_pos,
             'activity_message_ids': messages,
         }
+
+    def _active_cs_records(self, submitted_prs):
+        """Active CS of the given Submitted PRs: work on the CS has started
+        (at least one vendor added) and no winner has been decided yet.
+        The empty CS auto-created when a PR is submitted does not count."""
+        if not submitted_prs:
+            return self.env['x.comparative.statement']
+        # sudo: some dashboard users (anyone who raised a PR) have no CS access
+        # rights; the PRs themselves were already searched as the user, so this
+        # only counts CS of PRs the user can see.
+        return self.env['x.comparative.statement'].sudo().search([
+            ('x_purchase_order_id', 'in', submitted_prs.ids),
+            ('x_vendor_line_ids', '!=', False),
+            ('x_recommended_vendor_line_id', '=', False),
+        ])
 
     @api.model
     def _refresh_dashboard_data(self, dashboard):
@@ -230,7 +247,7 @@ class ProcurementHoDashboard(models.TransientModel):
             'filter_contact_id': False,
             'filter_category_id': False,
             'filter_pr_state': '',
-            'filter_period_days': '30',
+            'filter_period_days': '0',
             'filter_section': 'all',
         })
         return {
@@ -307,13 +324,25 @@ class ProcurementHoDashboard(models.TransientModel):
         )
 
     def action_open_active_cs(self):
-        pending = self.pending_review_ids.filtered('x_has_tender_alternatives')
+        """Open the active (unconfirmed) Comparative Statements — same set as the card."""
+        submitted = self.env['purchase.order'].search(
+            self._filter_domain() + [('x_pr_state', '=', 'submitted')])
+        open_cs = self._active_cs_records(submitted)
+        if not self.env['x.comparative.statement'].has_access('read'):
+            # No CS rights: show the PRs being evaluated instead.
+            return {
+                'type': 'ir.actions.act_window',
+                'name': _('Active CS (PRs under evaluation)'),
+                'res_model': 'purchase.order',
+                'view_mode': 'list,form',
+                'domain': [('id', 'in', open_cs.mapped('x_purchase_order_id').ids)],
+            }
         return {
             'type': 'ir.actions.act_window',
-            'name': _('Active CS / RFQ'),
-            'res_model': 'purchase.order',
+            'name': _('Active Comparative Statements'),
+            'res_model': 'x.comparative.statement',
             'view_mode': 'list,form',
-            'domain': [('id', 'in', pending.ids)],
+            'domain': [('id', 'in', open_cs.ids)],
         }
 
     def action_open_critical_demands(self):
