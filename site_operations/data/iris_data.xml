@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <!-- FBR emails are auto-forwarded to iris@<alias domain> -->
+        <record id="mail_alias_iris" model="mail.alias">
+            <field name="alias_name">iris</field>
+            <field name="alias_model_id" ref="site_operations.model_x_iris_message"/>
+            <field name="alias_contact">everyone</field>
+        </record>
+
+        <record id="param_iris_reminder_days" model="ir.config_parameter">
+            <field name="key">site_operations.iris_reminder_days</field>
+            <field name="value">7,3,1,0</field>
+        </record>
+
+    <record id="ir_cron_iris_reminders" model="ir.cron">
+        <field name="name">Matracon: IRIS Due-Date Reminders</field>
+        <field name="model_id" ref="model_x_tax_notice_order"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_iris_reminders()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+        <field name="nextcall" eval="(DateTime.now() + timedelta(days=1)).strftime('%Y-%m-%d 03:00:00')"/>
+        <field name="active" eval="True"/>
+    </record>
+    </data>
+</odoo>
