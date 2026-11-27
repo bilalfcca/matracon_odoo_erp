@@ -1,0 +1,391 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ══ IRIS Accounts ══════════════════════════════════════════════════ -->
+    <record id="view_iris_account_list" model="ir.ui.view">
+        <field name="name">x.iris.account.list</field>
+        <field name="model">x.iris.account</field>
+        <field name="arch" type="xml">
+            <list string="IRIS Accounts">
+                <field name="name"/>
+                <field name="registration_no"/>
+                <field name="email"/>
+                <field name="partner_id" optional="hide"/>
+                <field name="open_count" string="Pending Notices"/>
+                <field name="notice_count" string="All Notices" optional="show"/>
+                <field name="active" column_invisible="True"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_iris_account_form" model="ir.ui.view">
+        <field name="name">x.iris.account.form</field>
+        <field name="model">x.iris.account</field>
+        <field name="arch" type="xml">
+            <form string="IRIS Account">
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_notices" type="object" class="oe_stat_button" icon="fa-envelope-o">
+                            <field name="notice_count" widget="statinfo" string="Notices"/>
+                        </button>
+                    </div>
+                    <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger" invisible="active"/>
+                    <div class="oe_title">
+                        <label for="name"/>
+                        <h1><field name="name" placeholder="e.g. MATRACON PAKISTAN (PRIVATE) LIMITED"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="registration_no" placeholder="e.g. 2603793"/>
+                            <field name="email" widget="email"/>
+                        </group>
+                        <group>
+                            <field name="partner_id"/>
+                            <field name="active" invisible="1"/>
+                        </group>
+                    </group>
+                    <field name="notes" placeholder="Notes (consultant, login holder ...)"/>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_iris_account_search" model="ir.ui.view">
+        <field name="name">x.iris.account.search</field>
+        <field name="model">x.iris.account</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="registration_no"/>
+                <field name="email"/>
+                <filter string="Archived" name="archived" domain="[('active', '=', False)]"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_iris_account" model="ir.actions.act_window">
+        <field name="name">IRIS Accounts</field>
+        <field name="res_model">x.iris.account</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Add your IRIS accounts</p>
+            <p>One line per IRIS login: name, Registration No / NTN and the email registered in IRIS.
+               FBR emails are matched to the account by the Registration No.</p>
+        </field>
+    </record>
+
+    <!-- ══ Alert recipients ═══════════════════════════════════════════════ -->
+    <record id="view_iris_alert_recipient_list" model="ir.ui.view">
+        <field name="name">x.iris.alert.recipient.list</field>
+        <field name="model">x.iris.alert.recipient</field>
+        <field name="arch" type="xml">
+            <list string="IRIS Alert Recipients" editable="bottom">
+                <header>
+                    <button name="action_reminder_days" type="object" string="Reminder Days"
+                            icon="fa-clock-o" display="always"/>
+                </header>
+                <field name="name" placeholder="Name / role"/>
+                <field name="email" widget="email"/>
+                <field name="active" widget="boolean_toggle"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_iris_alert_recipient" model="ir.actions.act_window">
+        <field name="name">IRIS Alert Recipients</field>
+        <field name="res_model">x.iris.alert.recipient</field>
+        <field name="view_mode">list</field>
+        <field name="context">{'active_test': False}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Add who receives IRIS alerts</p>
+            <p>Every new FBR notice and the daily due-date reminders are emailed to all active addresses here.</p>
+        </field>
+    </record>
+
+    <record id="view_iris_reminder_wizard_form" model="ir.ui.view">
+        <field name="name">x.iris.reminder.wizard.form</field>
+        <field name="model">x.iris.reminder.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Reminder Days">
+                <group>
+                    <field name="reminder_days" placeholder="7,3,1,0"/>
+                </group>
+                <p class="text-muted">
+                    Days before the due date on which the reminder email is sent (0 = on the due date).
+                    Notices not submitted after their due date are reminded every day.
+                </p>
+                <footer>
+                    <button name="action_save" type="object" string="Save" class="btn-primary"/>
+                    <button string="Cancel" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- ══ Incoming FBR emails ════════════════════════════════════════════ -->
+    <record id="view_iris_message_list" model="ir.ui.view">
+        <field name="name">x.iris.message.list</field>
+        <field name="model">x.iris.message</field>
+        <field name="arch" type="xml">
+            <list string="Incoming FBR Emails" create="0"
+                  decoration-danger="status == 'unknown_account'" decoration-muted="status == 'ignored'">
+                <field name="received_date"/>
+                <field name="name"/>
+                <field name="account_id"/>
+                <field name="registration_no" optional="hide"/>
+                <field name="kind"/>
+                <field name="section"/>
+                <field name="tax_year"/>
+                <field name="due_date"/>
+                <field name="notice_id"/>
+                <field name="status" widget="badge"
+                       decoration-success="status == 'processed'" decoration-danger="status == 'unknown_account'"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_iris_message_form" model="ir.ui.view">
+        <field name="name">x.iris.message.form</field>
+        <field name="model">x.iris.message</field>
+        <field name="arch" type="xml">
+            <form string="FBR Email" create="0">
+                <header>
+                    <button name="action_reprocess" type="object" string="Reprocess"
+                            help="Read the email again, e.g. after adding its IRIS account."/>
+                    <field name="status" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name" readonly="1"/></h1>
+                    </div>
+                    <group>
+                        <group string="Email">
+                            <field name="received_date" readonly="1"/>
+                            <field name="email_from" readonly="1"/>
+                            <field name="email_to" readonly="1"/>
+                            <field name="notice_id" readonly="1"/>
+                        </group>
+                        <group string="Read from the email">
+                            <field name="kind" readonly="1"/>
+                            <field name="account_id" readonly="1"/>
+                            <field name="registration_no" readonly="1"/>
+                            <field name="taxpayer" readonly="1"/>
+                            <field name="tax_year" readonly="1"/>
+                            <field name="section" readonly="1"/>
+                            <field name="title" readonly="1"/>
+                            <field name="action" readonly="1"/>
+                            <field name="notice_date" readonly="1"/>
+                            <field name="due_date" readonly="1"/>
+                            <field name="iris_folder" readonly="1"/>
+                            <field name="officer" readonly="1"/>
+                        </group>
+                    </group>
+                    <field name="body_html" readonly="1"/>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_iris_message_search" model="ir.ui.view">
+        <field name="name">x.iris.message.search</field>
+        <field name="model">x.iris.message</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="account_id"/>
+                <field name="registration_no"/>
+                <field name="section"/>
+                <filter string="Unknown Account" name="unknown" domain="[('status', '=', 'unknown_account')]"/>
+                <filter string="Not FBR" name="ignored" domain="[('status', '=', 'ignored')]"/>
+                <separator/>
+                <filter string="Account" name="group_account" context="{'group_by': 'account_id'}"/>
+                <filter string="Status" name="group_status" context="{'group_by': 'status'}"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_iris_message" model="ir.actions.act_window">
+        <field name="name">Incoming FBR Emails</field>
+        <field name="res_model">x.iris.message</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No FBR email received yet</p>
+            <p>FBR emails forwarded to the IRIS address of Odoo appear here and create or update Tax Notices.</p>
+        </field>
+    </record>
+
+    <!-- ══ Mark Submitted wizard ══════════════════════════════════════════ -->
+    <record id="view_iris_submit_wizard_form" model="ir.ui.view">
+        <field name="name">x.iris.submit.wizard.form</field>
+        <field name="model">x.iris.submit.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Mark Submitted in IRIS">
+                <p>Submit the reply in IRIS first, then record the IRIS acknowledgement here.</p>
+                <group>
+                    <field name="notice_id" readonly="1"/>
+                    <field name="ack_no"/>
+                    <field name="submitted_date"/>
+                    <field name="slip" filename="slip_name"/>
+                    <field name="slip_name" invisible="1"/>
+                    <field name="remarks"/>
+                </group>
+                <footer>
+                    <button name="action_confirm" type="object" string="Mark Submitted" class="btn-primary"/>
+                    <button string="Cancel" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- ══ Tax notice: IRIS additions ═════════════════════════════════════ -->
+    <record id="view_tax_notice_order_form_iris" model="ir.ui.view">
+        <field name="name">x.tax.notice.order.form.iris</field>
+        <field name="model">x.tax.notice.order</field>
+        <field name="inherit_id" ref="site_operations.view_tax_notice_order_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//button[@name='action_reply_submitted']" position="replace">
+                <button name="action_start_reply" type="object" string="Start Reply"
+                        invisible="state not in ('draft', 'open') or x_reply_started"/>
+                <button name="action_iris_mark_submitted" type="object" string="Mark Submitted"
+                        class="btn-primary" invisible="state not in ('draft', 'open')"/>
+            </xpath>
+            <xpath expr="//widget[@name='web_ribbon']" position="before">
+                <div class="oe_button_box" name="button_box">
+                    <button name="action_view_iris_messages" type="object" class="oe_stat_button"
+                            icon="fa-envelope" invisible="not x_iris_message_count">
+                        <field name="x_iris_message_count" widget="statinfo" string="FBR Emails"/>
+                    </button>
+                </div>
+            </xpath>
+            <xpath expr="//field[@name='ref_no']" position="before">
+                <field name="x_iris_folder" widget="badge"
+                       decoration-info="x_iris_folder == 'inbox'" decoration-warning="x_iris_folder == 'drafts'"
+                       decoration-success="x_iris_folder in ('submitted', 'completed')"/>
+                <field name="x_iris_account_id"/>
+            </xpath>
+            <xpath expr="//field[@name='tax_year']" position="after">
+                <field name="x_iris_title" invisible="not x_iris_title"/>
+                <field name="x_iris_action" invisible="not x_iris_action"/>
+                <field name="x_iris_source_folder" invisible="not x_iris_source_folder"/>
+                <field name="x_iris_officer" invisible="not x_iris_officer"/>
+                <field name="x_iris_kind" invisible="not x_iris_kind"/>
+                <field name="x_reply_started" invisible="1"/>
+                <field name="x_iris_from_email" invisible="1"/>
+            </xpath>
+            <xpath expr="//field[@name='currency_id']" position="after">
+                <field name="x_iris_ack_no" invisible="not x_iris_ack_no"/>
+                <field name="x_iris_submitted_date" invisible="not x_iris_submitted_date"/>
+                <field name="x_iris_slip_ids" widget="matracon_multi_file" invisible="not x_iris_slip_ids"/>
+            </xpath>
+            <xpath expr="//page[@name='payments']" position="before">
+                <page string="Reply" name="iris_reply">
+                    <field name="x_reply_draft" placeholder="Draft the reply here, then submit it in IRIS and click Mark Submitted."
+                           readonly="state not in ('draft', 'open')"/>
+                    <group>
+                        <field name="x_reply_attachment_ids" widget="matracon_multi_file"
+                               readonly="state not in ('draft', 'open')"/>
+                    </group>
+                </page>
+                <page string="FBR Emails" name="iris_emails" invisible="not x_iris_message_count">
+                    <field name="x_iris_message_ids" readonly="1">
+                        <list>
+                            <field name="received_date"/>
+                            <field name="kind"/>
+                            <field name="action"/>
+                            <field name="title"/>
+                            <field name="due_date"/>
+                            <field name="officer"/>
+                        </list>
+                    </field>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_tax_notice_order_tree_iris" model="ir.ui.view">
+        <field name="name">x.tax.notice.order.list.iris</field>
+        <field name="model">x.tax.notice.order</field>
+        <field name="inherit_id" ref="site_operations.view_tax_notice_order_tree"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='taxpayer_name']" position="before">
+                <field name="x_iris_folder" string="Folder" widget="badge" optional="show"
+                       decoration-info="x_iris_folder == 'inbox'" decoration-warning="x_iris_folder == 'drafts'"
+                       decoration-success="x_iris_folder in ('submitted', 'completed')"/>
+            </xpath>
+            <xpath expr="//field[@name='taxpayer_name']" position="after">
+                <field name="x_iris_account_id" optional="hide"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_tax_notice_order_search_iris" model="ir.ui.view">
+        <field name="name">x.tax.notice.order.search.iris</field>
+        <field name="model">x.tax.notice.order</field>
+        <field name="inherit_id" ref="site_operations.view_tax_notice_order_search"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='tax_year']" position="after">
+                <field name="x_iris_account_id"/>
+            </xpath>
+            <xpath expr="//filter[@name='filter_open']" position="before">
+                <filter string="Inbox" name="folder_inbox" domain="[('x_iris_folder', '=', 'inbox')]"/>
+                <filter string="Drafts" name="folder_drafts" domain="[('x_iris_folder', '=', 'drafts')]"/>
+                <filter string="Submitted" name="folder_submitted" domain="[('x_iris_folder', '=', 'submitted')]"/>
+                <filter string="Completed" name="folder_completed" domain="[('x_iris_folder', '=', 'completed')]"/>
+                <filter string="Info" name="folder_info" domain="[('x_iris_folder', '=', 'info')]"/>
+                <separator/>
+                <filter string="Due This Week" name="due_week"
+                        domain="[('x_iris_folder', 'in', ('inbox', 'drafts')), ('due_date', '&lt;=', (context_today() + relativedelta(days=7)).strftime('%Y-%m-%d'))]"/>
+                <filter string="Unknown IRIS Account" name="iris_unknown"
+                        domain="[('x_iris_from_email', '=', True), ('x_iris_account_id', '=', False)]"/>
+                <separator/>
+            </xpath>
+            <xpath expr="//filter[@name='group_tax_year']" position="before">
+                <filter string="Group by IRIS Account" name="group_iris_account" context="{'group_by': 'x_iris_account_id'}"/>
+                <filter string="Group by Folder" name="group_iris_folder" context="{'group_by': 'x_iris_folder'}"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- IRIS Notices: same list with IRIS folders / accounts on the left -->
+    <record id="view_tax_notice_order_search_iris_panel" model="ir.ui.view">
+        <field name="name">x.tax.notice.order.search.iris.panel</field>
+        <field name="model">x.tax.notice.order</field>
+        <field name="inherit_id" ref="site_operations.view_tax_notice_order_search"/>
+        <field name="mode">primary</field>
+        <field name="arch" type="xml">
+            <xpath expr="//search" position="inside">
+                <searchpanel>
+                    <field name="x_iris_folder" string="Folder" icon="fa-folder" select="one" expand="1" enable_counters="1"/>
+                    <field name="x_iris_account_id" string="IRIS Account" icon="fa-id-card" select="multi" enable_counters="1"/>
+                </searchpanel>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="action_iris_notices" model="ir.actions.act_window">
+        <field name="name">IRIS Notices</field>
+        <field name="res_model">x.tax.notice.order</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_tax_notice_order_search_iris_panel"/>
+        <field name="context">{'searchpanel_default_x_iris_folder': 'inbox'}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No notices in this folder</p>
+            <p>FBR emails forwarded to Odoo create notices here automatically.</p>
+        </field>
+    </record>
+
+    <!-- ══ Menus (Compliance) ═════════════════════════════════════════════ -->
+    <menuitem id="menu_iris_root" name="IRIS / FBR"
+              parent="site_operations.menu_compliance_root" sequence="19"
+              groups="site_operations.group_finance_ho,purchase_demand_raise.group_ceo_approval,purchase_demand_raise.group_matracon_admin,base.group_system"/>
+    <menuitem id="menu_iris_notices" name="IRIS Notices" parent="menu_iris_root"
+              action="action_iris_notices" sequence="1"/>
+    <menuitem id="menu_iris_messages" name="Incoming FBR Emails" parent="menu_iris_root"
+              action="action_iris_message" sequence="5"/>
+    <menuitem id="menu_iris_accounts" name="IRIS Accounts" parent="menu_iris_root"
+              action="action_iris_account" sequence="10"/>
+    <menuitem id="menu_iris_alert_recipients" name="Alert Recipients" parent="menu_iris_root"
+              action="action_iris_alert_recipient" sequence="20"/>
+
+</odoo>
