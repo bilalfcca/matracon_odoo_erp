@@ -238,8 +238,8 @@ class IrisAlertRecipient(models.Model):
     def _emails(self):
         return [r.email.strip() for r in self.search([]) if r.email]
 
-    @api.model
     def action_reminder_days(self):
+        # list header button: called with the selected ids (possibly none)
         return {
             'type': 'ir.actions.act_window',
             'name': _('Reminder Days'),
