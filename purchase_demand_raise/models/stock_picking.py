@@ -139,12 +139,33 @@ class StockPickingPR(models.Model):
                     and picking.purchase_id
                     and picking.purchase_id.x_is_pr_document):
                 if not picking.x_weight_document_attachment_ids:
+                    # uploaded through an old (cached) form into the legacy field
+                    picking._mtr_adopt_legacy_weight_document()
+                if not picking.x_weight_document_attachment_ids:
                     raise UserError(_(
                         'Please upload the Weight/PO Document before marking the receipt as received.'
                     ))
         res = super().button_validate()
         self._matracon_after_receipt_validated()
         return res
+
+    def _mtr_adopt_legacy_weight_document(self):
+        """Move a file saved in the legacy single-file field (a browser still
+        showing the old form) into the multi-file Weight/PO Documents field."""
+        Attachment = self.env['ir.attachment'].sudo()
+        for picking in self:
+            legacy = Attachment.with_context(skip_res_field_check=True).search([
+                ('res_model', '=', 'stock.picking'), ('res_id', '=', picking.id),
+                ('res_field', '=', 'x_weight_document'),
+            ], order='id desc', limit=1)
+            if not legacy:
+                continue
+            new = legacy.copy({
+                'name': picking.sudo().x_weight_document_filename or legacy.name or 'Weight Document',
+                'res_model': 'stock.picking', 'res_id': picking.id, 'res_field': False,
+            })
+            picking.sudo().write({'x_weight_document_attachment_ids': [(4, new.id)]})
+            picking.invalidate_recordset(['x_weight_document_attachment_ids'])
 
     def _matracon_after_receipt_validated(self):
         """Hook: accounting document creation after GRN.
